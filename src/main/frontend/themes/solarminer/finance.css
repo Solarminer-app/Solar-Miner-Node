@@ -1,0 +1,180 @@
+:root {
+    --card-bg-color: #141416;
+    --card-border-color: #222226;
+    --text-value-gray: #8a8a93;
+    --text-value-white: #ffffff;
+    --text-value-green: #2ecc71;
+    --text-value-yellow: #f1c40f;
+}
+
+.finance-page {
+    background-color: #0f0f11;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding: 24px;
+    box-sizing: border-box;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+.finance-tabs {
+    border-bottom: 1px solid var(--card-border-color);
+}
+
+.finance-content-area {
+    display: flex;
+    flex-direction: column;
+    margin-top: 16px;
+}
+
+.dashboard-card {
+    background-color: var(--card-bg-color);
+    border: 1px solid var(--card-border-color);
+    border-radius: 8px;
+    padding: 24px;
+    box-sizing: border-box;
+}
+
+.finance-kpi-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    width: 100%;
+}
+
+.stat-card {
+    flex: 1 1 0;
+    min-width: 120px;
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    background-color: var(--card-bg-color);
+    border: 1px solid var(--card-border-color);
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+
+.stat-card-icon {
+    font-size: 35px;
+    margin-right: 16px;
+}
+
+.stat-card-text-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-card-title {
+    font-size: 12px;
+    color: var(--text-value-gray);
+    margin-bottom: 4px;
+}
+
+.stat-card-value {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.finance-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    margin-bottom: 16px;
+    width: 100%;
+}
+
+.finance-grid {
+    background-color: transparent;
+    border: none;
+}
+
+.yield-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    display: inline-block;
+}
+
+.yield-badge.positive {
+    background-color: rgba(46, 204, 113, 0.2);
+    color: var(--text-value-green);
+}
+
+.yield-badge.negative {
+    background-color: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+}
+
+.ledger-title {
+    margin-top: 0;
+    margin-bottom: 16px;
+    color: var(--text-value-white);
+}
+
+.btc-amount-span {
+    color: var(--text-value-gray);
+    font-size: 14px;
+    font-weight: normal;
+    margin-left: 8px;
+}
+
+.break-even-success {
+    color: var(--text-value-green);
+}
+
+.break-even-default {
+    color: var(--text-value-white);
+}
+
+.wallet-header-layout {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin-bottom: var(--lumo-space-m);
+}
+
+.address-label {
+    font-size: var(--lumo-font-size-xs);
+    color: var(--lumo-secondary-text-color);
+}
+
+.address-text {
+    font-size: 0.95rem;
+    font-weight: 600;
+    word-break: break-all;
+}
+
+.stat-large-value {
+    font-size: 1.4rem;
+    font-weight: bold;
+}
+
+.channel-stats-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lumo-space-m);
+    width: 100%;
+}
+
+.lightning-history-grid {
+    height: 500px;
+}
+
+@media (max-width: 1024px) {
+    .lightning-dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .lightning-history-grid {
+        height: 350px;
+    }
+
+    .lightning-action-buttons-row vaadin-button {
+        flex: 1 1 100%;
+    }
+}

@@ -1,0 +1,11 @@
+- Onboarding über eigene Pages
+ -> 1. Account anmelden -> Licence Key
+ -> 2. PV Site connecten
+
+Dashboard:
+> Bei Tagesstatistik die möglichkeit andere tage auszuwählen, oder ein Button der auf eine extra seite führt wo historische daten sind
+Setup:
+> Oceans Rest API einbauen.
+
+
+Bei Minern -> Neben Min und Max Target auch die Stepsize per miner einstellbar.

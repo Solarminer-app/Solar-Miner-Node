@@ -1,0 +1,49 @@
+name: docker-deploy-core.yml
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'core/**'
+      - '.github/workflows/docker-deploy-core.yml'
+  workflow_dispatch:
+
+env:
+  # Dein offizieller Docker Hub Pfad, passend zur compose.yml
+  IMAGE_NAME: verdox/solar-miner-core
+  SUBMODULE_DIR: core
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Logge dich in Docker Hub ein
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Baue das Image und übergebe die Secrets an den isolierten Paketo-Builder
+      - name: Build and Publish Spring Boot Native Image
+        env:
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          ./gradlew :${{ env.SUBMODULE_DIR }}:bootBuildImage \
+            --imageName=${{ env.IMAGE_NAME }}:latest \
+            --publishImage \
+            -x test

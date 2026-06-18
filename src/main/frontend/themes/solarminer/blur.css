@@ -1,0 +1,28 @@
+/* Der äußere Container muss "relative" sein, damit das Overlay exakt darüber liegt */
+.blur-wrapper {
+    position: relative;
+    display: inline-block; /* Verhindert, dass das Element die ganze Breite einnimmt, wenn nicht gewünscht */
+    width: fit-content;
+}
+
+.blurred-content {
+    filter: blur(6px);
+    opacity: 0.6;
+    pointer-events: none;
+    user-select: none;
+    transition: filter 0.3s ease, opacity 0.3s ease;
+}
+
+/* Das Overlay mit dem Button, das exakt über dem unscharfen Inhalt liegt */
+.blur-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.1); /* Leichter dunkler Schleier (optional) */
+    z-index: 10;
+}

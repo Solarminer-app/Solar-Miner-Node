@@ -1,0 +1,40 @@
+plugins {
+    java
+    id("org.springframework.boot") version "3.4.3"
+    id("io.spring.dependency-management") version "1.1.7"
+    id("org.hibernate.orm") version "6.6.9.Final"
+    id("org.graalvm.buildtools.native") version "0.9.28"
+}
+
+group = "de.verdox.currency-rates"
+version = "0.0.1-SNAPSHOT"
+description = "currency-rates"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation("com.google.code.gson:gson:2.12.1")
+    implementation("org.springframework.boot:spring-boot-starter-data-jdbc")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
+    implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    compileOnly("org.projectlombok:lombok")
+    runtimeOnly("org.mariadb.jdbc:mariadb-java-client")
+    annotationProcessor("org.projectlombok:lombok")
+    testCompileOnly("org.projectlombok:lombok")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testAnnotationProcessor("org.projectlombok:lombok")
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
+}

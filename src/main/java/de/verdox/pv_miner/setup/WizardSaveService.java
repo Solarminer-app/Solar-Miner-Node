@@ -1,0 +1,233 @@
+package de.verdox.pv_miner.setup;
+
+import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
+import de.verdox.pv_miner.entity.EntityControllerService;
+import de.verdox.pv_miner.entity.EntityQueryService;
+import de.verdox.pv_miner.entity.EntityService;
+import de.verdox.pv_miner.miner.MinerApiClient;
+import de.verdox.pv_miner.miner.MinerEntity;
+import de.verdox.pv_miner.miningcontroller.MinerClusterService;
+import de.verdox.pv_miner.miningcontroller.MinerControllerConfigStorage;
+import de.verdox.pv_miner.miningpool.MiningPoolEntity;
+import de.verdox.pv_miner.pvsite.HistoricalPrice;
+import de.verdox.pv_miner.pvsite.PVPanels;
+import de.verdox.pv_miner.pvsite.PVSiteEntity;
+import de.verdox.pv_miner.util.Money;
+import de.verdox.pv_miner.frontend.setup.MinerSetupStep;
+import de.verdox.pv_miner.frontend.setup.PVSetupStep;
+import de.verdox.pv_miner.frontend.setup.PVSiteVariablesStep;
+import de.verdox.pv_miner_extensions.agent.AgentMinerEntity;
+import de.verdox.pv_miner_extensions.braiins.miner.BraiinsOSAsicMinerEntity;
+import de.verdox.pv_miner_extensions.modbus.ModbusPVSite;
+import de.verdox.pv_miner_extensions.modbus.config.ModbusConfigCreatorTemplate;
+import de.verdox.pv_miner_extensions.modbus.config.ModbusConfigStorage;
+import de.verdox.pv_miner_extensions.restpv.RestPVSite;
+import de.verdox.pv_miner_extensions.restpv.config.RestConfigCreatorTemplate;
+import de.verdox.pv_miner_extensions.restpv.config.RestConfigStorage;
+import jakarta.transaction.Transactional;
+import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
+
+// NEUE IMPORTE
+
+@Service
+public class WizardSaveService {
+
+    private final EntityService entityService;
+    private final MinerClusterService minerClusterService;
+    private final MinerApiClient minerApiClient;
+    private final EntityQueryService entityQueryService;
+    private final EntityControllerService entityControllerService;
+    private final ModbusConfigStorage modbusConfigStorage;
+    private final ConfigFetcherService configFetcherService;
+    private final RestConfigStorage restConfigStorage;
+
+    public WizardSaveService(EntityService entityService, MinerClusterService minerClusterService, MinerApiClient minerApiClient, EntityQueryService entityQueryService, EntityControllerService entityControllerService, ModbusConfigStorage modbusConfigStorage, ConfigFetcherService configFetcherService, RestConfigStorage restConfigStorage) {
+        this.entityService = entityService;
+        this.minerClusterService = minerClusterService;
+        this.minerApiClient = minerApiClient;
+        this.entityQueryService = entityQueryService;
+        this.entityControllerService = entityControllerService;
+        this.modbusConfigStorage = modbusConfigStorage;
+        this.configFetcherService = configFetcherService;
+        this.restConfigStorage = restConfigStorage;
+    }
+
+    @Transactional
+    public void saveSetupData(
+            Set<PVSetupStep.DiscoveredPVDevice> pvDevices,
+            Set<MinerSetupStep.MinerConfigEntry> miners,
+            MiningPoolEntity<?> pool,
+            PVSiteVariablesStep.VariablesData variablesData) { // NEU
+
+        PVSiteEntity savedSite = null;
+
+
+        for (PVSetupStep.DiscoveredPVDevice device : pvDevices) {
+
+            if ("Modbus-TCP".equals(device.getProtocol())) {
+                saveModbusConfigIfTakenFromCache(device);
+
+                ModbusPVSite modbusSite = new ModbusPVSite();
+                modbusSite.setName("Modbus PV " + device.getIpAddress());
+                modbusSite.setIpAddress(device.getIpAddress());
+                modbusSite.setPort(device.getPort());
+                modbusSite.setModbusConfigName(device.getSelectedConfigName());
+                modbusSite.setSlaveId(device.getModbusSlaveId());
+                applyVariablesDataToSite(modbusSite, variablesData);
+
+                savedSite = entityService.save(modbusSite);
+            } else if ("Rest-API".equals(device.getProtocol())) {
+                saveRestConfigIfTakenFromCache(device);
+
+                RestPVSite restSite = new RestPVSite();
+                restSite.setName("Rest PV " + device.getIpAddress());
+                restSite.setHostName(device.getIpAddress());
+                restSite.setPort(device.getPort());
+                restSite.setRestPVConfigName(device.getSelectedConfigName());
+                restSite.setApiToken(device.getRestAPIToken());
+
+                applyVariablesDataToSite(restSite, variablesData);
+
+                savedSite = entityService.save(restSite);
+            }
+            break;
+        }
+
+        // --- NEU: PV Panels abspeichern ---
+        if (savedSite != null && variablesData != null && variablesData.panels() != null) {
+            for (PVPanels panel : variablesData.panels()) {
+                panel.setParentEntity(savedSite);
+                entityService.save(savedSite, panel);
+            }
+        }
+
+        if (savedSite != null && pool != null) {
+            addPoolToExistingSite(savedSite, pool);
+        }
+        if (savedSite != null && miners != null) {
+            saveMinersForSite(savedSite, miners);
+        }
+    }
+
+    private void saveRestConfigIfTakenFromCache(PVSetupStep.DiscoveredPVDevice device) {
+        if (!restConfigStorage.doesConfigExistOnDisk(RestConfigCreatorTemplate.HOME_ASSISTANT_PV, device.getSelectedConfigName())) {
+            configFetcherService.getRestPVConfig(device.getSelectedConfigName()).ifPresent(restPVConfig -> {
+                try {
+                    restConfigStorage.save(RestConfigCreatorTemplate.HOME_ASSISTANT_PV, device.getSelectedConfigName(), restPVConfig);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+    }
+
+    private void saveModbusConfigIfTakenFromCache(PVSetupStep.DiscoveredPVDevice device) {
+        if (!modbusConfigStorage.doesConfigExistOnDisk(ModbusConfigCreatorTemplate.PV_SITE, device.getSelectedConfigName())) {
+            configFetcherService.getModbusConfig(device.getSelectedConfigName()).ifPresent(modbusConfig -> {
+                try {
+                    modbusConfigStorage.save(ModbusConfigCreatorTemplate.PV_SITE, device.getSelectedConfigName(), modbusConfig);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+    }
+
+    // --- NEU: Helper zum Setzen der Variablen (Historie, Datum, etc) ---
+    private void applyVariablesDataToSite(PVSiteEntity site, PVSiteVariablesStep.VariablesData variablesData) {
+        if (variablesData == null) {
+            site.setSetupDate(LocalDate.now());
+            return;
+        }
+
+        site.setSetupDate(variablesData.setupDate());
+        site.setPvCost(new Money(variablesData.pvCost(), variablesData.currency()));
+
+        // Strompreis setzen (Initialer Eintrag in der Historie)
+        HistoricalPrice electricityPrice = new HistoricalPrice(variablesData.setupDate(), new Money(variablesData.electricityPrice(), variablesData.currency()));
+        site.getElectricityPriceHistory().add(electricityPrice);
+
+        // Einspeisevergütung setzen (Initialer Eintrag in der Historie), falls vorhanden
+        if (variablesData.feedInTariff() != null && variablesData.feedInTariff() > 0) {
+            HistoricalPrice feedInTariff = new HistoricalPrice(variablesData.setupDate(), new Money(variablesData.feedInTariff(), variablesData.currency()));
+            site.getFeedInTariffHistory().add(feedInTariff);
+        }
+    }
+
+    @Transactional
+    public void addMinersToExistingSite(PVSiteEntity existingSite, Set<MinerSetupStep.MinerConfigEntry> miners) {
+        if (existingSite != null && miners != null && !miners.isEmpty()) {
+            saveMinersForSite(existingSite, miners);
+        }
+    }
+
+    @Transactional
+    public void addPoolToExistingSite(PVSiteEntity existingSite, MiningPoolEntity<?> pool) {
+        if (existingSite != null && pool != null) {
+            entityService.save(pool, existingSite);
+        }
+    }
+
+    private void saveMinersForSite(PVSiteEntity site, Set<MinerSetupStep.MinerConfigEntry> miners) {
+        var firstConnectedMiningPool = site.getConnectedMiningPools().stream().findAny().orElse(null);
+
+        Set<MinerEntity<?>> minersToAssign = new HashSet<>();
+        for (MinerSetupStep.MinerConfigEntry entry : miners) {
+            var minerInfo = entry.getMinerInfo();
+
+            MinerEntity<?> miner = switch (minerInfo.os()) {
+                case BRAIINS -> {
+                    var braiins = new BraiinsOSAsicMinerEntity();
+                    braiins.setName(minerInfo.model());
+                    braiins.setHost(minerInfo.ipAddress());
+                    braiins.setPort(50051);
+                    braiins.setUsername(entry.getUsername());
+                    braiins.setPassword(entry.getPassword());
+                    yield braiins;
+                }
+                case AGENT -> {
+                    var agent = new AgentMinerEntity();
+                    agent.setHost(minerInfo.ipAddress());
+                    agent.setPort(8084);
+                    yield agent;
+                }
+                case VNISH, LUXOS -> throw new UnsupportedOperationException("OS momentan nicht unterstützt.");
+            };
+
+            miner.setParentEntity(site);
+            minersToAssign.add(miner);
+            entityService.save(miner, site);
+
+
+            System.out.println(firstConnectedMiningPool);
+
+            if (firstConnectedMiningPool != null) {
+                try {
+                    var details = entityControllerService.getController(miner).details();
+                    var identity = entityQueryService.query(miner).minerIdentity();
+                    String defaultWorkerName = entityQueryService.query(firstConnectedMiningPool).getDefaultWorkerName();
+                    System.out.println("Setting mining pool to " + firstConnectedMiningPool.getStratumV1Url());
+                    minerApiClient.setMiningPoolTarget(minerInfo.os(), details, firstConnectedMiningPool.getStratumV1Url(), defaultWorkerName, identity);
+                    miner.setCurrentMiningPoolTarget(firstConnectedMiningPool.getUrlIdentifier());
+                    entityService.save(miner, site);
+                } catch (Throwable e) {
+                    e.printStackTrace();
+                }
+            }
+
+        }
+
+        var cluster = minerClusterService.getCluster(MinerControllerConfigStorage.STANDARD_CLUSTER_NAME);
+        cluster.assignMiners(minersToAssign);
+        try {
+            minerClusterService.startCluster(MinerControllerConfigStorage.STANDARD_CLUSTER_NAME, site);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}

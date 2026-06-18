@@ -1,0 +1,67 @@
+/* ./themes/solarminer/compass.css */
+
+.compass-dial {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    /* Leichter Farbverlauf für einen dreidimensionalen Look */
+    background: radial-gradient(circle at 50% 50%, var(--lumo-base-color), var(--lumo-contrast-5pct));
+    border: 2px solid var(--lumo-contrast-20pct);
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.05);
+    cursor: pointer;
+    margin: var(--lumo-space-s) auto;
+    touch-action: none; /* Ganz wichtig: Verhindert, dass man am Handy scrollt, wenn man den Kompass bedient */
+}
+
+.compass-label {
+    position: absolute;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--lumo-secondary-text-color);
+    transform: translate(-50%, -50%);
+    pointer-events: none; /* Klicks gehen durch den Text hindurch auf das Ziffernblatt */
+}
+
+/* Positionierung der Himmelsrichtungen */
+.compass-label.n { top: 12%; left: 50%; color: var(--lumo-error-text-color); } /* Nord ist oft rot markiert */
+.compass-label.e { top: 50%; left: 88%; }
+.compass-label.s { top: 88%; left: 50%; }
+.compass-label.w { top: 50%; left: 12%; }
+
+.compass-needle {
+    position: absolute;
+    bottom: 50%;
+    left: 50%;
+    width: 4px;
+    height: 45%;
+    background-color: var(--lumo-error-color); /* Rote Kompassnadel */
+    transform-origin: bottom center;
+    border-radius: 4px 4px 0 0;
+    /* Leichtes Glätten der Bewegung */
+    transition: transform 0.05s linear;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.compass-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    background: var(--lumo-contrast-80pct);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 3;
+    border: 2px solid var(--lumo-base-color);
+}
+
+.compass-value-display {
+    text-align: center;
+    font-size: var(--lumo-font-size-l);
+    font-weight: 800;
+    color: var(--lumo-primary-text-color);
+    margin-top: var(--lumo-space-xs);
+}

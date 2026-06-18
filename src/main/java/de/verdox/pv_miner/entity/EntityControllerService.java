@@ -1,0 +1,63 @@
+package de.verdox.pv_miner.entity;
+
+import de.verdox.pv_miner.miner.MinerApiClient;
+import de.verdox.pv_miner_extensions.agent.AgentMiner;
+import de.verdox.pv_miner_extensions.agent.AgentMinerEntity;
+import de.verdox.pv_miner_extensions.braiins.miner.BraiinsOSAsicMinerEntity;
+import de.verdox.pv_miner_extensions.braiins.miner.BrainsOSMiner;
+import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.WeakHashMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+@Service
+public class EntityControllerService {
+    private static final Logger LOGGER = Logger.getLogger(EntityControllerService.class.getSimpleName());
+
+    private final Map<Class<? extends ControllableEntity<?>>, Function<? extends ControllableEntity<?>, ? extends EntityController>> controllerFactory = new HashMap<>();
+    private final Map<UUID, EntityController> controllers = new WeakHashMap<>();
+
+    public EntityControllerService(MinerApiClient minerApiClient) {
+        registerToControllerFactory(AgentMinerEntity.class, agentMinerEntity -> new AgentMiner(minerApiClient, agentMinerEntity));
+        registerToControllerFactory(BraiinsOSAsicMinerEntity.class, braiinsOSAsicMinerEntity -> new BrainsOSMiner(minerApiClient, braiinsOSAsicMinerEntity));
+    }
+
+    public <B extends ControllableEntity<C>, C extends EntityController> void control(B entity, Consumer<C> function) {
+        C controller = getController(entity);
+        CompletableFuture.runAsync(() -> {
+            try {
+                function.accept(controller);
+            } catch (Throwable e) {
+                LOGGER.log(Level.SEVERE, "Could not send controller signal to entity" + entity, e);
+            }
+
+        });
+    }
+
+    @Deprecated
+    public <B extends ControllableEntity<C>, C extends EntityController> C getController(B entity) {
+        if (!controllerFactory.containsKey(entity.getClass())) {
+            throw new IllegalStateException("No controller factory found for type " + entity.getClass().getName());
+        }
+
+        if (!controllers.containsKey(entity.getId())) {
+            Function<B, C> creator = (Function<B, C>) controllerFactory.get(entity.getClass());
+            C controller = creator.apply(entity);
+            controllers.put(entity.getId(), controller);
+            return controller;
+        }
+
+        return (C) controllers.get(entity.getId());
+    }
+
+    public <CE extends ControllableEntity<C>, C extends EntityController> void registerToControllerFactory(Class<? extends CE> type, Function<CE, C> creator) {
+        controllerFactory.put(type, creator);
+    }
+}

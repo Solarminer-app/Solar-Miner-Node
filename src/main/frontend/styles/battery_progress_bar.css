@@ -1,0 +1,26 @@
+vaadin-progress-bar.static::part(value) {
+    background: #ecb910;
+}
+
+
+vaadin-progress-bar.loading::part(value) {
+    background: linear-gradient(90deg, #4CAF50, #8BC34A);
+    background-size: 200% 100%;
+    animation: loadAnimation 2s linear infinite !important;
+}
+
+vaadin-progress-bar.unloading::part(value) {
+    background: linear-gradient(90deg, #ff0000, #8a0a1f);
+    background-size: 100% 100%;
+    animation: loadAnimation 2s linear infinite !important;
+    animation-direction: reverse;
+}
+
+@keyframes loadAnimation {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}

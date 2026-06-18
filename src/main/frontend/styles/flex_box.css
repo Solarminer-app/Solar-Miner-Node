@@ -1,0 +1,18 @@
+.flex-layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px; /* Abstand zwischen den Elementen */
+    /* oder je nach Bedarf:
+       justify-content: space-around;
+       align-items: center;
+    */
+}
+
+.box {
+    flex: 1 0 30%; /* 30% Breite, damit in einer Zeile drei Boxen Platz haben */
+    min-width: 200px; /* damit es nicht zu schmal wird */
+    background-color: #fff;
+    border: 1px solid #ccc;
+    padding: 20px;
+    text-align: center;
+}

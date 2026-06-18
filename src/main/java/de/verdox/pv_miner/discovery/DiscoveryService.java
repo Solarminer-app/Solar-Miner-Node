@@ -1,0 +1,272 @@
+package de.verdox.pv_miner.discovery;
+
+import de.verdox.pv_miner.SpringContextHelper;
+import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
+import de.verdox.pv_miner.miner.MinerApiClient;
+import de.verdox.pv_miner.miner.MiningOS;
+import de.verdox.pv_miner_extensions.modbus.TCPModbusClient;
+import de.verdox.pv_miner_extensions.modbus.config.ModbusConfigCreatorTemplate;
+import de.verdox.pv_miner_extensions.modbus.config.ModbusConfigStorage;
+import de.verdox.pv_miner_extensions.restpv.config.RestConfigCreatorTemplate;
+import de.verdox.pv_miner_extensions.restpv.config.RestConfigStorage;
+import org.springframework.stereotype.Service;
+
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.function.Consumer;
+import java.util.logging.Logger;
+
+@Service
+public class DiscoveryService {
+    public record DiscoveredModbusDevice(String ipAddress, String matchingProfileName) {}
+    public record DiscoveredRestDevice(String ipAddress, int port, String matchingProfileName, boolean requiresAuth) {}
+
+    private static final Logger LOGGER = Logger.getLogger(DiscoveryService.class.getName());
+    private final int[] TARGET_REST_PORTS = {80, 443, 8080, 8123};
+
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofMillis(500))
+            .build();
+    private final MinerApiClient minerApiClient;
+    private final ConfigFetcherService configFetcherService;
+
+    public record MinerInfo(String model, String ipAddress, MiningOS os) {
+    }
+
+    public DiscoveryService(MinerApiClient minerApiClient, ConfigFetcherService configFetcherService) {
+        this.minerApiClient = minerApiClient;
+        this.configFetcherService = configFetcherService;
+    }
+
+    public void discoverRestDevices(String subnetPrefix, Consumer<DiscoveredRestDevice> onDeviceFound, Runnable onScanComplete) {
+        CompletableFuture.runAsync(() -> {
+            Semaphore rateLimiter = new Semaphore(30);
+
+            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                for (int i = 1; i <= 254; i++) {
+                    final String ip = subnetPrefix + i;
+
+                    for (int port : TARGET_REST_PORTS) {
+                        executor.submit(() -> {
+                            try {
+                                rateLimiter.acquire();
+
+                                if (isPortOpen(ip, port, 200)) {
+                                    probeRestProfiles(ip, port, onDeviceFound);
+                                }
+                            } catch (Exception ignored) {
+                            } finally {
+                                rateLimiter.release();
+                            }
+                        });
+                    }
+                }
+            }
+            onScanComplete.run();
+        });
+    }
+
+    private void probeRestProfiles(String ip, int port, Consumer<DiscoveredRestDevice> onDeviceFound) {
+        String protocol = (port == 443) ? "https://" : "http://";
+        String baseUrl = protocol + ip + ":" + port;
+
+        RestConfigStorage restStorage = SpringContextHelper.getBean(RestConfigStorage.class);
+        List<String> localRestNames = new ArrayList<>();
+
+        try {
+            var pvSiteTemplate = RestConfigCreatorTemplate.HOME_ASSISTANT_PV;
+            localRestNames = restStorage.getSavedConfigs(pvSiteTemplate);
+
+            for (String name : localRestNames) {
+                try {
+                    var config = restStorage.loadConfig(pvSiteTemplate, name);
+                    if (config == null || config.getConfigEntries().isEmpty()) continue;
+
+                    var testEntry = config.getConfigEntries().values().iterator().next();
+                    String probeUrl = baseUrl + testEntry.urlExtension();
+
+                    if (executeRestProbe(probeUrl, ip, port, name, onDeviceFound)) {
+                        return;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.warning("Error loading REST-Configs while scanning: " + e.getMessage());
+        }
+
+        for (var profile : configFetcherService.getCachedProfiles()) {
+            if (!profile.supportedProtocols().contains("Rest-API")) {
+                continue;
+            }
+            if (localRestNames.contains(profile.name())) {
+                continue;
+            }
+
+            var configOpt = configFetcherService.getRestPVConfig(profile.name());
+            if (configOpt.isEmpty() || configOpt.get().getConfigEntries().isEmpty()) {
+                continue;
+            }
+
+            var testEntry = configOpt.get().getConfigEntries().values().iterator().next();
+            String probeUrl = baseUrl + testEntry.urlExtension();
+
+            if (executeRestProbe(probeUrl, ip, port, profile.name(), onDeviceFound)) {
+                return;
+            }
+        }
+    }
+
+    private boolean executeRestProbe(String probeUrl, String ip, int port, String profileName, Consumer<DiscoveredRestDevice> onDeviceFound) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(probeUrl))
+                    .timeout(Duration.ofMillis(800))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            int status = response.statusCode();
+
+            if (status == 200 || status == 201) {
+                onDeviceFound.accept(new DiscoveredRestDevice(ip, port, profileName, false));
+                return true;
+            } else if (status == 401 || status == 403) {
+                onDeviceFound.accept(new DiscoveredRestDevice(ip, port, profileName, true));
+                return true;
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    public void discoverMiners(String subnetPrefix, Consumer<MinerInfo> onMinerFound, Runnable onScanComplete) {
+        CompletableFuture.runAsync(() -> {
+            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                for (int i = 1; i <= 254; i++) {
+                    final String ip = subnetPrefix + i;
+                    executor.submit(() -> {
+                        try {
+                            var detectedMiner = minerApiClient.identifyMiningOS(ip);
+                            if (detectedMiner != null) {
+                                onMinerFound.accept(new MinerInfo(detectedMiner.model(), ip, detectedMiner.os()));
+                            }
+                        } catch (Exception ignored) {}
+                    });
+                }
+            }
+            onScanComplete.run();
+        });
+    }
+
+    public void discoverModbusDevices(String subnetPrefix, Consumer<DiscoveredModbusDevice> onDeviceFound, Runnable onScanComplete) {
+        CompletableFuture.runAsync(() -> {
+            Semaphore rateLimiter = new Semaphore(20);
+
+            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                for (int i = 1; i <= 254; i++) {
+                    final String ip = subnetPrefix + i;
+
+                    executor.submit(() -> {
+                        try {
+                            rateLimiter.acquire();
+                            if (isPortOpen(ip, 502, 200)) {
+                                String matchingProfile = tryMatchModbusProfiles(ip);
+                                if (matchingProfile != null) {
+                                    onDeviceFound.accept(new DiscoveredModbusDevice(ip, matchingProfile));
+                                }
+                            }
+                        } catch (Exception ignored) {
+                        } finally {
+                            rateLimiter.release();
+                        }
+                    });
+                }
+            }
+            onScanComplete.run();
+        });
+    }
+
+    private boolean isPortOpen(String ip, int port, int timeoutMs) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(ip, port), timeoutMs);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private String tryMatchModbusProfiles(String ip) {
+        ModbusConfigStorage modbusStorage = SpringContextHelper.getBean(ModbusConfigStorage.class);
+        List<String> localModbusNames = new ArrayList<>();
+
+        try {
+            var pvSiteTemplate = ModbusConfigCreatorTemplate.PV_SITE;
+            localModbusNames = modbusStorage.getSavedConfigs(pvSiteTemplate);
+
+            for (String name : localModbusNames) {
+                try {
+                    var config = modbusStorage.loadConfig(pvSiteTemplate, name);
+                    if (config == null) continue;
+
+                    try (TCPModbusClient modbusClient = new TCPModbusClient(ip, 502, 1)) {
+                        if (config.getFingerprint() != null) {
+                            if (modbusClient.verifyFingerprint(config.getFingerprint())) {
+                                return name;
+                            }
+                        } else if (!config.getConfigEntries().isEmpty()) {
+                            var testEntry = config.getConfigEntries().values().iterator().next();
+                            modbusClient.read(testEntry);
+                            return name;
+                        }
+                    } catch (Exception ignored) {
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.warning("Error loading modbus configs for scanning: " + e.getMessage());
+        }
+
+        for (var profile : configFetcherService.getCachedProfiles()) {
+            if (!profile.supportedProtocols().contains("Modbus-TCP")) {
+                continue;
+            }
+            if (localModbusNames.contains(profile.name())) {
+                continue;
+            }
+
+            var configOpt = configFetcherService.getModbusConfig(profile.name());
+            if (configOpt.isEmpty()) {
+                continue;
+            }
+
+            var config = configOpt.get();
+
+            try (TCPModbusClient modbusClient = new TCPModbusClient(ip, 502, 1)) {
+                if (config.getFingerprint() != null) {
+                    if (modbusClient.verifyFingerprint(config.getFingerprint())) {
+                        return profile.name();
+                    }
+                    continue;
+                }
+
+                if (!config.getConfigEntries().isEmpty()) {
+                    var testEntry = config.getConfigEntries().values().iterator().next();
+                    modbusClient.read(testEntry);
+                    return profile.name();
+                }
+            } catch (Exception e) {
+
+            }
+        }
+        return null;
+    }
+}

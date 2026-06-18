@@ -1,0 +1,146 @@
+/* --- Haupt-Layout --- */
+.details-view {
+    width: 100%;
+    min-height: 100vh;
+    background-color: #0f0f11;
+    padding: 24px;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+/* Flexibles Split-Layout (ersetzt die harten 65/30) */
+.details-content-split {
+    display: flex;
+    width: 100%;
+    gap: 24px;
+}
+
+.details-left-panel {
+    flex: 6.5; /* Entspricht 65% */
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-width: 0; /* Verhindert Tabellen-Overflow */
+}
+
+.details-right-panel {
+    flex: 3.5; /* Entspricht 35% */
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-width: 0;
+}
+
+/* --- Standard Karten-Design --- */
+.dashboard-card {
+    background-color: #1a1a1f;
+    border: 1px solid #222226;
+    border-radius: 8px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* --- Mini KPI Cards (Oben links) --- */
+.mini-kpi-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    width: 100%;
+}
+
+.kpi-grid {
+    display: flex;
+    flex-wrap: wrap; /* Ersetzt das .getStyle().set("flex-wrap", "wrap") im Java-Code! */
+    gap: 16px;
+    width: 100%;
+}
+
+.mini-kpi-card {
+    flex: 1 1 calc(33.333% - 16px);
+    min-width: 180px; /* Bricht automatisch um, wenn zu klein */
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    background-color: #1a1a1f;
+    border: 1px solid #222226;
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+
+.mini-kpi-icon {
+    font-size: 35px;
+    margin-right: 16px;
+}
+
+.mini-kpi-text-col {
+    display: flex;
+    flex-direction: column;
+}
+
+.mini-kpi-title {
+    font-size: 12px;
+    color: #9CA3AF;
+    margin-bottom: 0;
+}
+
+.mini-kpi-value {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+/* --- Tarife & Preise Split-Ansicht --- */
+.prices-split {
+    display: flex;
+    gap: 24px;
+    width: 100%;
+    margin-top: 16px;
+}
+
+.prices-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+/* ========================================= */
+/* --- MOBILE RESPONSIVE MEDIA QUERIES ---   */
+/* ========================================= */
+
+@media (max-width: 1024px) {
+    /* Stapelt Links (65%) und Rechts (35%) untereinander */
+    .details-content-split {
+        flex-direction: column;
+    }
+
+    .details-left-panel,
+    .details-right-panel {
+        flex: none;
+        width: 100%;
+    }
+
+    /* Stapelt die beiden Tarif-Tabellen untereinander */
+    .prices-split {
+        flex-direction: column;
+    }
+
+    .prices-column {
+        width: 100%;
+    }
+
+    .mini-kpi-card {
+        flex: 1 1 calc(50% - 16px); /* 2 pro Reihe auf Tablets */
+    }
+}
+
+@media (max-width: 600px) {
+    .details-view {
+        padding: 16px; /* Platz sparen auf dem Handy */
+    }
+    .mini-kpi-card {
+        flex: 1 1 100%; /* 1 pro Reihe auf Handys */
+    }
+}

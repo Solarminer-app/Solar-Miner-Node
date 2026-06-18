@@ -1,0 +1,36 @@
+/* Container für die abgeleiteten Kennzahlen */
+.derived-info-layout {
+    background-color: #f9f9f9;    /* Heller Hintergrund für klare Abgrenzung */
+    padding: 20px;                /* Innenabstand für Luft um die Inhalte */
+    border-radius: 8px;           /* Abgerundete Ecken */
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1); /* Leichter Schatten für Tiefe */
+    margin: 20px 0;               /* Abstand nach oben und unten */
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    --vaadin-form-item-label-width: 150px;
+}
+
+/* Stil für einzelne FormItems (jeweils ein Label-Wert-Paar) */
+.derived-info-layout .vaadin-form-item {
+    margin-bottom: 1em;
+    padding: 10px 0;
+    border-bottom: 1px solid #e0e0e0; /* Trennlinie zwischen den Items */
+}
+
+/* Letztes Item ohne untere Trennlinie */
+.derived-info-layout .vaadin-form-item:last-child {
+    border-bottom: none;
+}
+
+/* Gestaltung der Labels (Schlüssel) */
+.derived-info-layout label {
+    font-weight: bold;
+    color: #333;
+    display: inline-block;
+    width: 150px;  /* Feste Breite, damit alle Werte schön ausgerichtet sind */
+}
+
+/* Gestaltung der Werte */
+.derived-info-layout span {
+    font-size: 1.1em;
+    color: #555;
+}

@@ -1,0 +1,94 @@
+/* =========================================================
+   WHITE MODE STYLING FÜR CLUSTER MANAGEMENT VIEW
+   ========================================================= */
+
+/* --- Layout Base --- */
+.cluster-view-root {
+    background-color: #f8fafc; /* Sehr helles, kühles Grau als Hintergrund */
+    color: #0f172a;
+    min-height: 100vh;
+}
+
+/* --- Header Section --- */
+.cluster-header {
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+}
+
+.cluster-title {
+    margin: 0;
+    flex-grow: 1;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #1e293b;
+}
+
+.cluster-selector {
+    width: 300px;
+}
+
+/* --- TabSheet --- */
+.cluster-tabsheet {
+    margin-top: 20px;
+}
+
+/* --- Dashboard Tab (KPI Cards) --- */
+.cluster-kpi-card {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 25px;
+    border-radius: 12px;
+    flex: 1;
+    box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s;
+}
+
+.cluster-kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.cluster-kpi-header {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.cluster-kpi-value {
+    margin-top: 10px;
+    margin-bottom: 0;
+    color: var(--lumo-primary-color);
+}
+
+/* --- Configuration Tab --- */
+.cluster-control-bar {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.cluster-config-wrapper {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 30px;
+    border-radius: 12px;
+    margin-top: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: opacity 0.3s ease, filter 0.3s ease;
+}
+
+/* Der Locking-State wird jetzt rein über CSS gesteuert! */
+.cluster-config-wrapper.locked {
+    opacity: 0.6;
+    pointer-events: none;
+    filter: grayscale(20%);
+}
+
+/* --- Bulk Assignment Tab --- */
+.active-cluster-grid {
+    /* Hebt das Ziel-Grid visuell leicht hervor */
+    border: 2px solid rgba(16, 185, 129, 0.3);
+    border-radius: var(--lumo-border-radius-m);
+}

@@ -1,0 +1,94 @@
+/* Container für die Views mit weichem Übergang */
+.wizard-content-area {
+    min-height: 400px;
+    background: var(--lumo-base-color);
+    border-radius: var(--lumo-border-radius-l);
+    box-shadow: var(--lumo-box-shadow-s);
+    padding: var(--lumo-space-l);
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+/* Wird dynamisch per JS/Java beim Wechsel hinzugefügt */
+.wizard-content-area.fade-in {
+    animation: fadeInSlideUp 0.4s ease-out forwards;
+}
+
+@keyframes fadeInSlideUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Radar-Animation für die Suche nach PV-Anlagen */
+.radar-scan-animation {
+    color: var(--lumo-primary-color);
+    animation: pulseScan 1.5s infinite;
+    border-radius: 50%;
+    /* Simuliert eine ausstrahlende Welle */
+    box-shadow: 0 0 0 0 rgba(var(--lumo-primary-color-rgb), 0.7);
+}
+
+@keyframes pulseScan {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(0, 116, 232, 0.7); /* Passe die Farbe an euer CI an */
+    }
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 20px rgba(0, 116, 232, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(0, 116, 232, 0);
+    }
+}
+
+/* Container für das rotierende Icon */
+.sync-spinner-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--lumo-contrast-5pct);
+    margin-bottom: var(--lumo-space-m);
+}
+
+/* Die unendliche Dreh-Animation */
+.sync-spinning-icon {
+    font-size: 40px;
+    color: var(--lumo-primary-color);
+    animation: spinAround 1.2s linear infinite;
+}
+
+@keyframes spinAround {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Status-Text Styling */
+.sync-status-text {
+    font-weight: 500;
+    color: var(--lumo-body-text-color);
+    transition: color 0.3s ease;
+}
+
+/* Pop-Effekt für den grünen Haken bei Erfolg */
+.sync-success-pop {
+    color: var(--lumo-success-color);
+    animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes popIn {
+    0% {
+        transform: scale(0.5);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}

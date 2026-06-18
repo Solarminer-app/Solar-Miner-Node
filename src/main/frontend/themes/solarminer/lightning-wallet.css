@@ -1,0 +1,185 @@
+.lightning-view-container {
+    min-height: 100vh;
+    min-height: 100dvh;
+    position: relative;
+    /* DAS IST DER FIX: Verhindert, dass interne Elemente die Seite breiter machen! */
+    width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+.lightning-view-container::before {
+    content: "";
+    position: fixed;
+    inset: 0; /* Zieht den Hintergrund über alle Ecken auf 100% Breite/Höhe */
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(circle at 50% 50%, var(--lumo-contrast-5pct) 0%, var(--lumo-contrast-10pct) 100%), var(--lumo-base-color);
+}
+
+.lightning-content-wrapper {
+    margin: 0 auto;
+    padding: var(--lumo-space-xl);
+    gap: var(--lumo-space-l);
+    max-width: 1700px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    /* Verhindert, dass das XL-Padding zur Breite dazugerechnet wird */
+    box-sizing: border-box;
+}
+/* Header analog zum Start-Screen */
+.lightning-header-title {
+    margin: 0;
+    font-size: var(--lumo-font-size-xxl);
+    font-weight: 800;
+    color: var(--lumo-header-text-color);
+    letter-spacing: -0.5px;
+}
+
+.lightning-header-subtitle {
+    color: var(--lumo-secondary-text-color);
+    font-size: var(--lumo-font-size-s);
+    margin-top: var(--lumo-space-xs);
+    line-height: 1.4;
+}
+
+/* Elegante Cards (ersetzt das alte DashboardCard Inline-Styling) */
+.lightning-card {
+    background-color: var(--lumo-base-color);
+    border: 1px solid var(--lumo-contrast-10pct);
+    border-radius: var(--lumo-border-radius-l);
+    box-shadow: var(--lumo-box-shadow-l);
+    padding: var(--lumo-space-l);
+    display: flex;
+    flex-direction: column;
+    gap: var(--lumo-space-s);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease;
+}
+
+.lightning-card:hover {
+    box-shadow: var(--lumo-box-shadow-xl);
+}
+
+.lightning-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--lumo-space-m);
+    color: var(--lumo-secondary-text-color);
+}
+
+/* Section Header (Überschriften der einzelnen Bereiche) */
+.lightning-section-header {
+    display: flex;
+    align-items: center;
+    gap: var(--lumo-space-m);
+    margin-top: var(--lumo-space-m);
+}
+
+.lightning-section-header h3 {
+    margin: 0;
+    font-size: var(--lumo-font-size-l);
+}
+
+/* Gelbes Accent-Icon für die Sektionen */
+.lightning-section-icon {
+    color: #f1c40f;
+    margin: 0;
+}
+
+/* Balance Anzeige */
+.lightning-balance-value {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--lumo-success-color);
+}
+
+/* Styling für Panels und Grids */
+.lightning-grid {
+    background-color: var(--lumo-base-color);
+    border: 1px solid var(--lumo-contrast-10pct);
+    border-radius: var(--lumo-border-radius-l);
+    box-shadow: var(--lumo-box-shadow-l);
+}
+
+/* Adress-Zeile im Offer Panel */
+.lightning-address-row {
+    display: flex;
+    padding: var(--lumo-space-m);
+    background-color: var(--lumo-base-color);
+    border: 1px solid var(--lumo-contrast-10pct);
+    border-radius: var(--lumo-border-radius-l);
+    box-shadow: var(--lumo-box-shadow-s);
+    align-items: center;
+}
+
+.lightning-bolt12-details {
+    padding: 0;
+    border: none;
+    background: transparent;
+}
+
+/* --- NEU: Dashboard Grid Layout --- */
+
+.lightning-dashboard-grid {
+    display: grid;
+    /* Das Layout teilt sich auf: ca. 65% links (Haupt), 35% rechts (Sidebar) */
+    grid-template-columns: 2fr 1fr;
+    gap: var(--lumo-space-xl);
+    align-items: start;
+    width: 100%;
+}
+
+.dashboard-main-column,
+.dashboard-side-column {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lumo-space-l);
+}
+
+/* Margin Korrektur für Section Headers innerhalb des Grids */
+.dashboard-main-column .lightning-section-header,
+.dashboard-side-column .lightning-section-header {
+    margin-top: 0;
+    margin-bottom: calc(var(--lumo-space-s) * -1); /* Zieht die Karte etwas näher an die Überschrift */
+}
+
+/* --- Responsive Verhalten --- */
+/* Bricht auf kleineren Bildschirmen (z.B. Tablets hochkant & Smartphones) um */
+@media (max-width: 1024px) {
+    .lightning-dashboard-grid {
+        grid-template-columns: 1fr; /* Alles in einer Spalte untereinander */
+    }
+}
+
+/* --- NEU: Titel-Fix (Verhindert 2-zeilige Überschriften) --- */
+.nowrap-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- NEU: Kompakte Adress-Zeile im Guthaben-Bereich --- */
+.lightning-address-compact-row {
+    background-color: var(--lumo-contrast-5pct);
+    border-radius: var(--lumo-border-radius-m);
+    padding: var(--lumo-space-s) var(--lumo-space-m);
+    margin-top: var(--lumo-space-s);
+    margin-bottom: var(--lumo-space-m);
+    border: 1px dashed var(--lumo-contrast-20pct);
+}
+
+/* --- NEU: Action-Buttons (Die 3 Auszahlungs-Buttons) --- */
+.lightning-action-buttons-row {
+    display: flex;
+    flex-wrap: wrap; /* Bricht um, falls der Platz auf kleinen Bildschirmen eng wird */
+    gap: var(--lumo-space-m);
+    margin-top: auto; /* Drückt die Buttons an den unteren Rand der Karte, falls sie wächst */
+    padding-top: var(--lumo-space-m);
+    border-top: 1px solid var(--lumo-contrast-10pct);
+}
+
+.lightning-action-buttons-row vaadin-button {
+    flex: 1; /* Alle Buttons nehmen gleich viel Platz ein */
+    min-width: 140px; /* Verhindert, dass sie zu sehr gequetscht werden */
+}

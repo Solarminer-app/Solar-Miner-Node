@@ -1,0 +1,165 @@
+package de.verdox.currencyrates.currencyrates.service;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import de.verdox.currencyrates.currencyrates.model.BitcoinNetworkStats;
+import de.verdox.currencyrates.currencyrates.model.DailyUsdRates;
+import de.verdox.currencyrates.currencyrates.repository.BitcoinNetworkStatsRepository;
+import de.verdox.currencyrates.currencyrates.repository.DailyUsdRatesRepository;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+@Service
+public class DataGathererService {
+    private static final Logger LOGGER = Logger.getLogger(DataGathererService.class.getSimpleName());
+    private final BitcoinNetworkStatsRepository bitcoinRepository;
+    private final DailyUsdRatesRepository ratesRepository;
+
+    private BitcoinMiningDataFetcher bitcoinMiningDataFetcher;
+
+    public DataGathererService(BitcoinNetworkStatsRepository bitcoinRepository, DailyUsdRatesRepository ratesRepository) {
+        this.bitcoinRepository = bitcoinRepository;
+        this.ratesRepository = ratesRepository;
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    @Transactional
+    public void onApplicationReady() {
+        bitcoinMiningDataFetcher = new BitcoinMiningDataFetcher();
+        LOGGER.log(Level.INFO, "Fetching global constants...");
+        collectGlobalConstants();
+        saveDailyStatsToDatabase();
+        LOGGER.log(Level.INFO, "Done...");
+    }
+
+    private void collectGlobalConstants() {
+
+        queryBitcoinMiningData();
+    }
+
+    @Scheduled(fixedRate = 1, timeUnit = TimeUnit.HOURS)
+    public void scheduledFetch() {
+        collectGlobalConstants();
+    }
+
+    @Scheduled(cron = "0 0 0 * * ?", zone = "UTC")
+    @Transactional
+    public void scheduledDailyDatabaseSave() {
+        LOGGER.log(Level.INFO, "Starting scheduled daily UTC database backup...");
+        collectGlobalConstants();
+        saveDailyStatsToDatabase();
+    }
+
+    @Transactional
+    public DailyUsdRates fetchAndSaveForDate(LocalDate date) {
+        LOGGER.log(Level.INFO, "Fetching data for date: " + date);
+        JsonObject ratesJson = queryExchangeRates(date);
+        Map<String, Double> ratesMap = new HashMap<>();
+        for (Map.Entry<String, JsonElement> entry : ratesJson.entrySet()) {
+            if (entry.getValue().isJsonPrimitive()) {
+                ratesMap.put(entry.getKey(), entry.getValue().getAsDouble());
+            }
+        }
+        DailyUsdRates dailyRates = new DailyUsdRates(date, ratesMap);
+        return ratesRepository.save(dailyRates);
+    }
+
+    @Transactional
+    public void saveDailyStatsToDatabase() {
+        try {
+            LocalDate todayUtc = LocalDate.now(ZoneOffset.UTC);
+
+            var currencyRatesUSD = queryExchangeRates();
+
+            if (currencyRatesUSD == null || bitcoinMiningDataFetcher == null) {
+                LOGGER.log(Level.WARNING, "Cannot save to database: Data fetchers are empty.");
+                return;
+            }
+
+            if (!bitcoinRepository.existsById(todayUtc)) {
+                BitcoinNetworkStats btcStats = new BitcoinNetworkStats(todayUtc);
+                btcStats.setMiningDifficulty(bitcoinMiningDataFetcher.getMiningDifficulty());
+                btcStats.setHashRateInThs(bitcoinMiningDataFetcher.getGlobalHashRateInThs());
+                btcStats.setPriceInDollar(bitcoinMiningDataFetcher.getPriceInDollar());
+                btcStats.setBlockSubsidy(bitcoinMiningDataFetcher.getBlockSubsidy());
+                btcStats.setAverageTxPrice24h(bitcoinMiningDataFetcher.getAverageTxPrice24h());
+
+                bitcoinRepository.save(btcStats);
+                LOGGER.log(Level.INFO, "Successfully saved Bitcoin network stats for UTC date: " + todayUtc);
+            } else {
+                LOGGER.log(Level.INFO, "Bitcoin network stats for " + todayUtc + " already exist. Skipping.");
+            }
+
+            if (!ratesRepository.existsById(todayUtc)) {
+                Map<String, Double> ratesMap = new HashMap<>();
+                for (Map.Entry<String, JsonElement> entry : currencyRatesUSD.entrySet()) {
+                    if (entry.getValue().isJsonPrimitive()) {
+                        ratesMap.put(entry.getKey(), entry.getValue().getAsDouble());
+                    }
+                }
+
+                DailyUsdRates dailyRates = new DailyUsdRates(todayUtc, ratesMap);
+                ratesRepository.save(dailyRates);
+                LOGGER.log(Level.INFO, "Successfully saved daily currency rates for UTC date: " + todayUtc);
+            } else {
+                LOGGER.log(Level.INFO, "Currency rates for " + todayUtc + " already exist. Skipping.");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error while saving daily stats to database: " + e.getMessage(), e);
+        }
+    }
+
+    private static String sendGetRequest(String url) throws Exception {
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(new URI(url))
+                    .GET()
+                    .build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            return response.body();
+        }
+    }
+
+    private JsonObject queryExchangeRates(LocalDate date) {
+        try {
+            String dateParam = (date == null) ? "latest" : date.toString();
+            String url = String.format("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@%s/v1/currencies/usd.json", dateParam);
+            LOGGER.log(Level.INFO, "Collecting currency exchange rates for date: " + dateParam);
+            String jsonResponse = sendGetRequest(url);
+            return JsonParser.parseString(jsonResponse).getAsJsonObject().get("usd").getAsJsonObject();
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Could not collect currency exchange rates: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private JsonObject queryExchangeRates() {
+        return queryExchangeRates(null);
+    }
+
+    private void queryBitcoinMiningData() {
+        try {
+            LOGGER.log(Level.INFO, "Collecting bitcoin mining data...");
+            bitcoinMiningDataFetcher.query();
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Could not collect bitcoin mining data" + e.getMessage());
+        }
+    }
+}

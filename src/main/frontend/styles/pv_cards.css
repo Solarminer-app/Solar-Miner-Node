@@ -1,0 +1,26 @@
+.card {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Farbvarianten als Beispiel */
+.green-card {
+    background-color: #e0f8e0; /* Hellgrün */
+}
+
+.blue-card {
+    background-color: #e0e7f8; /* Hellblau */
+}
+
+.orange-card {
+    background-color: #fce7d9; /* Hellorange */
+}
+
+.red-card {
+    background-color: #f8e0e0; /* Hellrot */
+}
+
+.gray-card {
+    background-color: #f0f0f0; /* Hellgrau */
+}

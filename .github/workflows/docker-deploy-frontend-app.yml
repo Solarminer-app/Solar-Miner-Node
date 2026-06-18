@@ -1,0 +1,65 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'src/**'
+      - 'proto/**'
+      - '.github/workflows/docker-deploy-frontend-app.yml'
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: verdox/pv-miner
+  WORKING_DIRECTORY: .
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout des Codes
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Setze Java-Version für Gradle
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4 # v4.0.0
+
+      # Cache Gradle Dependencies (Beschleunigt den Build-Prozess)
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle.kts', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle
+
+      - name: Build proto
+        run: ./gradlew build --project-dir proto
+
+      # Baue `pv-miner` mit Gradle
+      - name: Build pv-miner
+        run: ./gradlew build
+
+      # Logge in bei Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Baue und pushe Docker-Image für `pv-miner`
+      - name: Build and Push Docker Image (pv-miner)
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/verdox/solar-miner:latest .
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/verdox/solar-miner:latest

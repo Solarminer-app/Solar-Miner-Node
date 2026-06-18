@@ -1,0 +1,104 @@
+/* --- Haupt-Layout --- */
+.cluster-view {
+    width: 100%;
+    min-height: 100vh;
+    background-color: #0f0f11;
+    padding: 24px;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+/* Flexibles Split-Layout (ersetzt 25/75) */
+.cluster-content-split {
+    display: flex;
+    width: 100%;
+    gap: 24px;
+    margin-top: 24px;
+}
+
+.cluster-left-panel {
+    flex: 2.5; /* Entspricht 25% */
+    display: flex;
+    flex-direction: column;
+    min-width: 0; /* Wichtig für Grids */
+}
+
+.cluster-right-panel {
+    flex: 7.5; /* Entspricht 75% */
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+/* --- Standard Karten-Design --- */
+.cluster-card {
+    background-color: #1a1a1f;
+    border: 1px solid #222226;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+/* --- Toolbar (Die Button-Leiste) --- */
+.action-toolbar {
+    display: flex;
+    flex-wrap: wrap; /* Lebensretter für Mobile! Bricht Buttons um */
+    gap: 8px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #222226;
+    align-items: center;
+}
+
+/* ========================================= */
+/* --- MOBILE RESPONSIVE MEDIA QUERIES ---   */
+/* ========================================= */
+
+@media (max-width: 1024px) {
+    .cluster-content-split {
+        flex-direction: column; /* Stapelt Links und Rechts untereinander */
+    }
+
+    .cluster-left-panel,
+    .cluster-right-panel {
+        flex: none;
+        width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+    .cluster-view {
+        padding: 16px;
+    }
+
+    /* Buttons nehmen auf Handys die volle Breite ein (Daumen-freundlich) */
+    .action-toolbar vaadin-button {
+        width: 100%;
+    }
+}
+
+/* --- Grid Anpassungen --- */
+.dynamic-height-grid {
+    width: 100%;
+    /* Entferne harte Höhenvorgaben */
+    height: auto !important;
+    max-height: 400px;
+}
+
+.miner-grid-height {
+    max-height: 600px;
+}
+
+@media (max-width: 600px) {
+    .dynamic-height-grid {
+        /* Auf Mobile darf das Grid etwas kleiner sein, bevor es scrollt */
+        max-height: 300px;
+    }
+
+    .miner-grid-height {
+        max-height: 400px;
+    }
+}
