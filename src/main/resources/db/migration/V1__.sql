@@ -1,6 +1,6 @@
 CREATE TABLE agent_miner_entity
 (
-    id BINARY (16) NOT NULL,
+    id UUID NOT NULL,
     host VARCHAR(255) NULL,
     port INT          NOT NULL,
     CONSTRAINT pk_agentminerentity PRIMARY KEY (id)
