@@ -71,10 +71,10 @@ public class PVStatisticsAccumulator implements DailyStatisticAccumulator<PVStat
         return String.format(
                 "option task = {name: \"Downsample_PV_%s\", every: 1h}\n\n" +
                         "from(bucket: \"%s\")\n" +
-                        "  |> range(start: -24h)\n" +
+                        "  |> range(start: -task.every)\n" +
                         "  |> filter(fn: (r) => r[\"_measurement\"] == \"%s\")\n" +
                         "  |> filter(fn: (r) => r[\"_field\"] == \"" + PVSiteInfluxStrategy.PV_POWER_IN_KW + "\" or r[\"_field\"] == \"" + PVSiteInfluxStrategy.GRID_CONSUMPTION_POWER + "\" or r[\"_field\"] == \"" + PVSiteInfluxStrategy.FEED_IN_POWER_IN_KW + "\" or r[\"_field\"] == \"" + PVSiteInfluxStrategy.LOADS_POWER_IN_KW + "\" or r[\"_field\"] == \"" + PVSiteInfluxStrategy.MINER_POWER_IN_KW + "\")\n" +
-                        "  |> integral(unit: 1h)\n" +
+                        "  |> aggregateWindow(every: 1h, fn: (tables=<-, column) => tables |> integral(unit: 1h))\n" +
                         "  |> set(key: \"_measurement\", value: \"%s\")\n" +
                         "  |> to(bucket: \"%s\")",
                 measurement, sourceBucket, measurement, getDownsampledMeasurementName(), targetBucket

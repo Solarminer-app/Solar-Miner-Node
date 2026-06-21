@@ -43,13 +43,13 @@ public class MinerStatisticsAccumulator implements DailyStatisticAccumulator<Min
     @Override
     public String generateDownsamplingTaskQuery(String sourceBucket, String targetBucket, String measurement) {
         return String.format(
-                "option task = {name: \"Downsample_Miner_%s\", every: 1h}\n\n" +
+                "option task = {name: \"Downsample_Miner_%s\", every: 1d}\n\n" +
                         "from(bucket: \"%s\")\n" +
                         "  |> range(start: -2d)\n" +
                         "  |> filter(fn: (r) => r[\"_measurement\"] == \"%s\")\n" +
                         "  |> filter(fn: (r) => r[\"_field\"] == \"" + AsicMinerInfluxStrategy.POWER_USAGE_WATTS + "\")\n" +
-                        "  |> aggregateWindow(every: 1d, fn: (column, tables=<-) => tables |> integral(unit: 1h), createEmpty: false)\n" +
                         "  |> map(fn: (r) => ({ r with _value: r._value / 1000.0 }))\n" +
+                        "  |> aggregateWindow(every: 1d, fn: integral, column: \"_value\", timeSrc: \"_stop\", timeDst: \"_time\", createEmpty: false)\n" +
                         "  |> set(key: \"_measurement\", value: \"%s\")\n" +
                         "  |> to(bucket: \"%s\")",
                 measurement, sourceBucket, measurement, getDownsampledMeasurementName(), targetBucket

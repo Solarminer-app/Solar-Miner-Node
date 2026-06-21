@@ -97,17 +97,20 @@ public class InfluxBackfillService {
                               |> aggregateWindow(every: 1d, fn: (column, tables=<-) => tables |> integral(unit: 1h), createEmpty: false)
                             
                             // 4. Fallback: Integral PRO MINER bilden und dann ALLE Miner addieren
-                            miner_fallback = from(bucket: "%s")
+                              miner_fallback = from(bucket: "%s")
                               |> range(start: %s, stop: %s)
                               |> filter(fn: (r) => r["_measurement"] == "miner_data")
                               |> filter(fn: (r) => r["_field"] == "powerUsageWatts")
                               |> filter(fn: (r) => not has_miner_in_pv)
-                              |> group(columns: ["_measurement", "_field", "entity"]) // Erst streng nach einzelnem Miner trennen!
-                              |> aggregateWindow(every: 1d, fn: (column, tables=<-) => tables |> integral(unit: 1h), createEmpty: false) // Wh pro Miner
-                              |> group(columns: ["_time"]) // Jetzt Gruppierung aufheben und nur nach Tag zusammenfassen
+                              |> group(columns: ["_measurement", "_field", "entity"])
+                              
+                              |> map(fn: (r) => ({ r with _value: r._value / 1000.0 }))
+                              
+                              |> aggregateWindow(every: 1d, fn: integral, column: "_value", timeSrc: "_stop", timeDst: "_time", createEmpty: false)
+                              |> group(columns: ["_time"]) // Gruppierung aufheben für die Summe
                               |> sum(column: "_value") // Den Tagesverbrauch ALLER Miner addieren
-                              |> map(fn: (r) => ({ r with _value: r._value / 1000.0, _field: "MinerPowerInKw", _measurement: "%s", entity: pv_entity })) // Auf PV mappen
-                            
+                              
+                              |> map(fn: (r) => ({ r with _field: "MinerPowerInKw", _measurement: "%s", entity: pv_entity }))
                             // 5. Bereits fertig berechnete PV-Daten und Miner-Summen zusammenführen
                             union(tables: [pv_aggregated, miner_fallback])
                               |> group(columns: ["_measurement", "_field", "entity"]) // Saubere Tags für den Bucket-Write
@@ -139,8 +142,10 @@ public class InfluxBackfillService {
                               |> filter(fn: (r) => r["_measurement"] == "%s")
                               |> filter(fn: (r) => r["_field"] == "powerUsageWatts")
                               |> group(columns: ["_measurement", "_field", "entity"])
-                              |> aggregateWindow(every: 1d, fn: (column, tables=<-) => tables |> integral(unit: 1h), createEmpty: false)
+           
                               |> map(fn: (r) => ({ r with _value: r._value / 1000.0 }))
+                    
+                              |> aggregateWindow(every: 1d, fn: integral, column: "_value", timeSrc: "_stop", timeDst: "_time", createEmpty: false)
                               |> set(key: "_measurement", value: "%s")
                               |> to(bucket: "%s")""",
                     rawBucket, startRange, stopRange, sourceMeasurement, targetMeasurement, influxService.getDownSampledInfluxBucket()
