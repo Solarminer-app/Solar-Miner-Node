@@ -75,7 +75,7 @@ public class InfluxBackfillService {
                               |> filter(fn: (r) => r["_measurement"] == "%s")
                               |> filter(fn: (r) => r["_field"] == "PVPowerInKw" or r["_field"] == "GridConsumptionPower" or r["_field"] == "FeedInPowerInKw" or r["_field"] == "LoadsPowerInKw" or r["_field"] == "MinerPowerInKw")
                             
-                            // 1. Hole dynamisch die "entity" UUID der PV-Anlage von diesem Tag
+                            
                             pv_entity_arr = pv_all
                               |> keep(columns: ["entity"])
                               |> limit(n: 1)
@@ -83,7 +83,7 @@ public class InfluxBackfillService {
                             
                             pv_entity = if length(arr: pv_entity_arr) > 0 then pv_entity_arr[0] else "unknown"
                             
-                            // 2. Zähle, ob heute Miner-Daten in den PV-Daten existieren
+                            
                             miner_pv_count = pv_all
                               |> filter(fn: (r) => r["_field"] == "MinerPowerInKw")
                               |> count()
@@ -91,12 +91,12 @@ public class InfluxBackfillService {
                             
                             has_miner_in_pv = if length(arr: miner_pv_count) > 0 and miner_pv_count[0] > 0 then true else false
                             
-                            // 3. PV-Daten ganz normal aggregieren
+                            
                             pv_aggregated = pv_all
                               |> group(columns: ["_measurement", "_field", "entity"])
                               |> aggregateWindow(every: 1d, fn: (column, tables=<-) => tables |> integral(unit: 1h), createEmpty: false)
                             
-                            // 4. Fallback: Integral PRO MINER bilden und dann ALLE Miner addieren
+                            
                               miner_fallback = from(bucket: "%s")
                               |> range(start: %s, stop: %s)
                               |> filter(fn: (r) => r["_measurement"] == "miner_data")
@@ -111,7 +111,7 @@ public class InfluxBackfillService {
                               |> sum(column: "_value") // Den Tagesverbrauch ALLER Miner addieren
                               
                               |> map(fn: (r) => ({ r with _field: "MinerPowerInKw", _measurement: "%s", entity: pv_entity }))
-                            // 5. Bereits fertig berechnete PV-Daten und Miner-Summen zusammenführen
+                            
                             union(tables: [pv_aggregated, miner_fallback])
                               |> group(columns: ["_measurement", "_field", "entity"]) // Saubere Tags für den Bucket-Write
                               |> set(key: "_measurement", value: "%s")
