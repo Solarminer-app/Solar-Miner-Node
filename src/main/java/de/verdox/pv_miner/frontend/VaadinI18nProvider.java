@@ -1,4 +1,4 @@
-package de.verdox.pv_miner.i18n;
+package de.verdox.pv_miner.frontend;
 
 import com.vaadin.flow.i18n.I18NProvider;
 import org.slf4j.LoggerFactory;
