@@ -102,8 +102,8 @@ public class SetupWizard extends VerticalLayout implements BeforeEnterObserver {
         footer.setMaxWidth("1000px");
         footer.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
 
-        backButton = new Button("Zurück", e -> previousStep());
-        nextButton = new Button("Weiter ->", e -> nextStep());
+        backButton = new TranslatableButton("btn.previous", e -> previousStep());
+        nextButton = new TranslatableButton("btn.next", e -> nextStep());
         nextButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
         footer.add(backButton, nextButton);
@@ -173,7 +173,7 @@ public class SetupWizard extends VerticalLayout implements BeforeEnterObserver {
         contentArea.getElement().executeJs("setTimeout(() => { this.classList.add('fade-in'); }, 10);");
 
         backButton.setVisible(index > 0);
-        nextButton.setText(index == steps.size() - 1 ? "Abschließen" : "Weiter ->");
+        nextButton.setText(index == steps.size() - 1 ? "btn.done" : "btn.next");
 
         updateButtonStates();
         step.onEnter();
