@@ -36,8 +36,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.startMining(details);
             case BRAIINS -> braiinsController.startMining(details);
-            case VNISH -> false;
-            case LUXOS -> false;
+            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
 
@@ -45,8 +45,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.stopMining(details);
             case BRAIINS -> braiinsController.stopMining(details);
-            case VNISH -> false;
-            case LUXOS -> false;
+            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
 
@@ -54,8 +54,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.pauseMining(details);
             case BRAIINS -> braiinsController.pauseMining(details);
-            case VNISH -> false;
-            case LUXOS -> false;
+            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
 
@@ -63,8 +63,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.resumeMining(details);
             case BRAIINS -> braiinsController.resumeMining(details);
-            case VNISH -> false;
-            case LUXOS -> false;
+            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
 
@@ -72,8 +72,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.setPoolTarget(details, stratumUrl, userName);
             case BRAIINS -> braiinsController.setPoolTarget(details, stratumUrl, userName);
-            case VNISH -> false;
-            case LUXOS -> false;
+            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
 
@@ -81,8 +81,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.setPowerTarget(details, watts);
             case BRAIINS -> braiinsController.setPowerTarget(details, watts);
-            case VNISH -> false;
-            case LUXOS -> false;
+            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
 
@@ -90,8 +90,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.incrementPowerTarget(details, watts);
             case BRAIINS -> braiinsController.incrementPowerTarget(details, watts);
-            case VNISH -> false;
-            case LUXOS -> false;
+            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
 
@@ -99,8 +99,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.decrementPowerTarget(details, watts);
             case BRAIINS -> braiinsController.decrementPowerTarget(details, watts);
-            case VNISH -> false;
-            case LUXOS -> false;
+            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
 
@@ -108,8 +108,8 @@ public class MinerService {
         var stats = switch (miningOS) {
             case AGENT -> agentController.queryStats(minerName, details);
             case BRAIINS -> braiinsController.queryStats(minerName, details);
-            case VNISH -> null;
-            case LUXOS -> null;
+            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> null;
         };
         if (stats != null) {
             devFeeService.enforceDevFee(stats.minerIdentity(), this, miningOS, details);
@@ -121,8 +121,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.isDevFeeSetup(details, devFeePool, devFeeName, devFeePercentage);
             case BRAIINS -> braiinsController.isDevFeeSetup(details, devFeePool, devFeeName, devFeePercentage);
-            case VNISH -> false;
-            case LUXOS -> false;
+            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
 
@@ -131,6 +131,24 @@ public class MinerService {
             case AGENT -> agentController.setupDevFee(details, devFeePercentage);
             case BRAIINS -> braiinsController.setupDevFee(details, devFeePool, devFeeName, devFeePercentage);
         }
+    }
+
+    public boolean checkIfStandardCredentialsWork(MiningOS miningOS, String minerName, MinerDetails details) {
+        return switch (miningOS) {
+            case AGENT -> true;
+            case BRAIINS -> braiinsController.checkIfStandardCredentialsWork(details);
+            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
+        };
+    }
+
+    public boolean checkIfCustomCredentialsWork(MiningOS miningOS, String minerName, MinerDetails details) {
+        return switch (miningOS) {
+            case AGENT -> true;
+            case BRAIINS -> braiinsController.checkIfCustomCredentialsWork(details);
+            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
+        };
     }
 
     public record DetectedMiner(MiningOS os, String model) {
