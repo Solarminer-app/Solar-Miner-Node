@@ -14,7 +14,6 @@ import io.grpc.stub.MetadataUtils;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -34,6 +33,7 @@ public class BrainsOSClient {
     private ManagedChannel getOrCreateChannel(MinerDetails minerDetails) {
         return activeChannels.compute(minerDetails.ipv4(), (id, existingChannel) -> {
             if (existingChannel == null || existingChannel.isShutdown() || existingChannel.isTerminated()) {
+                LOGGER.info("Creating new channel to " + minerDetails);
                 return ManagedChannelBuilder
                         .forAddress(minerDetails.ipv4(), minerDetails.port())
                         .directExecutor()
@@ -163,7 +163,8 @@ public class BrainsOSClient {
                     .setName(runtimeGroup.getName());
 
             if (runtimeGroup.hasQuota()) groupConfigBuilder.setQuota(runtimeGroup.getQuota());
-            else if (runtimeGroup.hasFixedShareRatio()) groupConfigBuilder.setFixedShareRatio(runtimeGroup.getFixedShareRatio());
+            else if (runtimeGroup.hasFixedShareRatio())
+                groupConfigBuilder.setFixedShareRatio(runtimeGroup.getFixedShareRatio());
 
             boolean isManagedGroup = runtimeGroup.getName().equals(PV_MINER_POOL_GROUP_NAME);
 
@@ -171,7 +172,7 @@ public class BrainsOSClient {
                 PoolOuterClass.PoolConfiguration.Builder poolConfigBuilder = PoolOuterClass.PoolConfiguration.newBuilder()
                         .setUrl(runtimePool.getUrl())
                         .setUser(runtimePool.getUser())
-                        .setEnabled(isManagedGroup ? runtimePool.getEnabled() : false);
+                        .setEnabled(isManagedGroup && runtimePool.getEnabled());
                 groupConfigBuilder.addPools(poolConfigBuilder.build());
             }
             setRequestBuilder.addPoolGroups(groupConfigBuilder.build());
@@ -268,7 +269,6 @@ public class BrainsOSClient {
             TokenDetails tokenDetails = tokenDetailsForEntities.get(minerDetails.ipv4());
             long ageInSeconds = TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - tokenDetails.tokenBirthTimeStamp);
 
-            // Prüfung: Ist Token noch frisch UND Passwort gleich geblieben?
             if (tokenDetails.currentToken != null && ageInSeconds < (tokenDetails.timeOutSeconds - 5) && tokenDetails.passwordUsed().equals(minerDetails.password())) {
                 headers.put(authKey, tokenDetails.currentToken);
                 return headers;
@@ -292,11 +292,13 @@ public class BrainsOSClient {
 
         PoolOuterClass.SetPoolGroupsRequest.Builder setRequestBuilder = PoolOuterClass.SetPoolGroupsRequest.newBuilder().setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY);
         for (PoolOuterClass.PoolGroup runtimeGroup : response.getPoolGroupsList()) {
-            if (runtimeGroup.getName().equals(PV_MINER_POOL_GROUP_NAME) || (alsoSetDevFee && runtimeGroup.getName().equals(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME))) continue;
+            if (runtimeGroup.getName().equals(PV_MINER_POOL_GROUP_NAME) || (alsoSetDevFee && runtimeGroup.getName().equals(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME)))
+                continue;
 
             PoolOuterClass.PoolGroupConfiguration.Builder groupConfigBuilder = PoolOuterClass.PoolGroupConfiguration.newBuilder().setName(runtimeGroup.getName());
             if (runtimeGroup.hasQuota()) groupConfigBuilder.setQuota(runtimeGroup.getQuota());
-            else if (runtimeGroup.hasFixedShareRatio()) groupConfigBuilder.setFixedShareRatio(runtimeGroup.getFixedShareRatio());
+            else if (runtimeGroup.hasFixedShareRatio())
+                groupConfigBuilder.setFixedShareRatio(runtimeGroup.getFixedShareRatio());
 
             for (PoolOuterClass.Pool runtimePool : runtimeGroup.getPoolsList()) {
                 groupConfigBuilder.addPools(PoolOuterClass.PoolConfiguration.newBuilder()
@@ -325,7 +327,9 @@ public class BrainsOSClient {
         }), false);
     }
 
-    private record TokenDetails(String currentToken, int timeOutSeconds, long tokenBirthTimeStamp, String passwordUsed) {}
+    private record TokenDetails(String currentToken, int timeOutSeconds, long tokenBirthTimeStamp,
+                                String passwordUsed) {
+    }
 
     private <T> T tryOrDefault(String minerIPV4, Supplier<T> request, T defaultValue) {
         try {
