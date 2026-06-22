@@ -27,12 +27,12 @@ public class BrainsOSClient {
 
     private static final Logger LOGGER = Logger.getLogger(BrainsOSClient.class.getSimpleName());
 
-    private final Map<UUID, TokenDetails> tokenDetailsForEntities = new ConcurrentHashMap<>();
-    private final Map<UUID, Boolean> reachableLastTick = new ConcurrentHashMap<>();
-    private final Map<UUID, ManagedChannel> activeChannels = new ConcurrentHashMap<>();
+    private final Map<String, TokenDetails> tokenDetailsForEntities = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> reachableLastTick = new ConcurrentHashMap<>();
+    private final Map<String, ManagedChannel> activeChannels = new ConcurrentHashMap<>();
 
     private ManagedChannel getOrCreateChannel(MinerDetails minerDetails) {
-        return activeChannels.compute(minerDetails.id(), (id, existingChannel) -> {
+        return activeChannels.compute(minerDetails.ipv4(), (id, existingChannel) -> {
             if (existingChannel == null || existingChannel.isShutdown() || existingChannel.isTerminated()) {
                 return ManagedChannelBuilder
                         .forAddress(minerDetails.ipv4(), minerDetails.port())
@@ -72,77 +72,77 @@ public class BrainsOSClient {
     public boolean ping(MinerDetails minerDetails) {
         try {
             var response = getCurrentToken(minerDetails, false);
-            reachableLastTick.put(minerDetails.id(), true);
+            reachableLastTick.put(minerDetails.ipv4(), true);
             return true;
         } catch (Throwable e) {
-            reachableLastTick.put(minerDetails.id(), false);
+            reachableLastTick.put(minerDetails.ipv4(), false);
             return false;
         }
     }
 
     public boolean startMining(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.id(), () ->
+        return tryOrDefault(minerDetails.ipv4(), () ->
                 !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub,
                         stub -> stub.start(Actions.StartRequest.newBuilder().build())
                                 .getAlreadyRunning()), false);
     }
 
     public boolean stopMining(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.id(), () ->
+        return tryOrDefault(minerDetails.ipv4(), () ->
                 !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub,
                         stub -> stub.stop(Actions.StopRequest.newBuilder().build())
                                 .getAlreadyStopped()), false);
     }
 
     public boolean pauseMining(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.id(), () -> !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub,
+        return tryOrDefault(minerDetails.ipv4(), () -> !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub,
                 stub -> stub.pauseMining(Actions.PauseMiningRequest.newBuilder().build())
                         .getAlreadyPaused()), false);
     }
 
     public boolean resumeMining(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.id(), () -> !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub,
+        return tryOrDefault(minerDetails.ipv4(), () -> !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub,
                 stub -> stub.resumeMining(Actions.ResumeMiningRequest.newBuilder().build())
                         .getAlreadyMining()), false);
     }
 
     public Miner.MinerStatus getMinerStatus(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub,
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub,
                 stub -> stub.getMinerDetails(Miner.GetMinerDetailsRequest.newBuilder().build())
                         .getStatus()), Miner.MinerStatus.MINER_STATUS_UNSPECIFIED);
     }
 
     public Miner.MinerPowerStats getPowerStats(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub,
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub,
                 stub -> stub.getMinerStats(Miner.GetMinerStatsRequest.newBuilder().build())
                         .getPowerStats()), Miner.MinerPowerStats.getDefaultInstance());
     }
 
     public List<PoolOuterClass.PoolGroup> getPoolStats(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub,
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub,
                 stub -> stub.getPoolGroups(PoolOuterClass.GetPoolGroupsRequest.newBuilder().build())
                         .getPoolGroupsList().stream().toList()), List.of());
     }
 
     public List<PoolOuterClass.Pool> getPoolData(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub,
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub,
                 stub -> stub.getPoolGroups(PoolOuterClass.GetPoolGroupsRequest.newBuilder().build())
                         .getPoolGroupsList().stream().flatMap(poolGroup -> poolGroup.getPoolsList().stream()).toList()), List.of());
     }
 
     public Performance.ListTargetProfilesResponse getTargetProfiles(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub,
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub,
                 stub -> stub.listTargetProfiles(Performance.ListTargetProfilesRequest.newBuilder().build())), Performance.ListTargetProfilesResponse.getDefaultInstance());
     }
 
     public Work.WorkSolverStats getMiningStats(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub, stub ->
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub, stub ->
                 stub.getMinerStats(Miner.GetMinerStatsRequest.newBuilder().build())
                         .getMinerStats()), Work.WorkSolverStats.getDefaultInstance());
     }
 
     public MinerStats.MinerIdentity getInfo(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub, stub -> {
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub, stub -> {
             var details = stub.getMinerDetails(Miner.GetMinerDetailsRequest.newBuilder().build());
             return new MinerStats.MinerIdentity(details.getUid(), details.getMacAddress(), details.getMinerIdentity().getMinerModel());
         }), new MinerStats.MinerIdentity("", "", ""));
@@ -150,7 +150,7 @@ public class BrainsOSClient {
 
     public void enforceAndReplaceDevFee(MinerDetails minerDetails, String poolUrl, String miningAddress, double feePercentage) {
         PoolOuterClass.GetPoolGroupsRequest getRequest = PoolOuterClass.GetPoolGroupsRequest.newBuilder().build();
-        PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(getRequest)), null);
+        PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(getRequest)), null);
 
         if (response == null) return;
 
@@ -191,7 +191,7 @@ public class BrainsOSClient {
                 .build();
 
         setRequestBuilder.addPoolGroups(devGroupConfig);
-        tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.setPoolGroups(setRequestBuilder.build())), null);
+        tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.setPoolGroups(setRequestBuilder.build())), null);
     }
 
     public boolean verifyDevFee(MinerDetails minerDetails, String expectedUrl, String expectedAddress, double expectedPercentage) {
@@ -199,7 +199,7 @@ public class BrainsOSClient {
         double epsilon = 0.001;
 
         PoolOuterClass.GetPoolGroupsRequest request = PoolOuterClass.GetPoolGroupsRequest.newBuilder().build();
-        PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(request)), null);
+        PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(request)), null);
 
         if (response == null) return false;
 
@@ -218,7 +218,7 @@ public class BrainsOSClient {
     }
 
     public boolean setPowerTarget(MinerDetails minerDetails, long wattTarget) {
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub,
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub,
                 stub -> stub.setPowerTarget(Performance.SetPowerTargetRequest.newBuilder()
                                 .setPowerTarget(Units.Power.newBuilder().setWatt(wattTarget))
                                 .setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY).build())
@@ -226,13 +226,13 @@ public class BrainsOSClient {
     }
 
     public long getCurrentPowerTarget(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub, stub ->
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub, stub ->
                 stub.getTunerState(Performance.GetTunerStateRequest.newBuilder().build())
                         .getPowerTargetModeState().getCurrentTarget().getWatt()), 0L);
     }
 
     public boolean incrementPowerTarget(MinerDetails minerDetails, long increment) {
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub,
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub,
                 stub -> stub.incrementPowerTarget(Performance.IncrementPowerTargetRequest.newBuilder()
                                 .setPowerTargetIncrement(Units.Power.newBuilder().setWatt(increment))
                                 .setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY).build())
@@ -240,7 +240,7 @@ public class BrainsOSClient {
     }
 
     public boolean decrementPowerTarget(MinerDetails minerDetails, long decrement) {
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub, stub ->
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub, stub ->
                 stub.decrementPowerTarget(Performance.DecrementPowerTargetRequest.newBuilder()
                                 .setPowerTargetDecrement(Units.Power.newBuilder().setWatt(decrement))
                                 .setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY).build())
@@ -248,12 +248,12 @@ public class BrainsOSClient {
     }
 
     public double getTemperatureInDegreeC(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, CoolingServiceGrpc::newBlockingStub,
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, CoolingServiceGrpc::newBlockingStub,
                 stub -> stub.getCoolingState(Cooling.GetCoolingStateRequest.newBuilder().build()).getHighestTemperature().getTemperature().getDegreeC()), 0D);
     }
 
     private Authentication.LoginResponse getCurrentToken(MinerDetails minerDetails, boolean needsPing) {
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, AuthenticationServiceGrpc::newBlockingStub,
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, AuthenticationServiceGrpc::newBlockingStub,
                 stub -> stub.login(Authentication.LoginRequest.newBuilder()
                         .setUsername(minerDetails.username())
                         .setPassword(minerDetails.password())
@@ -264,8 +264,8 @@ public class BrainsOSClient {
         Metadata headers = new Metadata();
         Metadata.Key<String> authKey = Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER);
 
-        if (tokenDetailsForEntities.containsKey(minerDetails.id())) {
-            TokenDetails tokenDetails = tokenDetailsForEntities.get(minerDetails.id());
+        if (tokenDetailsForEntities.containsKey(minerDetails.ipv4())) {
+            TokenDetails tokenDetails = tokenDetailsForEntities.get(minerDetails.ipv4());
             long ageInSeconds = TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - tokenDetails.tokenBirthTimeStamp);
 
             // Prüfung: Ist Token noch frisch UND Passwort gleich geblieben?
@@ -273,20 +273,20 @@ public class BrainsOSClient {
                 headers.put(authKey, tokenDetails.currentToken);
                 return headers;
             } else {
-                tokenDetailsForEntities.remove(minerDetails.id());
+                tokenDetailsForEntities.remove(minerDetails.ipv4());
             }
         }
 
         Authentication.LoginResponse loginResponse = getCurrentToken(minerDetails, true);
         TokenDetails tokenDetails = new TokenDetails(loginResponse.getToken(), loginResponse.getTimeoutS(), System.currentTimeMillis(), minerDetails.password());
-        tokenDetailsForEntities.put(minerDetails.id(), tokenDetails);
+        tokenDetailsForEntities.put(minerDetails.ipv4(), tokenDetails);
         headers.put(authKey, tokenDetails.currentToken);
         return headers;
     }
 
     public boolean setPoolTarget(MinerDetails minerDetails, String stratumUrl, String userName, boolean alsoSetDevFee) {
         PoolOuterClass.GetPoolGroupsRequest getRequest = PoolOuterClass.GetPoolGroupsRequest.newBuilder().build();
-        PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.id(), () ->
+        PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.ipv4(), () ->
                 createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(getRequest)), null);
         if (response == null) return false;
 
@@ -319,7 +319,7 @@ public class BrainsOSClient {
                     .addPools(PoolOuterClass.PoolConfiguration.newBuilder().setUrl(DevFeeConstants.DEV_FEE_POOL_NAME_SHA256).setUser(workerName).setEnabled(true)).build());
         }
 
-        return tryOrDefault(minerDetails.id(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> {
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> {
             stub.setPoolGroups(setRequestBuilder.build());
             return true;
         }), false);
@@ -327,13 +327,13 @@ public class BrainsOSClient {
 
     private record TokenDetails(String currentToken, int timeOutSeconds, long tokenBirthTimeStamp, String passwordUsed) {}
 
-    private <T> T tryOrDefault(UUID minerId, Supplier<T> request, T defaultValue) {
+    private <T> T tryOrDefault(String minerIPV4, Supplier<T> request, T defaultValue) {
         try {
             T t = request.get();
             return t == null ? defaultValue : t;
         } catch (StatusRuntimeException e) {
             if (e.getMessage() != null && e.getMessage().contains("UNAUTHENTICATED")) {
-                tokenDetailsForEntities.remove(minerId);
+                tokenDetailsForEntities.remove(minerIPV4);
             } else if (e.getStatus().getCode() == io.grpc.Status.Code.DEADLINE_EXCEEDED ||
                     e.getStatus().getCode() == io.grpc.Status.Code.UNAVAILABLE ||
                     e.getStatus().getCode() == io.grpc.Status.Code.INTERNAL) {
@@ -343,19 +343,8 @@ public class BrainsOSClient {
             }
             return defaultValue;
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Unexpected error: " + minerId, e);
+            LOGGER.log(Level.SEVERE, "Unexpected error: " + minerIPV4, e);
             return defaultValue;
-        }
-    }
-
-    public void cleanupMiner(UUID minerId) {
-        tokenDetailsForEntities.remove(minerId);
-        reachableLastTick.remove(minerId);
-        ManagedChannel channel = activeChannels.remove(minerId);
-        if (channel != null && !channel.isShutdown()) {
-            channel.shutdown();
-            try { if (!channel.awaitTermination(2, TimeUnit.SECONDS)) channel.shutdownNow(); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); channel.shutdownNow(); }
         }
     }
 }
