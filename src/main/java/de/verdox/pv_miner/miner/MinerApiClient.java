@@ -55,6 +55,30 @@ public class MinerApiClient {
         return executePowerCommand("/power-target/decrement", new PowerTargetRequest(os, details, watts));
     }
 
+    public boolean checkStandardCredentialsWork(MiningOS os, MinerDetails details) {
+        return Boolean.TRUE.equals(restClient.post()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/check-standard-credentials")
+                        .queryParamIfPresent("os", Optional.ofNullable(os))
+                        .build())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(details)
+                .retrieve()
+                .body(Boolean.class));
+    }
+
+    public boolean checkIfCustomCredentialsWork(MiningOS os, MinerDetails details) {
+        return Boolean.TRUE.equals(restClient.post()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/check-custom-credentials")
+                        .queryParamIfPresent("os", Optional.ofNullable(os))
+                        .build())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(details)
+                .retrieve()
+                .body(Boolean.class));
+    }
+
     public MinerStats getStats(MiningOS os, MinerDetails details) {
         return restClient.post()
                 .uri(uriBuilder -> uriBuilder

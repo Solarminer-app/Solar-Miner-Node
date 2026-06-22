@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 public class MinerSetupStep extends VerticalLayout implements WizardStep {
 
@@ -67,7 +68,14 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
         minerGrid.addColumn(entry -> entry.getMinerInfo().os())
                 .setHeader(new TranslatableSpan("setup.miner.scan.grid.header.os")).setSortable(true).setAutoWidth(true);
 
+
         minerGrid.addColumn(new ComponentRenderer<>(entry -> {
+            if (!entry.isNeedsCustomCredentials()) {
+                TranslatableSpan span = new TranslatableSpan(entry.getTestStatus() == TestStatus.TESTING ? "setup.miner.scan.status.testing" : "setup.miner.scan.credentials.standard");
+                span.getStyle().set("color", "var(--lumo-contrast-50pct)");
+                span.getStyle().set("font-style", "italic");
+                return span;
+            }
             TextField usernameField = new TextField();
             usernameField.setPlaceholder("root");
             usernameField.setValue(entry.getUsername());
@@ -76,7 +84,14 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
             return usernameField;
         })).setHeader("Username");
 
+
         minerGrid.addColumn(new ComponentRenderer<>(entry -> {
+            if (!entry.isNeedsCustomCredentials()) {
+                TranslatableSpan span = new TranslatableSpan(entry.getTestStatus() == TestStatus.TESTING ? "setup.miner.scan.status.testing" : "setup.miner.scan.credentials.standard");
+                span.getStyle().set("color", "var(--lumo-contrast-50pct)");
+                span.getStyle().set("font-style", "italic");
+                return span;
+            }
             PasswordField passwordField = new PasswordField();
             passwordField.setPlaceholder("password");
             passwordField.setValue(entry.getPassword());
@@ -85,22 +100,26 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
             return passwordField;
         })).setHeader("Password");
 
+
         minerGrid.addColumn(new ComponentRenderer<>(entry -> {
             HorizontalLayout actionLayout = new HorizontalLayout();
             actionLayout.setAlignItems(Alignment.CENTER);
 
-            Button testBtn = new Button(VaadinIcon.PLUG.create());
-            testBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
-
             Icon statusIcon = createStatusIcon(entry.getTestStatus());
 
-            testBtn.addClickListener(e -> {
-                testConnection(entry, statusIcon);
-            });
 
-            actionLayout.add(testBtn, statusIcon);
+            if (entry.isNeedsCustomCredentials()) {
+                Button testBtn = new Button(VaadinIcon.PLUG.create());
+                testBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+                testBtn.addClickListener(e -> {
+                    testCustomConnection(entry, statusIcon);
+                });
+                actionLayout.add(testBtn);
+            }
+
+            actionLayout.add(statusIcon);
             return actionLayout;
-        })).setHeader("Test").setAutoWidth(true);
+        })).setHeader("Status").setAutoWidth(true);
 
         bulkConfigLayout = createBulkConfigLayout();
 
@@ -137,11 +156,13 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
                 return;
             }
             selected.forEach(entry -> {
-                entry.setUsername(bulkUser.getValue());
-                entry.setPassword(bulkPass.getValue());
+                if (entry.isNeedsCustomCredentials()) {
+                    entry.setUsername(bulkUser.getValue());
+                    entry.setPassword(bulkPass.getValue());
+                }
             });
             minerGrid.getDataProvider().refreshAll();
-            Notification.show(getTranslation("notification.miner.credentials_applied",  selected.size()));
+            Notification.show(getTranslation("notification.miner.credentials_applied", selected.size()));
         });
 
         TranslatableButton testBulkBtn = new TranslatableButton("btn.test_selected", VaadinIcon.CHECK.create(), e -> {
@@ -150,7 +171,11 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
                 Notification.show("Please select at least one miner to test.");
                 return;
             }
-            selected.forEach(entry -> testConnection(entry, null));
+            selected.forEach(entry -> {
+                if (entry.isNeedsCustomCredentials()) {
+                    testCustomConnection(entry, null);
+                }
+            });
             minerGrid.getDataProvider().refreshAll();
         });
         testBulkBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -188,9 +213,13 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
 
                     if (!alreadyExists) {
                         MinerConfigEntry newEntry = new MinerConfigEntry(minerInfo);
+                        newEntry.setTestStatus(TestStatus.TESTING);
+
                         discoveredMiners.add(newEntry);
                         updateGridData();
                         minerGrid.select(newEntry);
+
+                        CompletableFuture.runAsync(() -> testStandardCredentials(newEntry, ui));
                     }
                 }),
                 () -> ui.access(() -> {
@@ -215,15 +244,41 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
         );
     }
 
-    private void testConnection(MinerConfigEntry entry, Icon statusIconToUpdate) {
-        int port = 80;
-        if(entry.getMinerInfo().os().equals(MiningOS.BRAIINS)) {
-            port = 50051;
+    private void testStandardCredentials(MinerConfigEntry entry, UI ui) {
+        int port = entry.getMinerInfo().os().equals(MiningOS.BRAIINS) ? 50051 : 80;
+        var details = new MinerApiClient.MinerDetails(UUID.randomUUID(), entry.getMinerInfo().ipAddress(), port, null, null);
+
+        MinerApiClient client = SpringContextHelper.getBean(MinerApiClient.class);
+        boolean success = false;
+        try {
+            success = client.checkStandardCredentialsWork(entry.getMinerInfo().os(), details);
+        } catch (Exception e) {
+
         }
 
+        boolean finalSuccess = success;
+        ui.access(() -> {
+            if (finalSuccess) {
+                entry.setTestStatus(TestStatus.SUCCESS);
+                entry.setNeedsCustomCredentials(false);
+            } else {
+                entry.setTestStatus(TestStatus.UNTESTED);
+                entry.setNeedsCustomCredentials(true);
+            }
+            minerGrid.getDataProvider().refreshItem(entry);
+        });
+    }
+
+    private void testCustomConnection(MinerConfigEntry entry, Icon statusIconToUpdate) {
+        int port = entry.getMinerInfo().os().equals(MiningOS.BRAIINS) ? 50051 : 80;
         var details = new MinerApiClient.MinerDetails(UUID.randomUUID(), entry.getMinerInfo().ipAddress(), port, entry.getUsername(), entry.getPassword());
-        var info = SpringContextHelper.getBean(MinerApiClient.class).getStats(entry.getMinerInfo().os(), details);
-        boolean success = info != null && info.minerIdentity().macAddress() != null;
+
+        boolean success = false;
+        try {
+            success = SpringContextHelper.getBean(MinerApiClient.class).checkIfCustomCredentialsWork(entry.getMinerInfo().os(), details);
+        } catch (Exception e) {
+
+        }
 
         entry.setTestStatus(success ? TestStatus.SUCCESS : TestStatus.FAILED);
 
@@ -244,6 +299,10 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
             case FAILED:
                 icon = VaadinIcon.CLOSE_CIRCLE.create();
                 icon.setColor("var(--lumo-error-color)");
+                break;
+            case TESTING:
+                icon = VaadinIcon.HOURGLASS.create();
+                icon.setColor("var(--lumo-primary-color)");
                 break;
             default:
                 icon = VaadinIcon.QUESTION_CIRCLE_O.create();
@@ -276,11 +335,22 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
 
     @Override
     public boolean isValid() {
-        return scanComplete;
+        if (!scanComplete) {
+            return false;
+        }
+
+        Set<MinerConfigEntry> selected = minerGrid.getSelectedItems();
+
+        for (MinerConfigEntry entry : selected) {
+            if (entry.getTestStatus() != TestStatus.SUCCESS) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public enum TestStatus {
-        UNTESTED, SUCCESS, FAILED
+        UNTESTED, TESTING, SUCCESS, FAILED
     }
 
     public static class MinerConfigEntry {
@@ -288,6 +358,7 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
         private String username = "root";
         private String password = "root";
         private TestStatus testStatus = TestStatus.UNTESTED;
+        private boolean needsCustomCredentials = false;
 
         public MinerConfigEntry(DiscoveryService.MinerInfo minerInfo) {
             this.minerInfo = minerInfo;
@@ -309,5 +380,8 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
 
         public TestStatus getTestStatus() { return testStatus; }
         public void setTestStatus(TestStatus testStatus) { this.testStatus = testStatus; }
+
+        public boolean isNeedsCustomCredentials() { return needsCustomCredentials; }
+        public void setNeedsCustomCredentials(boolean needsCustomCredentials) { this.needsCustomCredentials = needsCustomCredentials; }
     }
 }
