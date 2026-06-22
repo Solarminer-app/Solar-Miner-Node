@@ -15,7 +15,7 @@ public class MinerController {
         this.minerService = minerService;
     }
 
-    @GetMapping("/check-standard-credentials")
+    @PostMapping("/check-standard-credentials")
     public boolean checkIfStandardCredentialsWork(
             @RequestBody MinerDetails details,
             @RequestParam(name = "os", required = false) MiningOS os
@@ -23,7 +23,7 @@ public class MinerController {
         return minerService.checkIfStandardCredentialsWork(os, details.id().toString(), details);
     }
 
-    @GetMapping("/check-custom-credentials")
+    @PostMapping("/check-custom-credentials")
     public boolean checkIfCustomCredentialsWork(
             @RequestBody MinerDetails details,
             @RequestParam(name = "os", required = false) MiningOS os
