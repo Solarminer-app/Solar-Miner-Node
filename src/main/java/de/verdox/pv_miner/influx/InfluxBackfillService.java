@@ -34,7 +34,6 @@ public class InfluxBackfillService {
 
             ensureDownsampleBucketExists();
 
-            // 1. BACKFILL FÜR PV-ANLAGEN
             String pvTargetMeasurement = new PVStatisticsAccumulator().getDownsampledMeasurementName();
             if (influxService.isMeasurementEmpty(influxService.getDownSampledInfluxBucket(), pvTargetMeasurement)) {
                 LOGGER.info("Downsampling-Cache for pv site is empty. Starting daily-chunked backfill with Miner-Fallback...");
@@ -42,7 +41,6 @@ public class InfluxBackfillService {
                 LOGGER.info("Backfill done for pv sites.");
             }
 
-            // 2. BACKFILL FÜR MINER
             String minerTargetMeasurement = new MinerStatisticsAccumulator().getDownsampledMeasurementName();
             if (influxService.isMeasurementEmpty(influxService.getDownSampledInfluxBucket(), minerTargetMeasurement)) {
                 LOGGER.info("Downsampling-Cache for miner data is empty. Starting daily-chunked backfill...");
@@ -97,19 +95,19 @@ public class InfluxBackfillService {
                               |> aggregateWindow(every: 1d, fn: (column, tables=<-) => tables |> integral(unit: 1h), createEmpty: false)
                             
                             
-                              miner_fallback = from(bucket: "%s")
+                            miner_fallback = from(bucket: "%s")
                               |> range(start: %s, stop: %s)
                               |> filter(fn: (r) => r["_measurement"] == "miner_data")
                               |> filter(fn: (r) => r["_field"] == "powerUsageWatts")
                               |> filter(fn: (r) => not has_miner_in_pv)
                               |> group(columns: ["_measurement", "_field", "entity"])
-                              
+                            
                               |> map(fn: (r) => ({ r with _value: r._value / 1000.0 }))
-                              
-                              |> aggregateWindow(every: 1d, fn: integral, column: "_value", timeSrc: "_stop", timeDst: "_time", createEmpty: false)
+                            
+                              |> aggregateWindow(every: 1d, fn: (column, tables=<-) => tables |> integral(unit: 1h), timeSrc: "_stop", timeDst: "_time", createEmpty: false)
                               |> group(columns: ["_time"]) // Gruppierung aufheben für die Summe
                               |> sum(column: "_value") // Den Tagesverbrauch ALLER Miner addieren
-                              
+                            
                               |> map(fn: (r) => ({ r with _field: "MinerPowerInKw", _measurement: "%s", entity: pv_entity }))
                             
                             union(tables: [pv_aggregated, miner_fallback])
@@ -142,10 +140,10 @@ public class InfluxBackfillService {
                               |> filter(fn: (r) => r["_measurement"] == "%s")
                               |> filter(fn: (r) => r["_field"] == "powerUsageWatts")
                               |> group(columns: ["_measurement", "_field", "entity"])
-           
+            
                               |> map(fn: (r) => ({ r with _value: r._value / 1000.0 }))
                     
-                              |> aggregateWindow(every: 1d, fn: integral, column: "_value", timeSrc: "_stop", timeDst: "_time", createEmpty: false)
+                              |> aggregateWindow(every: 1d, fn: (column, tables=<-) => tables |> integral(unit: 1h), timeSrc: "_stop", timeDst: "_time", createEmpty: false)
                               |> set(key: "_measurement", value: "%s")
                               |> to(bucket: "%s")""",
                     rawBucket, startRange, stopRange, sourceMeasurement, targetMeasurement, influxService.getDownSampledInfluxBucket()

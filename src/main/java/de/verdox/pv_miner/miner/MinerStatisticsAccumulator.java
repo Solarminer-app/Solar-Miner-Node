@@ -49,7 +49,7 @@ public class MinerStatisticsAccumulator implements DailyStatisticAccumulator<Min
                         "  |> filter(fn: (r) => r[\"_measurement\"] == \"%s\")\n" +
                         "  |> filter(fn: (r) => r[\"_field\"] == \"" + AsicMinerInfluxStrategy.POWER_USAGE_WATTS + "\")\n" +
                         "  |> map(fn: (r) => ({ r with _value: r._value / 1000.0 }))\n" +
-                        "  |> aggregateWindow(every: 1d, fn: integral, column: \"_value\", timeSrc: \"_stop\", timeDst: \"_time\", createEmpty: false)\n" +
+                        "  |> aggregateWindow(every: 1d, fn: (column, tables=<-) => tables |> integral(unit: 1h), timeSrc: \"_stop\", timeDst: \"_time\", createEmpty: false)\n" +
                         "  |> set(key: \"_measurement\", value: \"%s\")\n" +
                         "  |> to(bucket: \"%s\")",
                 measurement, sourceBucket, measurement, getDownsampledMeasurementName(), targetBucket
