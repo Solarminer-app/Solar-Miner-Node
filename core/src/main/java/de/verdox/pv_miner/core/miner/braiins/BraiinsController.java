@@ -106,4 +106,12 @@ public class BraiinsController implements MinerController {
     public void setupDevFee(MinerDetails minerDetails, String devFeePool, String devFeeName, double devFeePercentage) {
         brainsOSClient.enforceAndReplaceDevFee(minerDetails, devFeePool, devFeeName, devFeePercentage);
     }
+
+    public boolean checkIfStandardCredentialsWork(MinerDetails details) {
+        return brainsOSClient.checkIfStandardCredentialsWork(details);
+    }
+
+    public boolean checkIfCustomCredentialsWork(MinerDetails details) {
+        return brainsOSClient.checkIfCustomCredentialsWork(details);
+    }
 }

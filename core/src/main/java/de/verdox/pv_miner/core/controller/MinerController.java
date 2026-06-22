@@ -15,6 +15,22 @@ public class MinerController {
         this.minerService = minerService;
     }
 
+    @GetMapping("/check-standard-credentials")
+    public boolean checkIfStandardCredentialsWork(
+            @RequestBody MinerDetails details,
+            @RequestParam(name = "os", required = false) MiningOS os
+    ) {
+        return minerService.checkIfStandardCredentialsWork(os, details.id().toString(), details);
+    }
+
+    @GetMapping("/check-custom-credentials")
+    public boolean checkIfCustomCredentialsWork(
+            @RequestBody MinerDetails details,
+            @RequestParam(name = "os", required = false) MiningOS os
+    ) {
+        return minerService.checkIfCustomCredentialsWork(os, details.id().toString(), details);
+    }
+
     @PostMapping("/identify-os")
     public MinerService.DetectedMiner identifyMiningOS(@RequestBody String ipv4) {
         return minerService.identifyMinerDetails(ipv4);
@@ -80,7 +96,9 @@ public class MinerController {
         return minerService.queryStats(os, details.id().toString(), details);
     }
 
-    public record PowerTargetRequest(MiningOS os, MinerDetails minerDetails, long watts) { }
+    public record PowerTargetRequest(MiningOS os, MinerDetails minerDetails, long watts) {
+    }
 
-    public record SetPoolRequest(MiningOS os, MinerDetails minerDetails, String stratumUrl, String userName) { }
+    public record SetPoolRequest(MiningOS os, MinerDetails minerDetails, String stratumUrl, String userName) {
+    }
 }

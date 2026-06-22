@@ -2,7 +2,11 @@ package de.verdox.pv_miner.core.miner;
 
 public enum MiningOS {
     AGENT,
+    ANTMINER_STOCK_OS,
+    MICROBT_STOCK_OS,
+    CANAAN_STOCK_OS,
+    INNOSILICON_STOCK_OS,
     BRAIINS,
     VNISH,
-    LUXOS
+    WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS
 }

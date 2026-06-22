@@ -2,6 +2,8 @@ package de.verdox.pv_miner.core.miner.braiins;
 
 import braiins.bos.v1.*;
 import de.verdox.pv_miner.core.miner.DevFeeConstants;
+import de.verdox.pv_miner.core.miner.MinerStandardCredentials;
+import de.verdox.pv_miner.core.miner.MiningOS;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.service.DevFeeService;
@@ -325,6 +327,26 @@ public class BrainsOSClient {
             stub.setPoolGroups(setRequestBuilder.build());
             return true;
         }), false);
+    }
+
+    public boolean checkIfStandardCredentialsWork(MinerDetails details) {
+        var credentialsToUse = MinerStandardCredentials.byOS(MiningOS.BRAIINS);
+        String usernameToUse = credentialsToUse.username() == null ? "" : credentialsToUse.username();
+        String passwordToUse = credentialsToUse.password() == null ? "" : credentialsToUse.password();
+
+        Authentication.LoginResponse response = tryOrDefault(details.ipv4(), () ->
+                        createRequest(details, AuthenticationServiceGrpc::newBlockingStub,
+                                stub -> stub.login(Authentication.LoginRequest.newBuilder()
+                                        .setUsername(usernameToUse)
+                                        .setPassword(passwordToUse)
+                                        .build()), false, false),
+                Authentication.LoginResponse.getDefaultInstance());
+        return !response.getToken().isEmpty();
+    }
+
+    public boolean checkIfCustomCredentialsWork(MinerDetails details) {
+        Authentication.LoginResponse response = getCurrentToken(details, false);
+        return !response.getToken().isEmpty();
     }
 
     private record TokenDetails(String currentToken, int timeOutSeconds, long tokenBirthTimeStamp,
