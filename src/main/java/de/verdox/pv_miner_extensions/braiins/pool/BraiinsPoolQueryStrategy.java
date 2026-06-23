@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class BraiinsPoolQueryStrategy implements MiningPoolQueryStrategy<BraiinsPoolEntity.BraiinsPoolData, BraiinsPoolEntity> {
@@ -26,15 +27,15 @@ public class BraiinsPoolQueryStrategy implements MiningPoolQueryStrategy<Braiins
             }
             return null;
         }
+        GlobalConstantsService globalConstantsService = SpringContextHelper.getBean(GlobalConstantsService.class);
         try {
-            var setupDate = LocalDate.of(2000, 1, 1);
-            String fetchedUsername = BraiinsPoolAPIClient.getUsername(entity.getAuthToken(), CryptoCurrency.BITCOIN);
-
-            double todayReward = BraiinsPoolAPIClient.getTodayReward(entity.getAuthToken(), CryptoCurrency.BITCOIN);
-            double currentPoolBalance = BraiinsPoolAPIClient.getCurrentBalance(entity.getAuthToken(), CryptoCurrency.BITCOIN);
-
-            GlobalConstantsService globalConstantsService = SpringContextHelper.getBean(GlobalConstantsService.class);
+            var setupDate = entity.getParentEntity().getSetupDate();
+            BrainsPoolDTOs.BraiinsProfileData profileData = BraiinsPoolAPIClient.getProfileData(entity.getAuthToken(), CryptoCurrency.BITCOIN);
+            String fetchedUsername = profileData.username();
+            double todayReward = profileData.todayReward();
+            double currentBalance = profileData.currentBalance();
             double payPerShare = new BraiinsFFPSPayout().calculateRewardForDay(globalConstantsService.getTodayMiningDifficulty(), globalConstantsService.getTodayBlockSubsidy(), globalConstantsService.getTodayAverageTxPrice24h(), 1, 0);
+
             var workers = BraiinsPoolAPIClient.getWorkerData(entity.getAuthToken(), CryptoCurrency.BITCOIN);
             var dailyRewards = BraiinsPoolAPIClient.getDailyRewards(entity.getAuthToken(), CryptoCurrency.BITCOIN, setupDate, LocalDate.now());
             Map<Long, Double> rewards = new HashMap<>();
@@ -45,14 +46,19 @@ public class BraiinsPoolQueryStrategy implements MiningPoolQueryStrategy<Braiins
                 long calcDate = dailyReward.calculation_date() * 1000;
                 rewards.put(calcDate, dailyReward.total_reward() * Math.pow(10, 8));
             }
-            BraiinsPoolEntity.BraiinsPoolData miningPoolData = new BraiinsPoolEntity.BraiinsPoolData(fetchedUsername, todayReward, currentPoolBalance, payPerShare, workers.entrySet().stream().map(stringWorkerDataEntry -> new BraiinsPoolEntity.BraiinsPoolData.WorkerData(stringWorkerDataEntry.getKey(), stringWorkerDataEntry.getValue().shares_24h())).toList(), rewards);
+            BraiinsPoolEntity.BraiinsPoolData miningPoolData = new BraiinsPoolEntity.BraiinsPoolData(fetchedUsername, todayReward, currentBalance, payPerShare, workers.entrySet().stream().map(stringWorkerDataEntry -> new BraiinsPoolEntity.BraiinsPoolData.WorkerData(stringWorkerDataEntry.getKey(), stringWorkerDataEntry.getValue().shares_24h())).toList(), rewards);
 
             LOGGER.info("Received "+rewards.size()+" payout data from braiins pool");
             cachedResults.put(entity.getId(), miningPoolData);
             return miningPoolData;
-        } finally {
+        }
+        catch (Throwable throwable) {
+            LOGGER.log(Level.SEVERE, throwable.getMessage(), throwable);
+        }
+        finally {
             lastQueryTimestamp.put(entity.getId(), System.currentTimeMillis());
         }
+        return null;
     }
 
     @Override

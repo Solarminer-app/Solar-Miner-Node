@@ -47,22 +47,28 @@ public class BraiinsPoolAPIClient {
         return result;
     }
 
+    public static BrainsPoolDTOs.BraiinsProfileData getProfileData(String authToken, CryptoCurrency cryptoCurrency) throws Exception {
+        String coinId = cryptoCurrency.getId().toLowerCase(Locale.ROOT);
+        JsonElement jsonElement = sendGetRequest("https://pool.braiins.com/accounts/profile/json/" + coinId, authToken);
+        JsonObject rootObject = jsonElement.getAsJsonObject();
+        String username = rootObject.get("username").getAsString();
+        JsonObject coinData = rootObject.getAsJsonObject(coinId);
+        return new BrainsPoolDTOs.BraiinsProfileData(
+                username,
+                coinData.get("current_balance").getAsDouble(),
+                coinData.get("today_reward").getAsDouble(),
+                coinData.get("all_time_reward").getAsDouble(),
+                coinData.get("estimated_reward").getAsDouble(),
+                coinData.get("hash_rate_24h").getAsDouble(),
+                coinData.get("ok_workers").getAsInt(),
+                coinData.get("off_workers").getAsInt()
+        );
+    }
+
     public static String getUsername(String authToken, CryptoCurrency cryptoCurrency) throws Exception {
         String coinId = cryptoCurrency.getId().toLowerCase(Locale.ROOT);
         JsonElement jsonElement = sendGetRequest("https://pool.braiins.com/accounts/profile/json/" + coinId, authToken);
         return jsonElement.getAsJsonObject().get("username").getAsString();
-    }
-
-    public static double getCurrentBalance(String authToken, CryptoCurrency cryptoCurrency) throws Exception {
-        String coinId = cryptoCurrency.getId().toLowerCase(Locale.ROOT);
-        JsonElement jsonElement = sendGetRequest("https://pool.braiins.com/accounts/profile/json/" + coinId, authToken);
-        return jsonElement.getAsJsonObject().getAsJsonObject(coinId).get("current_balance").getAsDouble();
-    }
-
-    public static double getTodayReward(String authToken, CryptoCurrency cryptoCurrency) throws Exception {
-        String coinId = cryptoCurrency.getId().toLowerCase(Locale.ROOT);
-        JsonElement jsonElement = sendGetRequest("https://pool.braiins.com/accounts/profile/json/" + coinId, authToken);
-        return jsonElement.getAsJsonObject().getAsJsonObject(coinId).get("today_reward").getAsDouble();
     }
 
     public static void ping(String authToken) throws Exception {

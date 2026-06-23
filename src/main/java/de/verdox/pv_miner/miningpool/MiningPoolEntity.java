@@ -34,7 +34,7 @@ public abstract class MiningPoolEntity<T extends MiningPoolData> extends Abstrac
     @Transient
     public abstract String getStratumV1Url();
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "parentEntity")
     private PVSiteEntity parentEntity;
 
