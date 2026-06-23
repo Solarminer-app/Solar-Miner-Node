@@ -34,6 +34,7 @@ public class BraiinsPoolQueryStrategy implements MiningPoolQueryStrategy<Braiins
             String fetchedUsername = profileData.username();
             double todayReward = profileData.todayReward();
             double currentBalance = profileData.currentBalance();
+
             double payPerShare = new BraiinsFFPSPayout().calculateRewardForDay(globalConstantsService.getTodayMiningDifficulty(), globalConstantsService.getTodayBlockSubsidy(), globalConstantsService.getTodayAverageTxPrice24h(), 1, 0);
 
             var workers = BraiinsPoolAPIClient.getWorkerData(entity.getAuthToken(), CryptoCurrency.BITCOIN);
@@ -46,9 +47,9 @@ public class BraiinsPoolQueryStrategy implements MiningPoolQueryStrategy<Braiins
                 long calcDate = dailyReward.calculation_date() * 1000;
                 rewards.put(calcDate, dailyReward.total_reward() * Math.pow(10, 8));
             }
-            BraiinsPoolEntity.BraiinsPoolData miningPoolData = new BraiinsPoolEntity.BraiinsPoolData(fetchedUsername, todayReward, currentBalance, payPerShare, workers.entrySet().stream().map(stringWorkerDataEntry -> new BraiinsPoolEntity.BraiinsPoolData.WorkerData(stringWorkerDataEntry.getKey(), stringWorkerDataEntry.getValue().shares_24h())).toList(), rewards);
+            BraiinsPoolEntity.BraiinsPoolData miningPoolData = new BraiinsPoolEntity.BraiinsPoolData(fetchedUsername, todayReward, currentBalance, payPerShare, profileData.estimatedReward(), workers.entrySet().stream().map(stringWorkerDataEntry -> new BraiinsPoolEntity.BraiinsPoolData.WorkerData(stringWorkerDataEntry.getKey(), stringWorkerDataEntry.getValue().shares_24h())).toList(), rewards);
 
-            LOGGER.info("Received "+rewards.size()+" payout data from braiins pool");
+            //LOGGER.info("Received "+rewards.size()+" payout data from braiins pool");
             cachedResults.put(entity.getId(), miningPoolData);
             return miningPoolData;
         }
