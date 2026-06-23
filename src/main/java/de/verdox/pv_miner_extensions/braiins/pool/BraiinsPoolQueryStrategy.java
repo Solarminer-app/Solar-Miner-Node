@@ -47,6 +47,7 @@ public class BraiinsPoolQueryStrategy implements MiningPoolQueryStrategy<Braiins
             }
             BraiinsPoolEntity.BraiinsPoolData miningPoolData = new BraiinsPoolEntity.BraiinsPoolData(fetchedUsername, todayReward, currentPoolBalance, payPerShare, workers.entrySet().stream().map(stringWorkerDataEntry -> new BraiinsPoolEntity.BraiinsPoolData.WorkerData(stringWorkerDataEntry.getKey(), stringWorkerDataEntry.getValue().shares_24h())).toList(), rewards);
 
+            LOGGER.info("Received "+rewards.size()+" payout data from braiins pool");
             cachedResults.put(entity.getId(), miningPoolData);
             return miningPoolData;
         } finally {
@@ -61,7 +62,7 @@ public class BraiinsPoolQueryStrategy implements MiningPoolQueryStrategy<Braiins
         if (fetchedUsername != null && !fetchedUsername.isBlank()) {
 
         } else {
-            throw new Exception("Ping erfolgreich, aber konnte keinen Usernamen im Braiins Profil finden.");
+            throw new Exception("Ping successful but could not find the brains username");
         }
     }
 }
