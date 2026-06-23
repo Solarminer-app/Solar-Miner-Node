@@ -58,14 +58,23 @@ public class GlobalConstantsService {
     }
 
     public long getTodayMiningDifficulty() {
+        if(currentBitcoinStats == null) {
+            return 0;
+        }
         return currentBitcoinStats.difficulty();
     }
 
     public int getTodayBlockSubsidy() {
+        if(currentBitcoinStats == null) {
+            return 0;
+        }
         return currentBitcoinStats.blockSubsidy();
     }
 
     public int getTodayAverageTxPrice24h() {
+        if(currentBitcoinStats == null) {
+            return 0;
+        }
         return currentBitcoinStats.averageTxPrice24h();
     }
 
