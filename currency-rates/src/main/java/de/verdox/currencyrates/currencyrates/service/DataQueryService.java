@@ -28,7 +28,20 @@ public class DataQueryService {
 
     public Optional<BitcoinNetworkStats> getBitcoinStatsForDate(LocalDate date, String timezone) {
         LocalDate utcDate = resolveUtcDate(date, timezone);
-        return bitcoinRepository.findById(utcDate);
+        Optional<BitcoinNetworkStats> existingData = bitcoinRepository.findById(utcDate);
+
+        if (existingData.isEmpty()) {
+            LOGGER.info("Loading historical Bitcoin stats for " + utcDate);
+            try {
+                BitcoinNetworkStats freshData = dataGathererService.fetchAndSaveBitcoinStatsForDate(utcDate);
+                return Optional.ofNullable(freshData);
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Could not load historical Bitcoin stats for " + utcDate, e);
+                return Optional.empty();
+            }
+        }
+
+        return existingData;
     }
 
     public Optional<DailyUsdRates> getAllRatesForDate(LocalDate date, String timezone) {

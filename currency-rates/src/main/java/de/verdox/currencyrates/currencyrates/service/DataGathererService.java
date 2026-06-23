@@ -1,5 +1,6 @@
 package de.verdox.currencyrates.currencyrates.service;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -17,6 +18,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.HashMap;
@@ -160,6 +162,90 @@ public class DataGathererService {
             bitcoinMiningDataFetcher.query();
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Could not collect bitcoin mining data" + e.getMessage());
+        }
+    }
+
+    @Transactional
+    public BitcoinNetworkStats fetchAndSaveBitcoinStatsForDate(LocalDate targetDate) {
+        LOGGER.log(Level.INFO, "Fetching historical Bitcoin network data from mempool.space for date: " + targetDate);
+        try {
+            String hashrateResponse = sendGetRequest("https://mempool.space/api/v1/mining/hashrate/all");
+            JsonArray hashrateArray = JsonParser.parseString(hashrateResponse).getAsJsonArray();
+
+            long difficulty = 0;
+            double hashRateThs = 0.0;
+            boolean foundHashrate = false;
+
+            for (JsonElement element : hashrateArray) {
+                JsonObject obj = element.getAsJsonObject();
+                LocalDate date = Instant.ofEpochSecond(obj.get("timestamp").getAsLong()).atZone(ZoneOffset.UTC).toLocalDate();
+
+                if (date.equals(targetDate)) {
+                    difficulty = obj.get("currentDifficulty").getAsLong();
+                    hashRateThs = obj.get("avgHashrate").getAsDouble() / 1_000_000_000_000.0;
+                    foundHashrate = true;
+                    break;
+                }
+            }
+
+            if (!foundHashrate) {
+                LOGGER.log(Level.WARNING, "No network data found for date " + targetDate);
+                return null;
+            }
+
+            String priceResponse = sendGetRequest("https://mempool.space/api/v1/historical-price");
+            JsonArray pricesArray = JsonParser.parseString(priceResponse).getAsJsonObject().getAsJsonArray("prices");
+
+            double priceUsd = 0.0;
+            for (JsonElement element : pricesArray) {
+                JsonObject obj = element.getAsJsonObject();
+                LocalDate date = Instant.ofEpochSecond(obj.get("time").getAsLong()).atZone(ZoneOffset.UTC).toLocalDate();
+
+                if (date.equals(targetDate)) {
+                    if (obj.has("USD")) {
+                        priceUsd = obj.get("USD").getAsDouble();
+                    }
+                    break;
+                }
+            }
+
+            String feesResponse = sendGetRequest("https://mempool.space/api/v1/mining/blocks/fees/3y");
+            JsonArray feesArray = JsonParser.parseString(feesResponse).getAsJsonArray();
+
+            int averageBlockFee = 0;
+            long avgBlockHeight = 0;
+
+            for (JsonElement element : feesArray) {
+                JsonObject obj = element.getAsJsonObject();
+                LocalDate date = Instant.ofEpochSecond(obj.get("timestamp").getAsLong()).atZone(ZoneOffset.UTC).toLocalDate();
+
+                if (date.equals(targetDate)) {
+                    averageBlockFee = obj.get("avgFees").getAsInt();
+                    avgBlockHeight = obj.get("avgHeight").getAsLong();
+                    break;
+                }
+            }
+
+            BitcoinNetworkStats btcStats = new BitcoinNetworkStats(targetDate);
+            btcStats.setMiningDifficulty(difficulty);
+            btcStats.setHashRateInThs(hashRateThs);
+            btcStats.setPriceInDollar(priceUsd);
+            btcStats.setAverageTxPrice24h(averageBlockFee);
+
+            long initialSubsidySats = 50_0000_0000L;
+
+            long halvings = avgBlockHeight / 210000;
+
+            long currentSubsidy = initialSubsidySats >> halvings;
+
+            btcStats.setBlockSubsidy((int) currentSubsidy);
+
+            LOGGER.log(Level.INFO, "Successfully backfilled full Bitcoin stats for UTC date: " + targetDate);
+            return bitcoinRepository.save(btcStats);
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Could not fetch historical Bitcoin stats: " + e.getMessage(), e);
+            return null;
         }
     }
 }
