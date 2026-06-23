@@ -230,13 +230,11 @@ public class ClusterController {
         boolean actuallyMining = actualPower > 50.0;
 
         if (expectedToMine && !actuallyMining) {
-            LOGGER.warning("State Drift erkannt bei Miner " + miner.getId() + ": Sollte minen, zieht aber keinen Strom. Lock wird aufgehoben.");
             activeLocks.remove(miner.getId());
             return false;
         }
 
         if (!expectedToMine && actuallyMining) {
-            LOGGER.warning("State Drift erkannt bei Miner " + miner.getId() + ": Sollte pausieren, minet aber noch. Lock wird aufgehoben.");
             activeLocks.remove(miner.getId());
             return false;
         }
