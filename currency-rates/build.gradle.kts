@@ -26,10 +26,10 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.flywaydb:flyway-core")
 
-    runtimeOnly("org.mariadb.jdbc:mariadb-java-client")
+    runtimeOnly("com.h2database:h2")
 
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
@@ -40,8 +40,8 @@ tasks.withType<Test> {
 }
 
 tasks.named<BootBuildImage>("bootBuildImage") {
-    environment.put("BP_NATIVE_IMAGE_BUILD_ARGUMENTS", "-march=compatibility --initialize-at-run-time=sun.security.util.Password")
     environment.put("BP_NATIVE_IMAGE", "true")
+    environment.put("BP_NATIVE_IMAGE_BUILD_ARGUMENTS", "-march=compatibility")
     docker {
         publishRegistry {
             username = System.getenv("DOCKER_USER")
