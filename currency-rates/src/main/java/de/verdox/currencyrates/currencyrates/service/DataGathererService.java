@@ -170,7 +170,8 @@ public class DataGathererService {
         LOGGER.log(Level.INFO, "Fetching historical Bitcoin network data from mempool.space for date: " + targetDate);
         try {
             String hashrateResponse = sendGetRequest("https://mempool.space/api/v1/mining/hashrate/all");
-            JsonArray hashrateArray = JsonParser.parseString(hashrateResponse).getAsJsonObject().getAsJsonArray("hashrates");
+            var hashRateJson = JsonParser.parseString(hashrateResponse);
+            JsonArray hashrateArray = hashRateJson.getAsJsonObject().getAsJsonArray("hashrates");
 
             long difficulty = 0;
             double hashRateThs = 0.0;
@@ -181,8 +182,8 @@ public class DataGathererService {
                 LocalDate date = Instant.ofEpochSecond(obj.get("timestamp").getAsLong()).atZone(ZoneOffset.UTC).toLocalDate();
 
                 if (date.equals(targetDate)) {
-                    difficulty = JsonParser.parseString(hashrateResponse).getAsJsonObject().get("currentDifficulty").getAsLong();
-                    hashRateThs = JsonParser.parseString(hashrateResponse).getAsJsonObject().get("avgHashrate").getAsDouble() / 1_000_000_000_000.0;
+                    difficulty = hashRateJson.getAsJsonObject().get("currentDifficulty").getAsLong();
+                    hashRateThs = hashRateJson.getAsJsonObject().get("avgHashrate").getAsDouble() / 1_000_000_000_000.0;
                     foundHashrate = true;
                     break;
                 }
