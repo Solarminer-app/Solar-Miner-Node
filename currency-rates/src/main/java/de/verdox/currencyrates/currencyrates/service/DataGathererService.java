@@ -1,9 +1,7 @@
 package de.verdox.currencyrates.currencyrates.service;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.currencyrates.currencyrates.model.BitcoinNetworkStats;
 import de.verdox.currencyrates.currencyrates.model.DailyUsdRates;
 import de.verdox.currencyrates.currencyrates.repository.BitcoinNetworkStatsRepository;
@@ -22,6 +20,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -30,20 +29,29 @@ import java.util.logging.Logger;
 @Service
 public class DataGathererService {
     private static final Logger LOGGER = Logger.getLogger(DataGathererService.class.getSimpleName());
+
+    // Globaler, wiederverwendbarer HTTP-Client spart RAM und Netzwerkressourcen
+    private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
+
     private final BitcoinNetworkStatsRepository bitcoinRepository;
     private final DailyUsdRatesRepository ratesRepository;
+    private final ObjectMapper objectMapper; // Spring Boot injiziert Jackson automatisch
 
     private BitcoinMiningDataFetcher bitcoinMiningDataFetcher;
 
-    public DataGathererService(BitcoinNetworkStatsRepository bitcoinRepository, DailyUsdRatesRepository ratesRepository) {
+    public DataGathererService(BitcoinNetworkStatsRepository bitcoinRepository,
+                               DailyUsdRatesRepository ratesRepository,
+                               ObjectMapper objectMapper) {
         this.bitcoinRepository = bitcoinRepository;
         this.ratesRepository = ratesRepository;
+        this.objectMapper = objectMapper;
     }
 
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void onApplicationReady() {
-        bitcoinMiningDataFetcher = new BitcoinMiningDataFetcher();
+        // Wir übergeben den ObjectMapper an den Fetcher
+        bitcoinMiningDataFetcher = new BitcoinMiningDataFetcher(objectMapper);
         LOGGER.log(Level.INFO, "Fetching global constants...");
         collectGlobalConstants();
         saveDailyStatsToDatabase();
@@ -51,7 +59,6 @@ public class DataGathererService {
     }
 
     private void collectGlobalConstants() {
-
         queryBitcoinMiningData();
     }
 
@@ -71,13 +78,10 @@ public class DataGathererService {
     @Transactional
     public DailyUsdRates fetchAndSaveForDate(LocalDate date) {
         LOGGER.log(Level.INFO, "Fetching data for date: " + date);
-        JsonObject ratesJson = queryExchangeRates(date);
-        Map<String, Double> ratesMap = new HashMap<>();
-        for (Map.Entry<String, JsonElement> entry : ratesJson.entrySet()) {
-            if (entry.getValue().isJsonPrimitive()) {
-                ratesMap.put(entry.getKey(), entry.getValue().getAsDouble());
-            }
-        }
+        JsonNode ratesNode = queryExchangeRates(date);
+
+        Map<String, Double> ratesMap = extractRatesMap(ratesNode);
+
         DailyUsdRates dailyRates = new DailyUsdRates(date, ratesMap);
         return ratesRepository.save(dailyRates);
     }
@@ -86,8 +90,7 @@ public class DataGathererService {
     public void saveDailyStatsToDatabase() {
         try {
             LocalDate todayUtc = LocalDate.now(ZoneOffset.UTC);
-
-            var currencyRatesUSD = queryExchangeRates();
+            JsonNode currencyRatesUSD = queryExchangeRates();
 
             if (currencyRatesUSD == null || bitcoinMiningDataFetcher == null) {
                 LOGGER.log(Level.WARNING, "Cannot save to database: Data fetchers are empty.");
@@ -109,12 +112,7 @@ public class DataGathererService {
             }
 
             if (!ratesRepository.existsById(todayUtc)) {
-                Map<String, Double> ratesMap = new HashMap<>();
-                for (Map.Entry<String, JsonElement> entry : currencyRatesUSD.entrySet()) {
-                    if (entry.getValue().isJsonPrimitive()) {
-                        ratesMap.put(entry.getKey(), entry.getValue().getAsDouble());
-                    }
-                }
+                Map<String, Double> ratesMap = extractRatesMap(currencyRatesUSD);
 
                 DailyUsdRates dailyRates = new DailyUsdRates(todayUtc, ratesMap);
                 ratesRepository.save(dailyRates);
@@ -128,31 +126,47 @@ public class DataGathererService {
         }
     }
 
-    private static String sendGetRequest(String url) throws Exception {
-        try (HttpClient client = HttpClient.newHttpClient()) {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(new URI(url))
-                    .GET()
-                    .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            return response.body();
+    // Hilfsmethode, um Jackson JsonNodes sauber in eine Map zu überführen
+    private Map<String, Double> extractRatesMap(JsonNode node) {
+        Map<String, Double> ratesMap = new HashMap<>();
+        if (node != null && node.isObject()) {
+            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> entry = fields.next();
+                if (entry.getValue().isNumber()) {
+                    ratesMap.put(entry.getKey(), entry.getValue().asDouble());
+                }
+            }
         }
+        return ratesMap;
     }
 
-    private JsonObject queryExchangeRates(LocalDate date) {
+    // Nutzt nun den globalen HTTP_CLIENT
+    private static String sendGetRequest(String url) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(new URI(url))
+                .GET()
+                .build();
+        HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+        return response.body();
+    }
+
+    private JsonNode queryExchangeRates(LocalDate date) {
         try {
             String dateParam = (date == null) ? "latest" : date.toString();
             String url = String.format("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@%s/v1/currencies/usd.json", dateParam);
             LOGGER.log(Level.INFO, "Collecting currency exchange rates for date: " + dateParam);
             String jsonResponse = sendGetRequest(url);
-            return JsonParser.parseString(jsonResponse).getAsJsonObject().get("usd").getAsJsonObject();
+
+            // Jackson Parsing
+            return objectMapper.readTree(jsonResponse).path("usd");
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Could not collect currency exchange rates: " + e.getMessage());
             return null;
         }
     }
 
-    private JsonObject queryExchangeRates() {
+    private JsonNode queryExchangeRates() {
         return queryExchangeRates(null);
     }
 
@@ -161,7 +175,7 @@ public class DataGathererService {
             LOGGER.log(Level.INFO, "Collecting bitcoin mining data...");
             bitcoinMiningDataFetcher.query();
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Could not collect bitcoin mining data" + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Could not collect bitcoin mining data: " + e.getMessage());
         }
     }
 
@@ -169,21 +183,22 @@ public class DataGathererService {
     public BitcoinNetworkStats fetchAndSaveBitcoinStatsForDate(LocalDate targetDate) {
         LOGGER.log(Level.INFO, "Fetching historical Bitcoin network data from mempool.space for date: " + targetDate);
         try {
+            // HIER WURDE DER SPEICHERFRESSER BEHOBEN: Nur 1x parsen!
             String hashrateResponse = sendGetRequest("https://mempool.space/api/v1/mining/hashrate/all");
-            var hashRateJson = JsonParser.parseString(hashrateResponse);
-            JsonArray hashrateArray = hashRateJson.getAsJsonObject().getAsJsonArray("hashrates");
+            JsonNode hashrateRoot = objectMapper.readTree(hashrateResponse);
+            JsonNode hashrateArray = hashrateRoot.path("hashrates");
 
             long difficulty = 0;
             double hashRateThs = 0.0;
             boolean foundHashrate = false;
 
-            for (JsonElement element : hashrateArray) {
-                JsonObject obj = element.getAsJsonObject();
-                LocalDate date = Instant.ofEpochSecond(obj.get("timestamp").getAsLong()).atZone(ZoneOffset.UTC).toLocalDate();
+            for (JsonNode obj : hashrateArray) {
+                LocalDate date = Instant.ofEpochSecond(obj.path("timestamp").asLong()).atZone(ZoneOffset.UTC).toLocalDate();
 
                 if (date.equals(targetDate)) {
-                    difficulty = hashRateJson.getAsJsonObject().get("currentDifficulty").getAsLong();
-                    hashRateThs = hashRateJson.getAsJsonObject().get("avgHashrate").getAsDouble() / 1_000_000_000_000.0;
+                    // Werte direkt vom Root lesen
+                    difficulty = hashrateRoot.path("currentDifficulty").asLong();
+                    hashRateThs = hashrateRoot.path("avgHashrate").asDouble() / 1_000_000_000_000.0;
                     foundHashrate = true;
                     break;
                 }
@@ -195,34 +210,31 @@ public class DataGathererService {
             }
 
             String priceResponse = sendGetRequest("https://mempool.space/api/v1/historical-price");
-            JsonArray pricesArray = JsonParser.parseString(priceResponse).getAsJsonObject().getAsJsonArray("prices");
+            JsonNode pricesRoot = objectMapper.readTree(priceResponse);
+            JsonNode pricesArray = pricesRoot.path("prices");
 
             double priceUsd = 0.0;
-            for (JsonElement element : pricesArray) {
-                JsonObject obj = element.getAsJsonObject();
-                LocalDate date = Instant.ofEpochSecond(obj.get("time").getAsLong()).atZone(ZoneOffset.UTC).toLocalDate();
+            for (JsonNode obj : pricesArray) {
+                LocalDate date = Instant.ofEpochSecond(obj.path("time").asLong()).atZone(ZoneOffset.UTC).toLocalDate();
 
                 if (date.equals(targetDate)) {
-                    if (obj.has("USD")) {
-                        priceUsd = obj.get("USD").getAsDouble();
-                    }
+                    priceUsd = obj.path("USD").asDouble(0.0);
                     break;
                 }
             }
 
             String feesResponse = sendGetRequest("https://mempool.space/api/v1/mining/blocks/fees/3y");
-            JsonArray feesArray = JsonParser.parseString(feesResponse).getAsJsonArray();
+            JsonNode feesArray = objectMapper.readTree(feesResponse);
 
             int averageBlockFee = 0;
             long avgBlockHeight = 0;
 
-            for (JsonElement element : feesArray) {
-                JsonObject obj = element.getAsJsonObject();
-                LocalDate date = Instant.ofEpochSecond(obj.get("timestamp").getAsLong()).atZone(ZoneOffset.UTC).toLocalDate();
+            for (JsonNode obj : feesArray) {
+                LocalDate date = Instant.ofEpochSecond(obj.path("timestamp").asLong()).atZone(ZoneOffset.UTC).toLocalDate();
 
                 if (date.equals(targetDate)) {
-                    averageBlockFee = obj.get("avgFees").getAsInt();
-                    avgBlockHeight = obj.get("avgHeight").getAsLong();
+                    averageBlockFee = obj.path("avgFees").asInt();
+                    avgBlockHeight = obj.path("avgHeight").asLong();
                     break;
                 }
             }
@@ -234,9 +246,7 @@ public class DataGathererService {
             btcStats.setAverageTxPrice24h(averageBlockFee);
 
             long initialSubsidySats = 50_0000_0000L;
-
             long halvings = avgBlockHeight / 210000;
-
             long currentSubsidy = initialSubsidySats >> halvings;
 
             btcStats.setBlockSubsidy((int) currentSubsidy);
