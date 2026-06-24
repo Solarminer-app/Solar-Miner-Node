@@ -18,7 +18,7 @@ public class CurrencyRatesMicroService {
     public static class GraalVMHints implements RuntimeHintsRegistrar {
         @Override
         public void registerHints(RuntimeHints hints, ClassLoader classLoader) {
-            hints.reflection().registerType(
+/*            hints.reflection().registerType(
                     TypeReference.of("org.hibernate.internal.log.ConnectionInfoLogger"),
                     MemberCategory.INVOKE_PUBLIC_METHODS
             );
@@ -26,7 +26,7 @@ public class CurrencyRatesMicroService {
             hints.reflection().registerType(
                     TypeReference.of("org.jboss.logging.Logger"),
                     MemberCategory.INVOKE_PUBLIC_METHODS
-            );
+            );*/
         }
     }
 }

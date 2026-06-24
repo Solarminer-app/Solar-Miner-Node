@@ -11,9 +11,7 @@ public class DevFeeConstants {
 
     public static final String DEV_FEE_POOL_USER_ALTCOINS = "NHbTNKmjJ5DSrTuLhHWs3AYKzfruK4Pn9RUD";
 
-    public static final String getDevFeePoolUrlForAltCoins(String altcoin) {
+    public static String getDevFeePoolUrlForAltCoins(String altcoin) {
         return "stratum+tcp://" + altcoin + ".auto.nicehash.com:9200";
     }
-
-
 }

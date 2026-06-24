@@ -1,4 +1,3 @@
-import org.gradle.kotlin.dsl.assign
 import org.gradle.kotlin.dsl.named
 import org.springframework.boot.gradle.tasks.bundling.BootBuildImage
 
@@ -6,8 +5,7 @@ plugins {
     java
     id("org.springframework.boot") version "3.4.3"
     id("io.spring.dependency-management") version "1.1.7"
-    id("org.hibernate.orm") version "6.6.9.Final"
-    id("org.graalvm.buildtools.native") version "0.9.28"
+    id("org.graalvm.buildtools.native") version "0.10.6"
 }
 
 group = "de.verdox.currency-rates"
