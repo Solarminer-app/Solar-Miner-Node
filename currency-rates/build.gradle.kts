@@ -40,7 +40,7 @@ tasks.withType<Test> {
 }
 
 tasks.named<BootBuildImage>("bootBuildImage") {
-    environment.put("BP_NATIVE_IMAGE_BUILD_ARGUMENTS", "-march=compatibility")
+    environment.put("BP_NATIVE_IMAGE_BUILD_ARGUMENTS", "-march=compatibility --initialize-at-run-time=sun.security.util.Password")
     environment.put("BP_NATIVE_IMAGE", "true")
     docker {
         publishRegistry {
