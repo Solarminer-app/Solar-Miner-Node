@@ -96,7 +96,7 @@ jobs:
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          ./gradlew bootBuildImage \
+          ./gradlew bootBuildImage -Pnative \
             --imageName=${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }} \
             --publishImage \
             -x test
