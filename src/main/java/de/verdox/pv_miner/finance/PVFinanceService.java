@@ -195,9 +195,6 @@ public class PVFinanceService {
         return new PVStatisticDto(currentDay, totalPvProduction, minerConsumption, miningPvUsage, miningGridUsage, householdEigenverbrauch, totalExportKwh, btcAmount, miningCost, effectiveYield, btcLiveValue, btcHistoricValue, householdSavings, feedInRevenue, histFeedIn);
     }
 
-    // =========================================================================
-    // GLOBAL KPI CALCULATION (ALL-TIME)
-    // =========================================================================
     public FinanceKpiDto calculateKPIs(PVSiteEntity pvSiteEntity, List<PVStatisticDto> currentStats, CustomCurrency targetCurrency, ZoneId zoneId) {
         double pvInvestRaw = pvSiteEntity.getPvCost() != null ? globalConstantsService.convert(pvSiteEntity.getPvCost(), targetCurrency).getRawMoneyAmount() : 0.0;
         double hardwareInvestRaw = pvSiteEntity.getMiners().stream()
