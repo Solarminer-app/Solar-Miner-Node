@@ -21,7 +21,9 @@ public class CurrencyRatesMicroService {
             hints.reflection().registerType(
                     TypeReference.of("org.flywaydb.core.internal.command.clean.CleanModeConfigurationExtension"),
                     MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
-                    MemberCategory.INVOKE_PUBLIC_METHODS
+                    MemberCategory.INVOKE_PUBLIC_METHODS,
+                    MemberCategory.DECLARED_FIELDS,
+                    MemberCategory.INTROSPECT_DECLARED_METHODS
             );
         }
     }
