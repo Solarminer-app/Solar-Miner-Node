@@ -47,6 +47,7 @@ jobs:
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
+          ./gradlew :${{ env.SUBMODULE_DIR }}:clean
           ./gradlew :${{ env.SUBMODULE_DIR }}:bootBuildImage \
             --imageName=${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }} \
             --publishImage \

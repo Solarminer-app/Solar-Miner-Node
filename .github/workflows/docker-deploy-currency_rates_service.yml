@@ -10,6 +10,7 @@ on:
 
 env:
   IMAGE_NAME: verdox/currency-rates-api
+  SUBMODULE_DIR: currency-rates
   WORKING_DIRECTORY: ./currency-rates
 
 jobs:
@@ -96,7 +97,8 @@ jobs:
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          ./gradlew bootBuildImage -Pnative \
+          ./gradlew :${{ env.SUBMODULE_DIR }}:clean
+          ./gradlew :${{ env.SUBMODULE_DIR }}:bootBuildImage \
             --imageName=${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }} \
             --publishImage \
             -x test
