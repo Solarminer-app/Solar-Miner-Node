@@ -1,3 +1,7 @@
+import org.gradle.kotlin.dsl.assign
+import org.gradle.kotlin.dsl.named
+import org.springframework.boot.gradle.tasks.bundling.BootBuildImage
+
 plugins {
     java
     id("org.springframework.boot") version "3.4.3"
@@ -36,4 +40,14 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.named<BootBuildImage>("bootBuildImage") {
+    environment.put("BP_NATIVE_IMAGE_BUILD_ARGUMENTS", "-march=compatibility")
+    docker {
+        publishRegistry {
+            username = System.getenv("DOCKER_USER")
+            password = System.getenv("DOCKER_PASS")
+        }
+    }
 }
