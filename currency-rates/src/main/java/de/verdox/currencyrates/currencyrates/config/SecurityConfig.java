@@ -1,5 +1,7 @@
 package de.verdox.currencyrates.currencyrates.config;
 
+import de.verdox.currencyrates.currencyrates.controller.PublicDataController;
+import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -9,6 +11,10 @@ import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 @EnableWebSecurity
+@RegisterReflectionForBinding({
+        PublicDataController.BitcoinNetworkStatsDTO.class,
+        PublicDataController.ConversionResponseDTO.class
+})
 public class SecurityConfig {
 
     @Bean
