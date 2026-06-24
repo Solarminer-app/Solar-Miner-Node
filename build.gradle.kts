@@ -5,7 +5,7 @@ plugins {
     id("org.springframework.boot") version "3.4.3"
     id("io.spring.dependency-management") version "1.1.7"
     id("com.vaadin") version "24.6.5"
-    id("org.graalvm.buildtools.native") version "0.9.28"
+    id("org.graalvm.buildtools.native") version "0.10.6"
 }
 
 extra["vaadinVersion"] = "24.6.5"
