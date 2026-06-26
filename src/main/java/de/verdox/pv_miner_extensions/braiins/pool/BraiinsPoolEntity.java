@@ -35,7 +35,7 @@ public class BraiinsPoolEntity extends MiningPoolEntity<BraiinsPoolEntity.Braiin
     }
 
     public record BraiinsPoolData(String poolUserName, double currentPoolBalance, double todayReward,
-                                  double payPerShare, List<WorkerData> workerData,
+                                  double payPerShare, double estimatedReward, List<WorkerData> workerData,
                                   Map<Long, Double> paidRewardsSatoshis) implements MiningPoolData {
         @Override
         public boolean containsWorkerWithName(String workerName) {
@@ -44,9 +44,8 @@ public class BraiinsPoolEntity extends MiningPoolEntity<BraiinsPoolEntity.Braiin
 
         @Override
         public double calculateSatoshiRewardToday(String workerName) {
-            if (todayReward != 0) {
-                System.out.println("RETURN TODAY REWARD: "+todayReward);
-                return todayReward;
+            if (estimatedReward != 0) {
+                return estimatedReward;
             }
             GlobalConstantsService globalConstantsService = SpringContextHelper.getBean(GlobalConstantsService.class);
 
