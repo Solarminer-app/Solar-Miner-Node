@@ -28,6 +28,14 @@ public interface BrainsOSBackend {
 
     long getCurrentPowerTarget(MinerDetails details);
 
+    PowerLimit getPowerLimit(MinerDetails details);
+
+    TemperatureLimit getTargetTemperature(MinerDetails details);
+
+    TemperatureLimit getHotTemperature(MinerDetails details);
+
+    TemperatureLimit getDangerousTemperature(MinerDetails details);
+
     long getApproximatePowerUsage(MinerDetails details);
 
     double getTemperatureInDegreeC(MinerDetails details);
@@ -45,4 +53,10 @@ public interface BrainsOSBackend {
     void enforceAndReplaceDevFee(MinerDetails minerDetails, String poolUrl, String miningAddress, double feePercentage);
 
     boolean verifyDevFee(MinerDetails minerDetails, String expectedUrl, String expectedAddress, double expectedPercentage);
+
+    record PowerLimit(long min, long max, long defaultValue, String unit) {
+    }
+
+    record TemperatureLimit(double min, double max, double defaultValue, String unit) {
+    }
 }

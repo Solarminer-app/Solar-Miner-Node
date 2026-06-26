@@ -1,9 +1,10 @@
-package de.verdox.pv_miner.core.miner.braiins;
+package de.verdox.pv_miner.core.miner.braiins.grpc;
 
 import braiins.bos.v1.*;
 import de.verdox.pv_miner.core.miner.DevFeeConstants;
 import de.verdox.pv_miner.core.miner.MinerStandardCredentials;
 import de.verdox.pv_miner.core.miner.MiningOS;
+import de.verdox.pv_miner.core.miner.braiins.BrainsOSBackend;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
@@ -204,6 +205,54 @@ public class BraiinsOSGRPCClient implements BrainsOSBackend {
     @Override
     public long getCurrentPowerTarget(MinerDetails minerDetails) {
         return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub, stub -> stub.getTunerState(Performance.GetTunerStateRequest.newBuilder().build()).getPowerTargetModeState().getCurrentTarget().getWatt()), 0L);
+    }
+
+    @Override
+    public PowerLimit getPowerLimit(MinerDetails details) {
+        return tryOrDefault(details.ipv4(), () -> createRequest(details, ConfigurationServiceGrpc::newBlockingStub, stub -> {
+
+            braiins.bos.v1.Configuration.GetConstraintsResponse response = stub.getConstraints(braiins.bos.v1.Configuration.GetConstraintsRequest.newBuilder().build());
+
+            var powerTargetConstraints = response.getTunerConstraints().getPowerTarget();
+
+            return new PowerLimit(powerTargetConstraints.getMin().getWatt(), powerTargetConstraints.getMax().getWatt(), powerTargetConstraints.getDefault().getWatt(), "W");
+        }), null);
+    }
+
+    @Override
+    public TemperatureLimit getTargetTemperature(MinerDetails details) {
+        return tryOrDefault(details.ipv4(), () -> createRequest(details, ConfigurationServiceGrpc::newBlockingStub, stub -> {
+
+            braiins.bos.v1.Configuration.GetConstraintsResponse response = stub.getConstraints(braiins.bos.v1.Configuration.GetConstraintsRequest.newBuilder().build());
+
+            var tempConstraints = response.getCoolingConstraints().getTargetTemperature();
+
+            return new TemperatureLimit(tempConstraints.getMin().getDegreeC(), tempConstraints.getMax().getDegreeC(), tempConstraints.getDefault().getDegreeC(), "C");
+        }), null);
+    }
+
+    @Override
+    public TemperatureLimit getHotTemperature(MinerDetails details) {
+        return tryOrDefault(details.ipv4(), () -> createRequest(details, ConfigurationServiceGrpc::newBlockingStub, stub -> {
+
+            braiins.bos.v1.Configuration.GetConstraintsResponse response = stub.getConstraints(braiins.bos.v1.Configuration.GetConstraintsRequest.newBuilder().build());
+
+            var hotConstraints = response.getCoolingConstraints().getHotTemperature();
+
+            return new TemperatureLimit(hotConstraints.getMin().getDegreeC(), hotConstraints.getMax().getDegreeC(), hotConstraints.getDefault().getDegreeC(), "C");
+        }), null);
+    }
+
+    @Override
+    public TemperatureLimit getDangerousTemperature(MinerDetails details) {
+        return tryOrDefault(details.ipv4(), () -> createRequest(details, ConfigurationServiceGrpc::newBlockingStub, stub -> {
+
+            braiins.bos.v1.Configuration.GetConstraintsResponse response = stub.getConstraints(braiins.bos.v1.Configuration.GetConstraintsRequest.newBuilder().build());
+
+            var dangerousConstraints = response.getCoolingConstraints().getDangerousTemperature();
+
+            return new TemperatureLimit(dangerousConstraints.getMin().getDegreeC(), dangerousConstraints.getMax().getDegreeC(), dangerousConstraints.getDefault().getDegreeC(), "C");
+        }), null);
     }
 
     @Override

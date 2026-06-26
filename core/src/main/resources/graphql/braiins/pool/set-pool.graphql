@@ -6,11 +6,8 @@ mutation SetPool(
 ) {
     bosminer {
         config {
-            group(
-                id: $groupId
-            ) {
+            group(id: $groupId) {
                 ... on GroupConfigurator {
-
                     addPool(
                         enabled: true
                         url: $url
@@ -18,7 +15,21 @@ mutation SetPool(
                         password: $password
                     ) {
                         __typename
+                        ... on PoolConfig {
+                            id
+                            enabled
+                            url
+                            user
+                        }
+                        ... on PoolRecordError {
+                            message
+                            invalidUrl
+                            invalidUser
+                        }
                     }
+                }
+                ... on AttributeError {
+                    message
                 }
             }
         }

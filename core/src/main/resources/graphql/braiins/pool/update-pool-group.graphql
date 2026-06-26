@@ -1,0 +1,25 @@
+mutation UpdatePoolGroup($id: ID!, $name: String) {
+    bosminer {
+        config {
+            group(id: $id) {
+                __typename
+                ... on GroupConfigurator {
+                    update(name: $name) {
+                        __typename
+                        ... on GroupConfig {
+                            id
+                            name
+                        }
+                        ... on GroupRecordError {
+                            message
+                            name
+                        }
+                    }
+                }
+                ... on AttributeError {
+                    message
+                }
+            }
+        }
+    }
+}

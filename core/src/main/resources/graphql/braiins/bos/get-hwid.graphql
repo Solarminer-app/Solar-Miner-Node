@@ -1,0 +1,5 @@
+query GetHwid {
+    bos {
+        hwid
+    }
+}

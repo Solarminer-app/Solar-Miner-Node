@@ -16,7 +16,7 @@ public class ASICQueryStrategy implements ASICMinerQueryStrategy<BraiinsOSAsicMi
 
         MinerApiClient.MinerDetails minerDetails = new MinerApiClient.MinerDetails(UUID.randomUUID(), entity.getHost(), entity.getPort(), entity.getUsername(), entity.getPassword());
 
-        return minerApiClient.getStats(MiningOS.BRAIINS, minerDetails).withMinPowerTarget(entity.getMinPowerTarget()).withMaxPowerTarget(entity.getMaxPowerTarget());
+        return minerApiClient.getStats(MiningOS.BRAIINS, minerDetails);
     }
 
     @Override
@@ -24,6 +24,9 @@ public class ASICQueryStrategy implements ASICMinerQueryStrategy<BraiinsOSAsicMi
         MinerApiClient minerApiClient = SpringContextHelper.getBean(MinerApiClient.class);
 
         MinerApiClient.MinerDetails minerDetails = new MinerApiClient.MinerDetails(UUID.randomUUID(), entity.getHost(), entity.getPort(), entity.getUsername(), entity.getPassword());
-        minerApiClient.getStats(MiningOS.BRAIINS, minerDetails);
+        var stats = minerApiClient.getStats(MiningOS.BRAIINS, minerDetails);
+
+        entity.setMinPowerTarget(stats.minPowerTarget());
+        entity.setMaxPowerTarget(stats.maxPowerTarget());
     }
 }

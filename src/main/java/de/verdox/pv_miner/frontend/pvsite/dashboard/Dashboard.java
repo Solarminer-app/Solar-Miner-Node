@@ -289,6 +289,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
         List<MinerGrid.MinerItem> liveItems = pvSiteEntity.getMiners().stream().map(miner -> {
             MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
+            System.out.println(stats);
 
             String name = miner.getName() != null ? miner.getName() : "Miner";
             String ipOrMac = miner.getIP();
@@ -298,7 +299,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
             String power = FormatUtil.formatNumber(stats.approximatedPowerUsageWatts()) + " W";
             String temp = FormatUtil.formatNumber(stats.temperatureCelsius()) + " °C";
 
-            return new MinerGrid.MinerItem(name, ipOrMac, status, hashrate, power, temp, "-");
+            return new MinerGrid.MinerItem(stats.minerIdentity().minerModel(), ipOrMac, status, hashrate, power, temp, "-");
         }).toList();
 
         minerGrid.setItems(liveItems);

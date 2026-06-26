@@ -1,13 +1,12 @@
 package de.verdox.pv_miner.core.miner.braiins;
 
-import braiins.bos.v1.Miner;
 import de.verdox.pv_miner.core.miner.braiins.graphql.BrainsOSGraphQLClient;
+import de.verdox.pv_miner.core.miner.braiins.grpc.BraiinsOSGRPCClient;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
 
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -79,11 +78,11 @@ public class BraiinsController implements MinerController {
         var identity = client.getInfo(minerDetails);
         MinerStats.MinerStatus apiStatus = client.getMinerStatus(minerDetails);
         List<Pools> pools = client.getPools(minerDetails);
-        double terahashPerSecond = client.getApproximatePowerUsage(minerDetails);
+        double terahashPerSecond = client.getHashrateTH(minerDetails);
         double temperatureInDegreeC = client.getTemperatureInDegreeC(minerDetails);
         long currentPowerTarget = client.getCurrentPowerTarget(minerDetails);
-        int minPowerTarget = 754;
-        int maxPowerTarget = 2750;
+        int minPowerTarget = Math.toIntExact(client.getPowerLimit(minerDetails).min());
+        int maxPowerTarget = Math.toIntExact(client.getPowerLimit(minerDetails).defaultValue());
         long approximatePowerUsageWatts = client.getApproximatePowerUsage(minerDetails);
         var newStats = new MinerStats(identity, minerName, apiStatus, currentPowerTarget, minPowerTarget, maxPowerTarget, approximatePowerUsageWatts, terahashPerSecond, temperatureInDegreeC, pools, List.of(new MinerStats.Worker(apiStatus, identity.minerModel(), "SHA256", terahashPerSecond, temperatureInDegreeC, currentPowerTarget, minPowerTarget, maxPowerTarget, approximatePowerUsageWatts, pools)));
         lastStats.put(minerDetails, newStats);
