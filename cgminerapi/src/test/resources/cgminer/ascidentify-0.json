@@ -1,0 +1,10 @@
+{
+  "STATUS" : [ {
+    "STATUS" : "E",
+    "When" : 1782463904,
+    "Code" : 14,
+    "Msg" : "Invalid command",
+    "Description" : "cgminer 1.0.0"
+  } ],
+  "id" : 1
+}
