@@ -1,0 +1,7 @@
+mutation PauseMining {
+    bosminer {
+        pause {
+            __typename
+        }
+    }
+}

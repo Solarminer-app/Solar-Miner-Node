@@ -1,0 +1,40 @@
+query GetPools {
+
+    bosminer {
+
+        info {
+
+            poolGroups {
+
+                name
+
+                pools {
+                    url
+                    user
+                    active
+                    status
+                }
+            }
+        }
+
+        config {
+
+            ... on BosminerConfig {
+
+                groups {
+
+                    id
+                    name
+
+                    pools {
+                        id
+                        enabled
+                        url
+                        user
+                        password
+                    }
+                }
+            }
+        }
+    }
+}

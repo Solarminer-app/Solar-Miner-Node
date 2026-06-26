@@ -1,0 +1,7 @@
+mutation ResumeMining {
+  bosminer {
+    resume {
+      __typename
+    }
+  }
+}

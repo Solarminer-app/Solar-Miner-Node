@@ -1,0 +1,7 @@
+mutation StartMining {
+    bosminer {
+        start {
+            __typename
+        }
+    }
+}

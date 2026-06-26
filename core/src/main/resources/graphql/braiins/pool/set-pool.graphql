@@ -1,0 +1,26 @@
+mutation SetPool(
+    $groupId: ID!,
+    $url: String!,
+    $user: String!,
+    $password: String
+) {
+    bosminer {
+        config {
+            group(
+                id: $groupId
+            ) {
+                ... on GroupConfigurator {
+
+                    addPool(
+                        enabled: true
+                        url: $url
+                        user: $user
+                        password: $password
+                    ) {
+                        __typename
+                    }
+                }
+            }
+        }
+    }
+}

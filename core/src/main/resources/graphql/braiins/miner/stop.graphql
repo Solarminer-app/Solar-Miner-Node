@@ -1,0 +1,7 @@
+mutation StopMining {
+    bosminer {
+        stop {
+            __typename
+        }
+    }
+}

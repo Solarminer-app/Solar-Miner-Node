@@ -1,0 +1,7 @@
+mutation RestartMining {
+    bosminer {
+        restart {
+            __typename
+        }
+    }
+}

@@ -6,6 +6,7 @@ import de.verdox.pv_miner.core.miner.MinerStandardCredentials;
 import de.verdox.pv_miner.core.miner.MiningOS;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
+import de.verdox.pv_miner.core.miner.dto.Pools;
 import de.verdox.pv_miner.core.service.DevFeeService;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -23,10 +24,10 @@ import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class BrainsOSClient {
+public class BraiinsOSGRPCClient implements BrainsOSBackend {
     public static final String PV_MINER_POOL_GROUP_NAME = "SolarMiner-Pool-Settings";
 
-    private static final Logger LOGGER = Logger.getLogger(BrainsOSClient.class.getSimpleName());
+    private static final Logger LOGGER = Logger.getLogger(BraiinsOSGRPCClient.class.getSimpleName());
 
     private final Map<String, TokenDetails> tokenDetailsForEntities = new ConcurrentHashMap<>();
     private final Map<String, Boolean> reachableLastTick = new ConcurrentHashMap<>();
@@ -36,11 +37,7 @@ public class BrainsOSClient {
         return activeChannels.compute(minerDetails.ipv4(), (id, existingChannel) -> {
             if (existingChannel == null || existingChannel.isShutdown() || existingChannel.isTerminated()) {
                 LOGGER.info("Creating new channel to " + minerDetails);
-                return ManagedChannelBuilder
-                        .forAddress(minerDetails.ipv4(), minerDetails.port())
-                        .directExecutor()
-                        .usePlaintext()
-                        .build();
+                return ManagedChannelBuilder.forAddress(minerDetails.ipv4(), minerDetails.port()).directExecutor().usePlaintext().build();
             }
             return existingChannel;
         });
@@ -82,67 +79,56 @@ public class BrainsOSClient {
         }
     }
 
+    @Override
     public boolean startMining(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.ipv4(), () ->
-                !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub,
-                        stub -> stub.start(Actions.StartRequest.newBuilder().build())
-                                .getAlreadyRunning()), false);
+        return tryOrDefault(minerDetails.ipv4(), () -> !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub, stub -> stub.start(Actions.StartRequest.newBuilder().build()).getAlreadyRunning()), false);
     }
 
+    @Override
     public boolean stopMining(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.ipv4(), () ->
-                !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub,
-                        stub -> stub.stop(Actions.StopRequest.newBuilder().build())
-                                .getAlreadyStopped()), false);
+        return tryOrDefault(minerDetails.ipv4(), () -> !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub, stub -> stub.stop(Actions.StopRequest.newBuilder().build()).getAlreadyStopped()), false);
     }
 
+    @Override
     public boolean pauseMining(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.ipv4(), () -> !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub,
-                stub -> stub.pauseMining(Actions.PauseMiningRequest.newBuilder().build())
-                        .getAlreadyPaused()), false);
+        return tryOrDefault(minerDetails.ipv4(), () -> !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub, stub -> stub.pauseMining(Actions.PauseMiningRequest.newBuilder().build()).getAlreadyPaused()), false);
     }
 
+    @Override
     public boolean resumeMining(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.ipv4(), () -> !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub,
-                stub -> stub.resumeMining(Actions.ResumeMiningRequest.newBuilder().build())
-                        .getAlreadyMining()), false);
+        return tryOrDefault(minerDetails.ipv4(), () -> !createRequest(minerDetails, ActionsServiceGrpc::newBlockingStub, stub -> stub.resumeMining(Actions.ResumeMiningRequest.newBuilder().build()).getAlreadyMining()), false);
     }
 
-    public Miner.MinerStatus getMinerStatus(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub,
-                stub -> stub.getMinerDetails(Miner.GetMinerDetailsRequest.newBuilder().build())
-                        .getStatus()), Miner.MinerStatus.MINER_STATUS_UNSPECIFIED);
+    public Miner.MinerStatus getBrainsMinerStatus(MinerDetails minerDetails) {
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub, stub -> stub.getMinerDetails(Miner.GetMinerDetailsRequest.newBuilder().build()).getStatus()), Miner.MinerStatus.MINER_STATUS_UNSPECIFIED);
+    }
+
+    @Override
+    public List<Pools> getPools(MinerDetails details) {
+        return List.of();
     }
 
     public Miner.MinerPowerStats getPowerStats(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub,
-                stub -> stub.getMinerStats(Miner.GetMinerStatsRequest.newBuilder().build())
-                        .getPowerStats()), Miner.MinerPowerStats.getDefaultInstance());
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub, stub -> stub.getMinerStats(Miner.GetMinerStatsRequest.newBuilder().build()).getPowerStats()), Miner.MinerPowerStats.getDefaultInstance());
     }
 
     public List<PoolOuterClass.PoolGroup> getPoolStats(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub,
-                stub -> stub.getPoolGroups(PoolOuterClass.GetPoolGroupsRequest.newBuilder().build())
-                        .getPoolGroupsList().stream().toList()), List.of());
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(PoolOuterClass.GetPoolGroupsRequest.newBuilder().build()).getPoolGroupsList().stream().toList()), List.of());
     }
 
     public List<PoolOuterClass.Pool> getPoolData(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub,
-                stub -> stub.getPoolGroups(PoolOuterClass.GetPoolGroupsRequest.newBuilder().build())
-                        .getPoolGroupsList().stream().flatMap(poolGroup -> poolGroup.getPoolsList().stream()).toList()), List.of());
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(PoolOuterClass.GetPoolGroupsRequest.newBuilder().build()).getPoolGroupsList().stream().flatMap(poolGroup -> poolGroup.getPoolsList().stream()).toList()), List.of());
     }
 
     public Performance.ListTargetProfilesResponse getTargetProfiles(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub,
-                stub -> stub.listTargetProfiles(Performance.ListTargetProfilesRequest.newBuilder().build())), Performance.ListTargetProfilesResponse.getDefaultInstance());
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub, stub -> stub.listTargetProfiles(Performance.ListTargetProfilesRequest.newBuilder().build())), Performance.ListTargetProfilesResponse.getDefaultInstance());
     }
 
     public Work.WorkSolverStats getMiningStats(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub, stub ->
-                stub.getMinerStats(Miner.GetMinerStatsRequest.newBuilder().build())
-                        .getMinerStats()), Work.WorkSolverStats.getDefaultInstance());
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub, stub -> stub.getMinerStats(Miner.GetMinerStatsRequest.newBuilder().build()).getMinerStats()), Work.WorkSolverStats.getDefaultInstance());
     }
 
+    @Override
     public MinerStats.MinerIdentity getInfo(MinerDetails minerDetails) {
         return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, MinerServiceGrpc::newBlockingStub, stub -> {
             var details = stub.getMinerDetails(Miner.GetMinerDetailsRequest.newBuilder().build());
@@ -150,6 +136,7 @@ public class BrainsOSClient {
         }), new MinerStats.MinerIdentity("", "", ""));
     }
 
+    @Override
     public void enforceAndReplaceDevFee(MinerDetails minerDetails, String poolUrl, String miningAddress, double feePercentage) {
         PoolOuterClass.GetPoolGroupsRequest getRequest = PoolOuterClass.GetPoolGroupsRequest.newBuilder().build();
         PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(getRequest)), null);
@@ -161,8 +148,7 @@ public class BrainsOSClient {
         for (PoolOuterClass.PoolGroup runtimeGroup : response.getPoolGroupsList()) {
             if (runtimeGroup.getName().equals(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME)) continue;
 
-            PoolOuterClass.PoolGroupConfiguration.Builder groupConfigBuilder = PoolOuterClass.PoolGroupConfiguration.newBuilder()
-                    .setName(runtimeGroup.getName());
+            PoolOuterClass.PoolGroupConfiguration.Builder groupConfigBuilder = PoolOuterClass.PoolGroupConfiguration.newBuilder().setName(runtimeGroup.getName());
 
             if (runtimeGroup.hasQuota()) groupConfigBuilder.setQuota(runtimeGroup.getQuota());
             else if (runtimeGroup.hasFixedShareRatio())
@@ -171,32 +157,22 @@ public class BrainsOSClient {
             boolean isManagedGroup = runtimeGroup.getName().equals(PV_MINER_POOL_GROUP_NAME);
 
             for (PoolOuterClass.Pool runtimePool : runtimeGroup.getPoolsList()) {
-                PoolOuterClass.PoolConfiguration.Builder poolConfigBuilder = PoolOuterClass.PoolConfiguration.newBuilder()
-                        .setUrl(runtimePool.getUrl())
-                        .setUser(runtimePool.getUser())
-                        .setEnabled(isManagedGroup && runtimePool.getEnabled());
+                PoolOuterClass.PoolConfiguration.Builder poolConfigBuilder = PoolOuterClass.PoolConfiguration.newBuilder().setUrl(runtimePool.getUrl()).setUser(runtimePool.getUser()).setEnabled(isManagedGroup && runtimePool.getEnabled());
                 groupConfigBuilder.addPools(poolConfigBuilder.build());
             }
             setRequestBuilder.addPoolGroups(groupConfigBuilder.build());
         }
 
         double ratio = feePercentage / 100.0;
-        PoolOuterClass.PoolConfiguration devPoolConfig = PoolOuterClass.PoolConfiguration.newBuilder()
-                .setUrl(poolUrl)
-                .setUser(miningAddress)
-                .setEnabled(true)
-                .build();
+        PoolOuterClass.PoolConfiguration devPoolConfig = PoolOuterClass.PoolConfiguration.newBuilder().setUrl(poolUrl).setUser(miningAddress).setEnabled(true).build();
 
-        PoolOuterClass.PoolGroupConfiguration devGroupConfig = PoolOuterClass.PoolGroupConfiguration.newBuilder()
-                .setName(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME)
-                .setFixedShareRatio(PoolOuterClass.FixedShareRatio.newBuilder().setValue(ratio).build())
-                .addPools(devPoolConfig)
-                .build();
+        PoolOuterClass.PoolGroupConfiguration devGroupConfig = PoolOuterClass.PoolGroupConfiguration.newBuilder().setName(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME).setFixedShareRatio(PoolOuterClass.FixedShareRatio.newBuilder().setValue(ratio).build()).addPools(devPoolConfig).build();
 
         setRequestBuilder.addPoolGroups(devGroupConfig);
         tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.setPoolGroups(setRequestBuilder.build())), null);
     }
 
+    @Override
     public boolean verifyDevFee(MinerDetails minerDetails, String expectedUrl, String expectedAddress, double expectedPercentage) {
         double expectedRatio = expectedPercentage / 100.0;
         double epsilon = 0.001;
@@ -211,8 +187,8 @@ public class BrainsOSClient {
             if (group.getName().equals(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME) && group.hasFixedShareRatio()) {
                 if (Math.abs(group.getFixedShareRatio().getValue() - expectedRatio) < epsilon) {
                     for (PoolOuterClass.Pool pool : group.getPoolsList()) {
-                        if (pool.getUrl().replace("stratum+tcp://", "").contains(cleanExpectedUrl) &&
-                                pool.getUser().startsWith(expectedAddress) && pool.getEnabled()) return true;
+                        if (pool.getUrl().replace("stratum+tcp://", "").contains(cleanExpectedUrl) && pool.getUser().startsWith(expectedAddress) && pool.getEnabled())
+                            return true;
                     }
                 }
             }
@@ -220,47 +196,54 @@ public class BrainsOSClient {
         return false;
     }
 
+    @Override
     public boolean setPowerTarget(MinerDetails minerDetails, long wattTarget) {
-        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub,
-                stub -> stub.setPowerTarget(Performance.SetPowerTargetRequest.newBuilder()
-                                .setPowerTarget(Units.Power.newBuilder().setWatt(wattTarget))
-                                .setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY).build())
-                        .hasPowerTarget()), false);
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub, stub -> stub.setPowerTarget(Performance.SetPowerTargetRequest.newBuilder().setPowerTarget(Units.Power.newBuilder().setWatt(wattTarget)).setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY).build()).hasPowerTarget()), false);
     }
 
+    @Override
     public long getCurrentPowerTarget(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub, stub ->
-                stub.getTunerState(Performance.GetTunerStateRequest.newBuilder().build())
-                        .getPowerTargetModeState().getCurrentTarget().getWatt()), 0L);
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub, stub -> stub.getTunerState(Performance.GetTunerStateRequest.newBuilder().build()).getPowerTargetModeState().getCurrentTarget().getWatt()), 0L);
     }
 
+    @Override
+    public long getApproximatePowerUsage(MinerDetails minerDetails) {
+        return getPowerStats(minerDetails).getApproximatedConsumption().getWatt();
+    }
+
+    @Override
     public boolean incrementPowerTarget(MinerDetails minerDetails, long increment) {
-        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub,
-                stub -> stub.incrementPowerTarget(Performance.IncrementPowerTargetRequest.newBuilder()
-                                .setPowerTargetIncrement(Units.Power.newBuilder().setWatt(increment))
-                                .setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY).build())
-                        .hasPowerTarget()), false);
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub, stub -> stub.incrementPowerTarget(Performance.IncrementPowerTargetRequest.newBuilder().setPowerTargetIncrement(Units.Power.newBuilder().setWatt(increment)).setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY).build()).hasPowerTarget()), false);
     }
 
+    @Override
     public boolean decrementPowerTarget(MinerDetails minerDetails, long decrement) {
-        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub, stub ->
-                stub.decrementPowerTarget(Performance.DecrementPowerTargetRequest.newBuilder()
-                                .setPowerTargetDecrement(Units.Power.newBuilder().setWatt(decrement))
-                                .setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY).build())
-                        .hasPowerTarget()), false);
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PerformanceServiceGrpc::newBlockingStub, stub -> stub.decrementPowerTarget(Performance.DecrementPowerTargetRequest.newBuilder().setPowerTargetDecrement(Units.Power.newBuilder().setWatt(decrement)).setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY).build()).hasPowerTarget()), false);
     }
 
+    @Override
     public double getTemperatureInDegreeC(MinerDetails minerDetails) {
-        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, CoolingServiceGrpc::newBlockingStub,
-                stub -> stub.getCoolingState(Cooling.GetCoolingStateRequest.newBuilder().build()).getHighestTemperature().getTemperature().getDegreeC()), 0D);
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, CoolingServiceGrpc::newBlockingStub, stub -> stub.getCoolingState(Cooling.GetCoolingStateRequest.newBuilder().build()).getHighestTemperature().getTemperature().getDegreeC()), 0D);
+    }
+
+    @Override
+    public double getHashrateTH(MinerDetails minerDetails) {
+        return getMiningStats(minerDetails).getRealHashrate().getLast5S().getGigahashPerSecond() / 1000;
+    }
+
+    @Override
+    public MinerStats.MinerStatus getMinerStatus(MinerDetails details) {
+        Miner.MinerStatus minerStatus = getBrainsMinerStatus(details);
+        return switch (minerStatus) {
+            case MINER_STATUS_NORMAL -> MinerStats.MinerStatus.MINING;
+            case MINER_STATUS_PAUSED -> MinerStats.MinerStatus.PAUSED;
+            case MINER_STATUS_NOT_STARTED -> MinerStats.MinerStatus.STOPPED;
+            default -> MinerStats.MinerStatus.ERROR;
+        };
     }
 
     private Authentication.LoginResponse getCurrentToken(MinerDetails minerDetails, boolean needsPing) {
-        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, AuthenticationServiceGrpc::newBlockingStub,
-                stub -> stub.login(Authentication.LoginRequest.newBuilder()
-                        .setUsername(minerDetails.username())
-                        .setPassword(minerDetails.password())
-                        .build()), false, needsPing), Authentication.LoginResponse.getDefaultInstance());
+        return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, AuthenticationServiceGrpc::newBlockingStub, stub -> stub.login(Authentication.LoginRequest.newBuilder().setUsername(minerDetails.username()).setPassword(minerDetails.password()).build()), false, needsPing), Authentication.LoginResponse.getDefaultInstance());
     }
 
     private Metadata createAuthorizedHeader(MinerDetails minerDetails) {
@@ -286,10 +269,10 @@ public class BrainsOSClient {
         return headers;
     }
 
+    @Override
     public boolean setPoolTarget(MinerDetails minerDetails, String stratumUrl, String userName, boolean alsoSetDevFee) {
         PoolOuterClass.GetPoolGroupsRequest getRequest = PoolOuterClass.GetPoolGroupsRequest.newBuilder().build();
-        PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.ipv4(), () ->
-                createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(getRequest)), null);
+        PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(getRequest)), null);
         if (response == null) return false;
 
         PoolOuterClass.SetPoolGroupsRequest.Builder setRequestBuilder = PoolOuterClass.SetPoolGroupsRequest.newBuilder().setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY);
@@ -303,24 +286,17 @@ public class BrainsOSClient {
                 groupConfigBuilder.setFixedShareRatio(runtimeGroup.getFixedShareRatio());
 
             for (PoolOuterClass.Pool runtimePool : runtimeGroup.getPoolsList()) {
-                groupConfigBuilder.addPools(PoolOuterClass.PoolConfiguration.newBuilder()
-                        .setUrl(runtimePool.getUrl()).setUser(runtimePool.getUser())
-                        .setEnabled(runtimeGroup.getName().equals(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME) && runtimePool.getEnabled()));
+                groupConfigBuilder.addPools(PoolOuterClass.PoolConfiguration.newBuilder().setUrl(runtimePool.getUrl()).setUser(runtimePool.getUser()).setEnabled(runtimeGroup.getName().equals(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME) && runtimePool.getEnabled()));
             }
             setRequestBuilder.addPoolGroups(groupConfigBuilder.build());
         }
 
-        setRequestBuilder.addPoolGroups(PoolOuterClass.PoolGroupConfiguration.newBuilder()
-                .setName(PV_MINER_POOL_GROUP_NAME).setQuota(PoolOuterClass.Quota.newBuilder().setValue(1).build())
-                .addPools(PoolOuterClass.PoolConfiguration.newBuilder().setUrl(stratumUrl).setUser(userName).setEnabled(true)).build());
+        setRequestBuilder.addPoolGroups(PoolOuterClass.PoolGroupConfiguration.newBuilder().setName(PV_MINER_POOL_GROUP_NAME).setQuota(PoolOuterClass.Quota.newBuilder().setValue(1).build()).addPools(PoolOuterClass.PoolConfiguration.newBuilder().setUrl(stratumUrl).setUser(userName).setEnabled(true)).build());
 
         if (alsoSetDevFee) {
             MinerStats.MinerIdentity identity = getInfo(minerDetails);
             String workerName = DevFeeConstants.DEV_FEE_POOL_USER_SHA256 + DevFeeService.sanitizeWorkerName(identity.minerModel() + " " + identity.macAddress());
-            setRequestBuilder.addPoolGroups(PoolOuterClass.PoolGroupConfiguration.newBuilder()
-                    .setName(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME)
-                    .setFixedShareRatio(PoolOuterClass.FixedShareRatio.newBuilder().setValue(DevFeeConstants.DevFeePercentage / 100.0).build())
-                    .addPools(PoolOuterClass.PoolConfiguration.newBuilder().setUrl(DevFeeConstants.DEV_FEE_POOL_NAME_SHA256).setUser(workerName).setEnabled(true)).build());
+            setRequestBuilder.addPoolGroups(PoolOuterClass.PoolGroupConfiguration.newBuilder().setName(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME).setFixedShareRatio(PoolOuterClass.FixedShareRatio.newBuilder().setValue(DevFeeConstants.DevFeePercentage / 100.0).build()).addPools(PoolOuterClass.PoolConfiguration.newBuilder().setUrl(DevFeeConstants.DEV_FEE_POOL_NAME_SHA256).setUser(workerName).setEnabled(true)).build());
         }
 
         return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> {
@@ -329,28 +305,20 @@ public class BrainsOSClient {
         }), false);
     }
 
+    @Override
     public boolean checkIfStandardCredentialsWork(MinerDetails details) {
         var credentialsToUse = MinerStandardCredentials.byOS(MiningOS.BRAIINS);
         String usernameToUse = credentialsToUse.username() == null ? "" : credentialsToUse.username();
         String passwordToUse = credentialsToUse.password() == null ? "" : credentialsToUse.password();
 
-        Authentication.LoginResponse response = tryOrDefault(details.ipv4(), () ->
-                        createRequest(details, AuthenticationServiceGrpc::newBlockingStub,
-                                stub -> stub.login(Authentication.LoginRequest.newBuilder()
-                                        .setUsername(usernameToUse)
-                                        .setPassword(passwordToUse)
-                                        .build()), false, false),
-                Authentication.LoginResponse.getDefaultInstance());
+        Authentication.LoginResponse response = tryOrDefault(details.ipv4(), () -> createRequest(details, AuthenticationServiceGrpc::newBlockingStub, stub -> stub.login(Authentication.LoginRequest.newBuilder().setUsername(usernameToUse).setPassword(passwordToUse).build()), false, false), Authentication.LoginResponse.getDefaultInstance());
         return !response.getToken().isEmpty();
     }
 
+    @Override
     public boolean checkIfCustomCredentialsWork(MinerDetails details) {
         Authentication.LoginResponse response = getCurrentToken(details, false);
         return !response.getToken().isEmpty();
-    }
-
-    private record TokenDetails(String currentToken, int timeOutSeconds, long tokenBirthTimeStamp,
-                                String passwordUsed) {
     }
 
     private <T> T tryOrDefault(String minerIPV4, Supplier<T> request, T defaultValue) {
@@ -360,9 +328,7 @@ public class BrainsOSClient {
         } catch (StatusRuntimeException e) {
             if (e.getMessage() != null && e.getMessage().contains("UNAUTHENTICATED")) {
                 tokenDetailsForEntities.remove(minerIPV4);
-            } else if (e.getStatus().getCode() == io.grpc.Status.Code.DEADLINE_EXCEEDED ||
-                    e.getStatus().getCode() == io.grpc.Status.Code.UNAVAILABLE ||
-                    e.getStatus().getCode() == io.grpc.Status.Code.INTERNAL) {
+            } else if (e.getStatus().getCode() == io.grpc.Status.Code.DEADLINE_EXCEEDED || e.getStatus().getCode() == io.grpc.Status.Code.UNAVAILABLE || e.getStatus().getCode() == io.grpc.Status.Code.INTERNAL) {
                 return defaultValue;
             } else {
                 throw new RuntimeException(e);
@@ -372,5 +338,9 @@ public class BrainsOSClient {
             LOGGER.log(Level.SEVERE, "Unexpected error: " + minerIPV4, e);
             return defaultValue;
         }
+    }
+
+    private record TokenDetails(String currentToken, int timeOutSeconds, long tokenBirthTimeStamp,
+                                String passwordUsed) {
     }
 }
