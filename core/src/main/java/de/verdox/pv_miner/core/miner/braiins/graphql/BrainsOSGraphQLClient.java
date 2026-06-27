@@ -1,6 +1,5 @@
 package de.verdox.pv_miner.core.miner.braiins.graphql;
 
-import braiins.bos.v1.Miner;
 import com.fasterxml.jackson.databind.JsonNode;
 import de.verdox.pv_miner.core.miner.DevFeeConstants;
 import de.verdox.pv_miner.core.miner.braiins.BrainsOSBackend;
@@ -8,7 +7,6 @@ import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
 
-import java.io.IOException;
 import java.net.http.HttpResponse;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -26,6 +24,7 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
 
     private void saveCookie(MinerDetails minerDetails, String cookie, Instant expires) {
         sessionCookies.put(minerDetails.ipv4(), new CookieDetails(cookie, expires));
+        LOGGER.info("Got new session cookie for miner " + minerDetails.ipv4());
     }
 
     private String getSessionCookie(MinerDetails minerDetails) {
@@ -41,12 +40,6 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
         }
         return sessionCookies.get(minerDetails.ipv4()).expiresAt();
     }
-
-    /*
-     * ============================================================
-     * Authentication
-     * ============================================================
-     */
 
     private void ensureAuthenticated(MinerDetails details) {
         String sessionCookie = getSessionCookie(details);
@@ -67,12 +60,6 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
         }
     }
 
-    /*
-     * ============================================================
-     * Helpers
-     * ============================================================
-     */
-
     private JsonNode execute(MinerDetails details, BraiinsQuery query) {
         return execute(details, query, null);
     }
@@ -81,10 +68,16 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
         ensureAuthenticated(details);
 
         try {
-            JsonNode root = executor.execute(details.ipv4(), 80, query.query(), variables, getSessionCookie(details));
+            JsonNode root = executor.execute(details.ipv4(), details.port(), query.query(), variables, getSessionCookie(details));
 
             if (root.has("errors")) {
                 String errorJson = root.get("errors").toPrettyString();
+
+                if (errorJson.toLowerCase().contains("unauthorized") ||
+                        errorJson.toLowerCase().contains("unauthenticated") ||
+                        errorJson.toLowerCase().contains("forbidden")) {
+                    invalidateSession(details);
+                }
 
                 if (errorJson.contains("\"UNAVAILABLE\"") || errorJson.contains("Service unavailable")) {
                     throw new BosminerUnavailableException("Braiins OS GraphQL API is online, but bosminer service is unavailable (Booting or Crashed).");
@@ -92,15 +85,12 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
 
                 throw new IllegalStateException("GraphQL Error: " + errorJson);
             }
-            if (query.equals(BraiinsQuery.SET_POOL)) {
-                System.out.println(root);
-            }
-
 
             return root;
         } catch (BosminerUnavailableException e) {
             throw e;
         } catch (Exception e) {
+            invalidateSession(details);
             throw new RuntimeException("GraphQL query failed: " + query.name(), e);
         }
     }
@@ -112,12 +102,6 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
     private JsonNode getVersion(MinerDetails details) {
         return execute(details, BraiinsQuery.VERSION);
     }
-
-    /*
-     * ============================================================
-     * Miner actions
-     * ============================================================
-     */
 
     @Override
     public boolean startMining(MinerDetails details) {
@@ -151,7 +135,6 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
             execute(details, BraiinsQuery.PAUSE);
             return true;
         } catch (Exception ignored) {
-            // older firmware
             LOGGER.log(Level.WARNING, "Miner does not support pausing. We try to stop it instead");
             return stopMining(details);
         }
@@ -163,7 +146,6 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
             execute(details, BraiinsQuery.RESUME);
             return true;
         } catch (Exception ignored) {
-            // older firmware
             LOGGER.log(Level.WARNING, "Miner does not support resuming. We try to start it instead");
             return startMining(details);
         }
@@ -200,7 +182,7 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
     @Override
     public boolean setPoolTarget(MinerDetails details, String stratumUrl, String userName, boolean alsoSetDevFee) {
         try {
-            boolean configChanged = false; // Unser Indikator für den Neustart
+            boolean configChanged = false;
 
             String hwid = getHwid(details);
             String expectedUser = userName + hwid;
@@ -220,7 +202,7 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
                         JsonNode pools = group.path("pools");
                         boolean perfectlyMatches = false;
 
-                        // Check, ob der Pool bereits exakt so existiert wie er soll
+
                         if (pools.isArray() && pools.size() == 1) {
                             JsonNode pool = pools.get(0);
                             if (pool.path("url").asText().equals(stratumUrl) && pool.path("user").asText().equals(expectedUser)) {
@@ -229,9 +211,9 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
                         }
 
                         if (perfectlyMatches) {
-                            solarminerGroupId = id; // Alles ist perfekt, wir behalten die Gruppe
+                            solarminerGroupId = id;
                         } else {
-                            // Pool ist falsch oder es gibt Dateileichen -> Gruppe löschen und neu bauen
+
                             execute(details, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", id));
                             configChanged = true;
                         }
@@ -241,14 +223,14 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
                             configChanged = true;
                         }
                     } else {
-                        // Alle fremden Gruppen löschen
+
                         execute(details, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", id));
                         configChanged = true;
                     }
                 }
             }
 
-            // Falls die Gruppe gelöscht wurde oder nie existierte -> Neu anlegen
+
             if (solarminerGroupId == null || solarminerGroupId.isEmpty()) {
                 JsonNode addResponse = execute(details, BraiinsQuery.ADD_POOL_GROUP, Map.of("name", "Solarminer", "quota", 1));
                 JsonNode newGroupNode = addResponse.path("data").path("bosminer").path("config").path("addGroupWithQuota");
@@ -265,18 +247,18 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
                 }
             }
 
-            // DevFee abarbeiten
+
             if (alsoSetDevFee) {
                 String workerName = DevFeeConstants.DEV_FEE_POOL_USER_SHA256 + hwid;
 
-                // Wir führen es nur aus, wenn die Verifizierung fehlschlägt (also eine Änderung nötig ist)
+
                 boolean devFeeChanged = internalEnforceAndReplaceDevFee(details, DevFeeConstants.DEV_FEE_POOL_NAME_SHA256, workerName, DevFeeConstants.DevFeePercentage);
                 if (devFeeChanged) {
                     configChanged = true;
                 }
             }
 
-            // WENN sich an den Pools / der DevFee etwas geändert hat -> Neustart
+
             if (configChanged) {
                 restartMiner(details);
             }
@@ -540,5 +522,10 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
             LOGGER.log(Level.SEVERE, "Could not enforce dev fee for " + minerDetails.ipv4(), e);
             return false;
         }
+    }
+
+    private void invalidateSession(MinerDetails minerDetails) {
+        sessionCookies.remove(minerDetails.ipv4());
+        LOGGER.info("Removed invalid cookie for miner " + minerDetails.ipv4());
     }
 }

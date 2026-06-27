@@ -4,26 +4,42 @@ import de.verdox.pv_miner.entity.ControllableEntity;
 import de.verdox.pv_miner.entity.EntityController;
 
 public abstract class Miner extends EntityController {
-    public Miner(ControllableEntity<?> controllableEntity) {
+    private final MinerApiClient minerApiClient;
+
+    public Miner(MinerApiClient minerApiClient, ControllableEntity<?> controllableEntity) {
         super(controllableEntity);
+        this.minerApiClient = minerApiClient;
     }
 
-    public abstract boolean setPowerTarget(long targetInWatts);
+    public boolean setPowerTarget(long targetInWatts) {
+        return minerApiClient.setPowerTarget(MiningOS.BRAIINS, details(), targetInWatts);
+    }
 
-    @Deprecated
-    public abstract boolean incrementPowerTarget(long incrementInWatts);
+    public boolean incrementPowerTarget(long incrementInWatts) {
+        return minerApiClient.incrementPowerTarget(MiningOS.BRAIINS, details(), incrementInWatts);
+    }
 
-    @Deprecated
-    public abstract boolean decrementPowerTarget(long decrementInWatts);
+    public boolean decrementPowerTarget(long decrementInWatts) {
+        return minerApiClient.decrementPowerTarget(MiningOS.BRAIINS, details(), decrementInWatts);
+    }
 
-    public abstract boolean startMining();
+    public boolean startMining() {
+        return minerApiClient.startMining(MiningOS.BRAIINS, details());
+    }
 
-    public abstract boolean stopMining();
+    public boolean stopMining() {
+        return minerApiClient.stopMining(MiningOS.BRAIINS, details());
+    }
 
-    public abstract boolean pauseMining();
+    public boolean pauseMining() {
+        return minerApiClient.pauseMining(MiningOS.BRAIINS, details());
+    }
 
-    public abstract boolean resumeMining();
+    public boolean resumeMining() {
+        return minerApiClient.resumeMining(MiningOS.BRAIINS, details());
+    }
 
     public abstract MinerApiClient.MinerDetails details();
+
     public abstract MiningOS os();
 }

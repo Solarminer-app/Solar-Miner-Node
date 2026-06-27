@@ -377,13 +377,28 @@ public class BraiinsOSGRPCClient implements BrainsOSBackend {
         } catch (StatusRuntimeException e) {
             if (e.getMessage() != null && e.getMessage().contains("UNAUTHENTICATED")) {
                 tokenDetailsForEntities.remove(minerIPV4);
-            } else if (e.getStatus().getCode() == io.grpc.Status.Code.DEADLINE_EXCEEDED || e.getStatus().getCode() == io.grpc.Status.Code.UNAVAILABLE || e.getStatus().getCode() == io.grpc.Status.Code.INTERNAL) {
+            } else if (e.getStatus().getCode() == io.grpc.Status.Code.DEADLINE_EXCEEDED ||
+                    e.getStatus().getCode() == io.grpc.Status.Code.UNAVAILABLE ||
+                    e.getStatus().getCode() == io.grpc.Status.Code.INTERNAL) {
+
+                tokenDetailsForEntities.remove(minerIPV4);
+                ManagedChannel channel = activeChannels.remove(minerIPV4);
+                if (channel != null && !channel.isShutdown()) {
+                    channel.shutdownNow();
+                }
+
                 return defaultValue;
             } else {
                 throw new RuntimeException(e);
             }
             return defaultValue;
         } catch (Exception e) {
+            tokenDetailsForEntities.remove(minerIPV4);
+            ManagedChannel channel = activeChannels.remove(minerIPV4);
+            if (channel != null && !channel.isShutdown()) {
+                channel.shutdownNow();
+            }
+
             LOGGER.log(Level.SEVERE, "Unexpected error: " + minerIPV4, e);
             return defaultValue;
         }

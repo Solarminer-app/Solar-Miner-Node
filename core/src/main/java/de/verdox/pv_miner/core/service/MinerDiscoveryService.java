@@ -32,19 +32,16 @@ public class MinerDiscoveryService {
             return null;
         }
 
-        // 1. Check for Solar Miner Agent
         MinerDiscoveryService.DetectedMiner agent = checkSolarMinerAgent(ipv4);
         if (agent != null) {
             return agent;
         }
 
-        // 2. Check for ASIC Miners with open CGMiner API (Custom Firmwares)
         MinerDiscoveryService.DetectedMiner customAsic = checkAsicMiner(ipv4);
         if (customAsic != null) {
             return customAsic;
         }
 
-        // 3. Check for Antminer Stock Firmware via HTTP Challenge
         return checkAntminerStock(ipv4);
     }
 

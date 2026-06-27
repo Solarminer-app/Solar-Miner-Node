@@ -207,8 +207,7 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
                 minerInfo -> ui.access(() -> {
                     boolean alreadyExists = false;
                     if (existingSite != null && existingSite.getMiners() != null) {
-                        alreadyExists = existingSite.getMiners().stream()
-                                .anyMatch(m -> m.getIP() != null && m.getIP().equals(minerInfo.ipAddress()));
+                        alreadyExists = existingSite.getMiners().stream().anyMatch(m -> m.getIP() != null && m.getIP().equals(minerInfo.ipAddress()));
                     }
 
                     if (!alreadyExists) {

@@ -4,8 +4,12 @@ import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
 import de.verdox.pv_miner.entity.EntityControllerService;
 import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.entity.EntityService;
+import de.verdox.pv_miner.frontend.setup.MinerSetupStep;
+import de.verdox.pv_miner.frontend.setup.PVSetupStep;
+import de.verdox.pv_miner.frontend.setup.PVSiteVariablesStep;
 import de.verdox.pv_miner.miner.MinerApiClient;
 import de.verdox.pv_miner.miner.MinerEntity;
+import de.verdox.pv_miner.miner.MiningOS;
 import de.verdox.pv_miner.miningcontroller.MinerClusterService;
 import de.verdox.pv_miner.miningcontroller.MinerControllerConfigStorage;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
@@ -13,9 +17,6 @@ import de.verdox.pv_miner.pvsite.HistoricalPrice;
 import de.verdox.pv_miner.pvsite.PVPanels;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.util.Money;
-import de.verdox.pv_miner.frontend.setup.MinerSetupStep;
-import de.verdox.pv_miner.frontend.setup.PVSetupStep;
-import de.verdox.pv_miner.frontend.setup.PVSiteVariablesStep;
 import de.verdox.pv_miner_extensions.agent.AgentMinerEntity;
 import de.verdox.pv_miner_extensions.braiins.miner.BraiinsOSAsicMinerEntity;
 import de.verdox.pv_miner_extensions.modbus.ModbusPVSite;
@@ -180,31 +181,28 @@ public class WizardSaveService {
         for (MinerSetupStep.MinerConfigEntry entry : miners) {
             var minerInfo = entry.getMinerInfo();
 
-            MinerEntity<?> miner = switch (minerInfo.os()) {
-                case BRAIINS -> {
-                    var braiins = new BraiinsOSAsicMinerEntity();
-                    braiins.setName(minerInfo.model());
-                    braiins.setHost(minerInfo.ipAddress());
-                    braiins.setPort(50051);
-                    braiins.setUsername(entry.getUsername());
-                    braiins.setPassword(entry.getPassword());
-                    yield braiins;
-                }
-                case AGENT -> {
-                    var agent = new AgentMinerEntity();
-                    agent.setHost(minerInfo.ipAddress());
-                    agent.setPort(8084);
-                    yield agent;
-                }
-                case VNISH, LUXOS -> throw new UnsupportedOperationException("OS momentan nicht unterstützt.");
-            };
+            MinerEntity<?> miner;
+            if (minerInfo.os().equals(MiningOS.BRAIINS)) {
+                var braiins = new BraiinsOSAsicMinerEntity();
+                braiins.setName(minerInfo.model());
+                braiins.setHost(minerInfo.ipAddress());
+                braiins.setPort(50051);
+                braiins.setUsername(entry.getUsername());
+                braiins.setPassword(entry.getPassword());
+                miner = braiins;
+            } else if (minerInfo.os().equals(MiningOS.AGENT)) {
+                var agent = new AgentMinerEntity();
+                agent.setHost(minerInfo.ipAddress());
+                agent.setPort(8084);
+                miner = agent;
+            }
+            else {
+                throw new UnsupportedOperationException("OS " + minerInfo.os() + " not supported.");
+            }
 
             miner.setParentEntity(site);
             minersToAssign.add(miner);
             entityService.save(miner, site);
-
-
-            System.out.println(firstConnectedMiningPool);
 
             if (firstConnectedMiningPool != null) {
                 try {

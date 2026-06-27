@@ -13,7 +13,7 @@ public class AgentMinerQueryStrategy implements ASICMinerQueryStrategy<AgentMine
     @Override
     public MinerStats query(EntityQueryService entityQueryService, AgentMinerEntity entity) {
         MinerApiClient minerApiClient = SpringContextHelper.getBean(MinerApiClient.class);
-        MinerApiClient.MinerDetails minerDetails = new MinerApiClient.MinerDetails(UUID.randomUUID(), entity.getHost(), entity.getPort(), "", "");
+        MinerApiClient.MinerDetails minerDetails = new MinerApiClient.MinerDetails(entity.getId(), entity.getHost(), entity.getPort(), "", "");
         return minerApiClient.getStats(MiningOS.AGENT, minerDetails);
     }
 
@@ -21,7 +21,7 @@ public class AgentMinerQueryStrategy implements ASICMinerQueryStrategy<AgentMine
     public void ping(AgentMinerEntity entity) {
         MinerApiClient minerApiClient = SpringContextHelper.getBean(MinerApiClient.class);
 
-        MinerApiClient.MinerDetails minerDetails = new MinerApiClient.MinerDetails(UUID.randomUUID(), entity.getHost(), entity.getPort(), "", "");
+        MinerApiClient.MinerDetails minerDetails = new MinerApiClient.MinerDetails(entity.getId(), entity.getHost(), entity.getPort(), "", "");
         minerApiClient.getStats(MiningOS.AGENT, minerDetails);
     }
 }

@@ -2,34 +2,30 @@ package de.verdox.pv_miner.core.miner.antminer;
 
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 
+import java.net.ConnectException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class AntminerCgiClient {
-
-    // Ein einziger, wiederverwendbarer Client für alle Miner (sehr effizient)
+    private static final Logger LOGGER = Logger.getLogger(AntminerCgiClient.class.getSimpleName());
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
-    // Regex zum Auslesen der Digest-Parameter vom Antminer
     private static final Pattern REALM_PATTERN = Pattern.compile("realm=\"([^\"]+)\"");
     private static final Pattern NONCE_PATTERN = Pattern.compile("nonce=\"([^\"]+)\"");
-
-    /*
-     * ============================================================
-     * Digest Authentication Core Logic
-     * ============================================================
-     */
 
     private String buildDigestAuthHeader(MinerDetails details, String method, String uri, String wwwAuthenticateHeader) {
         try {
@@ -43,18 +39,13 @@ public class AntminerCgiClient {
             String realm = realmMatcher.group(1);
             String nonce = nonceMatcher.group(1);
 
-            // Client Nonce (zufällig) und Counter (immer 1 für Einzelrequests)
             String cnonce = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
             String nc = "00000001";
             String qop = "auth";
 
-            // Hash 1: MD5(username:realm:password)
             String ha1 = md5(details.username() + ":" + realm + ":" + details.password());
-
-            // Hash 2: MD5(method:uri)
             String ha2 = md5(method + ":" + uri);
 
-            // Response: MD5(HA1:nonce:nc:cnonce:qop:HA2)
             String response = md5(ha1 + ":" + nonce + ":" + nc + ":" + cnonce + ":" + qop + ":" + ha2);
 
             return String.format(
@@ -68,7 +59,7 @@ public class AntminerCgiClient {
     }
 
     private String md5(String data) throws NoSuchAlgorithmException {
-        MessageDigest md = MessageDigest.getInstance("MD5"); // GraalVM unterstützt das nativ
+        MessageDigest md = MessageDigest.getInstance("MD5");
         byte[] hash = md.digest(data.getBytes(StandardCharsets.UTF_8));
         StringBuilder hexString = new StringBuilder();
         for (byte b : hash) {
@@ -78,12 +69,6 @@ public class AntminerCgiClient {
         }
         return hexString.toString();
     }
-
-    /*
-     * ============================================================
-     * Request Execution with Automatic Handshake
-     * ============================================================
-     */
 
     private String executeWithDigestAuth(MinerDetails details, String method, String cgiEndpoint, String body) {
         try {
@@ -97,22 +82,18 @@ public class AntminerCgiClient {
                 requestBuilder.GET();
             }
 
-            // 1. Erster Versuch (wird 401 liefern)
             HttpRequest initialRequest = requestBuilder.build();
             HttpResponse<String> initialResponse = httpClient.send(initialRequest, HttpResponse.BodyHandlers.ofString());
 
             if (initialResponse.statusCode() != 401) {
-                return initialResponse.body(); // Falls der Miner ausnahmsweise kein Auth braucht
+                return initialResponse.body();
             }
 
-            // 2. WWW-Authenticate Header auslesen
             String authHeader = initialResponse.headers().firstValue("WWW-Authenticate")
-                    .orElseThrow(() -> new IllegalStateException("No WWW-Authenticate header found on 401 response"));
+                    .orElseThrow(() -> new IllegalStateException("No WWW-Authenticate header found"));
 
-            // 3. Hash berechnen und Header bauen
             String digestHeader = buildDigestAuthHeader(details, method, cgiEndpoint, authHeader);
 
-            // 4. Zweiten Request mit gültigem Hash senden
             HttpRequest authenticatedRequest = requestBuilder
                     .setHeader("Authorization", digestHeader)
                     .build();
@@ -120,21 +101,19 @@ public class AntminerCgiClient {
             HttpResponse<String> finalResponse = httpClient.send(authenticatedRequest, HttpResponse.BodyHandlers.ofString());
 
             if (finalResponse.statusCode() != 200) {
-                throw new IllegalStateException("CGI Request failed with HTTP " + finalResponse.statusCode());
+                LOGGER.log(Level.SEVERE, "Miner " + details.ipv4() + " rejected auth with HTTP " + finalResponse.statusCode());
+                return null;
             }
 
             return finalResponse.body();
 
+        } catch (HttpTimeoutException | ConnectException e) {
+            return null;
         } catch (Exception e) {
-            throw new RuntimeException("CGI " + method + " query failed: " + cgiEndpoint, e);
+            LOGGER.log(Level.SEVERE, "CGI communication failed with " + details.ipv4() + ": " + e.getMessage(), e);
+            return null;
         }
     }
-
-    /*
-     * ============================================================
-     * Public API
-     * ============================================================
-     */
 
     public boolean checkIfCredentialsWork(MinerDetails details) {
         try {
