@@ -1,0 +1,72 @@
+{
+  "STATUS": {
+    "STATUS": "S",
+    "when": 1782569291,
+    "Msg": "pools",
+    "api_version": "1.0.0"
+  },
+  "INFO": {
+    "miner_version": "uart_trans.1.3",
+    "CompileTime": "Wed Oct 20 17:50:59 CST 2021",
+    "type": "Antminer S19"
+  },
+  "POOLS": [
+    {
+      "index": 0,
+      "url": "",
+      "user": "",
+      "status": "Disabled",
+      "priority": 0,
+      "getworks": 0,
+      "accepted": 0,
+      "rejected": 0,
+      "discarded": 0,
+      "stale": 0,
+      "diff": "",
+      "diff1": 0,
+      "diffa": 0,
+      "diffr": 0,
+      "diffs": 0,
+      "lsdiff": 0,
+      "lstime": "0"
+    },
+    {
+      "index": 1,
+      "url": "",
+      "user": "",
+      "status": "Disabled",
+      "priority": 1,
+      "getworks": 0,
+      "accepted": 0,
+      "rejected": 0,
+      "discarded": 0,
+      "stale": 0,
+      "diff": "",
+      "diff1": 0,
+      "diffa": 0,
+      "diffr": 0,
+      "diffs": 0,
+      "lsdiff": 0,
+      "lstime": "0"
+    },
+    {
+      "index": 2,
+      "url": "",
+      "user": "",
+      "status": "Disabled",
+      "priority": 2,
+      "getworks": 0,
+      "accepted": 0,
+      "rejected": 0,
+      "discarded": 0,
+      "stale": 0,
+      "diff": "",
+      "diff1": 0,
+      "diffa": 0,
+      "diffr": 0,
+      "diffs": 0,
+      "lsdiff": 0,
+      "lstime": "0"
+    }
+  ]
+}

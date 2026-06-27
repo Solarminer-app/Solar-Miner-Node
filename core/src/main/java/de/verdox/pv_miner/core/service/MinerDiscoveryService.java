@@ -5,7 +5,6 @@ import de.verdox.pv_miner.core.miner.MiningOS;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.InetSocketAddress;
@@ -32,11 +31,21 @@ public class MinerDiscoveryService {
         if (ipv4 == null || ipv4.isBlank()) {
             return null;
         }
+
+        // 1. Check for Solar Miner Agent
         MinerDiscoveryService.DetectedMiner agent = checkSolarMinerAgent(ipv4);
         if (agent != null) {
             return agent;
         }
-        return checkAsicMiner(ipv4);
+
+        // 2. Check for ASIC Miners with open CGMiner API (Custom Firmwares)
+        MinerDiscoveryService.DetectedMiner customAsic = checkAsicMiner(ipv4);
+        if (customAsic != null) {
+            return customAsic;
+        }
+
+        // 3. Check for Antminer Stock Firmware via HTTP Challenge
+        return checkAntminerStock(ipv4);
     }
 
     private MinerDiscoveryService.DetectedMiner checkSolarMinerAgent(String ipv4) {
@@ -57,7 +66,7 @@ public class MinerDiscoveryService {
                 LOGGER.log(Level.INFO, "Found Solar Miner Agent on IP: " + ipv4);
                 return new MinerDiscoveryService.DetectedMiner(MiningOS.AGENT, "Solarminer PC Agent");
             }
-        } catch (Exception e) {
+        } catch (Exception ignored) {
         }
         return null;
     }
@@ -80,7 +89,6 @@ public class MinerDiscoveryService {
 
             String lowerResponse = response.toLowerCase();
             MiningOS os = null;
-            System.out.println(lowerResponse);
 
             if (lowerResponse.contains("boser") || lowerResponse.contains("bosminer") || lowerResponse.contains("braiins")) {
                 os = MiningOS.BRAIINS;
@@ -92,17 +100,47 @@ public class MinerDiscoveryService {
 
             if (os != null) {
                 String defaultModel = switch (os) {
-                    case BRAIINS -> "Antminer (Braiins OS)";
-                    case VNISH -> "Antminer (Vnish)";
-                    case LUXOS -> "ASIC Miner (LuxOS)";
+                    case BRAIINS -> "Braiins OS - Miner";
+                    case VNISH -> "Vnish - Miner";
+                    case LUXOS -> "LuxOS - Miner";
                     default -> "Unknown Miner";
                 };
                 String model = parseJsonValue(response, "Model", defaultModel);
                 LOGGER.log(Level.INFO, "Found " + os + " Miner (" + model + ") on IP: " + ipv4);
                 return new MinerDiscoveryService.DetectedMiner(os, model);
             }
-        } catch (Exception e) {
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
 
+    /**
+     * Prüft, ob ein Miner mit Antminer Stock Firmware unter der IP läuft,
+     * indem der HTTP 401 Unauthorized (Digest Auth) Header provoziert wird.
+     */
+    private MinerDiscoveryService.DetectedMiner checkAntminerStock(String ipv4) {
+        try {
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofMillis(500))
+                    .build();
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("http://" + ipv4 + "/"))
+                    .timeout(Duration.ofMillis(500))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 401) {
+                String authHeader = response.headers().firstValue("WWW-Authenticate").orElse("");
+
+                if (authHeader.contains("antMiner")) {
+                    LOGGER.log(Level.INFO, "Found Antminer (Stock Firmware) on IP: " + ipv4);
+                    return new MinerDiscoveryService.DetectedMiner(MiningOS.ANTMINER_STOCK_OS, "Antminer (Stock)");
+                }
+            }
+        } catch (Exception ignored) {
         }
         return null;
     }

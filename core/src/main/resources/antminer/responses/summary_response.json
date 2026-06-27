@@ -1,0 +1,51 @@
+{
+  "STATUS": {
+    "STATUS": "S",
+    "when": 1782569373,
+    "Msg": "summary",
+    "api_version": "1.0.0"
+  },
+  "INFO": {
+    "miner_version": "uart_trans.1.3",
+    "CompileTime": "Wed Oct 20 17:50:59 CST 2021",
+    "type": "Antminer S19"
+  },
+  "SUMMARY": [
+    {
+      "elapsed": 0,
+      "rate_5s": 0,
+      "rate_30m": 0,
+      "rate_avg": 0,
+      "rate_ideal": 0,
+      "rate_unit": "GH/s",
+      "hw_all": 0,
+      "bestshare": 0,
+      "status": [
+        {
+          "type": "rate",
+          "status": "s",
+          "code": 0,
+          "msg": ""
+        },
+        {
+          "type": "network",
+          "status": "e",
+          "code": -1,
+          "msg": "Can not connect to pool"
+        },
+        {
+          "type": "fans",
+          "status": "s",
+          "code": 0,
+          "msg": ""
+        },
+        {
+          "type": "temp",
+          "status": "s",
+          "code": 0,
+          "msg": ""
+        }
+      ]
+    }
+  ]
+}
