@@ -289,7 +289,6 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
         List<MinerGrid.MinerItem> liveItems = pvSiteEntity.getMiners().stream().map(miner -> {
             MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
-            System.out.println(stats);
 
             String name = miner.getName() != null ? miner.getName() : "Miner";
             String ipOrMac = miner.getIP();

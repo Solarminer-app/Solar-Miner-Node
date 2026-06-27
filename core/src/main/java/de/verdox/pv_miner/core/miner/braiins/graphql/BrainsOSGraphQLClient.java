@@ -8,7 +8,6 @@ import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
 
 import java.net.http.HttpResponse;
-import java.nio.channels.ClosedChannelException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -137,7 +136,7 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
             execute(details, BraiinsQuery.PAUSE);
             return true;
         } catch (Exception ignored) {
-            LOGGER.log(Level.WARNING, "Miner does not support pausing. We try to stop it instead");
+            //LOGGER.log(Level.WARNING, "Miner does not support pausing. We try to stop it instead");
             return stopMining(details);
         }
     }
@@ -148,7 +147,7 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
             execute(details, BraiinsQuery.RESUME);
             return true;
         } catch (Exception ignored) {
-            LOGGER.log(Level.WARNING, "Miner does not support resuming. We try to start it instead");
+            //LOGGER.log(Level.WARNING, "Miner does not support resuming. We try to start it instead");
             return startMining(details);
         }
     }
@@ -272,12 +271,6 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
             return false;
         }
     }
-
-    /*
-     * ============================================================
-     * Information
-     * ============================================================
-     */
 
     @Override
     public MinerStats.MinerIdentity getInfo(MinerDetails details) {

@@ -1,6 +1,7 @@
 package de.verdox.pv_miner.core.miner.antminer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import de.verdox.pv_miner.core.miner.braiins.graphql.BosminerUnavailableException;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
@@ -136,10 +137,7 @@ public class AntminerBackend {
 
 
     public long getCurrentPowerTarget(MinerDetails details) {
-        if (getMinerStatus(details).equals(MinerStats.MinerStatus.MINING)) {
-            return AsicMinerSpec.find(getInfo(details).minerModel()).watts();
-        }
-        return 0;
+        return AsicMinerSpec.find(getInfo(details).minerModel()).watts();
     }
 
 
@@ -231,5 +229,37 @@ public class AntminerBackend {
     public boolean verifyDevFee(MinerDetails minerDetails, String expectedUrl, String expectedAddress, double expectedPercentage) {
         //TODO: Check if proxy is used.
         return true;
+    }
+
+    public MinerStats queryStats(String minerName, MinerDetails minerDetails) {
+        try {
+            var identity = getInfo(minerDetails);
+            MinerStats.MinerStatus apiStatus = getMinerStatus(minerDetails);
+            List<Pools> pools = getPools(minerDetails);
+            double terahashPerSecond = getHashrateTH(minerDetails);
+            double temperatureInDegreeC = getTemperatureInDegreeC(minerDetails);
+            long currentPowerTarget = getCurrentPowerTarget(minerDetails);
+
+            int minPowerTarget = Math.toIntExact(getCurrentPowerTarget(minerDetails));
+            int maxPowerTarget = Math.toIntExact(getCurrentPowerTarget(minerDetails));
+            long approximatePowerUsageWatts = getApproximatePowerUsage(minerDetails);
+            return new MinerStats(identity, minerName, apiStatus, currentPowerTarget, minPowerTarget, maxPowerTarget, approximatePowerUsageWatts, terahashPerSecond, temperatureInDegreeC, pools, List.of(new MinerStats.Worker(apiStatus, identity.minerModel(), "SHA256", terahashPerSecond, temperatureInDegreeC, currentPowerTarget, minPowerTarget, maxPowerTarget, approximatePowerUsageWatts, pools)));
+        }
+        catch (BosminerUnavailableException e) {
+            return new MinerStats(
+                    new MinerStats.MinerIdentity("", "", ""),
+                    minerName,
+                    MinerStats.MinerStatus.STOPPED,
+                    0L,
+                    0L,
+                    0L,
+                    0L,
+                    0.0D,
+                    0.0D,
+                    List.of(),
+                    List.of()
+            );
+
+        }
     }
 }

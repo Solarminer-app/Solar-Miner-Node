@@ -155,6 +155,7 @@ public class DiscoveryService {
                     executor.submit(() -> {
                         try {
                             var detectedMiner = minerApiClient.identifyMiningOS(ip);
+
                             if (detectedMiner != null) {
                                 onMinerFound.accept(new MinerInfo(detectedMiner.model(), ip, detectedMiner.os()));
                             }
