@@ -74,17 +74,24 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
     }
 
     private JsonNode execute(MinerDetails details, BraiinsQuery query, Map<String, Object> variables) {
-
         ensureAuthenticated(details);
 
         try {
             JsonNode root = executor.execute(details.ipv4(), 80, query.query(), variables, getSessionCookie(details));
 
             if (root.has("errors")) {
-                throw new IllegalStateException(root.get("errors").toPrettyString());
+                String errorJson = root.get("errors").toPrettyString();
+
+                if (errorJson.contains("\"UNAVAILABLE\"") || errorJson.contains("Service unavailable")) {
+                    throw new BosminerUnavailableException("Braiins OS GraphQL API is online, but bosminer service is unavailable (Booting or Crashed).");
+                }
+
+                throw new IllegalStateException("GraphQL Error: " + errorJson);
             }
 
             return root;
+        } catch (BosminerUnavailableException e) {
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException("GraphQL query failed: " + query.name(), e);
         }
@@ -115,7 +122,6 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
     }
 
     public String version(MinerDetails details) {
-        System.out.println(getVersion(details));
         return getVersion(details).at("/data/bos/info/version/full").asText();
     }
 
@@ -239,7 +245,7 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
 
             case "PAUSED" -> MinerStats.MinerStatus.PAUSED;
 
-            case "STOPPED" -> MinerStats.MinerStatus.STOPPED;
+            case "STOPPED, DISABLED" -> MinerStats.MinerStatus.STOPPED;
 
             default -> MinerStats.MinerStatus.ERROR;
         };

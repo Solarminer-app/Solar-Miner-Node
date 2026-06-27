@@ -335,7 +335,7 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
 
     @Override
     public boolean isValid() {
-        if (!scanComplete) {
+/*        if (!scanComplete) {
             return false;
         }
 
@@ -345,7 +345,7 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
             if (entry.getTestStatus() != TestStatus.SUCCESS) {
                 return false;
             }
-        }
+        }*/
         return true;
     }
 

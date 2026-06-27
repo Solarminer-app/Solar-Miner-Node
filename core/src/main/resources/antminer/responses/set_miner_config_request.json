@@ -1,0 +1,23 @@
+{
+  "bitmain-fan-ctrl": false,
+  "bitmain-fan-pwm": "20",
+  "miner-mode": "1",
+  "freq-level": "100",
+  "pools": [
+    {
+      "url": "",
+      "user": "",
+      "pass": ""
+    },
+    {
+      "url": "",
+      "user": "",
+      "pass": ""
+    },
+    {
+      "url": "",
+      "user": "",
+      "pass": ""
+    }
+  ]
+}
