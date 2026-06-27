@@ -8,6 +8,7 @@ import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
 
 import java.net.http.HttpResponse;
+import java.nio.channels.ClosedChannelException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +51,7 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
         }
 
         try {
-            HttpResponse<String> response = executor.executeRaw(details.ipv4(), 80, BraiinsQuery.LOGIN.query(), Map.of("username", details.username(), "password", details.password()), null);
+            HttpResponse<String> response = executor.executeRaw(details.ipv4(), BraiinsQuery.LOGIN.query(), Map.of("username", details.username(), "password", details.password()), null);
 
             String cookie = response.headers().firstValue("Set-Cookie").orElseThrow(() -> new IllegalStateException("No session cookie returned."));
 
@@ -66,10 +67,8 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
 
     private JsonNode execute(MinerDetails details, BraiinsQuery query, Map<String, Object> variables) {
         ensureAuthenticated(details);
-
         try {
-            JsonNode root = executor.execute(details.ipv4(), details.port(), query.query(), variables, getSessionCookie(details));
-
+            JsonNode root = executor.execute(details.ipv4(), query.query(), variables, getSessionCookie(details));
             if (root.has("errors")) {
                 String errorJson = root.get("errors").toPrettyString();
 
@@ -89,6 +88,9 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
             return root;
         } catch (BosminerUnavailableException e) {
             throw e;
+        }
+        catch (java.io.IOException e) {
+            throw new RuntimeException("Network error executing GraphQL query: " + query.name(), e);
         } catch (Exception e) {
             invalidateSession(details);
             throw new RuntimeException("GraphQL query failed: " + query.name(), e);
@@ -279,15 +281,17 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
 
     @Override
     public MinerStats.MinerIdentity getInfo(MinerDetails details) {
-        JsonNode root = status(details);
+        return tryOrDefault(details, () -> {
+            JsonNode root = status(details);
 
-        String mac = root.at("/data/bos/macAddress").asText("");
+            String mac = root.at("/data/bos/macAddress").asText("");
 
-        String serial = root.at("/data/bos/serialNumber").asText("");
+            String serial = root.at("/data/bos/serialNumber").asText("");
 
-        String model = root.at("/data/bosminer/info/modelName").asText("");
+            String model = root.at("/data/bosminer/info/modelName").asText("");
 
-        return new MinerStats.MinerIdentity(serial, mac, model);
+            return new MinerStats.MinerIdentity(serial, mac, model);
+        }, new MinerStats.MinerIdentity("", "", "Unknown"));
     }
 
     @Override
@@ -409,7 +413,7 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
     @Override
     public boolean checkIfCustomCredentialsWork(MinerDetails details) {
         try {
-            HttpResponse<String> response = executor.executeRaw(details.ipv4(), 80, BraiinsQuery.LOGIN.query(), Map.of("username", details.username(), "password", details.password()), null);
+            HttpResponse<String> response = executor.executeRaw(details.ipv4(), BraiinsQuery.LOGIN.query(), Map.of("username", details.username(), "password", details.password()), null);
             return response.headers().firstValue("Set-Cookie").isPresent();
         } catch (Exception e) {
             return false;
@@ -521,6 +525,18 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Could not enforce dev fee for " + minerDetails.ipv4(), e);
             return false;
+        }
+    }
+
+    private <T> T tryOrDefault(MinerDetails details, java.util.function.Supplier<T> request, T defaultValue) {
+        try {
+            T result = request.get();
+            return result == null ? defaultValue : result;
+        } catch (BosminerUnavailableException e) {
+            return defaultValue;
+        } catch (Exception e) {
+            LOGGER.log(Level.FINE, "Communication problem with miner " + details.ipv4() + " (" + e.getClass().getSimpleName() + ")");
+            return defaultValue;
         }
     }
 
