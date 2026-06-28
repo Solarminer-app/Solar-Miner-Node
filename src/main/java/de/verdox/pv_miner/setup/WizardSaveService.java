@@ -18,6 +18,8 @@ import de.verdox.pv_miner.pvsite.PVPanels;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner_extensions.agent.AgentMinerEntity;
+import de.verdox.pv_miner_extensions.antminer.Antminer;
+import de.verdox.pv_miner_extensions.antminer.AntminerEntity;
 import de.verdox.pv_miner_extensions.braiins.miner.BraiinsOSAsicMinerEntity;
 import de.verdox.pv_miner_extensions.modbus.ModbusPVSite;
 import de.verdox.pv_miner_extensions.modbus.config.ModbusConfigCreatorTemplate;
@@ -195,6 +197,15 @@ public class WizardSaveService {
                 agent.setHost(minerInfo.ipAddress());
                 agent.setPort(8084);
                 miner = agent;
+            }
+            else if(minerInfo.os().equals(MiningOS.ANTMINER_STOCK_OS)) {
+                var antminer = new AntminerEntity();
+                antminer.setName(minerInfo.model());
+                antminer.setHost(minerInfo.ipAddress());
+                antminer.setPort(80);
+                antminer.setUsername(entry.getUsername());
+                antminer.setPassword(entry.getPassword());
+                miner = antminer;
             }
             else {
                 throw new UnsupportedOperationException("OS " + minerInfo.os() + " not supported.");

@@ -3,6 +3,8 @@ package de.verdox.pv_miner.entity;
 import de.verdox.pv_miner.miner.MinerApiClient;
 import de.verdox.pv_miner_extensions.agent.AgentMiner;
 import de.verdox.pv_miner_extensions.agent.AgentMinerEntity;
+import de.verdox.pv_miner_extensions.antminer.Antminer;
+import de.verdox.pv_miner_extensions.antminer.AntminerEntity;
 import de.verdox.pv_miner_extensions.braiins.miner.BraiinsOSAsicMinerEntity;
 import de.verdox.pv_miner_extensions.braiins.miner.BrainsOSMiner;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ public class EntityControllerService {
 
     public EntityControllerService(MinerApiClient minerApiClient) {
         registerToControllerFactory(AgentMinerEntity.class, agentMinerEntity -> new AgentMiner(minerApiClient, agentMinerEntity));
+        registerToControllerFactory(AntminerEntity.class, antminerEntity -> new Antminer(minerApiClient, antminerEntity));
         registerToControllerFactory(BraiinsOSAsicMinerEntity.class, braiinsOSAsicMinerEntity -> new BrainsOSMiner(minerApiClient, braiinsOSAsicMinerEntity));
     }
 
