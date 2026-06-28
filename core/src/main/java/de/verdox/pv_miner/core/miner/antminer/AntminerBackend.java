@@ -177,12 +177,12 @@ public class AntminerBackend {
     public MinerStats.MinerStatus getMinerStatus(MinerDetails details) {
         try {
             AntminerDTOs.StatsResponse stats = fetchGet(details, AntminerCGIEndpoint.STATS, AntminerDTOs.StatsResponse.class);
-            if (stats.stats().isEmpty()) return MinerStats.MinerStatus.ERROR;
+             if (stats.stats().isEmpty()) return MinerStats.MinerStatus.STOPPED;
 
             int minerMode = stats.stats().getFirst().minerMode();
 
             if (minerMode == 1) {
-                return MinerStats.MinerStatus.PAUSED; // Sleep Mode
+                return MinerStats.MinerStatus.PAUSED;
             }
 
             AntminerDTOs.SummaryResponse summary = fetchGet(details, AntminerCGIEndpoint.SUMMARY, AntminerDTOs.SummaryResponse.class);
