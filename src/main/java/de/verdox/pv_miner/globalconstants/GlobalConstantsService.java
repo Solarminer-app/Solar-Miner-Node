@@ -4,6 +4,8 @@ import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -39,7 +41,7 @@ public class GlobalConstantsService {
         LOGGER.info("Started Global Constants Client Service listening on: " + url);
     }
 
-    @PostConstruct
+    @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
         LOGGER.log(Level.INFO, "Initial fetching of global constants from remote Microservice...");
         fetchLatestData();
