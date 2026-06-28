@@ -60,6 +60,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Route(value = "site/:siteId/clusters", layout = AppMainLayout.class)
@@ -228,6 +229,12 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         Div right = new Div();
         right.addClassName("cluster-card");
 
+        right.getStyle()
+                .set("display", "flex")
+                .set("flex-direction", "column")
+                .set("height", "100%")
+                .set("min-height", "600px");
+
         selectedClusterTitle.getStyle().set("margin", "0").set("color", FrontendColor.TEXT_VALUE_WHITE);
 
         btnStartCluster.addThemeVariants(ButtonVariant.LUMO_SUCCESS, ButtonVariant.LUMO_PRIMARY);
@@ -238,7 +245,12 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
 
         btnConfigCluster.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         btnConfigCluster.addClickListener(e -> {
-            //TODO: open
+            if (pvSiteEntity != null && selectedClusterName != null) {
+                UI.getCurrent().getPage().open("site/" + pvSiteEntity.getId() + "/cluster-config/" + selectedClusterName, "_blank");
+            } else {
+                Notification.show(getTranslation("cluster.notification.select_cluster_first"))
+                        .addThemeVariants(NotificationVariant.LUMO_WARNING);
+            }
         });
 
         btnDeleteCluster.addThemeVariants(ButtonVariant.LUMO_ERROR);
@@ -251,10 +263,13 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         headerRow.setWidthFull();
         headerRow.setJustifyContentMode(JustifyContentMode.BETWEEN);
         headerRow.setAlignItems(Alignment.CENTER);
-        headerRow.getStyle().set("margin-bottom", "10px").set("flex-wrap", "wrap");
+
+        headerRow.getStyle().set("margin-bottom", "10px").set("flex-wrap", "wrap").set("flex-shrink", "0");
 
         Div actionToolbar = new Div();
         actionToolbar.addClassName("action-toolbar");
+
+        actionToolbar.getStyle().set("flex-shrink", "0");
 
         btnAddMiner.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         btnAddMiner.addClickListener(e -> openAddMinerDialog());
@@ -263,6 +278,48 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         btnChangePool.addClickListener(e -> openChangePoolDialog());
 
         btnTogglePower.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
+        btnTogglePower.addClickListener(event -> {
+            Set<MinerEntity<?>> selected = minerGrid.getSelectedItems();
+            if (selected.isEmpty()) return;
+
+            try {
+                PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteEntity.getId()).orElseThrow();
+
+                for (MinerEntity<?> staleMiner : selected) {
+                    MinerEntity<?> freshMiner = freshSite.getMiners().stream()
+                            .filter(m -> m.getId().equals(staleMiner.getId()))
+                            .findFirst()
+                            .orElse(null);
+
+                    if (freshMiner != null) {
+                        var controller = entityControllerService.getController(freshMiner);
+                        MinerStats minerData = entityQueryService.getLastResult(freshMiner, MinerStats.DEFAULT);
+
+                        if (minerData != null && minerData.miningStatus() != null) {
+                            boolean isRunning = minerData.miningStatus().equals(MinerStats.MinerStatus.MINING);
+                            if(isRunning) {
+                                minerApiClient.pauseMining(controller.os(), controller.details());
+                            }
+                            else {
+                                minerApiClient.resumeMining(controller.os(), controller.details());
+                            }
+
+                        } else {
+                            throw new IllegalStateException("Could not fetch status of miner");
+                        }
+                    }
+                }
+
+                Notification.show(getTranslation("cluster.notification.power_toggled", selected.size()))
+                        .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+
+                minerGrid.deselectAll();
+                refreshData();
+            } catch (Exception ex) {
+                Notification.show(getTranslation("cluster.notification.error", ex.getMessage()))
+                        .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            }
+        });
 
         btnEditPowerTargets.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
         btnEditPowerTargets.addClickListener(e -> openBulkPowerTargetDialog());
@@ -281,8 +338,11 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         minerGrid.setSelectionMode(Grid.SelectionMode.MULTI);
         setupMinerGridColumns(minerGrid);
         styleGrid(minerGrid);
-        minerGrid.addClassNames("dynamic-height-grid", "miner-grid-height");
-        minerGrid.setHeight("600px");
+
+        // HIER IST DER FIX FÜR DIE HÖHE:
+        minerGrid.setSizeFull(); // Nimm 100% Breite und Höhe
+        minerGrid.getStyle().set("flex-grow", "1"); // Fülle den kompletten restlichen Platz aus
+        minerGrid.removeClassNames("dynamic-height-grid", "miner-grid-height"); // Fehleranfällige CSS-Klassen entfernen
 
         right.add(headerRow, actionToolbar, minerGrid);
         return right;
@@ -292,7 +352,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         grid.addColumn(MinerEntity::getName).setHeader(new TranslatableSpan("cluster.grid.miner.name")).setSortable(true);
         grid.addColumn(miner -> {
             MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
-            return stats.minerIdentity() != null ? stats.minerIdentity().macAddress() : miner.getIP();
+            return miner.getIP();
         }).setHeader(new TranslatableSpan("cluster.grid.miner.ip_mac"));
         grid.addColumn(new ComponentRenderer<>(miner -> {
             MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
@@ -398,41 +458,65 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
                 return;
             }
 
-            try {
-                PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteEntity.getId()).orElseThrow();
+            UI ui = UI.getCurrent();
+            Button sourceButton = e.getSource();
+            sourceButton.setEnabled(false);
 
-                for (MinerEntity<?> staleMiner : selected) {
-                    MinerEntity<?> freshMiner = freshSite.getMiners().stream()
-                            .filter(m -> m.getId().equals(staleMiner.getId()))
-                            .findFirst()
-                            .orElse(null);
+            Notification infoNotification = Notification.show(getTranslation("cluster.notification.processing", selected.size()));
+            infoNotification.addThemeVariants(NotificationVariant.LUMO_PRIMARY);
 
-                    if (freshMiner != null) {
-                        var controller = entityControllerService.getController(freshMiner);
-                        var poolData = entityQueryService.getLastResult(selectedPool, null);
-                        if (poolData == null) {
-                            return;
+            CompletableFuture.runAsync(() -> {
+                try {
+                    PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteEntity.getId()).orElseThrow();
+                    int successCount = 0;
+
+                    for (MinerEntity<?> staleMiner : selected) {
+                        MinerEntity<?> freshMiner = freshSite.getMiners().stream()
+                                .filter(m -> m.getId().equals(staleMiner.getId()))
+                                .findFirst()
+                                .orElse(null);
+
+                        if (freshMiner != null) {
+                            var controller = entityControllerService.getController(freshMiner);
+                            var poolData = entityQueryService.getLastResult(selectedPool, null);
+
+                            if (poolData == null) {
+                                continue;
+                            }
+
+                            var minerData = entityQueryService.getLastResult(freshMiner, null);
+                            if(minerData == null) {
+                                throw new NullPointerException("Miner did not respond lately: " + freshMiner.getName());
+                            }
+
+                            minerApiClient.setMiningPoolTarget(controller.os(), controller.details(), selectedPool.getStratumV1Url(), poolData.getDefaultWorkerName(), minerData.minerIdentity());
+                            freshMiner.setCurrentMiningPoolTarget(selectedPool.getUrlIdentifier());
+                            entityService.save(freshMiner, freshSite);
+                            successCount++;
                         }
-                        var minerData = entityQueryService.getLastResult(freshMiner, null);
-                        if(minerData == null) {
-                            throw new NullPointerException("Miner did not respond lately");
-                        }
-                        minerApiClient.setMiningPoolTarget(controller.os(), controller.details(), selectedPool.getStratumV1Url(), poolData.getDefaultWorkerName(), minerData.minerIdentity());
-                        freshMiner.setCurrentMiningPoolTarget(selectedPool.getUrlIdentifier());
-                        entityService.save(freshMiner, freshSite);
                     }
+
+                    final int finalSuccessCount = successCount;
+
+                    ui.access(() -> {
+                        infoNotification.close();
+                        Notification.show(getTranslation("cluster.notification.pool_changed", finalSuccessCount))
+                                .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+
+                        minerGrid.deselectAll();
+                        refreshData();
+                        dialog.close();
+                    });
+
+                } catch (Exception ex) {
+                    ui.access(() -> {
+                        infoNotification.close();
+                        sourceButton.setEnabled(true);
+                        Notification.show(getTranslation("cluster.notification.error", ex.getMessage()))
+                                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+                    });
                 }
-
-                Notification.show(getTranslation("cluster.notification.pool_changed", selected.size()))
-                        .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
-
-                minerGrid.deselectAll();
-                refreshData();
-                dialog.close();
-            } catch (Exception ex) {
-                Notification.show(getTranslation("cluster.notification.error", ex.getMessage()))
-                        .addThemeVariants(NotificationVariant.LUMO_ERROR);
-            }
+            });
         });
         saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
@@ -465,7 +549,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
 
                     if (freshMiner != null) {
                         pvSiteEntity.getMiners().remove(freshMiner);
-                        clusterService.logoutFromCluster(freshMiner);
+                        clusterService.logoutFromCluster(pvSiteEntity, freshMiner);
                         entityService.delete(freshMiner);
                     }
                 }
@@ -649,7 +733,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
             }
 
             try {
-                MinerClusterService.ClusterInstance cluster = clusterService.getCluster(selectedClusterName);
+                MinerClusterService.ClusterInstance cluster = clusterService.getCluster(pvSiteEntity, selectedClusterName);
                 cluster.assignMiners(selected);
 
                 Notification.show(getTranslation("cluster.notification.miners_added", selected.size()))
@@ -674,7 +758,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
     private void handleStartCluster() {
         if (selectedClusterName == null || pvSiteEntity == null) return;
 
-        MinerClusterService.ClusterInstance cluster = clusterService.getCluster(selectedClusterName);
+        MinerClusterService.ClusterInstance cluster = clusterService.getCluster(pvSiteEntity, selectedClusterName);
         if (cluster != null && cluster.getAssignedMiners().isEmpty()) {
             Notification.show(getTranslation("cluster.notification.start_error_empty"))
                     .addThemeVariants(NotificationVariant.LUMO_ERROR);
@@ -693,7 +777,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
     private void handleStopCluster() {
         if (selectedClusterName == null) return;
         try {
-            clusterService.stopCluster(selectedClusterName);
+            clusterService.stopCluster(pvSiteEntity, selectedClusterName);
             Notification.show(getTranslation("cluster.notification.stopped", selectedClusterName)).addThemeVariants(NotificationVariant.LUMO_SUCCESS);
             refreshData();
         } catch (Exception ex) {
@@ -714,7 +798,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         if (selected.isEmpty() || selectedClusterName == null) return;
 
         try {
-            MinerClusterService.ClusterInstance cluster = clusterService.getCluster(selectedClusterName);
+            MinerClusterService.ClusterInstance cluster = clusterService.getCluster(pvSiteEntity, selectedClusterName);
             cluster.removeMiners(selected);
             Notification.show(getTranslation("cluster.notification.removed", selected.size())).addThemeVariants(NotificationVariant.LUMO_SUCCESS);
 
@@ -777,7 +861,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         List<String> clusterNames = clusterService.getAvailableClusterNames();
 
         List<ClusterItem> items = clusterNames.stream().map(name -> {
-            var instance = clusterService.getCluster(name);
+            var instance = clusterService.getCluster(pvSiteEntity, name);
             int count = instance != null ? instance.getAssignedMiners().size() : 0;
             boolean isRunning = instance != null && instance.isRunning();
             return new ClusterItem(name, count, isRunning ? "Running" : "Stopped", isRunning);
@@ -790,7 +874,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
 
         double totalHashrate = 0.0;
         for (String name : clusterNames) {
-            var instance = clusterService.getCluster(name);
+            var instance = clusterService.getCluster(pvSiteEntity, name);
             if (instance != null) {
                 for (MinerEntity<?> miner : instance.getAssignedMiners()) {
                     MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
@@ -834,9 +918,16 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
     }
 
     private void loadMinersForCluster(String clusterName) {
-        MinerClusterService.ClusterInstance instance = clusterService.getCluster(clusterName);
+        MinerClusterService.ClusterInstance instance = clusterService.getCluster(pvSiteEntity, clusterName);
         if (instance != null) {
-            minerGrid.setItems(instance.getAssignedMiners());
+            List<MinerEntity<?>> sortedMiners = instance.getAssignedMiners().stream()
+                    .sorted(java.util.Comparator.comparing(
+                            (MinerEntity<?> m) -> m.getName() != null ? m.getName() : (m.getIP() != null ? m.getIP() : ""),
+                            String.CASE_INSENSITIVE_ORDER
+                    ))
+                    .toList();
+
+            minerGrid.setItems(sortedMiners);
         } else {
             minerGrid.setItems(new ArrayList<>());
         }

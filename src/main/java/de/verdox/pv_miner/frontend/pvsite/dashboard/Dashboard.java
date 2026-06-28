@@ -397,7 +397,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         }
 
         for (String clusterName : clusters) {
-            MinerClusterService.ClusterInstance instance = clusterService.getCluster(clusterName);
+            MinerClusterService.ClusterInstance instance = clusterService.getCluster(pvSiteEntity, clusterName);
             boolean isRunning = instance != null && instance.isRunning();
 
             HorizontalLayout row = new HorizontalLayout();

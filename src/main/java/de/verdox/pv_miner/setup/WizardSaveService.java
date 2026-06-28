@@ -235,7 +235,7 @@ public class WizardSaveService {
             }
         }
 
-        var cluster = minerClusterService.getCluster(MinerControllerConfigStorage.STANDARD_CLUSTER_NAME);
+        var cluster = minerClusterService.getCluster(site, MinerControllerConfigStorage.STANDARD_CLUSTER_NAME);
         cluster.assignMiners(minersToAssign);
         try {
             minerClusterService.startCluster(MinerControllerConfigStorage.STANDARD_CLUSTER_NAME, site);
