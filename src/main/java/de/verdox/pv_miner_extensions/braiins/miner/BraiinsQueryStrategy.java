@@ -7,9 +7,7 @@ import de.verdox.pv_miner.miner.MinerApiClient;
 import de.verdox.pv_miner.miner.MiningOS;
 import de.verdox.pv_miner.miner.data.MinerStats;
 
-import java.util.UUID;
-
-public class ASICQueryStrategy implements ASICMinerQueryStrategy<BraiinsOSAsicMinerEntity> {
+public class BraiinsQueryStrategy implements ASICMinerQueryStrategy<BraiinsOSAsicMinerEntity> {
     @Override
     public MinerStats query(EntityQueryService entityQueryService, BraiinsOSAsicMinerEntity entity) {
         MinerApiClient minerApiClient = SpringContextHelper.getBean(MinerApiClient.class);
