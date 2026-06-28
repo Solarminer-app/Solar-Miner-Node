@@ -13,6 +13,7 @@ import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -43,7 +44,9 @@ public class GlobalConstantsService {
     public void onApplicationReady() {
         LOGGER.log(Level.INFO, "Initial fetching of global constants from remote Microservice...");
         fetchLatestData();
-        fetchHistoricalData();
+        CompletableFuture.runAsync(() -> {
+            fetchHistoricalData();
+        });
         LOGGER.log(Level.INFO, "Done...");
     }
 
