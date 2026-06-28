@@ -17,6 +17,7 @@ import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.theme.lumo.Lumo;
 import de.verdox.pv_miner.SpringContextHelper;
+import de.verdox.pv_miner.entity.EntityService;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
 import de.verdox.pv_miner.setup.WizardSaveService;
 import de.verdox.pv_miner.frontend.user.UserSessionContext;
@@ -41,6 +42,7 @@ public class SetupWizard extends VerticalLayout implements BeforeEnterObserver {
     private final Button backButton;
     private final Button nextButton;
     private final HorizontalLayout footer;
+    private final HorizontalLayout stepperLayout;
 
     private List<WizardStep> steps = new ArrayList<>();
     private int currentStepIndex = 0;
@@ -54,69 +56,106 @@ public class SetupWizard extends VerticalLayout implements BeforeEnterObserver {
         setAlignItems(Alignment.CENTER);
 
         var repoSyncStep = new RepoSyncStep(this::nextStep);
+        var economicsStep = new EconomicsStep(sessionContext, this::updateButtonStates);
+
         var pvSetupStep = new PVSetupStep(this::updateButtonStates, selectedType -> {
-            if (selectedType.contains("Modbus")) {
-                UI.getCurrent().navigate(ModbusConfigView.class);
-            } else if (selectedType.contains("Rest")) {
-                UI.getCurrent().navigate(RestPVConfigView.class);
-            }
+            if (selectedType.contains("Modbus")) UI.getCurrent().navigate(ModbusConfigView.class);
+            else if (selectedType.contains("Rest")) UI.getCurrent().navigate(RestPVConfigView.class);
         });
+
         var pvSettings = new PVSettingsStep(pvSetupStep, this::updateButtonStates);
+        var pvPanelsStep = new PVPanelsStep(this::updateButtonStates);
         var minerSetupStep = new MinerSetupStep(this::updateButtonStates);
         var miningPoolSetupStep = new MiningPoolStep(this::updateButtonStates);
 
-        var variablesStep = new PVSiteVariablesStep(sessionContext, this::updateButtonStates);
+        var summaryStep = new SummaryStep(economicsStep, pvSetupStep, minerSetupStep, miningPoolSetupStep);
 
         var finalizeStep = new FinalizeSetupStep(() -> {
-            var selectedPVDevices = pvSetupStep.getSelectedValidPVDevices();
-            var selectedMiners = minerSetupStep.getSelectedMiners();
-            var selectedPool = miningPoolSetupStep.getSelectedPoolEntity();
-
-            var variablesData = variablesStep.getVariablesData();
-
             WizardSaveService saveService = SpringContextHelper.getBean(WizardSaveService.class);
-            saveService.saveSetupData(selectedPVDevices, selectedMiners, selectedPool, variablesData);
-        }, () -> {
-            UI.getCurrent().navigate("");
-        });
+            saveService.saveSetupData(
+                    pvSetupStep.getSelectedValidPVDevices(),
+                    minerSetupStep.getSelectedMiners(),
+                    miningPoolSetupStep.getSelectedPoolEntity(),
+                    economicsStep.getEconomicsData(),
+                    pvPanelsStep.getPanelsList()
+            );
+        }, () -> UI.getCurrent().navigate(""));
 
         this.steps = List.of(
                 repoSyncStep,
+                economicsStep,
                 pvSetupStep,
                 pvSettings,
+                pvPanelsStep,
                 minerSetupStep,
                 miningPoolSetupStep,
-                variablesStep,
+                summaryStep,
                 finalizeStep
         );
 
         stepTitle = new TranslatableH2("");
 
+        stepperLayout = new HorizontalLayout();
+        stepperLayout.setWidthFull();
+        stepperLayout.setWidthFull();
+        stepperLayout.setJustifyContentMode(JustifyContentMode.CENTER);
+        stepperLayout.setPadding(false);
+
         contentArea = new Div();
         contentArea.setWidthFull();
-        contentArea.setMaxWidth("1000px");
+        contentArea.setWidthFull();
         contentArea.addClassName("wizard-content-area");
+
+        contentArea.getStyle().set("flex-grow", "1");
+        contentArea.getStyle().set("overflow-y", "auto");
+        contentArea.getStyle().set("padding", "20px 0");
+        contentArea.getStyle().set("display", "flex");
+        contentArea.getStyle().set("flex-direction", "column");
 
         footer = new HorizontalLayout();
         footer.setWidthFull();
-        footer.setMaxWidth("1000px");
         footer.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
+
+        footer.getStyle().set("flex-shrink", "0");
+        footer.getStyle().set("padding-top", "20px");
+        footer.getStyle().set("border-top", "1px solid var(--lumo-contrast-10pct)");
 
         backButton = new TranslatableButton("btn.previous", e -> previousStep());
         nextButton = new TranslatableButton("btn.next", e -> nextStep());
         nextButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
         footer.add(backButton, nextButton);
-        add(stepTitle, contentArea, footer);
+        add(stepperLayout, stepTitle, contentArea, footer);
 
         loadStep(0);
+    }
+
+    private void updateStepper(int activeIndex) {
+        stepperLayout.removeAll();
+        for (int i = 0; i < steps.size(); i++) {
+            Div dot = new Div();
+            dot.setWidth("12px");
+            dot.setHeight("12px");
+            dot.getStyle().set("border-radius", "50%");
+            dot.getStyle().set("margin", "0 4px");
+
+            if (i < activeIndex) {
+                dot.getStyle().set("background-color", "var(--lumo-primary-color)"); // Abgeschlossen
+            } else if (i == activeIndex) {
+                dot.getStyle().set("background-color", "var(--lumo-primary-color)"); // Aktiv
+                dot.getStyle().set("box-shadow", "0 0 0 4px var(--lumo-primary-color-50pct)");
+            } else {
+                dot.getStyle().set("background-color", "var(--lumo-contrast-20pct)"); // Ausstehend
+            }
+            stepperLayout.add(dot);
+        }
     }
 
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
         PVSiteRepository pvSiteRepository = SpringContextHelper.getBean(PVSiteRepository.class);
         long currentSitesCount = pvSiteRepository.count();
-        int maxAllowedSites = 1;
+        int maxAllowedSites = EntityService.PV_SITE_LIMIT;
 
         if (currentSitesCount >= maxAllowedSites) {
             showLimitReachedError();
@@ -159,16 +198,16 @@ public class SetupWizard extends VerticalLayout implements BeforeEnterObserver {
 
     private void loadStep(int index) {
         if (index < 0 || index >= steps.size()) return;
-
         currentStepIndex = index;
         WizardStep step = steps.get(index);
+
+        updateStepper(index);
 
         stepTitle.setText(step.getTitleTranslationKey());
         stepTitle.setTranslationParameters((index + 1), steps.size());
 
         contentArea.removeAll();
         contentArea.add(step.getComponent());
-
         contentArea.removeClassName("fade-in");
         contentArea.getElement().executeJs("setTimeout(() => { this.classList.add('fade-in'); }, 10);");
 
@@ -181,15 +220,9 @@ public class SetupWizard extends VerticalLayout implements BeforeEnterObserver {
 
     private void nextStep() {
         if (steps.get(currentStepIndex).isValid()) {
-            if (currentStepIndex == steps.size() - 1) {
-                //TODO: Finalize handle in lambda?
-            } else {
-                loadStep(currentStepIndex + 1);
-            }
+            if (currentStepIndex < steps.size() - 1) loadStep(currentStepIndex + 1);
         }
     }
 
-    private void previousStep() {
-        loadStep(currentStepIndex - 1);
-    }
+    private void previousStep() { loadStep(currentStepIndex - 1); }
 }
