@@ -4,6 +4,7 @@ public enum BraiinsQuery {
 
     LOGIN("auth/login.graphql"), LOGOUT("auth/logout.graphql"),
 
+    IDENTITY("miner/get_identity.graphql"),
     VERSION("miner/version.graphql"),
 
     STATUS("miner/status.graphql"), START("miner/start.graphql"), STOP("miner/stop.graphql"), RESTART("miner/restart.graphql"), PAUSE("miner/pause.graphql"), RESUME("miner/resume.graphql"),

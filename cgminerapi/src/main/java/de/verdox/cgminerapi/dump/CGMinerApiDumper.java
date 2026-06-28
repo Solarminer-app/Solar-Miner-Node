@@ -14,14 +14,18 @@ public final class CGMinerApiDumper {
 
     private final CGMinerClient client;
     private final ObjectMapper mapper;
+    private final String host;
+    private final int port;
 
     public CGMinerApiDumper(
             String host,
             int port
     ) {
+        this.host = host;
+        this.port = port;
         this.mapper = new ObjectMapper()
                 .enable(SerializationFeature.INDENT_OUTPUT);
-        this.client = new CGMinerClient(mapper, host, port);
+        this.client = new CGMinerClient(mapper);
     }
 
     public void dump(
@@ -48,6 +52,7 @@ public final class CGMinerApiDumper {
 
                 JsonNode response =
                         client.executeRaw(
+                                host, port,
                                 command.command(),
                                 spec.parameter()
                         );

@@ -275,7 +275,7 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
     @Override
     public MinerStats.MinerIdentity getInfo(MinerDetails details) {
         return tryOrDefault(details, () -> {
-            JsonNode root = status(details);
+            JsonNode root = execute(details, BraiinsQuery.IDENTITY);
 
             String mac = root.at("/data/bos/macAddress").asText("");
 
@@ -526,9 +526,10 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
             T result = request.get();
             return result == null ? defaultValue : result;
         } catch (BosminerUnavailableException e) {
+
             return defaultValue;
         } catch (Exception e) {
-            LOGGER.log(Level.FINE, "Communication problem with miner " + details.ipv4() + " (" + e.getClass().getSimpleName() + ")");
+            LOGGER.log(Level.WARNING, "Communication problem with miner " + details.ipv4() + " (" + e.getClass().getSimpleName() + ")", e);
             return defaultValue;
         }
     }

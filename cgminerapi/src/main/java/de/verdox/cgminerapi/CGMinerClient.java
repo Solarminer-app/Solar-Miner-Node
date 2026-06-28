@@ -42,37 +42,18 @@ public class CGMinerClient implements Closeable {
                     CGMinerDTO.Status.class
             );
 
-    private final ObjectMapper objectMapper;
-    private final String host;
-    private final int port;
-    private final ObjectMapper mapper = new ObjectMapper();
-
-    /**
-     * Creates a new CGMiner client using the default API port (4028).
-     *
-     * @param host the hostname or IP address of the CGMiner instance
-     */
-    public CGMinerClient(ObjectMapper objectMapper, String host) {
-        this(objectMapper, host, 4028);
-    }
+    private final ObjectMapper mapper;
 
     /**
      * Creates a new CGMiner client.
-     *
-     * @param host the hostname or IP address of the CGMiner instance
-     * @param port the TCP port of the CGMiner API
      */
-    public CGMinerClient(ObjectMapper objectMapper, String host, int port) {
-        this.objectMapper =         objectMapper.configure(
+    public CGMinerClient(ObjectMapper objectMapper) {
+        this.mapper =         objectMapper.configure(
                 DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
                 false
         ).setSerializationInclusion(
                 JsonInclude.Include.NON_NULL
         );
-        this.host = host;
-        this.port = port;
-
-
     }
 
     /**
@@ -86,8 +67,8 @@ public class CGMinerClient implements Closeable {
      * @throws IOException if the request cannot be sent or the response
      *                     cannot be read
      */
-    public JsonNode executeRaw(String command) throws IOException {
-        return executeRaw(command, null);
+    public JsonNode executeRaw(String host, int port, String command) throws IOException {
+        return executeRaw(host, port, command, null);
     }
 
     /**
@@ -105,7 +86,7 @@ public class CGMinerClient implements Closeable {
      * @throws IOException if the request cannot be sent or the response
      *                     cannot be read
      */
-    public JsonNode executeRaw(String command, String parameter)
+    public JsonNode executeRaw(String host, int port, String command, String parameter)
             throws IOException {
 
         Map<String, Object> request = new HashMap<>();
@@ -144,10 +125,11 @@ public class CGMinerClient implements Closeable {
 
     @SuppressWarnings("unchecked")
     public <R extends CGMinerDTO> R execute(
+            String host, int port,
             CGMinerCommand<R> command
     ) throws IOException {
 
-        JsonNode root = executeRaw(command.command(), null);
+        JsonNode root = executeRaw(host, port, command.command(), null);
 
         Class<? extends CGMinerDTO> type =
                 TYPES.get(command.responseSection());
@@ -157,11 +139,13 @@ public class CGMinerClient implements Closeable {
 
     @SuppressWarnings("unchecked")
     public <R extends CGMinerDTO> R execute(
+            String host, int port,
             CGMinerRequest<R> request
     ) throws IOException {
 
         JsonNode root =
                 executeRaw(
+                        host, port,
                         request.command().command(),
                         request.parameter()
                 );

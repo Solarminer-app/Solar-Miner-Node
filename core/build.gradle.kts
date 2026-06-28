@@ -35,6 +35,7 @@ graalvmNative {
 }
 
 dependencies {
+    implementation(project(":cgminerapi"))
     implementation("io.grpc:grpc-okhttp:1.50.2")
     implementation("org.springframework.boot:spring-boot-starter-web")
     compileOnly("org.projectlombok:lombok")

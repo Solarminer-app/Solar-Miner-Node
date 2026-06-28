@@ -35,6 +35,14 @@ import de.verdox.pv_miner.entity.EntityControllerService;
 import de.verdox.pv_miner.entity.EntityMonitoringService;
 import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.entity.EntityService;
+import de.verdox.pv_miner.frontend.AppMainLayout;
+import de.verdox.pv_miner.frontend.FrontendColor;
+import de.verdox.pv_miner.frontend.FrontendService;
+import de.verdox.pv_miner.frontend.components.translatable.TranslatableButton;
+import de.verdox.pv_miner.frontend.components.translatable.TranslatableH2;
+import de.verdox.pv_miner.frontend.components.translatable.TranslatableH3;
+import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
+import de.verdox.pv_miner.frontend.user.UserSessionContext;
 import de.verdox.pv_miner.miner.MinerApiClient;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.data.MinerStats;
@@ -42,17 +50,9 @@ import de.verdox.pv_miner.miningcontroller.MinerClusterService;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
-import de.verdox.pv_miner.frontend.user.UserSessionContext;
 import de.verdox.pv_miner.util.FormatUtil;
 import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
-import de.verdox.pv_miner.frontend.components.translatable.TranslatableButton;
-import de.verdox.pv_miner.frontend.components.translatable.TranslatableH2;
-import de.verdox.pv_miner.frontend.components.translatable.TranslatableH3;
-import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
-import de.verdox.pv_miner.frontend.AppMainLayout;
-import de.verdox.pv_miner.frontend.FrontendColor;
-import de.verdox.pv_miner.frontend.FrontendService;
 import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.Disposable;
 
@@ -297,10 +297,9 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
 
                         if (minerData != null && minerData.miningStatus() != null) {
                             boolean isRunning = minerData.miningStatus().equals(MinerStats.MinerStatus.MINING);
-                            if(isRunning) {
+                            if (isRunning) {
                                 minerApiClient.pauseMining(controller.os(), controller.details());
-                            }
-                            else {
+                            } else {
                                 minerApiClient.resumeMining(controller.os(), controller.details());
                             }
 
@@ -349,7 +348,10 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
     }
 
     private void setupMinerGridColumns(Grid<MinerEntity<?>> grid) {
-        grid.addColumn(MinerEntity::getName).setHeader(new TranslatableSpan("cluster.grid.miner.name")).setSortable(true);
+        grid.addColumn(miner -> {
+            MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
+            return stats.minerIdentity().minerModel();
+        }).setHeader(new TranslatableSpan("cluster.grid.miner.name")).setSortable(true);
         grid.addColumn(miner -> {
             MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
             return miner.getIP();
@@ -370,8 +372,22 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
             return stats.approximatedPowerUsageWatts() + " W";
         }).setHeader(new TranslatableSpan("cluster.grid.miner.power"));
 
-        grid.addColumn(miner -> miner.getMinPowerTarget() + " W").setHeader(new TranslatableSpan("cluster.grid.miner.min_target")).setAutoWidth(true);
-        grid.addColumn(miner -> miner.getMaxPowerTarget() + " W").setHeader(new TranslatableSpan("cluster.grid.miner.max_target")).setAutoWidth(true);
+        grid.addColumn(miner -> {
+            MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
+            if (stats.minPowerTarget() == stats.maxPowerTarget()) {
+                return stats.minPowerTarget() + " W";
+            } else {
+                return stats.minPowerTarget() + " - " + stats.maxPowerTarget() + " W";
+            }
+        }).setHeader(new TranslatableSpan("cluster.grid.miner.power_range.firmware")).setAutoWidth(true).setSortable(true);
+
+        grid.addColumn(miner -> {
+            if (miner.getMinPowerTarget() == miner.getMaxPowerTarget()) {
+                return miner.getMinPowerTarget() + " W";
+            } else {
+                return miner.getMinPowerTarget() + " - " + miner.getMaxPowerTarget() + " W";
+            }
+        }).setHeader(new TranslatableSpan("cluster.grid.miner.power_range.custom")).setAutoWidth(true).setSortable(true);
     }
 
     private void openBulkMinerCostDialog() {
@@ -485,7 +501,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
                             }
 
                             var minerData = entityQueryService.getLastResult(freshMiner, null);
-                            if(minerData == null) {
+                            if (minerData == null) {
                                 throw new NullPointerException("Miner did not respond lately: " + freshMiner.getName());
                             }
 

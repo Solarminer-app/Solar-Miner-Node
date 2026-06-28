@@ -1,13 +1,17 @@
 package de.verdox.pv_miner.core.miner.braiins;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import de.verdox.cgminerapi.CGMinerClient;
+import de.verdox.cgminerapi.StandardCommand;
 import de.verdox.pv_miner.core.miner.braiins.graphql.BosminerUnavailableException;
 import de.verdox.pv_miner.core.miner.braiins.graphql.BrainsOSGraphQLClient;
 import de.verdox.pv_miner.core.miner.braiins.grpc.BraiinsOSGRPCClient;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
+import de.verdox.pv_miner.core.util.AsicMinerSpec;
 
-import java.util.ArrayList;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,11 +19,13 @@ import java.util.Map;
 public class BraiinsController implements MinerController {
     private final BraiinsOSGRPCClient brainsOSGRPCClient;
     private final BrainsOSGraphQLClient brainsOSGraphQLClient;
+    private final CGMinerClient cgMinerClient;
     private final Map<MinerDetails, MinerStats> lastStats = new HashMap<>();
 
-    public BraiinsController() {
+    public BraiinsController(ObjectMapper objectMapper) {
         this.brainsOSGRPCClient = new BraiinsOSGRPCClient();
         this.brainsOSGraphQLClient = new BrainsOSGraphQLClient();
+        this.cgMinerClient = new CGMinerClient(objectMapper);
     }
 
     private BrainsOSBackend client(MinerDetails details) {
@@ -75,15 +81,17 @@ public class BraiinsController implements MinerController {
 
     @Override
     public MinerStats queryStats(String minerName, MinerDetails minerDetails) {
+        var client = client(minerDetails);
+        var identity = client.getInfo(minerDetails);
+        int asicStandardPowerTarget = AsicMinerSpec.find(identity.minerModel()).watts();
         try {
-            var client = client(minerDetails);
-
-            var identity = client.getInfo(minerDetails);
             MinerStats.MinerStatus apiStatus = client.getMinerStatus(minerDetails);
             List<Pools> pools = client.getPools(minerDetails);
+
             double terahashPerSecond = client.getHashrateTH(minerDetails);
             double temperatureInDegreeC = client.getTemperatureInDegreeC(minerDetails);
             long currentPowerTarget = client.getCurrentPowerTarget(minerDetails);
+
             int minPowerTarget = Math.toIntExact(client.getPowerLimit(minerDetails).min());
             int maxPowerTarget = Math.toIntExact(client.getPowerLimit(minerDetails).defaultValue());
             long approximatePowerUsageWatts = client.getApproximatePowerUsage(minerDetails);
@@ -93,12 +101,12 @@ public class BraiinsController implements MinerController {
         }
         catch (BosminerUnavailableException e) {
             return new MinerStats(
-                    new MinerStats.MinerIdentity("", "", ""),
+                    identity,
                     minerName,
                     MinerStats.MinerStatus.STOPPED,
                     0L,
-                    0L,
-                    0L,
+                    asicStandardPowerTarget,
+                    asicStandardPowerTarget,
                     0L,
                     0.0D,
                     0.0D,

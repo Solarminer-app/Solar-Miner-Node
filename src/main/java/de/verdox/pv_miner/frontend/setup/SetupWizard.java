@@ -65,7 +65,7 @@ public class SetupWizard extends VerticalLayout implements BeforeEnterObserver {
 
         var pvSettings = new PVSettingsStep(pvSetupStep, this::updateButtonStates);
         var pvPanelsStep = new PVPanelsStep(this::updateButtonStates);
-        var minerSetupStep = new MinerSetupStep(this::updateButtonStates);
+        var minerSetupStep = new MinerSetupStep(this::updateButtonStates, this::updateButtonStates);
         var miningPoolSetupStep = new MiningPoolStep(this::updateButtonStates);
 
         var summaryStep = new SummaryStep(economicsStep, pvSetupStep, minerSetupStep, miningPoolSetupStep);

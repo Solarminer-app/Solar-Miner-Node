@@ -87,7 +87,7 @@ public class EntityService {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-                minerClusterService.loginToCluster(miner);
+                minerClusterService.loginToCluster(pvSiteEntity, miner);
             }
             LOGGER.info("Mining clusters will start in 1minute. We first have to gather some data...");
         }
@@ -150,7 +150,7 @@ public class EntityService {
             parent.getMiners().add(miner);
         }
 
-        minerClusterService.loginToCluster(miner);
+        minerClusterService.loginToCluster(parent, miner);
 
         var saved = minerRepository.save(miner);
         if (parent != null) {
@@ -175,7 +175,7 @@ public class EntityService {
     }
 
     public void delete(MinerEntity<?> miner) {
-        minerClusterService.logoutFromCluster(miner);
+        minerClusterService.logoutFromCluster(miner.getParentEntity(), miner);
         miner.getParentEntity().getMiners().remove(miner);
         pvSiteRepository.save(miner.getParentEntity());
         miner.setParentEntity(null);

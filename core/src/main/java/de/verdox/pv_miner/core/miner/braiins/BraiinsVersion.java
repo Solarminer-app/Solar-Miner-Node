@@ -7,12 +7,9 @@ import java.util.regex.Pattern;
 public record BraiinsVersion(String raw, int major, int minor, int patch,
                              boolean plus) implements Comparable<BraiinsVersion> {
 
-    /**
-     * First Braiins OS version that introduced the Public API (gRPC).
-     */
     public static final BraiinsVersion FIRST_GRPC_VERSION = BraiinsVersion.of(23, 3, 0, false);
 
-    private static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)");
+    private static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)\\.(\\d+)(?:\\.(\\d+))?");
 
     public static BraiinsVersion parse(String raw) {
         Objects.requireNonNull(raw, "raw");
@@ -27,16 +24,15 @@ public record BraiinsVersion(String raw, int major, int minor, int patch,
 
         int minor = Integer.parseInt(matcher.group(2));
 
-        int patch = Integer.parseInt(matcher.group(3));
+        int patch = matcher.group(3) != null ? Integer.parseInt(matcher.group(3)) : 0;
 
-        boolean plus = raw.endsWith("-plus") || raw.contains("-plus-");
+        boolean plus = raw.endsWith("-plus") || raw.contains("-plus-") || raw.contains("-plus");
 
         return new BraiinsVersion(raw, major, minor, patch, plus);
     }
 
     public static BraiinsVersion of(int major, int minor, int patch, boolean plus) {
         String raw = String.format("%02d.%02d.%d%s", major, minor, patch, plus ? "-plus" : "");
-
         return new BraiinsVersion(raw, major, minor, patch, plus);
     }
 
@@ -55,11 +51,9 @@ public record BraiinsVersion(String raw, int major, int minor, int patch,
     @Override
     public int compareTo(BraiinsVersion other) {
         int result = Integer.compare(major, other.major);
-
         if (result != 0) return result;
 
         result = Integer.compare(minor, other.minor);
-
         if (result != 0) return result;
 
         return Integer.compare(patch, other.patch);

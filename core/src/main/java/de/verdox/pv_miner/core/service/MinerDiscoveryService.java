@@ -134,6 +134,7 @@ public class MinerDiscoveryService {
 
                 if (authHeader.contains("antMiner")) {
                     LOGGER.log(Level.INFO, "Found Antminer (Stock Firmware) on IP: " + ipv4);
+                    System.out.println(authHeader);
                     return new MinerDiscoveryService.DetectedMiner(MiningOS.ANTMINER_STOCK_OS, "Antminer (Stock)");
                 }
             }

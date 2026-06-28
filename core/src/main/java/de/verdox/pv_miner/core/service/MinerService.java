@@ -15,7 +15,7 @@ import java.util.logging.Logger;
 public class MinerService {
     private static final Logger LOGGER = Logger.getLogger(MinerService.class.getName());
     private final MinerAgentController agentController;
-    private final BraiinsController braiinsController = new BraiinsController();
+    private final BraiinsController braiinsController;
     private final AntminerBackend antminerBackend;
     private final DevFeeService devFeeService;
 
@@ -23,6 +23,7 @@ public class MinerService {
         this.devFeeService = devFeeService;
         this.agentController = new MinerAgentController();
         this.antminerBackend = new AntminerBackend(objectMapper);
+        this.braiinsController = new BraiinsController(objectMapper);
     }
 
     public boolean startMining(MiningOS miningOS, MinerDetails details) {

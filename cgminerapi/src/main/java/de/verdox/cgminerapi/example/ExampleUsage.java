@@ -8,8 +8,8 @@ import java.io.IOException;
 
 public class ExampleUsage {
     static void main() throws IOException {
-        var client = new CGMinerClient(new ObjectMapper(), "192.168.178.159");
-        var response = client.execute(StandardCommand.SUMMARY);
+        var client = new CGMinerClient(new ObjectMapper());
+        var response = client.execute("192.168.178.159", 4028, StandardCommand.SUMMARY);
         System.out.println(response);
     }
 }
