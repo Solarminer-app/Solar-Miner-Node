@@ -30,12 +30,11 @@ import java.util.logging.Logger;
 public class DataGathererService {
     private static final Logger LOGGER = Logger.getLogger(DataGathererService.class.getSimpleName());
 
-    // Globaler, wiederverwendbarer HTTP-Client spart RAM und Netzwerkressourcen
     private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
     private final BitcoinNetworkStatsRepository bitcoinRepository;
     private final DailyUsdRatesRepository ratesRepository;
-    private final ObjectMapper objectMapper; // Spring Boot injiziert Jackson automatisch
+    private final ObjectMapper objectMapper;
 
     private BitcoinMiningDataFetcher bitcoinMiningDataFetcher;
 
@@ -50,7 +49,6 @@ public class DataGathererService {
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void onApplicationReady() {
-        // Wir übergeben den ObjectMapper an den Fetcher
         bitcoinMiningDataFetcher = new BitcoinMiningDataFetcher(objectMapper);
         LOGGER.log(Level.INFO, "Fetching global constants...");
         collectGlobalConstants();
@@ -126,7 +124,6 @@ public class DataGathererService {
         }
     }
 
-    // Hilfsmethode, um Jackson JsonNodes sauber in eine Map zu überführen
     private Map<String, Double> extractRatesMap(JsonNode node) {
         Map<String, Double> ratesMap = new HashMap<>();
         if (node != null && node.isObject()) {
@@ -141,7 +138,6 @@ public class DataGathererService {
         return ratesMap;
     }
 
-    // Nutzt nun den globalen HTTP_CLIENT
     private static String sendGetRequest(String url) throws Exception {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(new URI(url))
@@ -158,7 +154,6 @@ public class DataGathererService {
             LOGGER.log(Level.INFO, "Collecting currency exchange rates for date: " + dateParam);
             String jsonResponse = sendGetRequest(url);
 
-            // Jackson Parsing
             return objectMapper.readTree(jsonResponse).path("usd");
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Could not collect currency exchange rates: " + e.getMessage());
@@ -183,7 +178,6 @@ public class DataGathererService {
     public BitcoinNetworkStats fetchAndSaveBitcoinStatsForDate(LocalDate targetDate) {
         LOGGER.log(Level.INFO, "Fetching historical Bitcoin network data from mempool.space for date: " + targetDate);
         try {
-            // HIER WURDE DER SPEICHERFRESSER BEHOBEN: Nur 1x parsen!
             String hashrateResponse = sendGetRequest("https://mempool.space/api/v1/mining/hashrate/all");
             JsonNode hashrateRoot = objectMapper.readTree(hashrateResponse);
             JsonNode hashrateArray = hashrateRoot.path("hashrates");
@@ -196,7 +190,6 @@ public class DataGathererService {
                 LocalDate date = Instant.ofEpochSecond(obj.path("timestamp").asLong()).atZone(ZoneOffset.UTC).toLocalDate();
 
                 if (date.equals(targetDate)) {
-                    // Werte direkt vom Root lesen
                     difficulty = hashrateRoot.path("currentDifficulty").asLong();
                     hashRateThs = hashrateRoot.path("avgHashrate").asDouble() / 1_000_000_000_000.0;
                     foundHashrate = true;
