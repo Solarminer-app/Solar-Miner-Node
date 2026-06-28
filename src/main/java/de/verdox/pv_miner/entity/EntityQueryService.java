@@ -3,8 +3,10 @@ package de.verdox.pv_miner.entity;
 import de.verdox.pv_miner.influx.QueryResult;
 import de.verdox.pv_miner_extensions.agent.AgentMinerEntity;
 import de.verdox.pv_miner_extensions.agent.AgentMinerQueryStrategy;
+import de.verdox.pv_miner_extensions.antminer.AntminerEntity;
+import de.verdox.pv_miner_extensions.antminer.AntminerQueryStrategy;
 import de.verdox.pv_miner_extensions.braiins.miner.BraiinsOSAsicMinerEntity;
-import de.verdox.pv_miner_extensions.braiins.miner.ASICQueryStrategy;
+import de.verdox.pv_miner_extensions.braiins.miner.BraiinsQueryStrategy;
 import de.verdox.pv_miner_extensions.braiins.pool.BraiinsPoolEntity;
 import de.verdox.pv_miner_extensions.braiins.pool.BraiinsPoolQueryStrategy;
 import de.verdox.pv_miner_extensions.modbus.ModbusPVSite;
@@ -29,7 +31,8 @@ public class EntityQueryService {
 
     public EntityQueryService() {
         this.strategies.put(AgentMinerEntity.class, new AgentMinerQueryStrategy());
-        this.strategies.put(BraiinsOSAsicMinerEntity.class, new ASICQueryStrategy());
+        this.strategies.put(BraiinsOSAsicMinerEntity.class, new BraiinsQueryStrategy());
+        this.strategies.put(AntminerEntity.class, new AntminerQueryStrategy());
 
         this.strategies.put(ModbusPVSite.class, new ModbusPVSiteQueryStrategy());
         this.strategies.put(RestPVSite.class, new RestPVSiteQueryStrategy());
