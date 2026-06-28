@@ -54,15 +54,27 @@ public class AddMinerStandaloneView extends VerticalLayout implements BeforeEnte
 
         stepTitle = new TranslatableH2("");
 
+        String maxLayoutWidth = "1400px";
+
         contentArea = new Div();
         contentArea.setWidthFull();
-        contentArea.setMaxWidth("1000px");
+        contentArea.setMaxWidth(maxLayoutWidth);
         contentArea.addClassName("wizard-content-area");
+
+        contentArea.getStyle().set("flex-grow", "1");
+        contentArea.getStyle().set("overflow-y", "auto");
+        contentArea.getStyle().set("padding", "20px 0");
+        contentArea.getStyle().set("display", "flex");
+        contentArea.getStyle().set("flex-direction", "column");
 
         HorizontalLayout footer = new HorizontalLayout();
         footer.setWidthFull();
-        footer.setMaxWidth("1000px");
+        footer.setMaxWidth(maxLayoutWidth);
         footer.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
+
+        footer.getStyle().set("flex-shrink", "0");
+        footer.getStyle().set("padding-top", "20px");
+        footer.getStyle().set("border-top", "1px solid var(--lumo-contrast-10pct)");
 
         backButton = new TranslatableButton("btn.previous", e -> previousStep());
         nextButton = new TranslatableButton("btn.next", e -> nextStep());
@@ -122,7 +134,7 @@ public class AddMinerStandaloneView extends VerticalLayout implements BeforeEnte
         contentArea.getElement().executeJs("setTimeout(() => { this.classList.add('fade-in'); }, 10);");
 
         backButton.setVisible(index > 0);
-        nextButton.setText(index == steps.size() - 1 ? "Abschließen" : "Weiter ->");
+        nextButton.setText(index == steps.size() - 1 ? getTranslation("btn.done") : getTranslation("btn.next"));
 
         updateButtonStates();
 
@@ -143,6 +155,6 @@ public class AddMinerStandaloneView extends VerticalLayout implements BeforeEnte
 
     @Override
     public void localeChange(LocaleChangeEvent event) {
-        //TODO: Locale change
+        nextButton.setText(currentStepIndex == steps.size() - 1 ? getTranslation("btn.done") : getTranslation("btn.next"));
     }
 }
