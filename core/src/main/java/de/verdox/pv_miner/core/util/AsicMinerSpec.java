@@ -17,12 +17,17 @@ public record AsicMinerSpec(String model, String algorithm, int watts) {
         if (model == null) {
             return null;
         }
-
         return KNOWN_SPECS.get(model.toUpperCase());
     }
 
-    public static class Antminer {
-        static {
+    static {
+        Antminer.registerAllAntminerModels();
+    }
+
+    private static class Antminer {
+
+        private static void registerAllAntminerModels() {
+
             final String SHA256 = "SHA-256";
 
             register("ANTMINER S23", SHA256, 3500);
