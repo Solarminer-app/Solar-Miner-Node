@@ -4,11 +4,15 @@ import java.time.LocalDate;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class CurrencyMicroServiceRestClient {
+    private static final Logger LOGGER = Logger.getLogger(CurrencyMicroServiceRestClient.class.getSimpleName());
     private final RestClient restClient;
 
     public CurrencyMicroServiceRestClient(String baseUrl) {
@@ -28,7 +32,8 @@ public class CurrencyMicroServiceRestClient {
                     .retrieve()
                     .body(BitcoinNetworkStatsDTO.class);
             return Optional.ofNullable(response);
-        } catch (HttpClientErrorException.NotFound e) {
+        } catch (RestClientException e) {
+            LOGGER.log(Level.WARNING, "Failed to fetch Bitcoin stats: " + e.getMessage());
             return Optional.empty();
         }
     }
@@ -42,10 +47,10 @@ public class CurrencyMicroServiceRestClient {
                             .queryParam("timezone", timezone)
                             .build())
                     .retrieve()
-                    .body(new ParameterizedTypeReference<>() {
-                    });
+                    .body(new ParameterizedTypeReference<>() {});
             return Optional.ofNullable(response);
-        } catch (HttpClientErrorException.NotFound e) {
+        } catch (RestClientException e) {
+            LOGGER.log(Level.WARNING, "Failed to fetch exchange rates: " + e.getMessage());
             return Optional.empty();
         }
     }
@@ -63,7 +68,8 @@ public class CurrencyMicroServiceRestClient {
                     .retrieve()
                     .body(ConversionResponseDTO.class);
             return Optional.ofNullable(response);
-        } catch (HttpClientErrorException.NotFound e) {
+        } catch (RestClientException e) {
+            LOGGER.log(Level.WARNING, "Failed to fetch conversion rate: " + e.getMessage());
             return Optional.empty();
         }
     }
