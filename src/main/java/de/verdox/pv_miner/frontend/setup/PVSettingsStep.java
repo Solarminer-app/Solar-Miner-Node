@@ -16,6 +16,7 @@ import com.vaadin.flow.i18n.LocaleChangeEvent;
 import com.vaadin.flow.i18n.LocaleChangeObserver;
 import de.verdox.pv_miner_extensions.modbus.TCPModbusClient;
 import de.verdox.pv_miner_extensions.restpv.RestPVClient;
+import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -28,7 +29,7 @@ public class PVSettingsStep extends VerticalLayout implements WizardStep, Locale
     private PasswordField apiTokenField;
     private IntegerField slaveIdField;
 
-    private final Button testButton = new Button("Verbindung testen");
+    private final Button testButton = new Button();
     private final Span testFeedback = new Span();
 
     private boolean connectionTestedSuccessfully = false;
@@ -42,8 +43,10 @@ public class PVSettingsStep extends VerticalLayout implements WizardStep, Locale
         formLayout = new FormLayout();
         formLayout.setMaxWidth("500px");
 
+        testButton.setText(getTranslation("setup.pv.settings.btn_test"));
         testButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         testButton.setIcon(VaadinIcon.PLUG.create());
+
         testFeedback.getStyle().set("font-weight", "bold");
         testFeedback.getStyle().set("margin-left", "10px");
 
@@ -51,17 +54,7 @@ public class PVSettingsStep extends VerticalLayout implements WizardStep, Locale
         testLayout.setAlignItems(Alignment.CENTER);
         testLayout.getStyle().set("margin-top", "20px");
 
-        add(new Span("Bitte überprüfe die Verbindungsdaten für die Anlage:"), formLayout, testLayout);
-
-        UI.getCurrent().getElement().executeJs(
-                "if (!document.getElementById('spin-style')) {" +
-                        "  var style = document.createElement('style');" +
-                        "  style.id = 'spin-style';" +
-                        "  style.type = 'text/css';" +
-                        "  style.innerHTML = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';" +
-                        "  document.head.appendChild(style);" +
-                        "}"
-        );
+        add(new TranslatableSpan("setup.pv.settings.intro"), formLayout, testLayout);
     }
 
     @Override
@@ -74,13 +67,13 @@ public class PVSettingsStep extends VerticalLayout implements WizardStep, Locale
 
         var device = selectedDevices.iterator().next();
 
-        TextField infoField = new TextField("Gerät / Profil");
+        TextField infoField = new TextField(getTranslation("setup.pv.settings.device"));
         infoField.setValue(device.getIpAddress() + " (" + device.getSelectedConfigName() + ")");
         infoField.setReadOnly(true);
         formLayout.add(infoField);
 
         if ("Modbus-TCP".equals(device.getProtocol())) {
-            slaveIdField = new IntegerField("Modbus Slave-ID");
+            slaveIdField = new IntegerField(getTranslation("setup.pv.settings.slave_id"));
             slaveIdField.setValue(device.getModbusSlaveId());
             slaveIdField.setMin(1);
             slaveIdField.setMax(255);
@@ -96,7 +89,7 @@ public class PVSettingsStep extends VerticalLayout implements WizardStep, Locale
             testButton.addClickListener(e -> testModbusConnection(device));
 
         } else if ("Rest-API".equals(device.getProtocol())) {
-            apiTokenField = new PasswordField("API Token / Passwort");
+            apiTokenField = new PasswordField(getTranslation("setup.pv.settings.api_token"));
             apiTokenField.setRequired(device.isRequiresAuth());
             if (device.getRestAPIToken() != null) apiTokenField.setValue(device.getRestAPIToken());
             apiTokenField.setValueChangeMode(ValueChangeMode.EAGER);
@@ -119,9 +112,9 @@ public class PVSettingsStep extends VerticalLayout implements WizardStep, Locale
 
         CompletableFuture.runAsync(() -> {
             try (TCPModbusClient client = new TCPModbusClient(device.getIpAddress(), device.getPort(), slaveIdField.getValue())) {
-                ui.access(() -> setSuccessState("Verbindung erfolgreich!"));
+                ui.access(() -> setSuccessState(getTranslation("setup.pv.settings.success")));
             } catch (Exception ex) {
-                ui.access(() -> setErrorState("Verbindung fehlgeschlagen: " + ex.getMessage()));
+                ui.access(() -> setErrorState(getTranslation("setup.pv.settings.error_modbus", ex.getMessage())));
             }
         });
     }
@@ -141,19 +134,19 @@ public class PVSettingsStep extends VerticalLayout implements WizardStep, Locale
                 RestPVClient client = new RestPVClient(baseUrl, token);
                 client.ping();
                 client.close();
-                ui.access(() -> setSuccessState("API Token gültig. Gerät antwortet!"));
+                ui.access(() -> setSuccessState(getTranslation("setup.pv.settings.success_rest")));
             } catch (Exception ex) {
-                ui.access(() -> setErrorState("Fehler: Unauthorized oder Gerät nicht erreichbar."));
+                ui.access(() -> setErrorState(getTranslation("setup.pv.settings.error_rest")));
             }
         });
     }
 
     private void setLoadingState() {
         testButton.setEnabled(false);
-        testButton.setText("Teste...");
+        testButton.setText(getTranslation("setup.pv.settings.btn_testing"));
 
         var loadingIcon = VaadinIcon.REFRESH.create();
-        loadingIcon.getStyle().set("animation", "spin 1s linear infinite");
+        loadingIcon.addClassName("spinning"); // Erwartet ".spinning" in der wizard.css
         testButton.setIcon(loadingIcon);
 
         testFeedback.setText("");
@@ -161,7 +154,7 @@ public class PVSettingsStep extends VerticalLayout implements WizardStep, Locale
 
     private void setSuccessState(String message) {
         testButton.setEnabled(true);
-        testButton.setText("Erneut testen");
+        testButton.setText(getTranslation("setup.pv.settings.btn_retest"));
         testButton.setIcon(VaadinIcon.CHECK.create());
         testButton.removeThemeVariants(ButtonVariant.LUMO_ERROR);
         testButton.addThemeVariants(ButtonVariant.LUMO_SUCCESS);
@@ -175,7 +168,7 @@ public class PVSettingsStep extends VerticalLayout implements WizardStep, Locale
 
     private void setErrorState(String message) {
         testButton.setEnabled(true);
-        testButton.setText("Verbindung testen");
+        testButton.setText(getTranslation("setup.pv.settings.btn_test"));
         testButton.setIcon(VaadinIcon.CLOSE.create());
         testButton.removeThemeVariants(ButtonVariant.LUMO_SUCCESS);
         testButton.addThemeVariants(ButtonVariant.LUMO_ERROR);
@@ -190,7 +183,7 @@ public class PVSettingsStep extends VerticalLayout implements WizardStep, Locale
     private void resetTestState() {
         connectionTestedSuccessfully = false;
         testButton.setEnabled(true);
-        testButton.setText("Verbindung testen");
+        testButton.setText(getTranslation("setup.pv.settings.btn_test"));
         testButton.setIcon(VaadinIcon.PLUG.create());
         testButton.removeThemeVariants(ButtonVariant.LUMO_SUCCESS, ButtonVariant.LUMO_ERROR);
         testButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -210,6 +203,6 @@ public class PVSettingsStep extends VerticalLayout implements WizardStep, Locale
 
     @Override
     public void localeChange(LocaleChangeEvent event) {
-        //TODO: Make locale aware!
+        testButton.setText(getTranslation(connectionTestedSuccessfully ? "setup.pv.settings.btn_retest" : "setup.pv.settings.btn_test"));
     }
 }
