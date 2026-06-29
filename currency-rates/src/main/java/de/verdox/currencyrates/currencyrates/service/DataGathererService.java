@@ -154,7 +154,7 @@ public class DataGathererService {
     private JsonNode queryExchangeRates(LocalDate date) {
         try {
             String dateParam = (date == null) ? "latest" : date.toString();
-            String url = String.format("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@%s/v1/currencies/usd.json", dateParam);
+            String url = String.format("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json", dateParam);
             LOGGER.log(Level.INFO, "Collecting currency exchange rates for date: " + dateParam);
             String jsonResponse = sendGetRequest(url);
 
