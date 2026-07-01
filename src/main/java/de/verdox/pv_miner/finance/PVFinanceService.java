@@ -1,7 +1,6 @@
 package de.verdox.pv_miner.finance;
 
 import de.verdox.pv_miner.dailystatistic.DailyStatisticService;
-import de.verdox.pv_miner.featuretracking.FeatureTrackingService;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.miningpool.MiningPoolStatisticsAccumulator;
@@ -184,10 +183,6 @@ public class PVFinanceService {
 
         double effYield = minerConsumption > 0 ? (btcHistoricFiat / minerConsumption) : 0.0;
 
-        if(!featureTrackingService.hasProLicense()) {
-            effYield = 0;
-        }
-
         Money effectiveYield = new Money(effYield, targetCurrency);
 
 
@@ -239,10 +234,6 @@ public class PVFinanceService {
             estimatedBreakEvenDate = today.plusDays(daysToBreakEven);
         } else if (roiProgress >= 100.0) {
             estimatedBreakEvenDate = today;
-        }
-
-        if(!featureTrackingService.hasProLicense()) {
-            estimatedBreakEvenDate = LocalDate.of(2000, 1, 1);
         }
 
         return new FinanceKpiDto(

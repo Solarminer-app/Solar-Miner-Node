@@ -80,6 +80,11 @@ public class DataGathererService {
 
         Map<String, Double> ratesMap = extractRatesMap(ratesNode);
 
+        if (ratesMap.isEmpty()) {
+            LOGGER.log(Level.WARNING, "No data found for date: " + date);
+            return null;
+        }
+
         DailyUsdRates dailyRates = new DailyUsdRates(date, ratesMap);
         return ratesRepository.save(dailyRates);
     }
@@ -112,10 +117,13 @@ public class DataGathererService {
             if (!ratesRepository.existsById(todayUtc)) {
                 Map<String, Double> ratesMap = extractRatesMap(currencyRatesUSD);
 
-                DailyUsdRates dailyRates = new DailyUsdRates(todayUtc, ratesMap);
-                ratesRepository.save(dailyRates);
-                LOGGER.log(Level.INFO, "Successfully saved daily currency rates for UTC date: " + todayUtc);
-            } else {
+                if (!ratesMap.isEmpty()) {
+                    DailyUsdRates dailyRates = new DailyUsdRates(todayUtc, ratesMap);
+                    ratesRepository.save(dailyRates);
+                    LOGGER.log(Level.INFO, "Successfully saved daily currency rates for UTC date: " + todayUtc);
+                } else {
+                    LOGGER.log(Level.WARNING, "Fetched rates map was empty. Skipping database save for: " + todayUtc);
+                }} else {
                 LOGGER.log(Level.INFO, "Currency rates for " + todayUtc + " already exist. Skipping.");
             }
 
@@ -150,9 +158,10 @@ public class DataGathererService {
     private JsonNode queryExchangeRates(LocalDate date) {
         try {
             String dateParam = (date == null) ? "latest" : date.toString();
-            String url = String.format("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@%s/v1/currencies/usd.json", dateParam);
+            String url = String.format("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json", dateParam);
             LOGGER.log(Level.INFO, "Collecting currency exchange rates for date: " + dateParam);
             String jsonResponse = sendGetRequest(url);
+
 
             return objectMapper.readTree(jsonResponse).path("usd");
         } catch (Exception e) {
@@ -190,6 +199,7 @@ public class DataGathererService {
                 LocalDate date = Instant.ofEpochSecond(obj.path("timestamp").asLong()).atZone(ZoneOffset.UTC).toLocalDate();
 
                 if (date.equals(targetDate)) {
+
                     difficulty = hashrateRoot.path("currentDifficulty").asLong();
                     hashRateThs = hashrateRoot.path("avgHashrate").asDouble() / 1_000_000_000_000.0;
                     foundHashrate = true;

@@ -25,7 +25,7 @@ import com.vaadin.flow.theme.lumo.Lumo;
 import de.verdox.phoenixdjava.PhoenixDTOs;
 import de.verdox.pv_miner.frontend.user.*;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
-import de.verdox.pv_miner.lightningremote.SolarMiningWebSocketClient;
+import de.verdox.pv_miner.lightning.SolarMiningWebSocketClient;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
 import de.verdox.pv_miner.lightning.LightningTransaction;
 import de.verdox.pv_miner.lightning.LightningWalletService;

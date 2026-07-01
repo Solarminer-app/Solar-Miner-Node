@@ -47,6 +47,9 @@ dependencies {
     implementation("org.mariadb.jdbc:mariadb-java-client:2.7.4")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 
+    compileOnly("org.projectlombok:lombok")
+    annotationProcessor("org.projectlombok:lombok")
+
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework:spring-context")
     implementation("com.vaadin:vaadin-spring-boot-starter")

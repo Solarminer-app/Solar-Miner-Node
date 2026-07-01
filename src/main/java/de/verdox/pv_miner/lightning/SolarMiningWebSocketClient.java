@@ -1,14 +1,10 @@
-package de.verdox.pv_miner.lightningremote;
+package de.verdox.pv_miner.lightning;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import de.verdox.pv_miner.lightning.LightningTransaction;
-import de.verdox.pv_miner.lightning.LightningWalletService;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
