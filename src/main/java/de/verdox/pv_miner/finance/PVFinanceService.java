@@ -23,15 +23,13 @@ public class PVFinanceService {
 
     private final Map<UUID, HistoricalBtcCache> allTimeHistoricalBtcCache = new ConcurrentHashMap<>();
     private final Map<UUID, Object> entityLocks = new ConcurrentHashMap<>();
-    private final FeatureTrackingService featureTrackingService;
 
     private record HistoricalBtcCache(LocalDate cachedDate, double historicalBtcAmount) {
     }
 
-    public PVFinanceService(DailyStatisticService dailyStatisticService, GlobalConstantsService globalConstantsService, FeatureTrackingService featureTrackingService) {
+    public PVFinanceService(DailyStatisticService dailyStatisticService, GlobalConstantsService globalConstantsService) {
         this.dailyStatisticService = dailyStatisticService;
         this.globalConstantsService = globalConstantsService;
-        this.featureTrackingService = featureTrackingService;
     }
 
     public List<PVStatisticDto> getFinanceData(PVSiteEntity pvSiteEntity, LocalDate filterDateFrom, LocalDate filterDateTo, ZoneId zoneId, CustomCurrency targetCurrency) {
