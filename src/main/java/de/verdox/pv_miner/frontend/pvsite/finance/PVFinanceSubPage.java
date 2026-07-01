@@ -64,7 +64,6 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
     private final PVSiteRepository pVSiteRepository;
     private final PVFinanceService pvFinanceService;
     private final TaxReportService taxReportService;
-    private final FeatureTrackingService featureTrackingService;
 
     private PVSiteEntity pvSiteEntity;
 
@@ -103,15 +102,14 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
                             UserSessionContext userSessionContext,
                             PVSiteRepository pVSiteRepository,
                             PVFinanceService pvFinanceService,
-                            TaxReportService taxReportService,
-                            FeatureTrackingService featureTrackingService) {
+                            TaxReportService taxReportService
+    ) {
 
         this.entityService = entityService;
         this.userSessionContext = userSessionContext;
         this.pVSiteRepository = pVSiteRepository;
         this.pvFinanceService = pvFinanceService;
         this.taxReportService = taxReportService;
-        this.featureTrackingService = featureTrackingService;
 
         getElement().setAttribute("theme", Lumo.DARK);
         addClassName("finance-page");
