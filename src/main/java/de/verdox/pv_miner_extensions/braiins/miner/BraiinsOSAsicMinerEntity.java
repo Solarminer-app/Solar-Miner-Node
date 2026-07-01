@@ -1,9 +1,16 @@
 package de.verdox.pv_miner_extensions.braiins.miner;
 
+import de.verdox.pv_miner.miner.MinerApiClient;
 import de.verdox.pv_miner.miner.MinerEntity;
+import de.verdox.pv_miner.miner.MiningOS;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Transient;
+import lombok.Getter;
+import lombok.Setter;
 
+@Setter
+@Getter
 @Entity
 public class BraiinsOSAsicMinerEntity extends MinerEntity<BrainsOSMiner> {
     private String username;
@@ -11,40 +18,20 @@ public class BraiinsOSAsicMinerEntity extends MinerEntity<BrainsOSMiner> {
     private String host;
     private int port;
 
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public String getHost() {
-        return host;
-    }
-
-    public void setHost(String host) {
-        this.host = host;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
-    }
-
     @Override
     public String getIP() {
         return host;
+    }
+
+    @Override
+    @Transient
+    public MiningOS getOS() {
+        return MiningOS.BRAIINS;
+    }
+
+    @Override
+    @Transient
+    public MinerApiClient.MinerDetails getDetails() {
+        return new MinerApiClient.MinerDetails(getId(), getHost(), getPort(), getUsername(), getPassword());
     }
 }

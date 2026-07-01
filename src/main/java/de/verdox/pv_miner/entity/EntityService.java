@@ -81,12 +81,6 @@ public class EntityService {
             for (MinerEntity<?> miner : pvSiteEntity.getMiners()) {
                 entityMonitoringService.attach(miner, MinerStats.DEFAULT.withName(miner.getName()));
                 LOGGER.info("Starting controller for: " + miner.getName());
-                try {
-                    miner.tryStartMinerControllers(minerControllerConfigStorage);
-                    LOGGER.info("Loaded: " + miner.getName());
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
                 minerClusterService.loginToCluster(miner);
             }
             LOGGER.info("Mining clusters will start in 1minute. We first have to gather some data...");
@@ -157,11 +151,6 @@ public class EntityService {
             pvSiteRepository.save(parent);
         }
         entityMonitoringService.attach(miner, MinerStats.DEFAULT.withName(miner.getName()));
-        try {
-            miner.tryStartMinerControllers(minerControllerConfigStorage);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
         return saved;
     }
 
@@ -182,7 +171,6 @@ public class EntityService {
         entityMonitoringService.detach(miner);
         dailyStatisticService.cleanUpEntity(miner.getId());
         minerRepository.delete(miner);
-        miner.tryStopMinerControllers();
     }
 
     public void delete(PVSiteEntity entity) {
