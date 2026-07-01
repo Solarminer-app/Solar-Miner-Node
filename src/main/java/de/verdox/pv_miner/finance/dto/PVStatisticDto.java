@@ -1,4 +1,4 @@
-package de.verdox.pv_miner.finance;
+package de.verdox.pv_miner.finance.dto;
 
 import de.verdox.pv_miner.util.Money;
 

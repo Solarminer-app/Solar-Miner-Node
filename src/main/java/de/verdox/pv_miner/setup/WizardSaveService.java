@@ -214,8 +214,6 @@ public class WizardSaveService {
             minersToAssign.add(miner);
             entityService.save(miner, site);
 
-            System.out.println(firstConnectedMiningPool);
-
             if (firstConnectedMiningPool != null) {
                 try {
                     var details = entityControllerService.getController(miner).details();

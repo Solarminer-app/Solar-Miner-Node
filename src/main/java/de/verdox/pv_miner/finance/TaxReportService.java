@@ -1,9 +1,8 @@
-package de.verdox.pv_miner.taxreport;
+package de.verdox.pv_miner.finance;
 
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
-import de.verdox.pv_miner.finance.FinanceKpiDto;
-import de.verdox.pv_miner.finance.PVFinanceService;
-import de.verdox.pv_miner.finance.PVStatisticDto;
+import de.verdox.pv_miner.finance.dto.FinanceKpiDto;
+import de.verdox.pv_miner.finance.dto.PVStatisticDto;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.pvsite.BitcoinSale;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;

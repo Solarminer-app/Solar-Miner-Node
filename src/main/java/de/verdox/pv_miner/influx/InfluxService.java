@@ -5,7 +5,7 @@ import com.influxdb.client.*;
 import com.influxdb.client.domain.TaskCreateRequest;
 import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
-import de.verdox.pv_miner.dailystatistic.DailyStatisticAccumulator;
+import de.verdox.pv_miner.statistic.daily.DailyStatisticAccumulator;
 import de.verdox.pv_miner.entity.QueryEntity;
 import de.verdox.pv_miner.miner.MinerInfluxStrategy;
 import de.verdox.pv_miner.miner.MinerEntity;

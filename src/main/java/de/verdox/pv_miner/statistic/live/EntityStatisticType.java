@@ -1,4 +1,4 @@
-package de.verdox.pv_miner.statistics;
+package de.verdox.pv_miner.statistic.live;
 
 import com.influxdb.query.FluxRecord;
 import de.verdox.pv_miner.entity.QueryEntity;

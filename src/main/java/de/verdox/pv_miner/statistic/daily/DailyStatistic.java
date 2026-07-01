@@ -1,4 +1,4 @@
-package de.verdox.pv_miner.dailystatistic;
+package de.verdox.pv_miner.statistic.daily;
 
 public abstract class DailyStatistic {
     private long startOfDayUnixTimestampUTC;

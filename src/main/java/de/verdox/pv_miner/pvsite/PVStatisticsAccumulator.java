@@ -1,7 +1,7 @@
 package de.verdox.pv_miner.pvsite;
 
 import com.influxdb.query.FluxRecord;
-import de.verdox.pv_miner.dailystatistic.DailyStatisticAccumulator;
+import de.verdox.pv_miner.statistic.daily.DailyStatisticAccumulator;
 
 public class PVStatisticsAccumulator implements DailyStatisticAccumulator<PVStatisticPerDay, PVSiteDataDTO> {
 
@@ -12,10 +12,10 @@ public class PVStatisticsAccumulator implements DailyStatisticAccumulator<PVStat
 
     @Override
     public void accumulate(PVStatisticPerDay currentCache, PVSiteDataDTO liveData, double timeWindowInHours) {
-        double producedDeltaKwh = (liveData.getPVPowerInKw()) * timeWindowInHours;
-        double exportDeltaKwh = (liveData.getExportInKw()) * timeWindowInHours;
-        double importDeltaKwh = (liveData.getImportInKw()) * timeWindowInHours;
-        double consumptionDeltaKwh = liveData.getLoadsPowerInKw() * timeWindowInHours;
+        double producedDeltaKwh = (liveData.getPvPower()) * timeWindowInHours;
+        double exportDeltaKwh = (liveData.getExportPowerKw()) * timeWindowInHours;
+        double importDeltaKwh = (liveData.getImportPowerKw()) * timeWindowInHours;
+        double consumptionDeltaKwh = liveData.getLoadPowerKw() * timeWindowInHours;
         double consumptionMinerDeltaKwh = liveData.getTotalMinerPowerKw() * timeWindowInHours;
 
         if (consumptionDeltaKwh < 0) {

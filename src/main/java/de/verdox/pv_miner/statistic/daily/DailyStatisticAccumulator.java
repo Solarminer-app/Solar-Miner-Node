@@ -1,4 +1,4 @@
-package de.verdox.pv_miner.dailystatistic;
+package de.verdox.pv_miner.statistic.daily;
 
 import com.influxdb.query.FluxRecord;
 import de.verdox.pv_miner.influx.InfluxUtil;

@@ -29,13 +29,13 @@ public class PVSiteInfluxStrategy implements InfluxEntityStrategy<PVSiteEntity, 
     public void writeToInflux(WriteApi writeApi, String bucket, String org, PVSiteEntity entity, PVSiteDataDTO dataToWrite, Instant timeOfData) {
         InfluxUtil.InfluxRecordBuilder influxRecordBuilder = new InfluxUtil.InfluxRecordBuilder(MEASUREMENT_KEY)
                 .addTag(InfluxEntityStrategy.ENTITY_TAG, entity.getId().toString())
-                .addField(PV_POWER_IN_KW, dataToWrite.getPVPowerInKw())
-                .addField(FEED_IN_POWER_IN_KW, dataToWrite.getImportInKw())
-                .addField(GRID_CONSUMPTION_POWER, dataToWrite.getExportInKw())
-                .addField(BATTERY_STATE_OF_CHARGE, dataToWrite.getBatteryStateOfCharge())
+                .addField(PV_POWER_IN_KW, dataToWrite.getPvPower())
+                .addField(FEED_IN_POWER_IN_KW, dataToWrite.getImportPowerKw())
+                .addField(GRID_CONSUMPTION_POWER, dataToWrite.getExportPowerKw())
+                .addField(BATTERY_STATE_OF_CHARGE, dataToWrite.getBatterySoC())
                 .addField(BATTERY_CHARGE_POWER, dataToWrite.getBatteryChargePower())
                 .addField(BATTERY_DISCHARGE_POWER, dataToWrite.getBatteryDischargePower())
-                .addField(LOADS_POWER_IN_KW, dataToWrite.getLoadsPowerInKw())
+                .addField(LOADS_POWER_IN_KW, dataToWrite.getLoadPowerKw())
                 .addField(MINER_POWER_IN_KW, dataToWrite.getTotalMinerPowerKw())
                 .setTimestamp(timeOfData.toEpochMilli());
         writeApi.writeRecord(bucket, org, WritePrecision.MS, influxRecordBuilder.build());

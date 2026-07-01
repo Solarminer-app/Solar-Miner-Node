@@ -1,6 +1,7 @@
 package de.verdox.pv_miner.pvsite;
 
 import de.verdox.pv_miner.influx.QueryResult;
+import lombok.Getter;
 
 import java.util.Objects;
 
@@ -14,13 +15,21 @@ public final class PVSiteDataDTO implements QueryResult {
         return new Builder();
     }
 
+    @Getter
     private final double pvPower;
+    @Getter
     private final double loadPowerKw;
+    @Getter
     private final double totalMinerPowerKw;
+    @Getter
     private final double importPowerKw;
+    @Getter
     private final double exportPowerKw;
+    @Getter
     private final double batteryChargePower;
+    @Getter
     private final double batteryDischargePower;
+    @Getter
     private final float batterySoC;
 
     PVSiteDataDTO(
@@ -47,30 +56,6 @@ public final class PVSiteDataDTO implements QueryResult {
         this(0, 0, 0, 0, 0, 0, 0, 0);
     }
 
-    public double getPVPowerInKw() {
-        return pvPower;
-    }
-
-    public double getTotalMinerPowerKw() {
-        return totalMinerPowerKw;
-    }
-
-    public double getImportInKw() {
-        return importPowerKw;
-    }
-
-    public double getExportInKw() {
-        return exportPowerKw;
-    }
-
-    public double getBatteryChargePower() {
-        return batteryChargePower;
-    }
-
-    public double getBatteryDischargePower() {
-        return batteryDischargePower;
-    }
-
     public double getBatteryPower() {
         if (batteryChargePower > 0) {
             return batteryChargePower;
@@ -79,20 +64,6 @@ public final class PVSiteDataDTO implements QueryResult {
             return -batteryDischargePower;
         }
         return 0;
-    }
-
-    /**
-     * @return the battery state of charge [0;100]
-     */
-    public float getBatteryStateOfCharge() {
-        return batterySoC;
-    }
-
-    /**
-     * Errechnet die aktuelle Hauslast basierend auf den reinen Leistungswerten.
-     */
-    public double getLoadsPowerInKw() {
-        return loadPowerKw;
     }
 
     @Override
@@ -178,9 +149,6 @@ public final class PVSiteDataDTO implements QueryResult {
             return this;
         }
 
-        /**
-         * Convenience-Methode für die alte gridPower-Logik
-         */
         public Builder gridPower(double gridPower) {
             if (gridPower > 0) {
                 this.importPowerKw = gridPower;
@@ -192,9 +160,6 @@ public final class PVSiteDataDTO implements QueryResult {
             return this;
         }
 
-        /**
-         * Convenience-Methode für die alte batteryPower-Logik
-         */
         public Builder batteryPower(double batteryPower) {
             if (batteryPower > 0) {
                 this.batteryChargePower = batteryPower;

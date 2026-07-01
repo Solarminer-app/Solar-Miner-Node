@@ -1,22 +1,19 @@
 package de.verdox.pv_miner.entity;
 
-import de.verdox.pv_miner.dailystatistic.DailyStatisticService;
+import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.MinerRepository;
 import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.miningcontroller.MinerClusterService;
-import de.verdox.pv_miner.miningcontroller.MinerControllerConfigStorage;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.miningpool.MiningPoolRepository;
 import de.verdox.pv_miner.pvsite.*;
-import de.verdox.pv_miner.statistics.EntityStatisticsService;
+import de.verdox.pv_miner.statistic.live.EntityStatisticsService;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;

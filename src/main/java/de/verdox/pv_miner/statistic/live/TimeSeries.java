@@ -1,4 +1,4 @@
-package de.verdox.pv_miner.statistics;
+package de.verdox.pv_miner.statistic.live;
 
 import java.util.Collection;
 import java.util.Iterator;
@@ -79,15 +79,12 @@ public class TimeSeries<T> implements Collection<Map.Entry<Long, T>> {
 
     public boolean hasDataForInterval(long fromMillis, long toMillis) {
         NavigableMap<Long, T> subMap = timeSeriesMap.subMap(withAccuracy(fromMillis), true, withAccuracy(toMillis), true);
-        // No values in entire interval.
         if (subMap.isEmpty()) {
             return false;
         }
 
         long firstKey = subMap.firstKey();
         long lastKey = subMap.lastKey();
-
-        // Check if start or end are in the interval map
         return firstKey == fromMillis && lastKey == toMillis;
     }
 
@@ -110,7 +107,6 @@ public class TimeSeries<T> implements Collection<Map.Entry<Long, T>> {
 
     private long withAccuracy(long timeMillis) {
         long unitInMillis = accuracy.toMillis(1);
-        // Runden auf die gewünschte Zeiteinheit
         return ((timeMillis + unitInMillis - 1) / unitInMillis) * unitInMillis;
     }
 

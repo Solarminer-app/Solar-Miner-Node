@@ -25,7 +25,7 @@ import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.theme.lumo.Lumo;
 import de.verdox.pv_miner.SpringContextHelper;
-import de.verdox.pv_miner.dailystatistic.DailyStatisticService;
+import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
 import de.verdox.pv_miner.entity.EntityMonitoringService;
 import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
@@ -36,7 +36,7 @@ import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
 import de.verdox.pv_miner.pvsite.PVStatisticPerDay;
 import de.verdox.pv_miner.pvsite.PVStatisticsAccumulator;
-import de.verdox.pv_miner.statistics.EntityStatisticsService;
+import de.verdox.pv_miner.statistic.live.EntityStatisticsService;
 import de.verdox.pv_miner.frontend.user.UserSessionContext;
 import de.verdox.pv_miner.util.FormatUtil;
 import de.verdox.pv_miner.util.Money;
@@ -239,14 +239,14 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
                     String currencySymbol = userCurrency.getSymbol(sessionContext.getLocale());
 
                     ui.access(() -> {
-                        pvPower.setValue(FormatUtil.formatNumber(pvSiteData.getPVPowerInKw()) + " kW");
+                        pvPower.setValue(FormatUtil.formatNumber(pvSiteData.getPvPower()) + " kW");
                         minerPower.setValue(FormatUtil.formatNumber(pvSiteData.getTotalMinerPowerKw()) + " kW");
-                        powerTotal.setValue(FormatUtil.formatNumber(pvSiteData.getLoadsPowerInKw()) + " kW");
+                        powerTotal.setValue(FormatUtil.formatNumber(pvSiteData.getLoadPowerKw()) + " kW");
 
-                        liveImportCard.setValue(FormatUtil.formatNumber(pvSiteData.getImportInKw()) + " kW");
-                        liveExportCard.setValue(FormatUtil.formatNumber(pvSiteData.getExportInKw()) + " kW");
+                        liveImportCard.setValue(FormatUtil.formatNumber(pvSiteData.getImportPowerKw()) + " kW");
+                        liveExportCard.setValue(FormatUtil.formatNumber(pvSiteData.getExportPowerKw()) + " kW");
 
-                        batterySocCard.setValue(pvSiteData.getBatteryStateOfCharge() + " %");
+                        batterySocCard.setValue(pvSiteData.getBatterySoC() + " %");
 
                         if (pvSiteData.getBatteryPower() > 0) {
                             batteryPowerCard.setValue("+" + FormatUtil.formatNumber(pvSiteData.getBatteryPower()) + " kW");

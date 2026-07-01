@@ -1,7 +1,7 @@
 package de.verdox.pv_miner.miner;
 
 import com.influxdb.query.FluxRecord;
-import de.verdox.pv_miner.dailystatistic.DailyStatisticAccumulator;
+import de.verdox.pv_miner.statistic.daily.DailyStatisticAccumulator;
 import de.verdox.pv_miner.miner.data.MinerStats;
 
 public class MinerStatisticsAccumulator implements DailyStatisticAccumulator<MinerStatisticsPerDay, MinerStats> {

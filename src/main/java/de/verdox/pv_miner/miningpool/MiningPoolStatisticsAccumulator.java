@@ -1,7 +1,7 @@
 package de.verdox.pv_miner.miningpool;
 
 import com.influxdb.query.FluxRecord;
-import de.verdox.pv_miner.dailystatistic.DailyStatisticAccumulator;
+import de.verdox.pv_miner.statistic.daily.DailyStatisticAccumulator;
 import de.verdox.pv_miner.influx.InfluxUtil;
 import de.verdox.pv_miner.util.CryptoCurrency;
 

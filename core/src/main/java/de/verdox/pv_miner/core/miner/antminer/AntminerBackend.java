@@ -15,12 +15,6 @@ public class AntminerBackend {
     private final AntminerCgiClient client = new AntminerCgiClient();
     private final ObjectMapper mapper;
 
-    public static void main(String[] args) {
-        AntminerBackend antminerBackend = new AntminerBackend(new ObjectMapper());
-
-        MinerDetails minerDetails = new MinerDetails(UUID.randomUUID(), "192.168.178.22", 80, "root", "root");
-    }
-
     public AntminerBackend(ObjectMapper objectMapper) {
         this.mapper = objectMapper;
     }

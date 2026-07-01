@@ -1,6 +1,6 @@
 package de.verdox.pv_miner.miner;
 
-import de.verdox.pv_miner.dailystatistic.DailyStatistic;
+import de.verdox.pv_miner.statistic.daily.DailyStatistic;
 
 public class MinerStatisticsPerDay extends DailyStatistic {
     private double totalEnergyUsedInKwh;

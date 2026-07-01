@@ -1,4 +1,4 @@
-package de.verdox.pv_miner.statistics;
+package de.verdox.pv_miner.statistic.live;
 
 import com.influxdb.query.FluxRecord;
 import de.verdox.pv_miner.entity.QueryEntity;
@@ -39,21 +39,21 @@ public class EntityStatisticsService {
     public final EntityStatisticType<PVSiteEntity, PVSiteDataDTO, Double> PV_POWER_DAY_STATISTIC = createStatisticType(TimeUnit.MINUTES, 60 * 24,
             PVSiteEntity.class,
             PVSiteInfluxStrategy.PV_POWER_IN_KW,
-            PVSiteDataDTO::getPVPowerInKw,
+            PVSiteDataDTO::getPvPower,
             fluxRecord -> (Double) fluxRecord.getValue(),
             influxQueryBuilder -> influxQueryBuilder.setAggregation(InfluxUtil.AggregateOperation.MEAN, Duration.ofMinutes(1)));
 
     public final EntityStatisticType<PVSiteEntity, PVSiteDataDTO, Double> PV_GRID_EXPORT = createStatisticType(TimeUnit.MINUTES, 60 * 24,
             PVSiteEntity.class,
             PVSiteInfluxStrategy.GRID_CONSUMPTION_POWER,
-            PVSiteDataDTO::getExportInKw,
+            PVSiteDataDTO::getExportPowerKw,
             fluxRecord -> (Double) fluxRecord.getValue(),
             influxQueryBuilder -> influxQueryBuilder.setAggregation(InfluxUtil.AggregateOperation.MEAN, Duration.ofMinutes(1)));
 
     public final EntityStatisticType<PVSiteEntity, PVSiteDataDTO, Double> CONSUMPTION = createStatisticType(TimeUnit.MINUTES, 60 * 24,
             PVSiteEntity.class,
             PVSiteInfluxStrategy.LOADS_POWER_IN_KW,
-            PVSiteDataDTO::getLoadsPowerInKw,
+            PVSiteDataDTO::getLoadPowerKw,
             fluxRecord -> (Double) fluxRecord.getValue(),
             influxQueryBuilder -> influxQueryBuilder.setAggregation(InfluxUtil.AggregateOperation.MEAN, Duration.ofMinutes(1)));
 
@@ -67,14 +67,14 @@ public class EntityStatisticsService {
     public final EntityStatisticType<PVSiteEntity, PVSiteDataDTO, Double> PV_IMPORT = createStatisticType(TimeUnit.MINUTES, 60 * 24,
             PVSiteEntity.class,
             PVSiteInfluxStrategy.FEED_IN_POWER_IN_KW,
-            PVSiteDataDTO::getImportInKw,
+            PVSiteDataDTO::getImportPowerKw,
             fluxRecord -> (Double) fluxRecord.getValue(),
             influxQueryBuilder -> influxQueryBuilder.setAggregation(InfluxUtil.AggregateOperation.MEAN, Duration.ofMinutes(1)));
 
     public final EntityStatisticType<PVSiteEntity, PVSiteDataDTO, Double> PV_POWER_PER_HOUR_STATISTIC = createStatisticType(TimeUnit.HOURS, -1,
             PVSiteEntity.class,
             PVSiteInfluxStrategy.PV_POWER_IN_KW,
-            PVSiteDataDTO::getPVPowerInKw,
+            PVSiteDataDTO::getPvPower,
             fluxRecord -> (Double) fluxRecord.getValue(),
             influxQueryBuilder -> {
                 influxQueryBuilder.setAggregation(InfluxUtil.AggregateOperation.MEDIAN, Duration.ofHours(1));

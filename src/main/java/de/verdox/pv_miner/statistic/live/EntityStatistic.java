@@ -1,7 +1,8 @@
-package de.verdox.pv_miner.statistics;
+package de.verdox.pv_miner.statistic.live;
 
 import de.verdox.pv_miner.entity.QueryEntity;
 import de.verdox.pv_miner.influx.QueryResult;
+import lombok.Getter;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
 import reactor.core.publisher.Sinks;
@@ -14,6 +15,7 @@ public class EntityStatistic<E extends QueryEntity<Q>, Q extends QueryResult, T>
     private final EntityStatisticType<E, Q, T> statisticType;
     private final E entity;
     private Disposable liveDataSubscription;
+    @Getter
     private final TimeSeries<T> values;
     private final Sinks.Many<Long> updateSink;
 
@@ -24,10 +26,6 @@ public class EntityStatistic<E extends QueryEntity<Q>, Q extends QueryResult, T>
         this.statisticType = statisticType;
         this.entity = entity;
         updateSink = Sinks.many().replay().latest();
-    }
-
-    public TimeSeries<T> getValues() {
-        return values;
     }
 
     /**

@@ -8,7 +8,7 @@ import com.vaadin.flow.component.charts.model.style.SolidColor;
 import com.vaadin.flow.data.provider.DataProvider;
 import de.verdox.pv_miner.entity.QueryEntity;
 import de.verdox.pv_miner.influx.QueryResult;
-import de.verdox.pv_miner.statistics.EntityStatistic;
+import de.verdox.pv_miner.statistic.live.EntityStatistic;
 import de.verdox.pv_miner.frontend.FrontendService;
 import reactor.core.Disposable;
 
