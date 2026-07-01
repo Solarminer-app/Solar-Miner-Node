@@ -3,7 +3,6 @@ package de.verdox.pv_miner.lightning;
 import de.verdox.phoenixdjava.PhoenixClient;
 import de.verdox.phoenixdjava.PhoenixClientImpl;
 import de.verdox.phoenixdjava.PhoenixDTOs;
-import de.verdox.pv_miner.lightningremote.SolarMiningWebSocketClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;

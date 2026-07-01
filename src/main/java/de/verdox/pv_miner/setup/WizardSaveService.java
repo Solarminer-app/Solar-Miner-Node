@@ -4,6 +4,9 @@ import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
 import de.verdox.pv_miner.entity.EntityControllerService;
 import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.entity.EntityService;
+import de.verdox.pv_miner.frontend.setup.EconomicsStep;
+import de.verdox.pv_miner.frontend.setup.MinerSetupStep;
+import de.verdox.pv_miner.frontend.setup.PVSetupStep;
 import de.verdox.pv_miner.miner.MinerApiClient;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miningcontroller.MinerClusterService;
@@ -13,9 +16,6 @@ import de.verdox.pv_miner.pvsite.HistoricalPrice;
 import de.verdox.pv_miner.pvsite.PVPanels;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.util.Money;
-import de.verdox.pv_miner.frontend.setup.MinerSetupStep;
-import de.verdox.pv_miner.frontend.setup.PVSetupStep;
-import de.verdox.pv_miner.frontend.setup.EconomicsStep;
 import de.verdox.pv_miner_extensions.agent.AgentMinerEntity;
 import de.verdox.pv_miner_extensions.braiins.miner.BraiinsOSAsicMinerEntity;
 import de.verdox.pv_miner_extensions.modbus.ModbusPVSite;
@@ -196,7 +196,8 @@ public class WizardSaveService {
                     agent.setPort(8084);
                     yield agent;
                 }
-                case VNISH, LUXOS -> throw new UnsupportedOperationException("OS momentan nicht unterstützt.");
+                case VNISH, LUXOS ->
+                        throw new UnsupportedOperationException("OS " + minerInfo.os() + " not supported.");
             };
 
             miner.setParentEntity(site);
