@@ -24,7 +24,7 @@ import java.util.UUID;
 @Inheritance(strategy = InheritanceType.JOINED)
 @EntityListeners(AuditingEntityListener.class)
 @RegisterReflectionForBinding({MinerEntity.class})
-public abstract class MinerEntity<MC extends Miner> extends AbstractAuditableEntity implements QueryEntity<MinerStats>, ControllableEntity<MC> {
+public abstract class MinerEntity<MC extends MinerEntityController> extends AbstractAuditableEntity implements QueryEntity<MinerStats>, ControllableEntity<MC> {
     @Setter
     @Getter
     @Id

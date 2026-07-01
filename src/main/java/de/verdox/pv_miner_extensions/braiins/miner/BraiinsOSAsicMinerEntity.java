@@ -1,9 +1,9 @@
 package de.verdox.pv_miner_extensions.braiins.miner;
 
+import de.verdox.pv_miner.miner.MinerEntityController;
 import de.verdox.pv_miner.miner.MinerApiClient;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.MiningOS;
-import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Transient;
 import lombok.Getter;
@@ -12,7 +12,7 @@ import lombok.Setter;
 @Setter
 @Getter
 @Entity
-public class BraiinsOSAsicMinerEntity extends MinerEntity<BrainsOSMiner> {
+public class BraiinsOSAsicMinerEntity extends MinerEntity<MinerEntityController> {
     private String username;
     private String password;
     private String host;

@@ -1,10 +1,9 @@
 package de.verdox.pv_miner.entity;
 
+import de.verdox.pv_miner.miner.MinerEntityController;
 import de.verdox.pv_miner.miner.MinerApiClient;
-import de.verdox.pv_miner_extensions.agent.AgentMiner;
 import de.verdox.pv_miner_extensions.agent.AgentMinerEntity;
 import de.verdox.pv_miner_extensions.braiins.miner.BraiinsOSAsicMinerEntity;
-import de.verdox.pv_miner_extensions.braiins.miner.BrainsOSMiner;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -25,8 +24,8 @@ public class EntityControllerService {
     private final Map<UUID, EntityController> controllers = new WeakHashMap<>();
 
     public EntityControllerService(MinerApiClient minerApiClient) {
-        registerToControllerFactory(AgentMinerEntity.class, agentMinerEntity -> new AgentMiner(minerApiClient, agentMinerEntity));
-        registerToControllerFactory(BraiinsOSAsicMinerEntity.class, braiinsOSAsicMinerEntity -> new BrainsOSMiner(minerApiClient, braiinsOSAsicMinerEntity));
+        registerToControllerFactory(AgentMinerEntity.class, agentMinerEntity -> new MinerEntityController(minerApiClient, agentMinerEntity));
+        registerToControllerFactory(BraiinsOSAsicMinerEntity.class, braiinsOSAsicMinerEntity -> new MinerEntityController(minerApiClient, braiinsOSAsicMinerEntity));
     }
 
     public <B extends ControllableEntity<C>, C extends EntityController> void control(B entity, Consumer<C> function) {
