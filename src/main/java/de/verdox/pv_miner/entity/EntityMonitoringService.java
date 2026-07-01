@@ -2,6 +2,7 @@ package de.verdox.pv_miner.entity;
 
 import de.verdox.pv_miner.influx.InfluxService;
 import de.verdox.pv_miner.influx.QueryResult;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.Disposable;
@@ -24,11 +25,13 @@ public class EntityMonitoringService {
     private static final Logger LOGGER = Logger.getLogger(EntityMonitoringService.class.getSimpleName());
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
 
-    @Autowired
-    private EntityQueryService entityQueryService;
+    private final EntityQueryService entityQueryService;
+    private final InfluxService influxService;
 
-    @Autowired
-    private InfluxService influxService;
+    public EntityMonitoringService(EntityQueryService entityQueryService, InfluxService influxService) {
+        this.entityQueryService = entityQueryService;
+        this.influxService = influxService;
+    }
 
     private final Map<UUID, MonitoringJob<?, ?>> monitoringJobs = new HashMap<>();
 
@@ -63,24 +66,19 @@ public class EntityMonitoringService {
     }
 
     private class MonitoringJob<E extends QueryEntity<Q>, Q extends QueryResult> {
+        @Getter
         private final E entity;
         private final Q defaultValue;
+        @Getter
         private Flux<Q> liveDataFlux;
         private ScheduledFuture<?> schedulerJob;
         private Disposable monitoringJob;
+        @Getter
         private boolean isRunning;
 
         public MonitoringJob(E entity, Q defaultValue) {
             this.entity = entity;
             this.defaultValue = defaultValue;
-        }
-
-        public Flux<Q> getLiveDataFlux() {
-            return liveDataFlux;
-        }
-
-        public E getEntity() {
-            return entity;
         }
 
         private synchronized void start() {
@@ -125,8 +123,5 @@ public class EntityMonitoringService {
             LOGGER.info("Monitoring job stopped for " + entity.getClass().getSimpleName() + ": " + entity);
         }
 
-        public boolean isRunning() {
-            return isRunning;
-        }
     }
 }

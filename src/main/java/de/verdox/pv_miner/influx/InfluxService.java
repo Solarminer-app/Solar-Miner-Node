@@ -7,16 +7,16 @@ import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
 import de.verdox.pv_miner.dailystatistic.DailyStatisticAccumulator;
 import de.verdox.pv_miner.entity.QueryEntity;
-import de.verdox.pv_miner.miner.AsicMinerInfluxStrategy;
+import de.verdox.pv_miner.miner.MinerInfluxStrategy;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.MinerStatisticsAccumulator;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVSiteInfluxStrategy;
 import de.verdox.pv_miner.pvsite.PVStatisticsAccumulator;
-import de.verdox.pv_miner_extensions.braiins.pool.BraiinsPoolEntity;
-import de.verdox.pv_miner_extensions.braiins.pool.BraiinsPoolInfluxStrategy;
-import de.verdox.pv_miner_extensions.nicehash.NiceHashPoolEntity;
-import de.verdox.pv_miner_extensions.nicehash.NiceHashPoolInfluxStrategy;
+import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolEntity;
+import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolInfluxStrategy;
+import de.verdox.pv_miner_extensions.pools.nicehash.NiceHashPoolEntity;
+import de.verdox.pv_miner_extensions.pools.nicehash.NiceHashPoolInfluxStrategy;
 import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -80,7 +80,7 @@ public class InfluxService {
         }
 
         strategies.put(PVSiteEntity.class, new PVSiteInfluxStrategy());
-        strategies.put(MinerEntity.class, new AsicMinerInfluxStrategy());
+        strategies.put(MinerEntity.class, new MinerInfluxStrategy());
 
         strategies.put(BraiinsPoolEntity.class, new BraiinsPoolInfluxStrategy());
         strategies.put(NiceHashPoolEntity.class, new NiceHashPoolInfluxStrategy());

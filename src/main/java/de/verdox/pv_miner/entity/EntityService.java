@@ -34,10 +34,9 @@ public class EntityService {
     private final EntityStatisticsService entityStatisticsService;
     private final PVPanelsRepository pVPanelsRepository;
     private final DailyStatisticService dailyStatisticService;
-    private final MinerControllerConfigStorage minerControllerConfigStorage;
     private final MinerClusterService minerClusterService;
 
-    public EntityService(PVSiteRepository pvSiteRepository, MinerRepository minerRepository, MiningPoolRepository miningPoolRepository, EntityMonitoringService entityMonitoringService, EntityStatisticsService entityStatisticsService, PVPanelsRepository pVPanelsRepository, DailyStatisticService dailyStatisticService, MinerControllerConfigStorage minerControllerConfigStorage, MinerClusterService minerClusterService) {
+    public EntityService(PVSiteRepository pvSiteRepository, MinerRepository minerRepository, MiningPoolRepository miningPoolRepository, EntityMonitoringService entityMonitoringService, EntityStatisticsService entityStatisticsService, PVPanelsRepository pVPanelsRepository, DailyStatisticService dailyStatisticService, MinerClusterService minerClusterService) {
         this.pvSiteRepository = pvSiteRepository;
         this.minerRepository = minerRepository;
         this.miningPoolRepository = miningPoolRepository;
@@ -45,16 +44,7 @@ public class EntityService {
         this.entityStatisticsService = entityStatisticsService;
         this.pVPanelsRepository = pVPanelsRepository;
         this.dailyStatisticService = dailyStatisticService;
-        this.minerControllerConfigStorage = minerControllerConfigStorage;
         this.minerClusterService = minerClusterService;
-    }
-
-    public boolean needsFreshSetup() {
-        return pvSiteRepository.findAll().isEmpty();
-    }
-
-    public List<PVSiteEntity> getAllPVSiteEntities() {
-        return pvSiteRepository.findAll();
     }
 
     @EventListener(ApplicationReadyEvent.class)

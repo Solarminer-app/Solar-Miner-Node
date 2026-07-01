@@ -14,8 +14,8 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.i18n.LocaleChangeEvent;
 import com.vaadin.flow.i18n.LocaleChangeObserver;
-import de.verdox.pv_miner_extensions.modbus.TCPModbusClient;
-import de.verdox.pv_miner_extensions.restpv.RestPVClient;
+import de.verdox.pv_miner_extensions.inverter.modbustcp.TCPModbusClient;
+import de.verdox.pv_miner_extensions.inverter.rest.RestPVClient;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
 
 import java.util.concurrent.CompletableFuture;

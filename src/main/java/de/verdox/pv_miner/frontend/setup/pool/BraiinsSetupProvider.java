@@ -9,7 +9,7 @@ import de.verdox.pv_miner.SpringContextHelper;
 import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.frontend.components.CheckConnection;
-import de.verdox.pv_miner_extensions.braiins.pool.BraiinsPoolEntity;
+import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolEntity;
 
 import java.io.BufferedReader;
 import java.io.InputStream;

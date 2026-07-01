@@ -4,11 +4,11 @@ import de.verdox.pv_miner.SpringContextHelper;
 import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
 import de.verdox.pv_miner.miner.MinerApiClient;
 import de.verdox.pv_miner.miner.MiningOS;
-import de.verdox.pv_miner_extensions.modbus.TCPModbusClient;
-import de.verdox.pv_miner_extensions.modbus.config.ModbusConfigCreatorTemplate;
-import de.verdox.pv_miner_extensions.modbus.config.ModbusConfigStorage;
-import de.verdox.pv_miner_extensions.restpv.config.RestConfigCreatorTemplate;
-import de.verdox.pv_miner_extensions.restpv.config.RestConfigStorage;
+import de.verdox.pv_miner_extensions.inverter.modbustcp.TCPModbusClient;
+import de.verdox.pv_miner_extensions.inverter.modbustcp.config.ModbusConfigCreatorTemplate;
+import de.verdox.pv_miner_extensions.inverter.modbustcp.config.ModbusConfigStorage;
+import de.verdox.pv_miner_extensions.inverter.rest.config.RestConfigCreatorTemplate;
+import de.verdox.pv_miner_extensions.inverter.rest.config.RestConfigStorage;
 import org.springframework.stereotype.Service;
 
 import java.net.InetSocketAddress;
