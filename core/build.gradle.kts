@@ -35,7 +35,8 @@ graalvmNative {
 }
 
 dependencies {
-    implementation("io.netty:netty-all:4.2.15.Final")
+    implementation("io.netty:netty-handler:4.2.15.Final")
+
     implementation("io.grpc:grpc-okhttp:1.50.2")
     implementation("org.springframework.boot:spring-boot-starter-web")
     compileOnly("org.projectlombok:lombok")

@@ -27,6 +27,7 @@ public class MinerSession implements ProxyContext {
 
     private final ProxyProperties proxyProperties;
     private MiningProtocol miningProtocol;
+    private final FeeManager feeManager;
     private final MiningProtocolFactory factory;
 
     private String dynamicPool;
@@ -40,10 +41,10 @@ public class MinerSession implements ProxyContext {
     private boolean isConnectedToUpstream = false;
     private String currentTargetId = FeeManager.USER_TARGET_ID;
 
-    private final FeeManager feeManager = new FeeManager(new ArrayList<>());
     private String minerIp;
 
-    public MinerSession(MiningProtocolFactory factory, ProxyProperties proxyProperties) {
+    public MinerSession(FeeManager feeManager, MiningProtocolFactory factory, ProxyProperties proxyProperties) {
+        this.feeManager = feeManager;
         this.factory = factory;
         this.proxyProperties = proxyProperties;
     }

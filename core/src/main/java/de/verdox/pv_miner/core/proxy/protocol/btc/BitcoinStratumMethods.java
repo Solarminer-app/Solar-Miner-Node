@@ -2,10 +2,6 @@ package de.verdox.pv_miner.core.proxy.protocol.btc;
 
 public class BitcoinStratumMethods {
 
-    // ==========================================
-    // Miner -> Pool (Requests & Submissions)
-    // ==========================================
-
     /**
      * Usage: Initial handshake from miner to pool. Subscribes to the job stream.
      * Response: Pool answers with extranonce1 (hex string for miner) and extranonce2_size (length of bytes the miner is allowed to count up).
@@ -43,11 +39,6 @@ public class BitcoinStratumMethods {
      * Response: None / Boolean.
      */
     public static final String MINING_SUGGEST_DIFFICULTY = "mining.suggest_difficulty";
-
-
-    // ==========================================
-    // Pool -> Miner (Notifications & Requests)
-    // ==========================================
 
     /**
      * Usage: Pool sends a new block header / job to the miner.

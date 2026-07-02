@@ -1,43 +1,59 @@
 package de.verdox.pv_miner.core.proxy.fee;
 
-import lombok.Getter;
+import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicReference;
 
+@Service
 public class FeeManager {
     public static final String USER_TARGET_ID = "USER";
 
-    private final Map<String, FeeTarget> targetMap = new HashMap<>();
-    @Getter
-    private final List<FeeTarget> feeTargets;
-    private final double totalFeePercentage;
+    private final AtomicReference<State> state = new AtomicReference<>(new State(List.of(), Map.of(), 0.0));
 
-    public FeeManager(List<FeeTarget> feeTargets) {
-        this.feeTargets = feeTargets;
+    private record State(List<FeeTarget> feeTargets, Map<String, FeeTarget> targetMap, double totalFeePercentage) {}
+
+    public void updateTargets(List<FeeTarget> feeTargets) {
+        Map<String, FeeTarget> targetMap = new HashMap<>();
+        double totalFeePercentage = 0.0;
+
         for (FeeTarget target : feeTargets) {
-            this.targetMap.put(target.targetId(), target);
+            targetMap.put(target.targetId(), target);
+            totalFeePercentage += target.percentage();
         }
-        this.totalFeePercentage = feeTargets.stream().mapToDouble(FeeTarget::percentage).sum();
+
+        this.state.set(new State(feeTargets, targetMap, totalFeePercentage));
     }
 
     public FeeTarget getTarget(String targetId) {
-        return targetMap.get(targetId);
+        return state.get().targetMap().get(targetId);
+    }
+
+    public List<FeeTarget> getFeeTargets() {
+        return state.get().feeTargets();
     }
 
     public String rollNextJobTarget() {
-        if (feeTargets.isEmpty() || totalFeePercentage <= 0) return USER_TARGET_ID;
+        State currentState = state.get();
+        if (currentState.feeTargets().isEmpty() || currentState.totalFeePercentage() <= 0) {
+            return USER_TARGET_ID;
+        }
 
         double roll = ThreadLocalRandom.current().nextDouble(100.0);
 
-        if (roll >= totalFeePercentage) return USER_TARGET_ID;
+        if (roll >= currentState.totalFeePercentage()) {
+            return USER_TARGET_ID;
+        }
 
         double currentThreshold = 0.0;
-        for (FeeTarget target : feeTargets) {
+        for (FeeTarget target : currentState.feeTargets()) {
             currentThreshold += target.percentage();
-            if (roll < currentThreshold) return target.targetId();
+            if (roll < currentThreshold) {
+                return target.targetId();
+            }
         }
 
         return USER_TARGET_ID;
