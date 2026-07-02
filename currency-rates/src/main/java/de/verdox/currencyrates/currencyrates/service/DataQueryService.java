@@ -47,14 +47,14 @@ public class DataQueryService {
     public Optional<DailyUsdRates> getAllRatesForDate(LocalDate date, String timezone) {
         LocalDate utcDate = resolveUtcDate(date, timezone);
         Optional<DailyUsdRates> existingData = ratesRepository.findById(utcDate);
-        if (existingData.isEmpty()) {
-            LOGGER.info("Loading currency data for " + utcDate);
+        if (existingData.isEmpty() || existingData.get().getRates().isEmpty()) {
+            LOGGER.info("Data for " + utcDate + " not available. Gathering...");
             try {
                 DailyUsdRates freshData = dataGathererService.fetchAndSaveForDate(utcDate);
-                return Optional.of(freshData);
+                return Optional.ofNullable(freshData);
             } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "Could not load currency data for "+utcDate, e);
-                return Optional.empty();
+                LOGGER.log(Level.SEVERE, "Could not fetch data for date" + utcDate, e);
+                return existingData;
             }
         }
 

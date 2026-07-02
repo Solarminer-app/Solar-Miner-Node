@@ -4,6 +4,8 @@ import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -24,12 +26,10 @@ public class GlobalConstantsService {
     private static final Logger LOGGER = Logger.getLogger(GlobalConstantsService.class.getSimpleName());
 
     private final CurrencyMicroServiceRestClient restClient;
-
-    private Map<String, Double> currentExchangeRates = new ConcurrentHashMap<>();
-    private CurrencyMicroServiceRestClient.BitcoinNetworkStatsDTO currentBitcoinStats;
-
     private final Map<LocalDate, Map<String, Double>> historicalRatesCache = new ConcurrentHashMap<>();
     private final Map<LocalDate, CurrencyMicroServiceRestClient.BitcoinNetworkStatsDTO> historicalBtcCache = new ConcurrentHashMap<>();
+    private Map<String, Double> currentExchangeRates = new ConcurrentHashMap<>();
+    private CurrencyMicroServiceRestClient.BitcoinNetworkStatsDTO currentBitcoinStats;
 
     public GlobalConstantsService(@Value("${solarmining.currency-service.url}") String url) {
         if (url == null) {
@@ -39,7 +39,7 @@ public class GlobalConstantsService {
         LOGGER.info("Started Global Constants Client Service listening on: " + url);
     }
 
-    @PostConstruct
+    @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
         LOGGER.log(Level.INFO, "Initial fetching of global constants from remote Microservice...");
         fetchLatestData();
@@ -58,35 +58,24 @@ public class GlobalConstantsService {
     }
 
     public long getTodayMiningDifficulty() {
-        if(currentBitcoinStats == null) {
-            return 0;
-        }
-        return currentBitcoinStats.difficulty();
+        return currentBitcoinStats != null ? currentBitcoinStats.difficulty() : -1L;
     }
 
     public int getTodayBlockSubsidy() {
-        if(currentBitcoinStats == null) {
-            return 0;
-        }
-        return currentBitcoinStats.blockSubsidy();
+        return currentBitcoinStats != null ? currentBitcoinStats.blockSubsidy() : 0;
     }
 
     public int getTodayAverageTxPrice24h() {
-        if(currentBitcoinStats == null) {
-            return 0;
-        }
-        return currentBitcoinStats.averageTxPrice24h();
+        return currentBitcoinStats != null ? currentBitcoinStats.averageTxPrice24h() : -1;
     }
 
     private void fetchLatestData() {
         try {
             LocalDate todayUtc = LocalDate.now(ZoneOffset.UTC);
 
-            restClient.getAllExchangeRates(todayUtc, "UTC")
-                    .ifPresent(rates -> this.currentExchangeRates = rates);
+            restClient.getAllExchangeRates(todayUtc, "UTC").ifPresent(rates -> this.currentExchangeRates = rates);
 
-            restClient.getBitcoinStats(todayUtc, "UTC")
-                    .ifPresent(stats -> this.currentBitcoinStats = stats);
+            restClient.getBitcoinStats(todayUtc, "UTC").ifPresent(stats -> this.currentBitcoinStats = stats);
 
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Could not fetch latest data from Microservice: " + e.getMessage());
@@ -99,9 +88,7 @@ public class GlobalConstantsService {
                 restClient.getAllExchangeRates(date, "UTC").ifPresent(rates -> historicalRatesCache.put(date, rates));
             }
         }
-        return Optional.ofNullable(historicalRatesCache.get(date))
-                .map(rates -> rates.getOrDefault(currencyCode.toLowerCase(), -1.0))
-                .orElse(-1.0);
+        return Optional.ofNullable(historicalRatesCache.get(date)).map(rates -> rates.getOrDefault(currencyCode.toLowerCase(), -1.0)).orElse(-1.0);
     }
 
     private void fetchHistoricalData() {
@@ -155,7 +142,8 @@ public class GlobalConstantsService {
         double rateFromInUsd = getHistoricalRateInUsd(fromCode, date);
         double rateToInUsd = getHistoricalRateInUsd(toCode, date);
 
-        if (rateFromInUsd <= 0 || rateToInUsd <= 0) {
+        if (rateFromInUsd <= 0.0 || rateToInUsd <= 0.0) {
+            LOGGER.log(Level.WARNING, "Cannot convert. Missing historical rates for " + date);
             return -1.0;
         }
 

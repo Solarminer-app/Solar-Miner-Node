@@ -85,8 +85,8 @@ public class InfluxService {
         strategies.put(BraiinsPoolEntity.class, new BraiinsPoolInfluxStrategy());
         strategies.put(NiceHashPoolEntity.class, new NiceHashPoolInfluxStrategy());
 
-        registerTasksForDailyStatisticsAccumulator(new PVStatisticsAccumulator(), "pv_site_data");
-        registerTasksForDailyStatisticsAccumulator(new MinerStatisticsAccumulator(), "miner_data");
+        registerTasksForDailyStatisticsAccumulator("daily_pv_site_data_task",new PVStatisticsAccumulator(), "pv_site_data");
+        registerTasksForDailyStatisticsAccumulator("daily_miner_data_task", new MinerStatisticsAccumulator(), "miner_data");
     }
 
     public InfluxDBClient getInfluxDBClient() {
@@ -147,13 +147,38 @@ public class InfluxService {
         return strategy;
     }
 
-    public void registerTasksForDailyStatisticsAccumulator(DailyStatisticAccumulator<?, ?> accumulator, String measurement) {
+    public void registerTasksForDailyStatisticsAccumulator(String taskName, DailyStatisticAccumulator<?, ?> accumulator, String measurement) {
         if (!accumulator.supportsDownsampling()) return;
 
         String fluxScript = accumulator.generateDownsamplingTaskQuery(influxBucket, getDownSampledInfluxBucket(), measurement);
         TasksApi tasksApi = influxDBClient.getTasksApi();
 
-        tasksApi.createTask(new TaskCreateRequest().flux(fluxScript).org(influxOrg));
+        try {
+            var existingTasks = tasksApi.findTasks();
+
+            var existingTaskOpt = existingTasks.stream()
+                    .filter(t -> taskName.equals(t.getName()))
+                    .findFirst();
+
+            if (existingTaskOpt.isPresent()) {
+                var existingTask = existingTaskOpt.get();
+
+                if (!fluxScript.equals(existingTask.getFlux())) {
+                    LOGGER.info("Updating changed influx task: " + taskName);
+
+                    existingTask.setFlux(fluxScript);
+                    tasksApi.updateTask(existingTask);
+                } else {
+                    LOGGER.info("Influx task already exists: " + taskName);
+                }
+            } else {
+                LOGGER.info("Registering new influx task: " + taskName);
+                tasksApi.createTask(new TaskCreateRequest().flux(fluxScript).org(influxOrg));
+            }
+
+        } catch (Exception e) {
+            LOGGER.severe("Could not register influx task '" + taskName + "': " + e.getMessage());
+        }
     }
 
     public <E extends QueryEntity<? extends Q>, Q extends QueryResult> List<FluxRecord> queryDownsampledData(

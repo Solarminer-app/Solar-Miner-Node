@@ -1,21 +1,21 @@
 package de.verdox.pv_miner.globalconstants;
 
+import java.time.LocalDate;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
-import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class CurrencyMicroServiceRestClient {
-    private static final Logger LOGGER = Logger.getLogger(CurrencyMicroServiceRestClient.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(CurrencyMicroServiceRestClient.class.getSimpleName());
     private final RestClient restClient;
 
     public CurrencyMicroServiceRestClient(String baseUrl) {
-        LOGGER.log(Level.INFO, "Creating client for currency micro service at: " + baseUrl);
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
                 .build();
@@ -32,8 +32,8 @@ public class CurrencyMicroServiceRestClient {
                     .retrieve()
                     .body(BitcoinNetworkStatsDTO.class);
             return Optional.ofNullable(response);
-        } catch (Throwable e) {
-            LOGGER.log(Level.WARNING, "Failed to get bitcoin-stats for date: " + date, e);
+        } catch (RestClientException e) {
+            LOGGER.log(Level.WARNING, "Failed to fetch Bitcoin stats: " + e.getMessage());
             return Optional.empty();
         }
     }
@@ -47,11 +47,10 @@ public class CurrencyMicroServiceRestClient {
                             .queryParam("timezone", timezone)
                             .build())
                     .retrieve()
-                    .body(new ParameterizedTypeReference<>() {
-                    });
+                    .body(new ParameterizedTypeReference<>() {});
             return Optional.ofNullable(response);
-        } catch (Throwable e) {
-            LOGGER.log(Level.WARNING, "Failed to get exchange rates for date: " + date, e);
+        } catch (RestClientException e) {
+            LOGGER.log(Level.WARNING, "Failed to fetch exchange rates: " + e.getMessage());
             return Optional.empty();
         }
     }
@@ -69,7 +68,8 @@ public class CurrencyMicroServiceRestClient {
                     .retrieve()
                     .body(ConversionResponseDTO.class);
             return Optional.ofNullable(response);
-        } catch (HttpClientErrorException.NotFound e) {
+        } catch (RestClientException e) {
+            LOGGER.log(Level.WARNING, "Failed to fetch conversion rate: " + e.getMessage());
             return Optional.empty();
         }
     }
@@ -81,14 +81,12 @@ public class CurrencyMicroServiceRestClient {
             double hashRateThs,
             int blockSubsidy,
             int averageTxPrice24h
-    ) {
-    }
+    ) {}
 
     public record ConversionResponseDTO(
             String baseCurrency,
             String targetCurrency,
             double exchangeRate,
             LocalDate dataUtcDate
-    ) {
-    }
+    ) {}
 }

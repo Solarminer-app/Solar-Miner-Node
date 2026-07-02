@@ -4,7 +4,7 @@ import com.influxdb.query.FluxRecord;
 import de.verdox.pv_miner.SpringContextHelper;
 import de.verdox.pv_miner.influx.InfluxService;
 import de.verdox.pv_miner.influx.InfluxUtil;
-import de.verdox.pv_miner.miner.Miner;
+import de.verdox.pv_miner.miner.MinerEntityController;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.vserializer.SerializableField;
 import de.verdox.vserializer.generic.Serializer;
@@ -426,14 +426,14 @@ public class ControllerDSL {
     /**
      * Maps action definitions to the underlying API calls for the miners.
      */
-    public static class ControllerActionType<T> implements BiFunction<Miner, String, Boolean> {
+    public static class ControllerActionType<T> implements BiFunction<MinerEntityController, String, Boolean> {
         private static final Map<String, ControllerActionType<?>> actions = new HashMap<>();
         private static final Map<ControllerActionType<?>, String> actionsToIDMapping = new HashMap<>();
 
         public static final Serializer<ControllerActionType> SERIALIZER = SerializerBuilder.createObjectToPrimitiveSerializer("controller_action", ControllerActionType.class, Serializer.Primitive.STRING, actionsToIDMapping::get, actions::get);
 
-        public static final ControllerActionType<Long> SET_POWER_TARGET = register("power", Miner::setPowerTarget, Long::parseLong);
-        public static final ControllerActionType<Void> PAUSE = register("pause", Miner::pauseMining);
+        public static final ControllerActionType<Long> SET_POWER_TARGET = register("power", MinerEntityController::setPowerTarget, Long::parseLong);
+        public static final ControllerActionType<Void> PAUSE = register("pause", MinerEntityController::pauseMining);
         public static final ControllerActionType<Void> RESUME = register("resume", miner -> {
             var result = miner.resumeMining();
             if (!result) {
@@ -442,11 +442,11 @@ public class ControllerDSL {
             return result;
         });
 
-        private static ControllerActionType<Void> register(String name, Function<Miner, Boolean> action) {
+        private static ControllerActionType<Void> register(String name, Function<MinerEntityController, Boolean> action) {
             return register(name, new ControllerActionType<>(name, (miner, unused) -> action.apply(miner), s -> null));
         }
 
-        private static <T> ControllerActionType<T> register(String name, BiFunction<Miner, T, Boolean> action, Function<String, T> toString) {
+        private static <T> ControllerActionType<T> register(String name, BiFunction<MinerEntityController, T, Boolean> action, Function<String, T> toString) {
             return register(name, new ControllerActionType<>(name, action, toString));
         }
 
@@ -457,10 +457,10 @@ public class ControllerDSL {
         }
 
         private final String name;
-        private final BiFunction<Miner, T, Boolean> controllerLogic;
+        private final BiFunction<MinerEntityController, T, Boolean> controllerLogic;
         private final Function<String, T> stringToValueParser;
 
-        private ControllerActionType(String name, BiFunction<Miner, T, Boolean> controllerLogic, Function<String, T> stringToValueParser) {
+        private ControllerActionType(String name, BiFunction<MinerEntityController, T, Boolean> controllerLogic, Function<String, T> stringToValueParser) {
             this.name = name;
             this.controllerLogic = controllerLogic;
             this.stringToValueParser = stringToValueParser;
@@ -471,7 +471,7 @@ public class ControllerDSL {
         }
 
         @Override
-        public Boolean apply(Miner miner, String s) {
+        public Boolean apply(MinerEntityController miner, String s) {
             if (stringToValueParser.apply(s) != null) {
                 return controllerLogic.apply(miner, stringToValueParser.apply(s));
             }

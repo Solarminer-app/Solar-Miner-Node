@@ -1,7 +1,6 @@
 package de.verdox.pv_miner.finance;
 
 import de.verdox.pv_miner.dailystatistic.DailyStatisticService;
-import de.verdox.pv_miner.featuretracking.FeatureTrackingService;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.miningpool.MiningPoolStatisticsAccumulator;
@@ -24,15 +23,13 @@ public class PVFinanceService {
 
     private final Map<UUID, HistoricalBtcCache> allTimeHistoricalBtcCache = new ConcurrentHashMap<>();
     private final Map<UUID, Object> entityLocks = new ConcurrentHashMap<>();
-    private final FeatureTrackingService featureTrackingService;
 
     private record HistoricalBtcCache(LocalDate cachedDate, double historicalBtcAmount) {
     }
 
-    public PVFinanceService(DailyStatisticService dailyStatisticService, GlobalConstantsService globalConstantsService, FeatureTrackingService featureTrackingService) {
+    public PVFinanceService(DailyStatisticService dailyStatisticService, GlobalConstantsService globalConstantsService) {
         this.dailyStatisticService = dailyStatisticService;
         this.globalConstantsService = globalConstantsService;
-        this.featureTrackingService = featureTrackingService;
     }
 
     public List<PVStatisticDto> getFinanceData(PVSiteEntity pvSiteEntity, LocalDate filterDateFrom, LocalDate filterDateTo, ZoneId zoneId, CustomCurrency targetCurrency) {
@@ -184,10 +181,6 @@ public class PVFinanceService {
 
         double effYield = minerConsumption > 0 ? (btcHistoricFiat / minerConsumption) : 0.0;
 
-        if(!featureTrackingService.hasProLicense()) {
-            effYield = 0;
-        }
-
         Money effectiveYield = new Money(effYield, targetCurrency);
 
 
@@ -195,9 +188,6 @@ public class PVFinanceService {
         return new PVStatisticDto(currentDay, totalPvProduction, minerConsumption, miningPvUsage, miningGridUsage, householdEigenverbrauch, totalExportKwh, btcAmount, miningCost, effectiveYield, btcLiveValue, btcHistoricValue, householdSavings, feedInRevenue, histFeedIn);
     }
 
-    // =========================================================================
-    // GLOBAL KPI CALCULATION (ALL-TIME)
-    // =========================================================================
     public FinanceKpiDto calculateKPIs(PVSiteEntity pvSiteEntity, List<PVStatisticDto> currentStats, CustomCurrency targetCurrency, ZoneId zoneId) {
         double pvInvestRaw = pvSiteEntity.getPvCost() != null ? globalConstantsService.convert(pvSiteEntity.getPvCost(), targetCurrency).getRawMoneyAmount() : 0.0;
         double hardwareInvestRaw = pvSiteEntity.getMiners().stream()
@@ -242,10 +232,6 @@ public class PVFinanceService {
             estimatedBreakEvenDate = today.plusDays(daysToBreakEven);
         } else if (roiProgress >= 100.0) {
             estimatedBreakEvenDate = today;
-        }
-
-        if(!featureTrackingService.hasProLicense()) {
-            estimatedBreakEvenDate = LocalDate.of(2000, 1, 1);
         }
 
         return new FinanceKpiDto(

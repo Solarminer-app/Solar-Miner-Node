@@ -71,7 +71,7 @@ public class MinerClusterService {
                 clusterInstances.putIfAbsent(configName, new ClusterInstance(configName, clusterScheduler));
             }
         } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Fehler beim Laden der Cluster-Konfigurationen.", e);
+            LOGGER.log(Level.SEVERE, "Could not load cluster config.", e);
         }
     }
 
@@ -98,7 +98,7 @@ public class MinerClusterService {
 
     public void startCluster(String clusterName, PVSiteEntity pvSite) throws Exception {
         ClusterInstance cluster = getCluster(clusterName);
-        if (cluster == null) throw new IllegalArgumentException("Cluster nicht gefunden: " + clusterName);
+        if (cluster == null) throw new IllegalArgumentException("Cluster not found: " + clusterName);
 
         MinerControllerConfig latestConfig = configStorage.get(clusterName);
         cluster.start(pvSite, latestConfig);
@@ -194,7 +194,7 @@ public class MinerClusterService {
         public void start(PVSiteEntity pvSite, MinerControllerConfig config) {
             if (isRunning) return;
             if (assignedMinerIds.isEmpty()) {
-                LOGGER.warning("Cluster " + clusterName + " hat keine Miner zugewiesen. Start abgebrochen.");
+                LOGGER.warning("Cluster " + clusterName + " has no miners.");
                 return;
             }
 
@@ -205,7 +205,7 @@ public class MinerClusterService {
                     activeController::evaluate, 0, 30, TimeUnit.SECONDS
             );
             this.isRunning = true;
-            LOGGER.info("Cluster " + clusterName + " Automation gestartet.");
+            LOGGER.info("Cluster " + clusterName + " automation started.");
         }
 
         public void stop() {
@@ -218,7 +218,7 @@ public class MinerClusterService {
                  entityControllerService.getController(miner).pauseMining();
              }
             this.isRunning = false;
-            LOGGER.info("Cluster " + clusterName + " Automation gestoppt.");
+            LOGGER.info("Cluster " + clusterName + " automation stopped.");
         }
     }
 }

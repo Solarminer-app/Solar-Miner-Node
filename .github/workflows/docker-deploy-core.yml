@@ -9,13 +9,19 @@ on:
   workflow_dispatch:
 
 env:
-  # Dein offizieller Docker Hub Pfad, passend zur compose.yml
   IMAGE_NAME: verdox/solar-miner-core
   SUBMODULE_DIR: core
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
 
     steps:
       - name: Checkout repository
@@ -30,20 +36,19 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Logge dich in Docker Hub ein
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Baue das Image und übergebe die Secrets an den isolierten Paketo-Builder
       - name: Build and Publish Spring Boot Native Image
         env:
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
+          ./gradlew :${{ env.SUBMODULE_DIR }}:clean
           ./gradlew :${{ env.SUBMODULE_DIR }}:bootBuildImage \
-            --imageName=${{ env.IMAGE_NAME }}:latest \
+            --imageName=${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }} \
             --publishImage \
             -x test

@@ -1,10 +1,9 @@
 package de.verdox.pv_miner.entity;
 
 import de.verdox.pv_miner.influx.QueryResult;
+import de.verdox.pv_miner.miner.MinerQueryStrategy;
 import de.verdox.pv_miner_extensions.agent.AgentMinerEntity;
-import de.verdox.pv_miner_extensions.agent.AgentMinerQueryStrategy;
 import de.verdox.pv_miner_extensions.braiins.miner.BraiinsOSAsicMinerEntity;
-import de.verdox.pv_miner_extensions.braiins.miner.ASICQueryStrategy;
 import de.verdox.pv_miner_extensions.braiins.pool.BraiinsPoolEntity;
 import de.verdox.pv_miner_extensions.braiins.pool.BraiinsPoolQueryStrategy;
 import de.verdox.pv_miner_extensions.modbus.ModbusPVSite;
@@ -28,8 +27,10 @@ public class EntityQueryService {
     private final Map<UUID, QueryResult> cachedLastQueries = new WeakHashMap<>();
 
     public EntityQueryService() {
-        this.strategies.put(AgentMinerEntity.class, new AgentMinerQueryStrategy());
-        this.strategies.put(BraiinsOSAsicMinerEntity.class, new ASICQueryStrategy());
+        MinerQueryStrategy minerQueryStrategy = new MinerQueryStrategy();
+
+        this.strategies.put(AgentMinerEntity.class, minerQueryStrategy);
+        this.strategies.put(BraiinsOSAsicMinerEntity.class, minerQueryStrategy);
 
         this.strategies.put(ModbusPVSite.class, new ModbusPVSiteQueryStrategy());
         this.strategies.put(RestPVSite.class, new RestPVSiteQueryStrategy());
@@ -57,7 +58,6 @@ public class EntityQueryService {
                 Strategy<B, Q> strategy = (Strategy<B, Q>) strategies.get(entity.getClass());
                 Objects.requireNonNull(strategy);
                 strategy.ping(entity);
-                //query(entity);
                 return true;
             } catch (Throwable e) {
                 LOGGER.log(Level.SEVERE, "Ping not successful for entity " + entity, e);

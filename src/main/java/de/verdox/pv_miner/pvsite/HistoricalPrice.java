@@ -41,7 +41,6 @@ public class HistoricalPrice implements Comparable<HistoricalPrice> {
         this.price = price;
     }
 
-    // Sortiert standardmäßig absteigend nach Datum (neueste zuerst)
     @Override
     public int compareTo(HistoricalPrice o) {
         return o.validFrom.compareTo(this.validFrom);

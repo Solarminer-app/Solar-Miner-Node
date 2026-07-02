@@ -32,7 +32,6 @@ import com.vaadin.flow.server.StreamResource;
 import com.vaadin.flow.theme.lumo.Lumo;
 import de.verdox.pv_miner.SpringContextHelper;
 import de.verdox.pv_miner.entity.EntityService;
-import de.verdox.pv_miner.featuretracking.FeatureTrackingService;
 import de.verdox.pv_miner.finance.FinanceKpiDto;
 import de.verdox.pv_miner.finance.PVFinanceService;
 import de.verdox.pv_miner.finance.PVStatisticDto;
@@ -49,7 +48,6 @@ import de.verdox.pv_miner.frontend.components.translatable.TranslatableButton;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
 import de.verdox.pv_miner.frontend.AppMainLayout;
 import de.verdox.pv_miner.frontend.FrontendColor;
-import de.verdox.pv_miner.frontend.components.Blur;
 
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -66,7 +64,6 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
     private final PVSiteRepository pVSiteRepository;
     private final PVFinanceService pvFinanceService;
     private final TaxReportService taxReportService;
-    private final FeatureTrackingService featureTrackingService;
 
     private PVSiteEntity pvSiteEntity;
 
@@ -105,15 +102,14 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
                             UserSessionContext userSessionContext,
                             PVSiteRepository pVSiteRepository,
                             PVFinanceService pvFinanceService,
-                            TaxReportService taxReportService,
-                            FeatureTrackingService featureTrackingService) {
+                            TaxReportService taxReportService
+    ) {
 
         this.entityService = entityService;
         this.userSessionContext = userSessionContext;
         this.pVSiteRepository = pVSiteRepository;
         this.pvFinanceService = pvFinanceService;
         this.taxReportService = taxReportService;
-        this.featureTrackingService = featureTrackingService;
 
         getElement().setAttribute("theme", Lumo.DARK);
         addClassName("finance-page");
@@ -151,12 +147,7 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
         estimatedBreakEvenSpan.addClassName("stat-card-value");
         estimatedBreakEvenSpan.getStyle().set("color", FrontendColor.TEXT_VALUE_GREEN);
 
-        if (!featureTrackingService.hasProLicense()) {
-            Blur blurValue = new Blur(estimatedBreakEvenSpan, "🔒 Pro", clickEvent -> showProNotification());
-            breakEvenTextGroup.add(breakEvenTitle, blurValue);
-        } else {
-            breakEvenTextGroup.add(breakEvenTitle, estimatedBreakEvenSpan);
-        }
+        breakEvenTextGroup.add(breakEvenTitle, estimatedBreakEvenSpan);
 
         estimatedBreakEvenCard.add(breakEvenIcon, breakEvenTextGroup);
         globalStatsLayout.add(estimatedBreakEvenCard);
@@ -245,12 +236,6 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
         datePickersWrapper.getStyle().set("display", "flex");
         datePickersWrapper.getStyle().set("gap", "16px");
 
-        if (!featureTrackingService.hasProLicense()) {
-            datePickerFrom.setReadOnly(true);
-            datePickerTo.setReadOnly(true);
-            datePickersWrapper.getElement().addEventListener("click", e -> showProNotification());
-        }
-
         HorizontalLayout leftControls = new HorizontalLayout(datePickersWrapper, calculateStatistics);
         leftControls.setAlignItems(FlexComponent.Alignment.BASELINE);
         leftControls.getStyle().set("flex-wrap", "wrap");
@@ -274,15 +259,8 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
         HorizontalLayout rightControls = new HorizontalLayout();
         rightControls.setAlignItems(FlexComponent.Alignment.BASELINE);
 
-        if (!featureTrackingService.hasProLicense()) {
-            HorizontalLayout exportLayout = new HorizontalLayout(csvAnchor, miningPdfAnchor, pvPdfAnchor);
-            exportLayout.getStyle().set("flex-wrap", "wrap");
-            Blur blurredExport = new Blur(exportLayout, "🔒 Pro Feature", clickEvent -> showProNotification());
-            rightControls.add(blurredExport);
-        } else {
-            rightControls.add(csvAnchor, miningPdfAnchor, pvPdfAnchor);
-            rightControls.getStyle().set("flex-wrap", "wrap");
-        }
+        rightControls.add(csvAnchor, miningPdfAnchor, pvPdfAnchor);
+        rightControls.getStyle().set("flex-wrap", "wrap");
 
         topRow.add(leftControls, rightControls);
 
@@ -330,10 +308,6 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
                 badge.addClassName("negative");
             }
 
-            if (!featureTrackingService.hasProLicense()) {
-                return new Blur(badge, "🔒 Pro", clickEvent -> showProNotification());
-            }
-
             return badge;
         }).setHeader(new TranslatableSpan("finance.grid.effective_revenue")).setAutoWidth(true);
 
@@ -366,12 +340,7 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
         salesPdfAnchor.getElement().setAttribute("download", true);
         salesPdfAnchor.add(exportSalesPdfBtn);
 
-        if (!featureTrackingService.hasProLicense()) {
-            Blur blurredExport = new Blur(salesPdfAnchor, "🔒 Pro Feature", clickEvent -> showProNotification());
-            ledgerHeaderRow.add(title, blurredExport);
-        } else {
-            ledgerHeaderRow.add(title, salesPdfAnchor);
-        }
+        ledgerHeaderRow.add(title, salesPdfAnchor);
 
         HorizontalLayout formLayout = new HorizontalLayout(saleDatePicker, saleBtcField, saleFiatField, addSaleBtn);
         formLayout.addClassName("finance-filter-row");
@@ -464,16 +433,8 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
         datePickerTo.setMin(pvSiteEntity.getSetupDate());
         datePickerTo.setMax(LocalDate.now());
 
-        if (!featureTrackingService.hasProLicense()) {
-            LocalDate today = LocalDate.now(zoneId);
-            datePickerFrom.setValue(today.withDayOfMonth(1));
-            datePickerTo.setValue(today);
-            datePickerFrom.setReadOnly(true);
-            datePickerTo.setReadOnly(true);
-        } else {
-            datePickerFrom.setValue(pvSiteEntity.getSetupDate());
-            datePickerTo.setValue(LocalDate.now(zoneId));
-        }
+        datePickerFrom.setValue(pvSiteEntity.getSetupDate());
+        datePickerTo.setValue(LocalDate.now(zoneId));
 
         if (pvSiteEntity.getBitcoinSales() != null) {
             ledgerGrid.setItems(pvSiteEntity.getBitcoinSales());
@@ -570,13 +531,7 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
 
             double avgEffYield = (totalPvUsage + totalGridUsage) > 0 ? (totalLiveValue / (totalPvUsage + totalGridUsage)) : 0.0;
 
-            if (!featureTrackingService.hasProLicense()) {
-                Span dummySpan = new Span("0.00 EUR avg");
-                Blur footerBlur = new Blur(dummySpan, "🔒 Pro", click -> showProNotification());
-                historyFooterRow.getCell(historyGrid.getColumns().get(9)).setComponent(footerBlur);
-            } else {
-                historyFooterRow.getCell(historyGrid.getColumns().get(9)).setText(new Money(avgEffYield, targetCurrency).toString() + " avg");
-            }
+            historyFooterRow.getCell(historyGrid.getColumns().get(9)).setText(new Money(avgEffYield, targetCurrency) + " avg");
         }
 
 

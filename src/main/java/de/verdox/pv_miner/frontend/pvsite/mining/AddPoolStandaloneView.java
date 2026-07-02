@@ -51,18 +51,30 @@ public class AddPoolStandaloneView extends VerticalLayout implements BeforeEnter
 
         stepTitle = new TranslatableH2("");
 
+        String maxLayoutWidth = "1400px";
+
         contentArea = new Div();
         contentArea.setWidthFull();
-        contentArea.setMaxWidth("1000px");
+        contentArea.setMaxWidth(maxLayoutWidth);
         contentArea.addClassName("wizard-content-area");
+
+        contentArea.getStyle().set("flex-grow", "1");
+        contentArea.getStyle().set("overflow-y", "auto");
+        contentArea.getStyle().set("padding", "20px 0");
+        contentArea.getStyle().set("display", "flex");
+        contentArea.getStyle().set("flex-direction", "column");
 
         HorizontalLayout footer = new HorizontalLayout();
         footer.setWidthFull();
-        footer.setMaxWidth("1000px");
+        footer.setMaxWidth(maxLayoutWidth);
         footer.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
 
+        footer.getStyle().set("flex-shrink", "0");
+        footer.getStyle().set("padding-top", "20px");
+        footer.getStyle().set("border-top", "1px solid var(--lumo-contrast-10pct)");
+
         backButton = new Button(getTranslation("btn.cancel"), e -> previousStep());
-        nextButton = new Button("Weiter ->", e -> nextStep());
+        nextButton = new Button(getTranslation("btn.next"), e -> nextStep());
         nextButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
         footer.add(backButton, nextButton);

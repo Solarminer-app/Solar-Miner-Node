@@ -3,7 +3,7 @@ package de.verdox.pv_miner.miningcontroller;
 import de.verdox.pv_miner.SpringContextHelper;
 import de.verdox.pv_miner.entity.EntityControllerService;
 import de.verdox.pv_miner.entity.EntityQueryService;
-import de.verdox.pv_miner.miner.Miner;
+import de.verdox.pv_miner.miner.MinerEntityController;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.miningcontroller.dsl.ControllerDSL;
@@ -201,13 +201,13 @@ public class ClusterController {
             }
         }
     } private void applyPowerAndRecordState(MinerEntity<?> miner, Object controller, ControllerDSL.ControllerAction action, String valueStr, ControllerDSL.OperatingMode mode) {
-        action.controllerActionType().apply((Miner) controller, valueStr);
+        action.controllerActionType().apply((MinerEntityController) controller, valueStr);
         double expectedPower = Double.parseDouble(valueStr);
         activeLocks.put(miner.getId(), new MinerLock(Instant.now().plus(mode.minRunTime()), Instant.now(), expectedPower));
     }
 
     private void pauseMiner(MinerEntity<?> miner, Object controller, ControllerDSL.OperatingMode mode) {
-        ControllerDSL.ControllerActionType.PAUSE.apply((Miner) controller, null);
+        ControllerDSL.ControllerActionType.PAUSE.apply((MinerEntityController) controller, null);
         activeLocks.put(miner.getId(), new MinerLock(Instant.now().plus(mode.minIdleTime()), Instant.now(), 0.0));
     }
 
@@ -246,7 +246,7 @@ public class ClusterController {
         for (MinerEntity<?> miner : minerCluster) {
             if (!isMinerLocked(miner, queryService)) {
                 var controller = controllerService.getController(miner);
-                ControllerDSL.ControllerActionType.PAUSE.apply((Miner) controller, null);
+                ControllerDSL.ControllerActionType.PAUSE.apply((MinerEntityController) controller, null);
                 activeLocks.put(miner.getId(), new MinerLock(Instant.now().plus(Duration.ofMinutes(5)), Instant.now(), 0.0));
             }
         }

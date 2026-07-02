@@ -1,6 +1,8 @@
 package de.verdox.pv_miner.frontend.setup.pool;
 
+import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.formlayout.FormLayout;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -26,24 +28,20 @@ import java.util.List;
 public class MiningPoolStep extends VerticalLayout implements WizardStep, LocaleChangeObserver {
 
     private final TextField bolt12AddressField = new TextField();
-
     private final List<MiningPoolSetupProvider> supportedPools = new ArrayList<>();
-
     private final HorizontalLayout cardsContainer;
     private final VerticalLayout configContainer;
-    private VerticalLayout selectedCard;
+    private final Checkbox skipCheckbox;
 
+    private VerticalLayout selectedCard;
     private boolean isPlugAndPlaySelected = false;
     private boolean manualConnectionVerified = false;
     private final Runnable onValidationChanged;
-
     private MiningPoolSetupProvider activeManualProvider;
-
     private PVSiteEntity existingSite;
 
     public MiningPoolStep(Runnable onValidationChanged) {
         this.onValidationChanged = onValidationChanged;
-
         supportedPools.add(new BraiinsSetupProvider());
 
         setSizeFull();
@@ -55,7 +53,10 @@ public class MiningPoolStep extends VerticalLayout implements WizardStep, Locale
         TranslatableSpan subtitle = new TranslatableSpan("setup.pool.subtitle");
         subtitle.getStyle().set("color", FrontendColor.TEXT_VALUE_GRAY);
 
-        VerticalLayout header = new VerticalLayout(title, subtitle);
+        skipCheckbox = new Checkbox(getTranslation("setup.pool.skip", "Schritt überspringen (Kein Pool / Miner konfiguriert)"));
+        skipCheckbox.getStyle().set("margin-top", "10px");
+
+        VerticalLayout header = new VerticalLayout(title, subtitle, skipCheckbox);
         header.setAlignItems(Alignment.CENTER);
         header.setPadding(false);
         header.setSpacing(false);
@@ -63,19 +64,27 @@ public class MiningPoolStep extends VerticalLayout implements WizardStep, Locale
 
         cardsContainer = new HorizontalLayout();
         cardsContainer.setWidthFull();
-        cardsContainer.setMaxWidth("750px");
+
+        cardsContainer.setMaxWidth("1200px");
         cardsContainer.setJustifyContentMode(JustifyContentMode.CENTER);
         cardsContainer.setSpacing(true);
         cardsContainer.getStyle().set("flex-wrap", "wrap");
 
         configContainer = new VerticalLayout();
         configContainer.setWidthFull();
-        configContainer.setMaxWidth("750px");
+
+        configContainer.setMaxWidth("1200px");
         configContainer.setPadding(false);
         configContainer.getStyle().set("margin-top", "20px");
 
-        buildCards();
+        skipCheckbox.addValueChangeListener(e -> {
+            boolean skip = e.getValue();
+            cardsContainer.setEnabled(!skip);
+            configContainer.setEnabled(!skip);
+            onValidationChanged.run();
+        });
 
+        buildCards();
         add(header, cardsContainer, configContainer);
     }
 
@@ -186,13 +195,8 @@ public class MiningPoolStep extends VerticalLayout implements WizardStep, Locale
     }
 
     public MiningPoolEntity<?> getSelectedPoolEntity() {
+        if (skipCheckbox.getValue()) return null;
         if (isPlugAndPlaySelected) {
-            // TODO: Oceans
-            /*
-            OceansPoolEntity oceans = new OceansPoolEntity();
-            oceans.setBolt12Offer(bolt12AddressField.getValue());
-            return oceans;
-            */
             throw new UnsupportedOperationException("OceansPoolEntity ist noch nicht implementiert!");
         } else if (activeManualProvider != null) {
             return activeManualProvider.getConfiguredEntity();
@@ -346,29 +350,34 @@ public class MiningPoolStep extends VerticalLayout implements WizardStep, Locale
         return disclaimerCard;
     }
 
-    private HorizontalLayout createManualLayout(MiningPoolSetupProvider strategy) {
-        HorizontalLayout layout = new HorizontalLayout();
+
+    private Div createManualLayout(MiningPoolSetupProvider strategy) {
+        Div layout = new Div();
         layout.setWidthFull();
-        layout.setAlignItems(Alignment.START);
         layout.getStyle()
+                .set("display", "flex")
+                .set("flex-wrap", "wrap")
+                .set("gap", "30px")
                 .set("background-color", FrontendColor.CARD_BACKGROUND_COLOR)
                 .set("border-radius", "12px")
                 .set("border", "1px solid #222226")
                 .set("padding", "var(--lumo-space-l)");
 
+
         VerticalLayout instructionsContainer = new VerticalLayout();
-        instructionsContainer.setWidth("55%");
         instructionsContainer.setPadding(false);
+        instructionsContainer.getStyle().set("flex", "1 1 400px");
 
         MarkdownView manualMarkdownView = new MarkdownView();
         manualMarkdownView.setMarkdown(strategy.getMarkdownInstructions());
         instructionsContainer.add(manualMarkdownView);
 
+
         VerticalLayout manualFormContainer = new VerticalLayout();
-        manualFormContainer.setWidth("45%");
         manualFormContainer.setSpacing(true);
         manualFormContainer.setPadding(false);
         manualFormContainer.getStyle()
+                .set("flex", "1 1 400px")
                 .set("background-color", "var(--lumo-contrast-5pct)")
                 .set("border-radius", "8px")
                 .set("padding", "var(--lumo-space-m)");
@@ -402,6 +411,7 @@ public class MiningPoolStep extends VerticalLayout implements WizardStep, Locale
         };
 
         manualFormContainer.add(formTitle, manualFormLayout, checkConnection);
+
         layout.add(instructionsContainer, manualFormContainer);
         return layout;
     }
@@ -418,11 +428,9 @@ public class MiningPoolStep extends VerticalLayout implements WizardStep, Locale
 
     @Override
     public boolean isValid() {
-        if (isPlugAndPlaySelected) {
-            return true;
-        } else {
-            return manualConnectionVerified;
-        }
+        if (skipCheckbox.getValue()) return true;
+        if (isPlugAndPlaySelected) return true;
+        return manualConnectionVerified;
     }
 
     @Override

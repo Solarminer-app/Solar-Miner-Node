@@ -4,6 +4,9 @@ import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
 import de.verdox.pv_miner.entity.EntityControllerService;
 import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.entity.EntityService;
+import de.verdox.pv_miner.frontend.setup.EconomicsStep;
+import de.verdox.pv_miner.frontend.setup.MinerSetupStep;
+import de.verdox.pv_miner.frontend.setup.PVSetupStep;
 import de.verdox.pv_miner.miner.MinerApiClient;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miningcontroller.MinerClusterService;
@@ -13,9 +16,6 @@ import de.verdox.pv_miner.pvsite.HistoricalPrice;
 import de.verdox.pv_miner.pvsite.PVPanels;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.util.Money;
-import de.verdox.pv_miner.frontend.setup.MinerSetupStep;
-import de.verdox.pv_miner.frontend.setup.PVSetupStep;
-import de.verdox.pv_miner.frontend.setup.PVSiteVariablesStep;
 import de.verdox.pv_miner_extensions.agent.AgentMinerEntity;
 import de.verdox.pv_miner_extensions.braiins.miner.BraiinsOSAsicMinerEntity;
 import de.verdox.pv_miner_extensions.modbus.ModbusPVSite;
@@ -30,9 +30,8 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
-
-// NEUE IMPORTE
 
 @Service
 public class WizardSaveService {
@@ -62,10 +61,10 @@ public class WizardSaveService {
             Set<PVSetupStep.DiscoveredPVDevice> pvDevices,
             Set<MinerSetupStep.MinerConfigEntry> miners,
             MiningPoolEntity<?> pool,
-            PVSiteVariablesStep.VariablesData variablesData) { // NEU
+            EconomicsStep.EconomicsData economicsData,
+            List<PVPanels> panelsList) {
 
         PVSiteEntity savedSite = null;
-
 
         for (PVSetupStep.DiscoveredPVDevice device : pvDevices) {
 
@@ -78,7 +77,8 @@ public class WizardSaveService {
                 modbusSite.setPort(device.getPort());
                 modbusSite.setModbusConfigName(device.getSelectedConfigName());
                 modbusSite.setSlaveId(device.getModbusSlaveId());
-                applyVariablesDataToSite(modbusSite, variablesData);
+
+                applyEconomicsDataToSite(modbusSite, economicsData);
 
                 savedSite = entityService.save(modbusSite);
             } else if ("Rest-API".equals(device.getProtocol())) {
@@ -91,16 +91,16 @@ public class WizardSaveService {
                 restSite.setRestPVConfigName(device.getSelectedConfigName());
                 restSite.setApiToken(device.getRestAPIToken());
 
-                applyVariablesDataToSite(restSite, variablesData);
+                applyEconomicsDataToSite(restSite, economicsData);
 
                 savedSite = entityService.save(restSite);
             }
             break;
         }
 
-        // --- NEU: PV Panels abspeichern ---
-        if (savedSite != null && variablesData != null && variablesData.panels() != null) {
-            for (PVPanels panel : variablesData.panels()) {
+
+        if (savedSite != null && panelsList != null && !panelsList.isEmpty()) {
+            for (PVPanels panel : panelsList) {
                 panel.setParentEntity(savedSite);
                 entityService.save(savedSite, panel);
             }
@@ -109,7 +109,7 @@ public class WizardSaveService {
         if (savedSite != null && pool != null) {
             addPoolToExistingSite(savedSite, pool);
         }
-        if (savedSite != null && miners != null) {
+        if (savedSite != null && miners != null && !miners.isEmpty()) {
             saveMinersForSite(savedSite, miners);
         }
     }
@@ -138,23 +138,23 @@ public class WizardSaveService {
         }
     }
 
-    // --- NEU: Helper zum Setzen der Variablen (Historie, Datum, etc) ---
-    private void applyVariablesDataToSite(PVSiteEntity site, PVSiteVariablesStep.VariablesData variablesData) {
-        if (variablesData == null) {
+
+    private void applyEconomicsDataToSite(PVSiteEntity site, EconomicsStep.EconomicsData economicsData) {
+        if (economicsData == null) {
             site.setSetupDate(LocalDate.now());
             return;
         }
 
-        site.setSetupDate(variablesData.setupDate());
-        site.setPvCost(new Money(variablesData.pvCost(), variablesData.currency()));
+        site.setSetupDate(economicsData.setupDate());
+        site.setPvCost(new Money(economicsData.pvCost(), economicsData.currency()));
 
-        // Strompreis setzen (Initialer Eintrag in der Historie)
-        HistoricalPrice electricityPrice = new HistoricalPrice(variablesData.setupDate(), new Money(variablesData.electricityPrice(), variablesData.currency()));
+
+        HistoricalPrice electricityPrice = new HistoricalPrice(economicsData.setupDate(), new Money(economicsData.electricityPrice(), economicsData.currency()));
         site.getElectricityPriceHistory().add(electricityPrice);
 
-        // Einspeisevergütung setzen (Initialer Eintrag in der Historie), falls vorhanden
-        if (variablesData.feedInTariff() != null && variablesData.feedInTariff() > 0) {
-            HistoricalPrice feedInTariff = new HistoricalPrice(variablesData.setupDate(), new Money(variablesData.feedInTariff(), variablesData.currency()));
+
+        if (economicsData.feedInTariff() != null && economicsData.feedInTariff() > 0) {
+            HistoricalPrice feedInTariff = new HistoricalPrice(economicsData.setupDate(), new Money(economicsData.feedInTariff(), economicsData.currency()));
             site.getFeedInTariffHistory().add(feedInTariff);
         }
     }
@@ -196,13 +196,13 @@ public class WizardSaveService {
                     agent.setPort(8084);
                     yield agent;
                 }
-                case VNISH, LUXOS -> throw new UnsupportedOperationException("OS momentan nicht unterstützt.");
+                case VNISH, LUXOS ->
+                        throw new UnsupportedOperationException("OS " + minerInfo.os() + " not supported.");
             };
 
             miner.setParentEntity(site);
             minersToAssign.add(miner);
             entityService.save(miner, site);
-
 
             System.out.println(firstConnectedMiningPool);
 
@@ -219,7 +219,6 @@ public class WizardSaveService {
                     e.printStackTrace();
                 }
             }
-
         }
 
         var cluster = minerClusterService.getCluster(MinerControllerConfigStorage.STANDARD_CLUSTER_NAME);
