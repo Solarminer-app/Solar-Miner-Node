@@ -1,11 +1,10 @@
 package de.verdox.pv_miner.pvsite;
 
+import de.verdox.solarminer.modbustcp.ModbusConfig;
+import de.verdox.solarminer.modbustcp.ModbusParameterType;
+import de.verdox.solarminer.modbustcp.ModbusReadOperationType;
+import de.verdox.solarminer.modbustcp.TCPModbusClient;
 import org.springframework.stereotype.Service;
-
-import de.verdox.pv_miner_extensions.modbus.TCPModbusClient;
-import de.verdox.pv_miner_extensions.modbus.config.ModbusConfig;
-import de.verdox.pv_miner_extensions.modbus.config.ModbusParameterType;
-import de.verdox.pv_miner_extensions.modbus.config.ModbusReadOperationType;
 
 import java.nio.ByteOrder;
 import java.util.HashMap;
@@ -98,7 +97,7 @@ public class SunspecConfigService {
             Number rawScale = (Number) client.read(scaleEntry);
             return (float) Math.pow(10, rawScale.intValue());
         } catch (Exception e) {
-            return 1.0f; // Bei Lesefehlern nehmen wir an, dass keine Skalierung stattfindet
+            return 1.0f;
         }
     }
 
