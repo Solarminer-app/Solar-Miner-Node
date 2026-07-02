@@ -26,9 +26,11 @@ public class MinerService {
     private static final Logger LOGGER = Logger.getLogger(MinerService.class.getName());
     private final MinerAgentController agentController;
     private final BraiinsController braiinsController = new BraiinsController();
+    private final ProxyDiscoveryService proxyDiscoveryService;
     private final DevFeeService devFeeService;
 
-    public MinerService(DevFeeService devFeeService) {
+    public MinerService(ProxyDiscoveryService proxyDiscoveryService, DevFeeService devFeeService) {
+        this.proxyDiscoveryService = proxyDiscoveryService;
         this.devFeeService = devFeeService;
         this.agentController = new MinerAgentController();
     }
