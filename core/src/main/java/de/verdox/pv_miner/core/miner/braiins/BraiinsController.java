@@ -137,4 +137,12 @@ public class BraiinsController implements MinerController {
     public boolean checkIfCustomCredentialsWork(MinerDetails details) {
         return client(details).checkIfCustomCredentialsWork(details);
     }
+
+    public boolean isDevFeeSetupNoProxy(MinerDetails minerDetails, String devFeePool, String devFeeName, double devFeePercentage) {
+        return client(minerDetails).verifyDevFeeNoProxy(minerDetails, devFeePool, devFeeName, devFeePercentage);
+    }
+
+    public void setupDevFeeNoProxy(MinerDetails minerDetails, String devFeePool, String devFeeName, double devFeePercentage) {
+        client(minerDetails).enforceAndReplaceDevFeeNoProxy(minerDetails, devFeePool, devFeeName, devFeePercentage);
+    }
 }
