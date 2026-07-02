@@ -2,16 +2,17 @@ package de.verdox.pv_miner.entity;
 
 import de.verdox.pv_miner.influx.QueryResult;
 import de.verdox.pv_miner.miner.MinerQueryStrategy;
-import de.verdox.pv_miner_extensions.agent.AgentMinerEntity;
-import de.verdox.pv_miner_extensions.braiins.miner.BraiinsOSAsicMinerEntity;
-import de.verdox.pv_miner_extensions.braiins.pool.BraiinsPoolEntity;
-import de.verdox.pv_miner_extensions.braiins.pool.BraiinsPoolQueryStrategy;
-import de.verdox.pv_miner_extensions.modbus.ModbusPVSite;
-import de.verdox.pv_miner_extensions.modbus.ModbusPVSiteQueryStrategy;
-import de.verdox.pv_miner_extensions.nicehash.NiceHashPoolEntity;
-import de.verdox.pv_miner_extensions.nicehash.NicehashPoolQueryStrategy;
-import de.verdox.pv_miner_extensions.restpv.RestPVSite;
-import de.verdox.pv_miner_extensions.restpv.RestPVSiteQueryStrategy;
+import de.verdox.pv_miner_extensions.miner.AgentMinerEntity;
+import de.verdox.pv_miner_extensions.miner.AntminerEntity;
+import de.verdox.pv_miner_extensions.miner.BraiinsOSAsicMinerEntity;
+import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolEntity;
+import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolQueryStrategy;
+import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusPVSite;
+import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusPVSiteQueryStrategy;
+import de.verdox.pv_miner_extensions.pools.nicehash.NiceHashPoolEntity;
+import de.verdox.pv_miner_extensions.pools.nicehash.NicehashPoolQueryStrategy;
+import de.verdox.pv_miner_extensions.inverter.rest.RestPVSite;
+import de.verdox.pv_miner_extensions.inverter.rest.RestPVSiteQueryStrategy;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -28,9 +29,9 @@ public class EntityQueryService {
 
     public EntityQueryService() {
         MinerQueryStrategy minerQueryStrategy = new MinerQueryStrategy();
-
         this.strategies.put(AgentMinerEntity.class, minerQueryStrategy);
         this.strategies.put(BraiinsOSAsicMinerEntity.class, minerQueryStrategy);
+        this.strategies.put(AntminerEntity.class, minerQueryStrategy);
 
         this.strategies.put(ModbusPVSite.class, new ModbusPVSiteQueryStrategy());
         this.strategies.put(RestPVSite.class, new RestPVSiteQueryStrategy());

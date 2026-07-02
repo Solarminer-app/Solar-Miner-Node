@@ -1,0 +1,24 @@
+mutation AddPoolGroupRatio($name: String!, $ratio: Float!) {
+    bosminer {
+        config {
+            addGroupWithFixedShareRatio(name: $name, ratio: $ratio) {
+                __typename
+                ... on GroupConfig {
+                    id
+                    name
+                    strategy {
+                        __typename
+                        ... on FixedShareRatioStrategy {
+                            fixedShareRatio
+                        }
+                    }
+                }
+                ... on GroupRecordError {
+                    message
+                    name
+                    strategy
+                }
+            }
+        }
+    }
+}

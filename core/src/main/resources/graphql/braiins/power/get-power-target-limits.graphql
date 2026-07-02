@@ -1,0 +1,14 @@
+query GetPowerTargetLimits {
+    bosminer {
+        metadata {
+            autotuning {
+                powerTarget {
+                    min
+                    max
+                    default
+                    unit
+                }
+            }
+        }
+    }
+}

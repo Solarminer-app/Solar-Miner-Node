@@ -1,45 +1,39 @@
 package de.verdox.pv_miner.core.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.pv_miner.core.miner.MiningOS;
 import de.verdox.pv_miner.core.miner.agent.MinerAgentController;
+import de.verdox.pv_miner.core.miner.antminer.AntminerBackend;
 import de.verdox.pv_miner.core.miner.braiins.BraiinsController;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 @Service
 public class MinerService {
     private static final Logger LOGGER = Logger.getLogger(MinerService.class.getName());
     private final MinerAgentController agentController;
-    private final BraiinsController braiinsController = new BraiinsController();
+    private final BraiinsController braiinsController;
+    private final AntminerBackend antminerBackend;
     private final ProxyDiscoveryService proxyDiscoveryService;
     private final DevFeeService devFeeService;
 
-    public MinerService(ProxyDiscoveryService proxyDiscoveryService, DevFeeService devFeeService) {
+    public MinerService(ProxyDiscoveryService proxyDiscoveryService, DevFeeService devFeeService, ObjectMapper objectMapper) {
         this.proxyDiscoveryService = proxyDiscoveryService;
         this.devFeeService = devFeeService;
         this.agentController = new MinerAgentController();
+        this.antminerBackend = new AntminerBackend(objectMapper);
+        this.braiinsController = new BraiinsController(objectMapper);
     }
 
     public boolean startMining(MiningOS miningOS, MinerDetails details) {
         return switch (miningOS) {
             case AGENT -> agentController.startMining(details);
             case BRAIINS -> braiinsController.startMining(details);
-            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+            case ANTMINER_STOCK_OS -> antminerBackend.startMining(details);
+            case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
@@ -48,7 +42,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.stopMining(details);
             case BRAIINS -> braiinsController.stopMining(details);
-            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+            case ANTMINER_STOCK_OS -> antminerBackend.stopMining(details);
+            case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
@@ -57,7 +52,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.pauseMining(details);
             case BRAIINS -> braiinsController.pauseMining(details);
-            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+            case ANTMINER_STOCK_OS -> antminerBackend.pauseMining(details);
+            case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
@@ -66,19 +62,23 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.resumeMining(details);
             case BRAIINS -> braiinsController.resumeMining(details);
-            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+            case ANTMINER_STOCK_OS -> antminerBackend.resumeMining(details);
+            case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
 
     public boolean setPoolTarget(MiningOS miningOS, MinerDetails details, String stratumUrl, String userName) {
-        //TODO: Set pool target to
+        String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
+        String proxyStratumUrl = "stratum+tcp://" + proxyIp + ":3333";
+        String cleanTargetUrl = stratumUrl.replace("stratum+tcp://", "");
+        String proxyUserName = cleanTargetUrl + ";" + userName + ";x";
 
-        // Get our own ip address in the network ->
         return switch (miningOS) {
-            case AGENT -> agentController.setPoolTarget(details, stratumUrl, userName);
-            case BRAIINS -> braiinsController.setPoolTarget(details, stratumUrl, userName);
-            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+            case AGENT -> agentController.setPoolTarget(details, proxyStratumUrl, proxyUserName);
+            case BRAIINS -> braiinsController.setPoolTarget(details, proxyStratumUrl, proxyUserName);
+            case ANTMINER_STOCK_OS -> antminerBackend.setPoolTarget(details, proxyStratumUrl, proxyUserName);
+            case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
@@ -87,7 +87,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.setPowerTarget(details, watts);
             case BRAIINS -> braiinsController.setPowerTarget(details, watts);
-            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+            case ANTMINER_STOCK_OS -> antminerBackend.setPowerTarget(details, watts);
+            case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
@@ -96,7 +97,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.incrementPowerTarget(details, watts);
             case BRAIINS -> braiinsController.incrementPowerTarget(details, watts);
-            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+            case ANTMINER_STOCK_OS -> antminerBackend.incrementPowerTarget(details, watts);
+            case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
@@ -105,7 +107,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> agentController.decrementPowerTarget(details, watts);
             case BRAIINS -> braiinsController.decrementPowerTarget(details, watts);
-            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+            case ANTMINER_STOCK_OS -> antminerBackend.decrementPowerTarget(details, watts);
+            case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
@@ -114,7 +117,8 @@ public class MinerService {
         var stats = switch (miningOS) {
             case AGENT -> agentController.queryStats(minerName, details);
             case BRAIINS -> braiinsController.queryStats(minerName, details);
-            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+            case ANTMINER_STOCK_OS -> antminerBackend.queryStats(minerName, details);
+            case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> null;
         };
         if (stats != null) {
@@ -123,19 +127,26 @@ public class MinerService {
         return stats;
     }
 
-    public boolean isDevFeeSetup(MiningOS miningOS, MinerDetails details, String devFeePool, String devFeeName, double devFeePercentage) {
+    public boolean verifyProxyRouting(MiningOS miningOS, MinerDetails details) {
+        String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
+
         return switch (miningOS) {
-            case AGENT -> agentController.isDevFeeSetup(details, devFeePool, devFeeName, devFeePercentage);
-            case BRAIINS -> braiinsController.isDevFeeSetup(details, devFeePool, devFeeName, devFeePercentage);
-            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
-                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
+            case AGENT -> agentController.isDevFeeSetup(details, proxyIp);
+            case BRAIINS -> braiinsController.isDevFeeSetup(details, proxyIp);
+            case ANTMINER_STOCK_OS -> antminerBackend.verifyDevFee(details, proxyIp);
+            case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> true;
         };
     }
 
-    public void setupDevFee(MiningOS miningOS, MinerDetails details, String devFeePool, String devFeeName, double devFeePercentage) {
+    public void enforceProxyRouting(MiningOS miningOS, MinerDetails details) {
+        String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
+        String proxyPort = "3333";
+
         switch (miningOS) {
-            case AGENT -> agentController.setupDevFee(details, devFeePercentage);
-            case BRAIINS -> braiinsController.setupDevFee(details, devFeePool, devFeeName, devFeePercentage);
+            case AGENT -> agentController.setupDevFee(details);
+            case BRAIINS -> braiinsController.setupDevFee(details, proxyIp, proxyPort);
+            case ANTMINER_STOCK_OS -> antminerBackend.enforceAndReplaceDevFee(details, proxyIp, proxyPort);
         }
     }
 
@@ -143,7 +154,8 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> true;
             case BRAIINS -> braiinsController.checkIfStandardCredentialsWork(details);
-            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+            case ANTMINER_STOCK_OS -> antminerBackend.checkIfStandardCredentialsWork(details);
+            case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
     }
@@ -152,116 +164,9 @@ public class MinerService {
         return switch (miningOS) {
             case AGENT -> true;
             case BRAIINS -> braiinsController.checkIfCustomCredentialsWork(details);
-            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+            case ANTMINER_STOCK_OS -> antminerBackend.checkIfCustomCredentialsWork(details);
+            case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
-    }
-
-    public record DetectedMiner(MiningOS os, String model) {
-    }
-
-
-    public DetectedMiner identifyMinerDetails(String ipv4) {
-        if (ipv4 == null || ipv4.isBlank()) {
-            return null;
-        }
-        DetectedMiner agent = checkSolarMinerAgent(ipv4);
-        if (agent != null) {
-            return agent;
-        }
-        return checkAsicMiner(ipv4);
-    }
-
-    private DetectedMiner checkSolarMinerAgent(String ipv4) {
-        try {
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofMillis(500))
-                    .build();
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://" + ipv4 + ":8084/api/agent/identify"))
-                    .timeout(Duration.ofMillis(500))
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() == 200 && response.body().trim().equalsIgnoreCase("true")) {
-                LOGGER.log(Level.INFO, "Found Solar Miner Agent on IP: " + ipv4);
-                return new DetectedMiner(MiningOS.AGENT, "Solarminer PC Agent");
-            }
-        } catch (Exception e) {
-        }
-        return null;
-    }
-
-    private DetectedMiner checkAsicMiner(String ipv4) {
-        int port = 4028;
-        int timeoutMs = 500;
-
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(ipv4, port), timeoutMs);
-            socket.setSoTimeout(timeoutMs);
-
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
-            out.println("{\"command\":\"devdetails\"}");
-            String response = in.readLine();
-
-            if (response == null || response.isEmpty()) return null;
-
-            String lowerResponse = response.toLowerCase();
-            MiningOS os = null;
-
-            if (lowerResponse.contains("boser") || lowerResponse.contains("bosminer") || lowerResponse.contains("braiins")) {
-                os = MiningOS.BRAIINS;
-            } else if (lowerResponse.contains("vnish")) {
-                os = MiningOS.VNISH;
-            } else if (lowerResponse.contains("luxos")) {
-                os = MiningOS.LUXOS;
-            }
-
-            if (os != null) {
-                String defaultModel = switch (os) {
-                    case BRAIINS -> "Antminer (Braiins OS)";
-                    case VNISH -> "Antminer (Vnish)";
-                    case LUXOS -> "ASIC Miner (LuxOS)";
-                    default -> "Unknown Miner";
-                };
-                String model = parseJsonValue(response, "Model", defaultModel);
-                LOGGER.log(Level.INFO, "Found " + os + " Miner (" + model + ") on IP: " + ipv4);
-                return new DetectedMiner(os, model);
-            }
-        } catch (Exception e) {
-
-        }
-        return null;
-    }
-
-    private String parseJsonValue(String json, String key, String defaultValue) {
-        try {
-            String searchKey = "\"" + key + "\":";
-            if (json.contains(searchKey)) {
-                int start = json.indexOf(searchKey) + searchKey.length();
-
-                if (json.charAt(start) == '"') {
-                    start++;
-                }
-
-                int end = json.indexOf("\"", start);
-                if (end == -1 || end > json.indexOf(",", start)) {
-                    end = json.indexOf(",", start);
-                }
-                if (end == -1) {
-                    end = json.indexOf("}", start);
-                }
-
-                String result = json.substring(start, end).replace("\"", "").trim();
-                return result.isEmpty() ? defaultValue : result;
-            }
-        } catch (Exception ignored) {
-        }
-        return defaultValue;
     }
 }

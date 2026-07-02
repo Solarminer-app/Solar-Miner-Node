@@ -102,11 +102,11 @@ public class MinerAgentController implements MinerController {
     }
 
     //TODO: Always return false. We simply send the agent the dev fee all the time for now.
-    public boolean isDevFeeSetup(MinerDetails details, String devFeePool, String devFeeName, double devFeePercentage) {
+    public boolean isDevFeeSetup(MinerDetails details, String proxyIp) {
         return false;
     }
 
-    public boolean setupDevFee(MinerDetails details, double devFeePercentage) {
+    public boolean setupDevFee(MinerDetails details) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
             return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/setPowerTarget").queryParam("devFeePercentage", DevFeeConstants.DevFeePercentage).build()).retrieve().body(Boolean.class));

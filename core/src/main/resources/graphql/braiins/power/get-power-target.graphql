@@ -1,0 +1,29 @@
+query GetPowerTarget {
+
+    bosminer {
+
+        config {
+
+            ... on BosminerConfig {
+
+                autotuning {
+                    enabled
+                    mode
+                    powerTarget
+                    hashrateTarget
+                }
+            }
+        }
+
+        info {
+
+            summary {
+
+                power {
+                    limitW
+                    approxConsumptionW
+                }
+            }
+        }
+    }
+}

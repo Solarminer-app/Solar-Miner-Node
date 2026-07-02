@@ -1,0 +1,26 @@
+query GetTemperatureLimits {
+    bosminer {
+        metadata {
+            tempControl {
+                targetTemp {
+                    min
+                    max
+                    default
+                    unit
+                }
+                hotTemp {
+                    min
+                    max
+                    default
+                    unit
+                }
+                dangerousTemp {
+                    min
+                    max
+                    default
+                    unit
+                }
+            }
+        }
+    }
+}

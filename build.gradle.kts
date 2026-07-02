@@ -62,6 +62,7 @@ dependencies {
     }
 
     implementation(project(":proto"))
+    implementation(project(":pv-api"))
 
     implementation("io.grpc:grpc-protobuf:1.50.2")
     implementation("io.grpc:grpc-stub:1.50.2")

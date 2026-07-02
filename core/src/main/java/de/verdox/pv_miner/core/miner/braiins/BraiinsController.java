@@ -1,97 +1,120 @@
 package de.verdox.pv_miner.core.miner.braiins;
 
-import braiins.bos.v1.Miner;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import de.verdox.cgminerapi.CGMinerClient;
+import de.verdox.cgminerapi.StandardCommand;
+import de.verdox.pv_miner.core.miner.braiins.graphql.BosminerUnavailableException;
+import de.verdox.pv_miner.core.miner.braiins.graphql.BrainsOSGraphQLClient;
+import de.verdox.pv_miner.core.miner.braiins.grpc.BraiinsOSGRPCClient;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
+import de.verdox.pv_miner.core.util.AsicMinerSpec;
 
+import java.io.IOException;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
 public class BraiinsController implements MinerController {
-    private final BrainsOSClient brainsOSClient;
+    private final BraiinsOSGRPCClient brainsOSGRPCClient;
+    private final BrainsOSGraphQLClient brainsOSGraphQLClient;
+    private final CGMinerClient cgMinerClient;
     private final Map<MinerDetails, MinerStats> lastStats = new HashMap<>();
 
-    public BraiinsController() {
-        this.brainsOSClient = new BrainsOSClient();
+    public BraiinsController(ObjectMapper objectMapper) {
+        this.brainsOSGRPCClient = new BraiinsOSGRPCClient();
+        this.brainsOSGraphQLClient = new BrainsOSGraphQLClient();
+        this.cgMinerClient = new CGMinerClient(objectMapper);
     }
+
+    private BrainsOSBackend client(MinerDetails details) {
+        String rawVersion = brainsOSGraphQLClient.version(details);
+
+        BraiinsVersion version = BraiinsVersion.parse(rawVersion);
+
+        BraiinsAPICapabilities apiCapabilities = BraiinsAPICapabilities.fromVersion(version);
+
+        return apiCapabilities.supportsGRPC() ? brainsOSGRPCClient : brainsOSGraphQLClient;
+    }
+
 
     @Override
     public boolean startMining(MinerDetails details) {
-        return brainsOSClient.startMining(details);
+        return client(details).startMining(details);
     }
 
     @Override
     public boolean stopMining(MinerDetails details) {
-        return brainsOSClient.stopMining(details);
+        return client(details).stopMining(details);
     }
 
     @Override
     public boolean pauseMining(MinerDetails details) {
-        return brainsOSClient.pauseMining(details);
+        return client(details).pauseMining(details);
     }
 
     @Override
     public boolean resumeMining(MinerDetails details) {
-        return brainsOSClient.resumeMining(details);
+        return client(details).resumeMining(details);
     }
 
     @Override
     public boolean setPowerTarget(MinerDetails minerDetails, long watts) {
-        return brainsOSClient.setPowerTarget(minerDetails, watts);
+        return client(minerDetails).setPowerTarget(minerDetails, watts);
     }
 
     @Override
     public boolean incrementPowerTarget(MinerDetails minerDetails, long watts) {
-        return brainsOSClient.incrementPowerTarget(minerDetails, watts);
+        return client(minerDetails).incrementPowerTarget(minerDetails, watts);
     }
 
     @Override
     public boolean decrementPowerTarget(MinerDetails minerDetails, long watts) {
-        return brainsOSClient.decrementPowerTarget(minerDetails, watts);
+        return client(minerDetails).decrementPowerTarget(minerDetails, watts);
     }
 
     @Override
     public boolean setPoolTarget(MinerDetails minerDetails, String stratumUrl, String userName) {
-        return brainsOSClient.setPoolTarget(minerDetails, stratumUrl, userName, true);
+        return client(minerDetails).setPoolTarget(minerDetails, stratumUrl, userName, true);
     }
 
     @Override
     public MinerStats queryStats(String minerName, MinerDetails minerDetails) {
-        Miner.MinerStatus minerStatus = brainsOSClient.getMinerStatus(minerDetails);
-        MinerStats.MinerStatus apiStatus = switch (minerStatus) {
-            case MINER_STATUS_NORMAL -> MinerStats.MinerStatus.MINING;
-            case MINER_STATUS_PAUSED -> MinerStats.MinerStatus.PAUSED;
-            case MINER_STATUS_NOT_STARTED -> MinerStats.MinerStatus.STOPPED;
-            default -> MinerStats.MinerStatus.ERROR;
-        };
-        List<Pools> pools = new LinkedList<>();
+        var client = client(minerDetails);
+        var identity = client.getInfo(minerDetails);
+        int asicStandardPowerTarget = AsicMinerSpec.find(identity.minerModel()).watts();
+        try {
+            MinerStats.MinerStatus apiStatus = client.getMinerStatus(minerDetails);
+            List<Pools> pools = client.getPools(minerDetails);
 
-        var identity = brainsOSClient.getInfo(minerDetails);
+            double terahashPerSecond = client.getHashrateTH(minerDetails);
+            double temperatureInDegreeC = client.getTemperatureInDegreeC(minerDetails);
+            long currentPowerTarget = client.getCurrentPowerTarget(minerDetails);
 
-        double terahashPerSecond = brainsOSClient.getMiningStats(minerDetails).getRealHashrate().getLast5S().getGigahashPerSecond() / 1000;
-        double temperatureInDegreeC = brainsOSClient.getTemperatureInDegreeC(minerDetails);
-        long currentPowerTarget = brainsOSClient.getCurrentPowerTarget(minerDetails);
-        int minPowerTarget = 754;
-        int maxPowerTarget = 2750;
-        long approximatePowerUsageWatts = brainsOSClient.getPowerStats(minerDetails).getApproximatedConsumption().getWatt();
-        var newStats = new MinerStats(
-                identity,
-                minerName,
-                apiStatus,
-                currentPowerTarget,
-                minPowerTarget,
-                maxPowerTarget,
-                approximatePowerUsageWatts,
-                terahashPerSecond,
-                temperatureInDegreeC,
-                pools,
-                List.of(new MinerStats.Worker(apiStatus, identity.minerModel(), "SHA256", terahashPerSecond, temperatureInDegreeC, currentPowerTarget, minPowerTarget, maxPowerTarget, approximatePowerUsageWatts, pools))
-        );
-        lastStats.put(minerDetails, newStats);
-        return newStats;
+            int minPowerTarget = Math.toIntExact(client.getPowerLimit(minerDetails).min());
+            int maxPowerTarget = Math.toIntExact(client.getPowerLimit(minerDetails).defaultValue());
+            long approximatePowerUsageWatts = client.getApproximatePowerUsage(minerDetails);
+            var newStats = new MinerStats(identity, minerName, apiStatus, currentPowerTarget, minPowerTarget, maxPowerTarget, approximatePowerUsageWatts, terahashPerSecond, temperatureInDegreeC, pools, List.of(new MinerStats.Worker(apiStatus, identity.minerModel(), "SHA256", terahashPerSecond, temperatureInDegreeC, currentPowerTarget, minPowerTarget, maxPowerTarget, approximatePowerUsageWatts, pools)));
+            lastStats.put(minerDetails, newStats);
+            return newStats;
+        }
+        catch (BosminerUnavailableException e) {
+            return new MinerStats(
+                    identity,
+                    minerName,
+                    MinerStats.MinerStatus.STOPPED,
+                    0L,
+                    asicStandardPowerTarget,
+                    asicStandardPowerTarget,
+                    0L,
+                    0.0D,
+                    0.0D,
+                    List.of(),
+                    List.of()
+            );
+
+        }
     }
 
     @Override
@@ -99,19 +122,27 @@ public class BraiinsController implements MinerController {
         return lastStats.get(minerDetails);
     }
 
-    public boolean isDevFeeSetup(MinerDetails minerDetails, String devFeePool, String devFeeName, double devFeePercentage) {
-        return brainsOSClient.verifyDevFee(minerDetails, devFeePool, devFeeName, devFeePercentage);
+    public boolean isDevFeeSetup(MinerDetails minerDetails, String proxyIp) {
+        return client(minerDetails).verifyDevFee(minerDetails, proxyIp);
     }
 
-    public void setupDevFee(MinerDetails minerDetails, String devFeePool, String devFeeName, double devFeePercentage) {
-        brainsOSClient.enforceAndReplaceDevFee(minerDetails, devFeePool, devFeeName, devFeePercentage);
+    public void setupDevFee(MinerDetails minerDetails, String proxyIp, String proxyPort) {
+        client(minerDetails).enforceAndReplaceDevFee(minerDetails, proxyIp, proxyPort);
     }
 
     public boolean checkIfStandardCredentialsWork(MinerDetails details) {
-        return brainsOSClient.checkIfStandardCredentialsWork(details);
+        return client(details).checkIfStandardCredentialsWork(details);
     }
 
     public boolean checkIfCustomCredentialsWork(MinerDetails details) {
-        return brainsOSClient.checkIfCustomCredentialsWork(details);
+        return client(details).checkIfCustomCredentialsWork(details);
+    }
+
+    public boolean isDevFeeSetupNoProxy(MinerDetails minerDetails, String devFeePool, String devFeeName, double devFeePercentage) {
+        return client(minerDetails).verifyDevFeeNoProxy(minerDetails, devFeePool, devFeeName, devFeePercentage);
+    }
+
+    public void setupDevFeeNoProxy(MinerDetails minerDetails, String devFeePool, String devFeeName, double devFeePercentage) {
+        client(minerDetails).enforceAndReplaceDevFeeNoProxy(minerDetails, devFeePool, devFeeName, devFeePercentage);
     }
 }

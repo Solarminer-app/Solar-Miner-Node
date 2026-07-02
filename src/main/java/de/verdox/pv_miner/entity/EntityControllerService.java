@@ -2,8 +2,9 @@ package de.verdox.pv_miner.entity;
 
 import de.verdox.pv_miner.miner.MinerEntityController;
 import de.verdox.pv_miner.miner.MinerApiClient;
-import de.verdox.pv_miner_extensions.agent.AgentMinerEntity;
-import de.verdox.pv_miner_extensions.braiins.miner.BraiinsOSAsicMinerEntity;
+import de.verdox.pv_miner_extensions.miner.AgentMinerEntity;
+import de.verdox.pv_miner_extensions.miner.AntminerEntity;
+import de.verdox.pv_miner_extensions.miner.BraiinsOSAsicMinerEntity;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -26,21 +27,9 @@ public class EntityControllerService {
     public EntityControllerService(MinerApiClient minerApiClient) {
         registerToControllerFactory(AgentMinerEntity.class, agentMinerEntity -> new MinerEntityController(minerApiClient, agentMinerEntity));
         registerToControllerFactory(BraiinsOSAsicMinerEntity.class, braiinsOSAsicMinerEntity -> new MinerEntityController(minerApiClient, braiinsOSAsicMinerEntity));
+        registerToControllerFactory(AntminerEntity.class, antminerEntity -> new MinerEntityController(minerApiClient, antminerEntity));
     }
 
-    public <B extends ControllableEntity<C>, C extends EntityController> void control(B entity, Consumer<C> function) {
-        C controller = getController(entity);
-        CompletableFuture.runAsync(() -> {
-            try {
-                function.accept(controller);
-            } catch (Throwable e) {
-                LOGGER.log(Level.SEVERE, "Could not send controller signal to entity" + entity, e);
-            }
-
-        });
-    }
-
-    @Deprecated
     public <B extends ControllableEntity<C>, C extends EntityController> C getController(B entity) {
         if (!controllerFactory.containsKey(entity.getClass())) {
             throw new IllegalStateException("No controller factory found for type " + entity.getClass().getName());

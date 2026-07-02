@@ -1,0 +1,31 @@
+query GetPoolGroups {
+    bosminer {
+        config {
+            __typename
+            ... on BosminerConfig {
+                groups {
+                    id
+                    name
+                    strategy {
+                        __typename
+                        ... on QuotaStrategy {
+                            quota
+                        }
+                        ... on FixedShareRatioStrategy {
+                            fixedShareRatio
+                        }
+                    }
+                    pools {
+                        id
+                        url
+                        user
+                        enabled
+                    }
+                }
+            }
+            ... on BosminerConfigError {
+                message
+            }
+        }
+    }
+}

@@ -12,7 +12,7 @@ public record MinerStandardCredentials(String username, String password) {
         create(MiningOS.AVALON_STOCK_OS, "root", "root");
         create(MiningOS.INNOSILICON_STOCK_OS, "admin", "admin");
 
-        create(MiningOS.BRAIINS, "", "");
+        create(MiningOS.BRAIINS, "root", "password");
         create(MiningOS.VNISH, "root", "root");
         create(MiningOS.LUX_OS, "root", "root");
         create(MiningOS.HIVEON_ASIC, "root", "root");

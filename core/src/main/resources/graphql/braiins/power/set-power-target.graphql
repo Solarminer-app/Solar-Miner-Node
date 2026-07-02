@@ -1,0 +1,33 @@
+mutation SetPowerTarget(
+    $watts: Int!
+) {
+    bosminer {
+        config {
+            updateAutotuning(
+                input: {
+                    powerTarget: $watts
+                }
+                apply: true
+            ) {
+                __typename
+
+                ... on AutotuningOut {
+                    autotuning {
+                        enabled
+                        mode
+                        powerTarget
+                        hashrateTarget
+                    }
+                }
+
+                ... on AutotuningError {
+                    message
+                }
+
+                ... on AttributeError {
+                    message
+                }
+            }
+        }
+    }
+}

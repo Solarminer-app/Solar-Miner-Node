@@ -94,7 +94,7 @@ public class AddMinerStandaloneView extends VerticalLayout implements BeforeEnte
     }
 
     private void initWizard() {
-        var minerSetupStep = new MinerSetupStep(this::updateButtonStates);
+        var minerSetupStep = new MinerSetupStep(this::updateButtonStates, this::updateButtonStates);
         minerSetupStep.setExistingSite(pvSiteEntity);
 
         var finalizeStep = new FinalizeSetupStep(() -> {
@@ -134,7 +134,7 @@ public class AddMinerStandaloneView extends VerticalLayout implements BeforeEnte
         contentArea.getElement().executeJs("setTimeout(() => { this.classList.add('fade-in'); }, 10);");
 
         backButton.setVisible(index > 0);
-        nextButton.setText(index == steps.size() - 1 ? getTranslation("btn.done") : getTranslation("btn.next"));
+        nextButton.setText(index == steps.size() - 1 ? "btn.done" : "btn.next");
 
         updateButtonStates();
 

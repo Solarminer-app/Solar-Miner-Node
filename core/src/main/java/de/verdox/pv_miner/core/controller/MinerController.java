@@ -3,6 +3,7 @@ package de.verdox.pv_miner.core.controller;
 import de.verdox.pv_miner.core.miner.MiningOS;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
+import de.verdox.pv_miner.core.service.MinerDiscoveryService;
 import de.verdox.pv_miner.core.service.MinerService;
 import org.springframework.web.bind.annotation.*;
 
@@ -10,9 +11,11 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/miners")
 public class MinerController {
     private final MinerService minerService;
+    private final MinerDiscoveryService minerDiscoveryService;
 
-    public MinerController(MinerService minerService) {
+    public MinerController(MinerService minerService, MinerDiscoveryService minerDiscoveryService) {
         this.minerService = minerService;
+        this.minerDiscoveryService = minerDiscoveryService;
     }
 
     @PostMapping("/check-standard-credentials")
@@ -32,8 +35,8 @@ public class MinerController {
     }
 
     @PostMapping("/identify-os")
-    public MinerService.DetectedMiner identifyMiningOS(@RequestBody String ipv4) {
-        return minerService.identifyMinerDetails(ipv4);
+    public MinerDiscoveryService.DetectedMiner identifyMiningOS(@RequestBody String ipv4) {
+        return minerDiscoveryService.identifyMinerDetails(ipv4);
     }
 
     @PostMapping("/start")

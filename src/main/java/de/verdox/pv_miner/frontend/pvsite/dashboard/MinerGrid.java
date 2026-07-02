@@ -22,7 +22,5 @@ public class MinerGrid extends Grid<MinerGrid.MinerItem> {
         setAllRowsVisible(true);
     }
 
-    public record MinerItem(String name, String ip, String status, String hashrate, String power, String temp,
-                            String pool) {
-    }
+    public record MinerItem(String name, String ip, String status, String hashrate, String power, String temp, String pool) { }
 }

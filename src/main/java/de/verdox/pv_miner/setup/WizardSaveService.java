@@ -4,11 +4,12 @@ import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
 import de.verdox.pv_miner.entity.EntityControllerService;
 import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.entity.EntityService;
-import de.verdox.pv_miner.frontend.setup.EconomicsStep;
 import de.verdox.pv_miner.frontend.setup.MinerSetupStep;
 import de.verdox.pv_miner.frontend.setup.PVSetupStep;
+import de.verdox.pv_miner.frontend.setup.EconomicsStep;
 import de.verdox.pv_miner.miner.MinerApiClient;
 import de.verdox.pv_miner.miner.MinerEntity;
+import de.verdox.pv_miner.miner.MiningOS;
 import de.verdox.pv_miner.miningcontroller.MinerClusterService;
 import de.verdox.pv_miner.miningcontroller.MinerControllerConfigStorage;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
@@ -16,14 +17,15 @@ import de.verdox.pv_miner.pvsite.HistoricalPrice;
 import de.verdox.pv_miner.pvsite.PVPanels;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.util.Money;
-import de.verdox.pv_miner_extensions.agent.AgentMinerEntity;
-import de.verdox.pv_miner_extensions.braiins.miner.BraiinsOSAsicMinerEntity;
-import de.verdox.pv_miner_extensions.modbus.ModbusPVSite;
-import de.verdox.pv_miner_extensions.modbus.config.ModbusConfigCreatorTemplate;
-import de.verdox.pv_miner_extensions.modbus.config.ModbusConfigStorage;
-import de.verdox.pv_miner_extensions.restpv.RestPVSite;
-import de.verdox.pv_miner_extensions.restpv.config.RestConfigCreatorTemplate;
-import de.verdox.pv_miner_extensions.restpv.config.RestConfigStorage;
+import de.verdox.pv_miner_extensions.miner.AgentMinerEntity;
+import de.verdox.pv_miner_extensions.miner.AntminerEntity;
+import de.verdox.pv_miner_extensions.miner.BraiinsOSAsicMinerEntity;
+import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusPVSite;
+import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusConfigStorage;
+import de.verdox.pv_miner_extensions.inverter.rest.RestPVSite;
+import de.verdox.pv_miner_extensions.inverter.rest.RestConfigStorage;
+import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
+import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -180,31 +182,37 @@ public class WizardSaveService {
         for (MinerSetupStep.MinerConfigEntry entry : miners) {
             var minerInfo = entry.getMinerInfo();
 
-            MinerEntity<?> miner = switch (minerInfo.os()) {
-                case BRAIINS -> {
-                    var braiins = new BraiinsOSAsicMinerEntity();
-                    braiins.setName(minerInfo.model());
-                    braiins.setHost(minerInfo.ipAddress());
-                    braiins.setPort(50051);
-                    braiins.setUsername(entry.getUsername());
-                    braiins.setPassword(entry.getPassword());
-                    yield braiins;
-                }
-                case AGENT -> {
-                    var agent = new AgentMinerEntity();
-                    agent.setHost(minerInfo.ipAddress());
-                    agent.setPort(8084);
-                    yield agent;
-                }
-                case VNISH, LUXOS ->
-                        throw new UnsupportedOperationException("OS " + minerInfo.os() + " not supported.");
-            };
+            MinerEntity<?> miner;
+            if (minerInfo.os().equals(MiningOS.BRAIINS)) {
+                var braiins = new BraiinsOSAsicMinerEntity();
+                braiins.setName(minerInfo.model());
+                braiins.setHost(minerInfo.ipAddress());
+                braiins.setPort(50051);
+                braiins.setUsername(entry.getUsername());
+                braiins.setPassword(entry.getPassword());
+                miner = braiins;
+            } else if (minerInfo.os().equals(MiningOS.AGENT)) {
+                var agent = new AgentMinerEntity();
+                agent.setHost(minerInfo.ipAddress());
+                agent.setPort(8084);
+                miner = agent;
+            }
+            else if(minerInfo.os().equals(MiningOS.ANTMINER_STOCK_OS)) {
+                var antminer = new AntminerEntity();
+                antminer.setName(minerInfo.model());
+                antminer.setHost(minerInfo.ipAddress());
+                antminer.setPort(80);
+                antminer.setUsername(entry.getUsername());
+                antminer.setPassword(entry.getPassword());
+                miner = antminer;
+            }
+            else {
+                throw new UnsupportedOperationException("OS " + minerInfo.os() + " not supported.");
+            }
 
             miner.setParentEntity(site);
             minersToAssign.add(miner);
             entityService.save(miner, site);
-
-            System.out.println(firstConnectedMiningPool);
 
             if (firstConnectedMiningPool != null) {
                 try {
@@ -221,7 +229,7 @@ public class WizardSaveService {
             }
         }
 
-        var cluster = minerClusterService.getCluster(MinerControllerConfigStorage.STANDARD_CLUSTER_NAME);
+        var cluster = minerClusterService.getCluster(site, MinerControllerConfigStorage.STANDARD_CLUSTER_NAME);
         cluster.assignMiners(minersToAssign);
         try {
             minerClusterService.startCluster(MinerControllerConfigStorage.STANDARD_CLUSTER_NAME, site);

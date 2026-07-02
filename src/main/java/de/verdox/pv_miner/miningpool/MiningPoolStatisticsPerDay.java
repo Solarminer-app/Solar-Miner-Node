@@ -1,6 +1,6 @@
 package de.verdox.pv_miner.miningpool;
 
-import de.verdox.pv_miner.dailystatistic.DailyStatistic;
+import de.verdox.pv_miner.statistic.daily.DailyStatistic;
 import de.verdox.pv_miner.util.CryptoCurrency;
 
 public class MiningPoolStatisticsPerDay extends DailyStatistic {

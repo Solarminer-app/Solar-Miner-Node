@@ -21,10 +21,10 @@ import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
 import de.verdox.pv_miner.discovery.DiscoveryService;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableButton;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
-import de.verdox.pv_miner_extensions.modbus.config.ModbusConfigCreatorTemplate;
-import de.verdox.pv_miner_extensions.modbus.config.ModbusConfigStorage;
-import de.verdox.pv_miner_extensions.restpv.config.RestConfigCreatorTemplate;
-import de.verdox.pv_miner_extensions.restpv.config.RestConfigStorage;
+import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusConfigStorage;
+import de.verdox.pv_miner_extensions.inverter.rest.RestConfigStorage;
+import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
+import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
