@@ -5,6 +5,7 @@ import de.verdox.pv_miner.core.miner.agent.MinerAgentController;
 import de.verdox.pv_miner.core.miner.braiins.BraiinsController;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
@@ -69,6 +70,9 @@ public class MinerService {
     }
 
     public boolean setPoolTarget(MiningOS miningOS, MinerDetails details, String stratumUrl, String userName) {
+        //TODO: Set pool target to
+
+        // Get our own ip address in the network ->
         return switch (miningOS) {
             case AGENT -> agentController.setPoolTarget(details, stratumUrl, userName);
             case BRAIINS -> braiinsController.setPoolTarget(details, stratumUrl, userName);
