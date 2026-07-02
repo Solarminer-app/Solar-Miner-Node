@@ -108,12 +108,23 @@ services:
     volumes:
       - ./app/currency/mariadb:/var/lib/mysql
 
+  stratum-proxy:
+    image: verdox/solar-miner-stratum-proxy:latest-amd64
+    container_name: stratum-proxy
+    network_mode: "host"
+    restart: unless-stopped
+
   core:
-    image: verdox/solar-miner-core:latest
+    image: verdox/solar-miner-core:latest-amd64
+    depends_on:
+      - stratum-proxy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8082:8080"
     restart: unless-stopped
     environment:
+      - PROXY_API_URL=http://host.docker.internal:8090
       - JAVA_TOOL_OPTIONS=-Dio.netty.noUnsafe=true -Djdk.tls.client.protocols=TLSv1.2
 
   phoenixd:

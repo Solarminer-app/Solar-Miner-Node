@@ -5,22 +5,28 @@ import com.intelligt.modbus.jlibmodbus.exception.ModbusNumberException;
 import com.intelligt.modbus.jlibmodbus.exception.ModbusProtocolException;
 import com.intelligt.modbus.jlibmodbus.master.ModbusMaster;
 import com.intelligt.modbus.jlibmodbus.master.ModbusMasterTCP;
+import com.intelligt.modbus.jlibmodbus.msg.request.ReadHoldingRegistersRequest;
+import com.intelligt.modbus.jlibmodbus.msg.response.ReadHoldingRegistersResponse;
 import com.intelligt.modbus.jlibmodbus.tcp.TcpParameters;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class TCPModbusClient implements Closeable {
     private static final Logger LOGGER = Logger.getLogger(TCPModbusClient.class.getName());
-    private String ipAddress;
-    private int port;
-    private int slaveId;
-    private ModbusMaster master;
+    private final String ipAddress;
+    private final int port;
+    private final int slaveId;
+    private final ModbusMaster master;
 
     private static final Pattern FORMULA_PATTERN = Pattern.compile("x\\s*([+\\-*/%])\\s*([0-9.]+)");
 
@@ -99,6 +105,83 @@ public class TCPModbusClient implements Closeable {
             LOGGER.warning("WARNUNG: Buffer to short! " + registers.length + " bytes but " + configEntry.modbusParameterType().identifier() + " needs more!");
             return null;
         }
+    }
+
+    public int findSunSpecBaseAddress() {
+        int[] commonAddresses = {40000, 39999, 50000, 49999};
+
+        for (int baseAddress : commonAddresses) {
+            try {
+                ReadHoldingRegistersRequest request = new ReadHoldingRegistersRequest();
+                request.setServerAddress(slaveId);
+                request.setStartAddress(baseAddress);
+                request.setQuantity(2);
+
+                ReadHoldingRegistersResponse response = (ReadHoldingRegistersResponse) master.processRequest(request);
+                byte[] bytes = response.getBytes();
+
+                if (bytes.length >= 4) {
+                    if (bytes[0] == 0x53 && bytes[1] == 0x75 && bytes[2] == 0x6E && bytes[3] == 0x53) {
+                        return baseAddress;
+                    }
+                }
+            } catch (Exception ignored) {
+
+            }
+        }
+        return -1;
+    }
+
+    public String readSunSpecString(int startAddress, int numRegisters) {
+        try {
+            ReadHoldingRegistersRequest request = new ReadHoldingRegistersRequest();
+            request.setServerAddress(slaveId);
+            request.setStartAddress(startAddress);
+            request.setQuantity(numRegisters);
+
+            ReadHoldingRegistersResponse response = (ReadHoldingRegistersResponse) master.processRequest(request);
+            byte[] bytes = response.getBytes();
+
+            return new String(bytes, java.nio.charset.StandardCharsets.UTF_8).trim();
+        } catch (Exception e) {
+            return "Unknown";
+        }
+    }
+
+    public Map<Integer, Integer> scanSunSpecBlocks(int firstModelAddress) {
+        Map<Integer, Integer> blockAddresses = new HashMap<>();
+        int currentAddress = firstModelAddress;
+
+        try {
+            for (int i = 0; i < 50; i++) {
+                ReadHoldingRegistersRequest request = new ReadHoldingRegistersRequest();
+                request.setServerAddress(slaveId);
+                request.setStartAddress(currentAddress);
+                request.setQuantity(2);
+
+                ReadHoldingRegistersResponse response = (ReadHoldingRegistersResponse) master.processRequest(request);
+                byte[] bytes = response.getBytes();
+
+                if (bytes.length < 4) break;
+
+                ByteBuffer buffer = ByteBuffer.wrap(bytes);
+                buffer.order(ByteOrder.BIG_ENDIAN);
+                int modelId = buffer.getShort() & 0xFFFF;
+                int length = buffer.getShort() & 0xFFFF;
+
+                if (modelId == 0xFFFF || length == 0) {
+                    break;
+                }
+
+                blockAddresses.put(modelId, currentAddress);
+
+                currentAddress += (2 + length);
+            }
+        } catch (Exception e) {
+            LOGGER.warning("SunSpec Scan an Adresse " + currentAddress + " abgebrochen: " + e.getMessage());
+        }
+
+        return blockAddresses;
     }
 
     private static double applyOperation(double x, double scalar, String operator) {

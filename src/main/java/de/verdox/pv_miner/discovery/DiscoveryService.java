@@ -11,23 +11,28 @@ import de.verdox.solarminer.modbustcp.TCPModbusClient;
 import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
 import org.springframework.stereotype.Service;
 
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.URI;
+import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 
 @Service
 public class DiscoveryService {
-    public record DiscoveredModbusDevice(String ipAddress, String matchingProfileName) {}
-    public record DiscoveredRestDevice(String ipAddress, int port, String matchingProfileName, boolean requiresAuth) {}
+    public record DiscoveredModbusDevice(String ipAddress, String matchingProfileName) {
+    }
+
+    public record DiscoveredRestDevice(String ipAddress, int port, String matchingProfileName, boolean requiresAuth) {
+    }
 
     private static final Logger LOGGER = Logger.getLogger(DiscoveryService.class.getName());
     private final int[] TARGET_REST_PORTS = {80, 443, 8080, 8123};
@@ -143,7 +148,8 @@ public class DiscoveryService {
                 onDeviceFound.accept(new DiscoveredRestDevice(ip, port, profileName, true));
                 return true;
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return false;
     }
 
@@ -159,7 +165,8 @@ public class DiscoveryService {
                             if (detectedMiner != null) {
                                 onMinerFound.accept(new MinerInfo(detectedMiner.model(), ip, detectedMiner.os()));
                             }
-                        } catch (Exception ignored) {}
+                        } catch (Exception ignored) {
+                        }
                     });
                 }
             }
@@ -167,19 +174,25 @@ public class DiscoveryService {
         });
     }
 
-    public void discoverModbusDevices(String subnetPrefix, Consumer<DiscoveredModbusDevice> onDeviceFound, Runnable onScanComplete) {
+    public void discoverModbusDevices(String subnetPrefix, int modbusTCPPort, Consumer<DiscoveredModbusDevice> onDeviceFound, Runnable onScanComplete) {
         CompletableFuture.runAsync(() -> {
             Semaphore rateLimiter = new Semaphore(20);
 
-            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-                for (int i = 1; i <= 254; i++) {
-                    final String ip = subnetPrefix + i;
+            List<String> ipsToScan = new ArrayList<>();
+            ipsToScan.add("127.0.0.1");
+            for (int i = 1; i <= 254; i++) {
+                ipsToScan.add(subnetPrefix + i);
+            }
 
+            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                for (String ip : ipsToScan) {
                     executor.submit(() -> {
                         try {
                             rateLimiter.acquire();
-                            if (isPortOpen(ip, 502, 200)) {
-                                String matchingProfile = tryMatchModbusProfiles(ip);
+
+                            if (isPortOpen(ip, modbusTCPPort, 200)) {
+
+                                String matchingProfile = tryMatchModbusProfiles(ip, modbusTCPPort);
                                 if (matchingProfile != null) {
                                     onDeviceFound.accept(new DiscoveredModbusDevice(ip, matchingProfile));
                                 }
@@ -204,7 +217,12 @@ public class DiscoveryService {
         }
     }
 
-    private String tryMatchModbusProfiles(String ip) {
+    private String tryMatchModbusProfiles(String ip, int port) {
+        String sunSpecProfileName = tryMatchSunSpec(ip, port);
+        if (sunSpecProfileName != null) {
+            return sunSpecProfileName;
+        }
+
         ModbusConfigStorage modbusStorage = SpringContextHelper.getBean(ModbusConfigStorage.class);
         List<String> localModbusNames = new ArrayList<>();
 
@@ -217,7 +235,7 @@ public class DiscoveryService {
                     var config = modbusStorage.loadConfig(pvSiteTemplate, name);
                     if (config == null) continue;
 
-                    try (TCPModbusClient modbusClient = new TCPModbusClient(ip, 502, 1)) {
+                    try (TCPModbusClient modbusClient = new TCPModbusClient(ip, port, 1)) {
                         if (config.getFingerprint() != null) {
                             if (modbusClient.verifyFingerprint(config.getFingerprint())) {
                                 return name;
@@ -269,5 +287,65 @@ public class DiscoveryService {
             }
         }
         return null;
+    }
+
+    private String tryMatchSunSpec(String ip, int port) {
+        try (TCPModbusClient client = new TCPModbusClient(ip, port, 1)) {
+
+            int baseAddress = client.findSunSpecBaseAddress();
+            if (baseAddress == -1) {
+                return null;
+            }
+
+            int model1Address = baseAddress + 2;
+
+            String manufacturer = client.readSunSpecString(model1Address + 2, 16).replaceAll("[^a-zA-Z0-9_]", "").trim();
+            String model = client.readSunSpecString(model1Address + 18, 16).replaceAll("[^a-zA-Z0-9_]", "").trim();
+            String profileName = "SunSpec_" + manufacturer + "_" + model;
+
+            ModbusConfigStorage modbusStorage = SpringContextHelper.getBean(ModbusConfigStorage.class);
+            if (modbusStorage.doesConfigExistOnDisk(ModbusConfigCreatorTemplate.PV_SITE, profileName)) {
+                return profileName;
+            }
+
+            Map<Integer, Integer> blockAddresses = client.scanSunSpecBlocks(model1Address);
+
+            SunspecConfigService sunspecService = SpringContextHelper.getBean(SunspecConfigService.class);
+            ModbusConfig generatedConfig = sunspecService.createConfigFromSunSpec(blockAddresses, client);
+
+            if (!generatedConfig.getConfigEntries().isEmpty()) {
+                modbusStorage.save(ModbusConfigCreatorTemplate.PV_SITE, profileName, generatedConfig);
+                LOGGER.info("Generated SunSpec profile: " + profileName);
+                return profileName;
+            } else {
+                LOGGER.warning("SunSpec is compatible but does not provide the expected models.");
+            }
+
+        } catch (Exception e) {
+            LOGGER.warning("Error while scanning SunSpec for " + ip + ": " + e.getMessage());
+        }
+        return null;
+    }
+
+    public static String getLocalSubnetPrefix() {
+        try {
+            var interfaces = NetworkInterface.getNetworkInterfaces();
+
+            for (NetworkInterface networkInterface : Collections.list(interfaces)) {
+                if (!networkInterface.isUp() || networkInterface.isLoopback() || networkInterface.isVirtual()) {
+                    continue;
+                }
+
+                var addresses = networkInterface.getInetAddresses();
+                for (InetAddress address : Collections.list(addresses)) {
+                    if (address instanceof Inet4Address && address.isSiteLocalAddress()) {
+                        String ip = address.getHostAddress();
+                        return ip.substring(0, ip.lastIndexOf('.') + 1);
+                    }
+                }
+            }
+        } catch (Exception e) {
+        }
+        return "192.168.178.";
     }
 }

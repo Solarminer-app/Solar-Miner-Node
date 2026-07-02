@@ -7,6 +7,7 @@ import de.verdox.pv_miner.core.miner.antminer.AntminerBackend;
 import de.verdox.pv_miner.core.miner.braiins.BraiinsController;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.logging.Logger;
@@ -17,9 +18,12 @@ public class MinerService {
     private final MinerAgentController agentController;
     private final BraiinsController braiinsController;
     private final AntminerBackend antminerBackend;
+    private final BraiinsController braiinsController;
+    private final ProxyDiscoveryService proxyDiscoveryService;
     private final DevFeeService devFeeService;
 
-    public MinerService(DevFeeService devFeeService, ObjectMapper objectMapper) {
+    public MinerService(ProxyDiscoveryService proxyDiscoveryService, DevFeeService devFeeService, ObjectMapper objectMapper) {
+        this.proxyDiscoveryService = proxyDiscoveryService;
         this.devFeeService = devFeeService;
         this.agentController = new MinerAgentController();
         this.antminerBackend = new AntminerBackend(objectMapper);
@@ -67,6 +71,9 @@ public class MinerService {
     }
 
     public boolean setPoolTarget(MiningOS miningOS, MinerDetails details, String stratumUrl, String userName) {
+        //TODO: Set pool target to
+
+        // Get our own ip address in the network ->
         return switch (miningOS) {
             case AGENT -> agentController.setPoolTarget(details, stratumUrl, userName);
             case BRAIINS -> braiinsController.setPoolTarget(details, stratumUrl, userName);

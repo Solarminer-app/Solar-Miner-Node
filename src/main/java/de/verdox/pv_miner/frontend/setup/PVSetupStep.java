@@ -207,11 +207,12 @@ public class PVSetupStep extends VerticalLayout implements WizardStep {
         statusText.setTranslationParameters(1, 2);
 
         DiscoveryService discoveryService = SpringContextHelper.getBean(DiscoveryService.class);
-        String localSubnet = "192.168.178."; // TODO: Dynamisch auslesen
+        String localSubnet = DiscoveryService.getLocalSubnetPrefix();
+        int modbusTCPPort = 502;
 
-        discoveryService.discoverModbusDevices(localSubnet,
+        discoveryService.discoverModbusDevices(localSubnet, modbusTCPPort,
                 modbusDevice -> ui.access(() -> {
-                    addDeviceToGrid(new DiscoveredPVDevice(modbusDevice.ipAddress(), 502, "Modbus-TCP", modbusDevice.matchingProfileName(), false));
+                    addDeviceToGrid(new DiscoveredPVDevice(modbusDevice.ipAddress(), modbusTCPPort, "Modbus-TCP", modbusDevice.matchingProfileName(), false));
                 }),
                 () -> ui.access(() -> {
                     statusText.setText("setup.pv.scan.status.step.2");

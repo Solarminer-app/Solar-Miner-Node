@@ -150,12 +150,15 @@ public final class PVSiteDataDTO implements QueryResult {
         }
 
         public Builder gridPower(double gridPower) {
-            if (gridPower > 0) {
+            if (gridPower > 0.05) {
                 this.importPowerKw = gridPower;
                 this.exportPowerKw = 0;
-            } else {
+            } else if (gridPower < -0.05) {
                 this.importPowerKw = 0;
                 this.exportPowerKw = Math.abs(gridPower);
+            } else {
+                this.importPowerKw = 0;
+                this.exportPowerKw = 0;
             }
             return this;
         }
