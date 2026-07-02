@@ -1,8 +1,8 @@
 package de.verdox.pv_miner.configfetcher;
 
 import de.verdox.pv_miner.frontend.setup.DeviceProfile;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.config.ModbusConfig;
-import de.verdox.pv_miner_extensions.inverter.rest.config.RestPVConfig;
+import de.verdox.solarminer.modbustcp.ModbusConfig;
+import de.verdox.solarminer.rest.RestPVConfig;
 import de.verdox.vserializer.generic.SerializationElement;
 import de.verdox.vserializer.json.JsonSerializerContext;
 import org.springframework.stereotype.Service;

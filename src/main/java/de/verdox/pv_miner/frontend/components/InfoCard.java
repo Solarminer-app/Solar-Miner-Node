@@ -5,10 +5,12 @@ import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableH3;
+import lombok.Getter;
 
 @CssImport("./styles/pv_cards.css")
 public class InfoCard extends VerticalLayout {
     private final TranslatableH3 title;
+    @Getter
     private final Icon icon;
 
     public InfoCard(String translationKey, Icon icon, String cssCardClass) {
@@ -33,7 +35,4 @@ public class InfoCard extends VerticalLayout {
         return title;
     }
 
-    public Icon getIcon() {
-        return icon;
-    }
 }

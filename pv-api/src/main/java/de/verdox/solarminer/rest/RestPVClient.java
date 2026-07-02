@@ -1,9 +1,7 @@
-package de.verdox.pv_miner_extensions.inverter.rest;
+package de.verdox.solarminer.rest;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import de.verdox.pv_miner_extensions.inverter.rest.config.RestHttpMethod;
-import de.verdox.pv_miner_extensions.inverter.rest.config.RestPVConfig;
 
 import java.io.IOException;
 import java.net.URI;

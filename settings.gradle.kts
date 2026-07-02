@@ -10,3 +10,4 @@ include("currency-rates")
 include("pc-agent")
 
 include("cgminerapi")
+include("pv-api")

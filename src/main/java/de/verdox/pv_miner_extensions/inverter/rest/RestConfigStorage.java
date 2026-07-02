@@ -1,8 +1,12 @@
-package de.verdox.pv_miner_extensions.inverter.modbustcp.config;
+package de.verdox.pv_miner_extensions.inverter.rest;
 
+import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
+import de.verdox.solarminer.rest.RestPVConfig;
 import de.verdox.vserializer.generic.SerializationElement;
 import de.verdox.vserializer.json.JsonSerializerContext;
 import org.apache.commons.compress.utils.FileNameUtils;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -18,28 +22,25 @@ import java.util.logging.Logger;
 import java.util.stream.Stream;
 
 @Service
-public class ModbusConfigStorage {
-    private static final Logger LOGGER = Logger.getLogger(ModbusConfigStorage.class.getSimpleName());
-    private final File storageFolder = new File("./storage/modbus/");
-    private final Map<ModbusConfigCreatorTemplate, Map<String, ModbusConfig>> cache = new HashMap<>();
+public class RestConfigStorage {
+    private static final Logger LOGGER = Logger.getLogger(RestConfigStorage.class.getSimpleName());
+    private final File storageFolder = new File("./storage/rest/");
+    private final Map<RestConfigCreatorTemplate, Map<String, RestPVConfig>> cache = new HashMap<>();
 
-    public ModbusConfigStorage() {
-        initStorage();
-    }
-
+    @EventListener(ApplicationReadyEvent.class)
     private void initStorage() {
-        LOGGER.info("Initialize storage at " + storageFolder.getAbsolutePath());
+        LOGGER.info("Initialize REST storage at " + storageFolder.getAbsolutePath());
         try {
             if (!storageFolder.mkdirs() && !storageFolder.isDirectory()) {
-                LOGGER.warning("Could not initialize storage at " + storageFolder.getAbsolutePath());
+                LOGGER.warning("Could not initialize REST storage at " + storageFolder.getAbsolutePath());
             }
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Could not initialize storage at " + storageFolder.getAbsolutePath(), e);
+            LOGGER.log(Level.WARNING, "Could not initialize REST storage at " + storageFolder.getAbsolutePath(), e);
         }
     }
 
-    public List<String> getSavedConfigs(ModbusConfigCreatorTemplate modbusConfigCreatorTemplate) throws IOException {
-        File folderOfTemplate = getFolderOfTemplate(modbusConfigCreatorTemplate);
+    public List<String> getSavedConfigs(RestConfigCreatorTemplate restConfigCreatorTemplate) throws IOException {
+        File folderOfTemplate = getFolderOfTemplate(restConfigCreatorTemplate);
         if (!folderOfTemplate.isDirectory() || !folderOfTemplate.exists()) {
             return List.of("");
         }
@@ -48,18 +49,18 @@ public class ModbusConfigStorage {
         }
     }
 
-    public void save(ModbusConfigCreatorTemplate templateType, String nameOfConfig, ModbusConfig modbusConfig) throws IOException {
+    public void save(RestConfigCreatorTemplate templateType, String nameOfConfig, RestPVConfig restConfig) throws IOException {
         File folderOfTemplate = getFolderOfTemplate(templateType);
         File saveFile = new File(folderOfTemplate + "/" + nameOfConfig + ".json");
         folderOfTemplate.mkdirs();
         JsonSerializerContext jsonSerializerContext = new JsonSerializerContext();
-        SerializationElement element = ModbusConfig.SERIALIZER.serialize(jsonSerializerContext, modbusConfig);
+        SerializationElement element = RestPVConfig.SERIALIZER.serialize(jsonSerializerContext, restConfig);
         jsonSerializerContext.writeToFile(element, saveFile);
-        LOGGER.info("Saved modbus config " + saveFile);
-        cache.computeIfAbsent(templateType, template -> new HashMap<>()).put(nameOfConfig, modbusConfig);
+        LOGGER.info("Saved REST config " + saveFile);
+        cache.computeIfAbsent(templateType, template -> new HashMap<>()).put(nameOfConfig, restConfig);
     }
 
-    public boolean delete(ModbusConfigCreatorTemplate templateType, String nameOfConfig) throws IOException {
+    public boolean delete(RestConfigCreatorTemplate templateType, String nameOfConfig) throws IOException {
         if (cache.containsKey(templateType)) {
             cache.get(templateType).remove(nameOfConfig);
         }
@@ -69,17 +70,11 @@ public class ModbusConfigStorage {
         if (!folderOfTemplate.exists() || !folderOfTemplate.isDirectory() || !saveFile.exists() || !saveFile.isFile()) {
             return false;
         }
-        LOGGER.info("Deleted modbus config " + saveFile);
+        LOGGER.info("Deleted REST config " + saveFile);
         return saveFile.delete();
     }
 
-    public boolean doesConfigExistOnDisk(ModbusConfigCreatorTemplate templateType, String name) {
-        File folderOfTemplate = getFolderOfTemplate(templateType);
-        File saveFile = new File(folderOfTemplate + "/" + name + ".json");
-        return folderOfTemplate.exists() && folderOfTemplate.isDirectory() && saveFile.exists() && saveFile.isFile();
-    }
-
-    public ModbusConfig loadConfig(ModbusConfigCreatorTemplate templateType, String name) throws IOException {
+    public RestPVConfig loadConfig(RestConfigCreatorTemplate templateType, String name) throws IOException {
         if (cache.containsKey(templateType) && cache.get(templateType).containsKey(name)) {
             return cache.get(templateType).get(name);
         }
@@ -87,17 +82,23 @@ public class ModbusConfigStorage {
         File folderOfTemplate = getFolderOfTemplate(templateType);
         File saveFile = new File(folderOfTemplate + "/" + name + ".json");
         if (!folderOfTemplate.exists() || !folderOfTemplate.isDirectory() || !saveFile.exists() || !saveFile.isFile()) {
-            throw new NoSuchElementException("The modbus config "+name+" does not exist!");
+            throw new NoSuchElementException("The rest config "+name+" does not exist!");
         }
-        LOGGER.info("Loading modbus config " + saveFile);
+        LOGGER.info("Loading REST config " + saveFile);
         JsonSerializerContext jsonSerializerContext = new JsonSerializerContext();
         SerializationElement element = jsonSerializerContext.readFromFile(saveFile);
-        ModbusConfig loaded = ModbusConfig.SERIALIZER.deserialize(element);
+        RestPVConfig loaded = RestPVConfig.SERIALIZER.deserialize(element);
         cache.computeIfAbsent(templateType, template -> new HashMap<>()).put(name, loaded);
         return loaded;
     }
 
-    private File getFolderOfTemplate(ModbusConfigCreatorTemplate templateType) {
+    public boolean doesConfigExistOnDisk(RestConfigCreatorTemplate templateType, String selectedConfigName) {
+        File folderOfTemplate = getFolderOfTemplate(templateType);
+        File saveFile = new File(folderOfTemplate + "/" + selectedConfigName + ".json");
+        return folderOfTemplate.exists() && folderOfTemplate.isDirectory() && saveFile.exists() && saveFile.isFile();
+    }
+
+    private File getFolderOfTemplate(RestConfigCreatorTemplate templateType) {
         return new File(storageFolder + "/" + templateType.id());
     }
 }

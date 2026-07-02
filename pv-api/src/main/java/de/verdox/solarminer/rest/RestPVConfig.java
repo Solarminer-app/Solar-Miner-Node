@@ -1,7 +1,7 @@
-package de.verdox.pv_miner_extensions.inverter.rest.config;
+package de.verdox.solarminer.rest;
 
 import com.google.common.reflect.TypeToken;
-import de.verdox.pv_miner.configuration.SimpleConfig;
+import de.verdox.solarminer.SimpleConfig;
 import de.verdox.vserializer.SerializableField;
 import de.verdox.vserializer.generic.Serializer;
 import de.verdox.vserializer.generic.SerializerBuilder;

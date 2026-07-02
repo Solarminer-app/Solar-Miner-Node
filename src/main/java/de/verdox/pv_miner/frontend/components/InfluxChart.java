@@ -10,6 +10,7 @@ import de.verdox.pv_miner.entity.QueryEntity;
 import de.verdox.pv_miner.influx.QueryResult;
 import de.verdox.pv_miner.statistic.live.EntityStatistic;
 import de.verdox.pv_miner.frontend.FrontendService;
+import lombok.Getter;
 import reactor.core.Disposable;
 
 import java.util.*;
@@ -17,6 +18,7 @@ import java.util.*;
 public class InfluxChart extends Chart {
     private final Set<EntityStatisticSeries<?>> statisticSeries = new HashSet<>();
     private final Configuration configuration;
+    @Getter
     private final RangeSelector rangeSelector;
 
     public InfluxChart() {
@@ -44,10 +46,6 @@ public class InfluxChart extends Chart {
         Tooltip tooltip = new Tooltip();
         tooltip.setEnabled(true);
         configuration.setTooltip(tooltip);
-    }
-
-    public RangeSelector getRangeSelector() {
-        return rangeSelector;
     }
 
     public void applyDarkTheme() {

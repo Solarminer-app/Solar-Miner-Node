@@ -1,4 +1,4 @@
-package de.verdox.pv_miner_extensions.inverter.modbustcp.config;
+package de.verdox.solarminer.modbustcp;
 
 import com.google.common.reflect.TypeToken;
 import de.verdox.vserializer.SerializableField;

@@ -1,4 +1,4 @@
-package de.verdox.pv_miner_extensions.inverter.modbustcp;
+package de.verdox.solarminer.modbustcp;
 
 import com.intelligt.modbus.jlibmodbus.exception.ModbusIOException;
 import com.intelligt.modbus.jlibmodbus.exception.ModbusNumberException;
@@ -6,7 +6,6 @@ import com.intelligt.modbus.jlibmodbus.exception.ModbusProtocolException;
 import com.intelligt.modbus.jlibmodbus.master.ModbusMaster;
 import com.intelligt.modbus.jlibmodbus.master.ModbusMasterTCP;
 import com.intelligt.modbus.jlibmodbus.tcp.TcpParameters;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.config.ModbusConfig;
 
 import java.io.Closeable;
 import java.io.IOException;

@@ -2,14 +2,14 @@ package de.verdox.pv_miner_extensions.inverter.modbustcp;
 
 import de.verdox.pv_miner.SpringContextHelper;
 import de.verdox.pv_miner.entity.EntityQueryService;
-import de.verdox.pv_miner.formula.FormulaEngine;
-import de.verdox.pv_miner.formula.VariableProvider;
 import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.pvsite.PVSiteDataDTO;
 import de.verdox.pv_miner.pvsite.PVSiteQueryStrategy;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.config.ModbusConfig;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.config.ModbusConfigCreatorTemplate;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.config.ModbusConfigStorage;
+import de.verdox.solarminer.formula.FormulaEngine;
+import de.verdox.solarminer.formula.VariableProvider;
+import de.verdox.solarminer.modbustcp.ModbusConfig;
+import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
+import de.verdox.solarminer.modbustcp.TCPModbusClient;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -54,8 +54,7 @@ public class ModbusPVSiteQueryStrategy implements PVSiteQueryStrategy<ModbusPVSi
         }
     }
 
-    private double evaluateEntry(String id, ModbusConfig config, TCPModbusClient client,
-                                 Map<String, Double> calculatedValues, VariableProvider provider) throws Exception {
+    private double evaluateEntry(String id, ModbusConfig config, TCPModbusClient client, Map<String, Double> calculatedValues, VariableProvider provider) throws Exception {
         if (calculatedValues.containsKey(id)) {
             return calculatedValues.get(id);
         }

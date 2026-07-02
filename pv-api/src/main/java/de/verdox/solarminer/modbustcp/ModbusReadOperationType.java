@@ -1,10 +1,8 @@
-package de.verdox.pv_miner_extensions.inverter.modbustcp.config;
-
+package de.verdox.solarminer.modbustcp;
 import com.intelligt.modbus.jlibmodbus.msg.request.ReadHoldingRegistersRequest;
 import com.intelligt.modbus.jlibmodbus.msg.request.ReadInputRegistersRequest;
 import com.intelligt.modbus.jlibmodbus.msg.response.ReadHoldingRegistersResponse;
 import com.intelligt.modbus.jlibmodbus.msg.response.ReadInputRegistersResponse;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.TCPModbusClient;
 import de.verdox.vserializer.generic.Serializer;
 
 public enum ModbusReadOperationType {

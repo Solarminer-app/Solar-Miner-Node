@@ -1,4 +1,4 @@
-package de.verdox.pv_miner_extensions.inverter.rest.config;
+package de.verdox.solarminer.rest;
 
 import com.google.common.reflect.TypeToken;
 import de.verdox.vserializer.SerializableField;
@@ -20,7 +20,7 @@ public record RestParameterType<T extends Number>(String identifier, Function<Ob
     public static final RestParameterType<Double> DOUBLE = register(new RestParameterType<>("double", obj -> Double.parseDouble(obj.toString())));
 
     public static final Serializer<RestParameterType<?>> SERIALIZER = SerializerBuilder.create("rest_parameter_type", new TypeToken<RestParameterType<?>>() {})
-            .constructor(new SerializableField<RestParameterType<?>, String>(Serializer.Primitive.STRING, RestParameterType::identifier), RestParameterType::findById)
+            .constructor(new SerializableField<>(Serializer.Primitive.STRING, RestParameterType::identifier), RestParameterType::findById)
             .build();
 
     private static <T extends Number> RestParameterType<T> register(RestParameterType<T> entry) {

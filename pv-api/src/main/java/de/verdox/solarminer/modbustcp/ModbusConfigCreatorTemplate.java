@@ -1,6 +1,7 @@
-package de.verdox.pv_miner_extensions.inverter.modbustcp.config;
+package de.verdox.solarminer.modbustcp;
 
-import de.verdox.pv_miner.frontend.config.RequiredField;
+
+import de.verdox.solarminer.RequiredField;
 
 import java.nio.ByteOrder;
 import java.util.HashMap;

@@ -1,3 +1,3 @@
-package de.verdox.pv_miner.frontend.config;
+package de.verdox.solarminer;
 
 public record RequiredField(String field, String unit) {}

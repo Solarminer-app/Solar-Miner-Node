@@ -1,4 +1,4 @@
-package de.verdox.pv_miner.formula;
+package de.verdox.solarminer.formula;
 
 import java.util.Stack;
 import java.util.regex.Matcher;

@@ -2,13 +2,13 @@ package de.verdox.pv_miner_extensions.inverter.rest;
 
 import de.verdox.pv_miner.SpringContextHelper;
 import de.verdox.pv_miner.entity.EntityQueryService;
-import de.verdox.pv_miner.formula.FormulaEngine;
-import de.verdox.pv_miner.formula.VariableProvider;
 import de.verdox.pv_miner.pvsite.PVSiteDataDTO;
 import de.verdox.pv_miner.pvsite.PVSiteQueryStrategy;
-import de.verdox.pv_miner_extensions.inverter.rest.config.RestConfigCreatorTemplate;
-import de.verdox.pv_miner_extensions.inverter.rest.config.RestConfigStorage;
-import de.verdox.pv_miner_extensions.inverter.rest.config.RestPVConfig;
+import de.verdox.solarminer.formula.FormulaEngine;
+import de.verdox.solarminer.formula.VariableProvider;
+import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
+import de.verdox.solarminer.rest.RestPVClient;
+import de.verdox.solarminer.rest.RestPVConfig;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -1,6 +1,7 @@
-package de.verdox.pv_miner_extensions.inverter.rest.config;
+package de.verdox.solarminer.rest;
 
-import de.verdox.pv_miner.frontend.config.RequiredField;
+
+import de.verdox.solarminer.RequiredField;
 
 import java.util.HashMap;
 import java.util.List;

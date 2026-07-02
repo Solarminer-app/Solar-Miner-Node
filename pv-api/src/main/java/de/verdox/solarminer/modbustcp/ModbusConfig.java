@@ -1,15 +1,17 @@
-package de.verdox.pv_miner_extensions.inverter.modbustcp.config;
+package de.verdox.solarminer.modbustcp;
 
 import com.google.common.reflect.TypeToken;
-import de.verdox.pv_miner.configuration.SimpleConfig;
+import de.verdox.solarminer.SimpleConfig;
 import de.verdox.vserializer.SerializableField;
 import de.verdox.vserializer.generic.Serializer;
 import de.verdox.vserializer.generic.SerializerBuilder;
+import lombok.Getter;
 
 import java.nio.ByteOrder;
 import java.util.*;
 import java.util.function.Function;
 
+@Getter
 public class ModbusConfig extends SimpleConfig<ModbusConfig.Entry<?>> {
     public static final Serializer<ByteOrder> BYTE_ORDER_SERIALIZER = SerializerBuilder.createObjectToPrimitiveSerializer("byteorder", ByteOrder.class, Serializer.Primitive.STRING, ByteOrder::toString, s -> {
         if (s.toUpperCase(Locale.ROOT).equals(ByteOrder.LITTLE_ENDIAN.toString())) {
@@ -55,8 +57,8 @@ public class ModbusConfig extends SimpleConfig<ModbusConfig.Entry<?>> {
             ByteOrder byteOrder,
             String expectedValue
     ) {
-        public ModbusConfig.Entry<?> toDummyEntry() {
-            return new ModbusConfig.Entry<>(address, size, 1.0f, "x", parameterType, operationType, byteOrder);
+        public Entry<?> toDummyEntry() {
+            return new Entry<>(address, size, 1.0f, "x", parameterType, operationType, byteOrder);
         }
     }
 
@@ -78,10 +80,6 @@ public class ModbusConfig extends SimpleConfig<ModbusConfig.Entry<?>> {
     public ModbusConfig(Fingerprint fingerprint, Map<String, Entry<?>> entries) {
         super(entries);
         this.fingerprint = fingerprint;
-    }
-
-    public Fingerprint getFingerprint() {
-        return fingerprint;
     }
 
     @Override

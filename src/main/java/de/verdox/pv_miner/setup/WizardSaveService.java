@@ -21,11 +21,11 @@ import de.verdox.pv_miner_extensions.miner.AgentMinerEntity;
 import de.verdox.pv_miner_extensions.miner.AntminerEntity;
 import de.verdox.pv_miner_extensions.miner.BraiinsOSAsicMinerEntity;
 import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusPVSite;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.config.ModbusConfigCreatorTemplate;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.config.ModbusConfigStorage;
+import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusConfigStorage;
 import de.verdox.pv_miner_extensions.inverter.rest.RestPVSite;
-import de.verdox.pv_miner_extensions.inverter.rest.config.RestConfigCreatorTemplate;
-import de.verdox.pv_miner_extensions.inverter.rest.config.RestConfigStorage;
+import de.verdox.pv_miner_extensions.inverter.rest.RestConfigStorage;
+import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
+import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
