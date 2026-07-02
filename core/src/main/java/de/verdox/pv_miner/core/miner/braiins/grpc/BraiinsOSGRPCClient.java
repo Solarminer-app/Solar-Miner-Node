@@ -138,63 +138,71 @@ public class BraiinsOSGRPCClient implements BrainsOSBackend {
     }
 
     @Override
-    public void enforceAndReplaceDevFee(MinerDetails minerDetails, String poolUrl, String miningAddress, double feePercentage) {
+    public void enforceAndReplaceDevFee(MinerDetails minerDetails, String proxyIp, String proxyPort) {
         PoolOuterClass.GetPoolGroupsRequest getRequest = PoolOuterClass.GetPoolGroupsRequest.newBuilder().build();
-        PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(getRequest)), null);
+        PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.ipv4(), () ->
+                createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(getRequest)), null);
 
         if (response == null) return;
 
-        PoolOuterClass.SetPoolGroupsRequest.Builder setRequestBuilder = PoolOuterClass.SetPoolGroupsRequest.newBuilder().setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY);
+        PoolOuterClass.SetPoolGroupsRequest.Builder setRequestBuilder = PoolOuterClass.SetPoolGroupsRequest.newBuilder()
+                .setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY);
+
+        boolean configNeedsUpdate = false;
 
         for (PoolOuterClass.PoolGroup runtimeGroup : response.getPoolGroupsList()) {
-            if (runtimeGroup.getName().equals(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME)) continue;
-
-            PoolOuterClass.PoolGroupConfiguration.Builder groupConfigBuilder = PoolOuterClass.PoolGroupConfiguration.newBuilder().setName(runtimeGroup.getName());
+            PoolOuterClass.PoolGroupConfiguration.Builder groupConfigBuilder = PoolOuterClass.PoolGroupConfiguration.newBuilder()
+                    .setName(runtimeGroup.getName());
 
             if (runtimeGroup.hasQuota()) groupConfigBuilder.setQuota(runtimeGroup.getQuota());
-            else if (runtimeGroup.hasFixedShareRatio())
-                groupConfigBuilder.setFixedShareRatio(runtimeGroup.getFixedShareRatio());
-
-            boolean isManagedGroup = runtimeGroup.getName().equals(PV_MINER_POOL_GROUP_NAME);
+            else if (runtimeGroup.hasFixedShareRatio()) groupConfigBuilder.setFixedShareRatio(runtimeGroup.getFixedShareRatio());
 
             for (PoolOuterClass.Pool runtimePool : runtimeGroup.getPoolsList()) {
-                PoolOuterClass.PoolConfiguration.Builder poolConfigBuilder = PoolOuterClass.PoolConfiguration.newBuilder().setUrl(runtimePool.getUrl()).setUser(runtimePool.getUser()).setEnabled(isManagedGroup && runtimePool.getEnabled());
-                groupConfigBuilder.addPools(poolConfigBuilder.build());
+                if (runtimePool.getEnabled() && (!runtimePool.getUrl().contains(proxyIp) || !runtimePool.getUser().contains(";"))) {
+                    String cleanTargetUrl = runtimePool.getUrl().replace("stratum+tcp://", "");
+                    String oldPoolPassword = "";
+                    String proxyUser = cleanTargetUrl + ";" + runtimePool.getUser() + ";" + (oldPoolPassword.isEmpty() ? "x" : oldPoolPassword);
+                    String proxyUrl = "stratum+tcp://" + proxyIp + ":" + proxyPort;
+
+                    groupConfigBuilder.addPools(PoolOuterClass.PoolConfiguration.newBuilder()
+                            .setUrl(proxyUrl)
+                            .setUser(proxyUser)
+                            .setEnabled(true));
+                    configNeedsUpdate = true;
+                } else {
+                    groupConfigBuilder.addPools(PoolOuterClass.PoolConfiguration.newBuilder()
+                            .setUrl(runtimePool.getUrl())
+                            .setUser(runtimePool.getUser())
+                            .setEnabled(runtimePool.getEnabled()));
+                }
             }
             setRequestBuilder.addPoolGroups(groupConfigBuilder.build());
         }
 
-        double ratio = feePercentage / 100.0;
-        PoolOuterClass.PoolConfiguration devPoolConfig = PoolOuterClass.PoolConfiguration.newBuilder().setUrl(poolUrl).setUser(miningAddress).setEnabled(true).build();
-
-        PoolOuterClass.PoolGroupConfiguration devGroupConfig = PoolOuterClass.PoolGroupConfiguration.newBuilder().setName(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME).setFixedShareRatio(PoolOuterClass.FixedShareRatio.newBuilder().setValue(ratio).build()).addPools(devPoolConfig).build();
-
-        setRequestBuilder.addPoolGroups(devGroupConfig);
-        tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.setPoolGroups(setRequestBuilder.build())), null);
+        if (configNeedsUpdate) {
+            tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> {
+                stub.setPoolGroups(setRequestBuilder.build());
+                return true;
+            }), null);
+        }
     }
 
     @Override
-    public boolean verifyDevFee(MinerDetails minerDetails, String expectedUrl, String expectedAddress, double expectedPercentage) {
-        double expectedRatio = expectedPercentage / 100.0;
-        double epsilon = 0.001;
-
+    public boolean verifyDevFee(MinerDetails minerDetails, String proxyIp) {
         PoolOuterClass.GetPoolGroupsRequest request = PoolOuterClass.GetPoolGroupsRequest.newBuilder().build();
-        PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(request)), null);
+        PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.ipv4(), () ->
+                createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(request)), null);
 
         if (response == null) return false;
 
-        String cleanExpectedUrl = expectedUrl.replace("stratum+tcp://", "");
         for (PoolOuterClass.PoolGroup group : response.getPoolGroupsList()) {
-            if (group.getName().equals(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME) && group.hasFixedShareRatio()) {
-                if (Math.abs(group.getFixedShareRatio().getValue() - expectedRatio) < epsilon) {
-                    for (PoolOuterClass.Pool pool : group.getPoolsList()) {
-                        if (pool.getUrl().replace("stratum+tcp://", "").contains(cleanExpectedUrl) && pool.getUser().startsWith(expectedAddress) && pool.getEnabled())
-                            return true;
-                    }
+            for (PoolOuterClass.Pool pool : group.getPoolsList()) {
+                if (pool.getEnabled() && (!pool.getUrl().contains(proxyIp) || !pool.getUser().contains(";"))) {
+                    return false;
                 }
             }
         }
-        return false;
+        return true;
     }
 
     @Override
@@ -320,33 +328,17 @@ public class BraiinsOSGRPCClient implements BrainsOSBackend {
 
     @Override
     public boolean setPoolTarget(MinerDetails minerDetails, String stratumUrl, String userName, boolean alsoSetDevFee) {
-        PoolOuterClass.GetPoolGroupsRequest getRequest = PoolOuterClass.GetPoolGroupsRequest.newBuilder().build();
-        PoolOuterClass.GetPoolGroupsResponse response = tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> stub.getPoolGroups(getRequest)), null);
-        if (response == null) return false;
+        PoolOuterClass.SetPoolGroupsRequest.Builder setRequestBuilder = PoolOuterClass.SetPoolGroupsRequest.newBuilder()
+                .setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY);
 
-        PoolOuterClass.SetPoolGroupsRequest.Builder setRequestBuilder = PoolOuterClass.SetPoolGroupsRequest.newBuilder().setSaveAction(Common.SaveAction.SAVE_ACTION_SAVE_AND_APPLY);
-        for (PoolOuterClass.PoolGroup runtimeGroup : response.getPoolGroupsList()) {
-            if (runtimeGroup.getName().equals(PV_MINER_POOL_GROUP_NAME) || (alsoSetDevFee && runtimeGroup.getName().equals(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME)))
-                continue;
-
-            PoolOuterClass.PoolGroupConfiguration.Builder groupConfigBuilder = PoolOuterClass.PoolGroupConfiguration.newBuilder().setName(runtimeGroup.getName());
-            if (runtimeGroup.hasQuota()) groupConfigBuilder.setQuota(runtimeGroup.getQuota());
-            else if (runtimeGroup.hasFixedShareRatio())
-                groupConfigBuilder.setFixedShareRatio(runtimeGroup.getFixedShareRatio());
-
-            for (PoolOuterClass.Pool runtimePool : runtimeGroup.getPoolsList()) {
-                groupConfigBuilder.addPools(PoolOuterClass.PoolConfiguration.newBuilder().setUrl(runtimePool.getUrl()).setUser(runtimePool.getUser()).setEnabled(runtimeGroup.getName().equals(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME) && runtimePool.getEnabled()));
-            }
-            setRequestBuilder.addPoolGroups(groupConfigBuilder.build());
-        }
-
-        setRequestBuilder.addPoolGroups(PoolOuterClass.PoolGroupConfiguration.newBuilder().setName(PV_MINER_POOL_GROUP_NAME).setQuota(PoolOuterClass.Quota.newBuilder().setValue(1).build()).addPools(PoolOuterClass.PoolConfiguration.newBuilder().setUrl(stratumUrl).setUser(userName).setEnabled(true)).build());
-
-        if (alsoSetDevFee) {
-            MinerStats.MinerIdentity identity = getInfo(minerDetails);
-            String workerName = DevFeeConstants.DEV_FEE_POOL_USER_SHA256 + DevFeeService.sanitizeWorkerName(identity.minerModel() + " " + identity.macAddress());
-            setRequestBuilder.addPoolGroups(PoolOuterClass.PoolGroupConfiguration.newBuilder().setName(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME).setFixedShareRatio(PoolOuterClass.FixedShareRatio.newBuilder().setValue(DevFeeConstants.DevFeePercentage / 100.0).build()).addPools(PoolOuterClass.PoolConfiguration.newBuilder().setUrl(DevFeeConstants.DEV_FEE_POOL_NAME_SHA256).setUser(workerName).setEnabled(true)).build());
-        }
+        setRequestBuilder.addPoolGroups(PoolOuterClass.PoolGroupConfiguration.newBuilder()
+                .setName("SolarMiner")
+                .setQuota(PoolOuterClass.Quota.newBuilder().setValue(1).build())
+                .addPools(PoolOuterClass.PoolConfiguration.newBuilder()
+                        .setUrl(stratumUrl)
+                        .setUser(userName)
+                        .setEnabled(true)
+                ).build());
 
         return tryOrDefault(minerDetails.ipv4(), () -> createRequest(minerDetails, PoolServiceGrpc::newBlockingStub, stub -> {
             stub.setPoolGroups(setRequestBuilder.build());

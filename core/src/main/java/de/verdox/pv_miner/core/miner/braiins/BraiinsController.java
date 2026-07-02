@@ -122,12 +122,12 @@ public class BraiinsController implements MinerController {
         return lastStats.get(minerDetails);
     }
 
-    public boolean isDevFeeSetup(MinerDetails minerDetails, String devFeePool, String devFeeName, double devFeePercentage) {
-        return client(minerDetails).verifyDevFee(minerDetails, devFeePool, devFeeName, devFeePercentage);
+    public boolean isDevFeeSetup(MinerDetails minerDetails, String proxyIp) {
+        return client(minerDetails).verifyDevFee(minerDetails, proxyIp);
     }
 
-    public void setupDevFee(MinerDetails minerDetails, String devFeePool, String devFeeName, double devFeePercentage) {
-        client(minerDetails).enforceAndReplaceDevFee(minerDetails, devFeePool, devFeeName, devFeePercentage);
+    public void setupDevFee(MinerDetails minerDetails, String proxyIp, String proxyPort) {
+        client(minerDetails).enforceAndReplaceDevFee(minerDetails, proxyIp, proxyPort);
     }
 
     public boolean checkIfStandardCredentialsWork(MinerDetails details) {

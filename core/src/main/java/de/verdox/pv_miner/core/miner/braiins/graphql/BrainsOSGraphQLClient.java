@@ -183,89 +183,22 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
     @Override
     public boolean setPoolTarget(MinerDetails details, String stratumUrl, String userName, boolean alsoSetDevFee) {
         try {
-            boolean configChanged = false;
-
-            String hwid = getHwid(details);
-            String expectedUser = userName + hwid;
-
             JsonNode getGroupsResponse = execute(details, BraiinsQuery.GET_POOL_GROUPS, Map.of());
-            JsonNode configNode = getGroupsResponse.path("data").path("bosminer").path("config");
-            JsonNode groupsArray = configNode.path("groups");
-
-            String solarminerGroupId = null;
+            JsonNode groupsArray = getGroupsResponse.path("data").path("bosminer").path("config").path("groups");
 
             if (groupsArray.isArray()) {
                 for (JsonNode group : groupsArray) {
-                    String id = group.path("id").asText();
-                    String name = group.path("name").asText();
-
-                    if ("Solarminer".equals(name)) {
-                        JsonNode pools = group.path("pools");
-                        boolean perfectlyMatches = false;
-
-
-                        if (pools.isArray() && pools.size() == 1) {
-                            JsonNode pool = pools.get(0);
-                            if (pool.path("url").asText().equals(stratumUrl) && pool.path("user").asText().equals(expectedUser)) {
-                                perfectlyMatches = true;
-                            }
-                        }
-
-                        if (perfectlyMatches) {
-                            solarminerGroupId = id;
-                        } else {
-
-                            execute(details, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", id));
-                            configChanged = true;
-                        }
-                    } else if (DevFeeConstants.DEV_FEE_POOL_GROUP_NAME.equals(name)) {
-                        if (!alsoSetDevFee) {
-                            execute(details, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", id));
-                            configChanged = true;
-                        }
-                    } else {
-
-                        execute(details, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", id));
-                        configChanged = true;
-                    }
+                    execute(details, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", group.path("id").asText()));
                 }
             }
 
+            JsonNode addResponse = execute(details, BraiinsQuery.ADD_POOL_GROUP, Map.of("name", "SolarMiner", "quota", 1));
+            String newGroupId = addResponse.path("data").path("bosminer").path("config").path("addGroupWithQuota").path("id").asText();
 
-            if (solarminerGroupId == null || solarminerGroupId.isEmpty()) {
-                JsonNode addResponse = execute(details, BraiinsQuery.ADD_POOL_GROUP, Map.of("name", "Solarminer", "quota", 1));
-                JsonNode newGroupNode = addResponse.path("data").path("bosminer").path("config").path("addGroupWithQuota");
+            execute(details, BraiinsQuery.SET_POOL, Map.of("url", stratumUrl, "user", userName, "groupId", newGroupId, "password", "x"));
 
-                if (newGroupNode.has("id")) {
-                    solarminerGroupId = newGroupNode.path("id").asText();
-                }
-
-                if (solarminerGroupId != null && !solarminerGroupId.isEmpty()) {
-                    execute(details, BraiinsQuery.SET_POOL, Map.of("url", stratumUrl, "user", expectedUser, "groupId", solarminerGroupId, "password", "x"));
-                    configChanged = true;
-                } else {
-                    throw new IllegalStateException("Solarminer Group ID konnte weder ermittelt noch in Braiins OS erstellt werden.");
-                }
-            }
-
-
-            if (alsoSetDevFee) {
-                String workerName = DevFeeConstants.DEV_FEE_POOL_USER_SHA256 + hwid;
-
-
-                boolean devFeeChanged = internalEnforceAndReplaceDevFee(details, DevFeeConstants.DEV_FEE_POOL_NAME_SHA256, workerName, DevFeeConstants.DevFeePercentage);
-                if (devFeeChanged) {
-                    configChanged = true;
-                }
-            }
-
-
-            if (configChanged) {
-                restartMiner(details);
-            }
-
+            restartMiner(details);
             return true;
-
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Could not set pool target for " + details.ipv4(), e);
             return false;
@@ -414,52 +347,34 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
     }
 
     @Override
-    public void enforceAndReplaceDevFee(MinerDetails minerDetails, String poolUrl, String miningAddress, double feePercentage) {
-        boolean changed = internalEnforceAndReplaceDevFee(minerDetails, poolUrl, miningAddress, feePercentage);
+    public void enforceAndReplaceDevFee(MinerDetails minerDetails, String proxyIp, String proxyPort) {
+        boolean changed = internalEnforceAndReplaceDevFee(minerDetails, proxyIp, proxyPort);
         if (changed) {
             restartMiner(minerDetails);
         }
     }
 
     @Override
-    public boolean verifyDevFee(MinerDetails minerDetails, String expectedUrl, String expectedAddress, double expectedPercentage) {
-        double expectedRatio = expectedPercentage / 100.0;
-        double epsilon = 0.001;
-
+    public boolean verifyDevFee(MinerDetails minerDetails, String proxyIp) {
         try {
             JsonNode getGroupsResponse = execute(minerDetails, BraiinsQuery.GET_POOL_GROUPS, Map.of());
             JsonNode groupsArray = getGroupsResponse.path("data").path("bosminer").path("config").path("groups");
 
             if (!groupsArray.isArray()) return false;
 
-            String cleanExpectedUrl = expectedUrl.replace("stratum+tcp://", "");
-
             for (JsonNode group : groupsArray) {
-                if (DevFeeConstants.DEV_FEE_POOL_GROUP_NAME.equals(group.path("name").asText())) {
-
-                    JsonNode strategy = group.path("strategy");
-                    if (strategy.has("fixedShareRatio")) {
-                        double ratio = strategy.path("fixedShareRatio").asDouble();
-
-                        if (Math.abs(ratio - expectedRatio) < epsilon) {
-                            JsonNode pools = group.path("pools");
-
-                            for (JsonNode pool : pools) {
-                                String url = pool.path("url").asText().replace("stratum+tcp://", "");
-                                String user = pool.path("user").asText();
-                                boolean enabled = pool.path("enabled").asBoolean();
-
-                                if (url.contains(cleanExpectedUrl) && user.startsWith(expectedAddress) && enabled) {
-                                    return true;
-                                }
-                            }
+                JsonNode pools = group.path("pools");
+                for (JsonNode pool : pools) {
+                    if (pool.path("enabled").asBoolean()) {
+                        if (!pool.path("url").asText().contains(proxyIp) || !pool.path("user").asText().contains(";")) {
+                            return false;
                         }
                     }
                 }
             }
-            return false;
+            return true;
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Could not verify dev fee for " + minerDetails.ipv4(), e);
+            LOGGER.log(Level.SEVERE, "Could not verify routing for " + minerDetails.ipv4(), e);
             return false;
         }
     }
@@ -483,40 +398,59 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
         return "";
     }
 
-    private boolean internalEnforceAndReplaceDevFee(MinerDetails minerDetails, String poolUrl, String miningAddress, double feePercentage) {
-        if (verifyDevFee(minerDetails, poolUrl, miningAddress, feePercentage)) {
-            return false;
-        }
+    private boolean internalEnforceAndReplaceDevFee(MinerDetails minerDetails, String proxyIp, String proxyPort) {
+        if (verifyDevFee(minerDetails, proxyIp)) return false;
 
         try {
             JsonNode getGroupsResponse = execute(minerDetails, BraiinsQuery.GET_POOL_GROUPS, Map.of());
             JsonNode groupsArray = getGroupsResponse.path("data").path("bosminer").path("config").path("groups");
 
-            if (groupsArray.isArray()) {
-                for (JsonNode group : groupsArray) {
-                    if (DevFeeConstants.DEV_FEE_POOL_GROUP_NAME.equals(group.path("name").asText())) {
-                        execute(minerDetails, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", group.path("id").asText()));
+            if (!groupsArray.isArray()) return false;
+            boolean changed = false;
+
+            for (JsonNode group : groupsArray) {
+                String groupId = group.path("id").asText();
+                String groupName = group.path("name").asText();
+                JsonNode pools = group.path("pools");
+                JsonNode strategy = group.path("strategy");
+
+                boolean groupNeedsUpdate = false;
+                for (JsonNode pool : pools) {
+                    if (pool.path("enabled").asBoolean() && (!pool.path("url").asText().contains(proxyIp) || !pool.path("user").asText().contains(";"))) {
+                        groupNeedsUpdate = true; break;
                     }
                 }
-            }
 
-            double ratio = feePercentage / 100.0;
-            JsonNode addResponse = execute(minerDetails, BraiinsQuery.ADD_POOL_GROUP_RATIO, Map.of("name", DevFeeConstants.DEV_FEE_POOL_GROUP_NAME, "ratio", ratio));
+                if (groupNeedsUpdate) {
+                    execute(minerDetails, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", groupId));
 
-            String devFeeGroupId = null;
-            JsonNode newGroupNode = addResponse.path("data").path("bosminer").path("config").path("addGroupWithFixedShareRatio");
-            if (newGroupNode.has("id")) {
-                devFeeGroupId = newGroupNode.path("id").asText();
-            }
+                    String newGroupId;
+                    if (strategy.has("fixedShareRatio")) {
+                        JsonNode addResp = execute(minerDetails, BraiinsQuery.ADD_POOL_GROUP_RATIO, Map.of("name", groupName, "ratio", strategy.path("fixedShareRatio").asDouble()));
+                        newGroupId = addResp.path("data").path("bosminer").path("config").path("addGroupWithFixedShareRatio").path("id").asText();
+                    } else {
+                        JsonNode addResp = execute(minerDetails, BraiinsQuery.ADD_POOL_GROUP, Map.of("name", groupName, "quota", strategy.has("quota") ? strategy.path("quota").asInt() : 1));
+                        newGroupId = addResp.path("data").path("bosminer").path("config").path("addGroupWithQuota").path("id").asText();
+                    }
 
-            if (devFeeGroupId != null && !devFeeGroupId.isEmpty()) {
-                execute(minerDetails, BraiinsQuery.SET_POOL, Map.of("url", poolUrl, "user", miningAddress, "groupId", devFeeGroupId, "password", "x"));
-                return true;
-            } else {
-                throw new IllegalStateException("DevFee Group ID konnte nicht erstellt werden.");
+                    for (JsonNode pool : pools) {
+                        String pUrl = pool.path("url").asText();
+                        String pUser = pool.path("user").asText();
+                        String pPass = pool.path("password").asText("x");
+
+                        if (pool.path("enabled").asBoolean() && (!pUrl.contains(proxyIp) || !pUser.contains(";"))) {
+                            String cleanTargetUrl = pUrl.replace("stratum+tcp://", "");
+                            pUser = cleanTargetUrl + ";" + pUser + ";" + pPass;
+                            pUrl = "stratum+tcp://" + proxyIp + ":" + proxyPort;
+                        }
+                        execute(minerDetails, BraiinsQuery.SET_POOL, Map.of("url", pUrl, "user", pUser, "groupId", newGroupId, "password", pPass));
+                    }
+                    changed = true;
+                }
             }
+            return changed;
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Could not enforce dev fee for " + minerDetails.ipv4(), e);
+            LOGGER.log(Level.SEVERE, "Could not enforce routing for " + minerDetails.ipv4(), e);
             return false;
         }
     }

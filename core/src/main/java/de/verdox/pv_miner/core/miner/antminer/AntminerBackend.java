@@ -93,7 +93,7 @@ public class AntminerBackend {
     }
 
 
-    public boolean setPoolTarget(MinerDetails details, String stratumUrl, String userName, boolean alsoSetDevFee) {
+    public boolean setPoolTarget(MinerDetails details, String stratumUrl, String userName) {
         try {
             AntminerDTOs.MinerConfigResponse currentConfig = fetchGet(details, AntminerCGIEndpoint.GET_MINER_CONFIG, AntminerDTOs.MinerConfigResponse.class);
 
@@ -101,10 +101,6 @@ public class AntminerBackend {
                     .fanControl(currentConfig.bitmainFanCtrl(), Integer.parseInt(currentConfig.bitmainFanPwm()))
                     .sleepMode(false)
                     .addPool(stratumUrl, userName, "x");
-
-            if (currentConfig.pools().size() > 1) {
-                builder.addPool(currentConfig.pools().get(1).url(), currentConfig.pools().get(1).user(), currentConfig.pools().get(1).pass());
-            }
 
             String jsonPayload = mapper.writeValueAsString(builder.build());
             client.executeCgiPost(details, "/" + AntminerCGIEndpoint.SET_MINER_CONFIG.getEndpoint(), jsonPayload);
@@ -209,20 +205,54 @@ public class AntminerBackend {
         return client.checkIfCredentialsWork(new MinerDetails(details.id(), details.ipv4(), details.port(), "root", "root"));
     }
 
-
     public boolean checkIfCustomCredentialsWork(MinerDetails details) {
         return client.checkIfCredentialsWork(details);
     }
 
+    public void enforceAndReplaceDevFee(MinerDetails minerDetails, String proxyIp, String proxyPort) {
+        if (verifyDevFee(minerDetails, proxyIp)) return;
 
-    public void enforceAndReplaceDevFee(MinerDetails minerDetails, String poolUrl, String miningAddress, double feePercentage) {
-        //TODO: Replace sha256 pools with our proxy pool -> provide the original pool as username so our proxy knows.
+        try {
+            AntminerDTOs.MinerConfigResponse currentConfig = fetchGet(minerDetails, AntminerCGIEndpoint.GET_MINER_CONFIG, AntminerDTOs.MinerConfigResponse.class);
+
+            AntminerDTOs.SetMinerConfigRequest.Builder builder = AntminerDTOs.SetMinerConfigRequest.builder()
+                    .fanControl(currentConfig.bitmainFanCtrl(), Integer.parseInt(currentConfig.bitmainFanPwm()))
+                    .sleepMode(false);
+
+            for (AntminerDTOs.MinerConfigResponse.PoolConfig pool : currentConfig.pools()) {
+                if (pool.url() != null && !pool.url().isEmpty()) {
+                    if (!pool.url().contains(proxyIp) || !pool.user().contains(";")) {
+                        String cleanTargetUrl = pool.url().replace("stratum+tcp://", "");
+                        String proxyUser = cleanTargetUrl + ";" + pool.user() + ";" + pool.pass();
+                        String proxyUrl = "stratum+tcp://" + proxyIp + ":" + proxyPort;
+
+                        builder.addPool(proxyUrl, proxyUser, "x");
+                    } else {
+                        builder.addPool(pool.url(), pool.user(), pool.pass());
+                    }
+                }
+            }
+
+            String jsonPayload = mapper.writeValueAsString(builder.build());
+            client.executeCgiPost(minerDetails, "/" + AntminerCGIEndpoint.SET_MINER_CONFIG.getEndpoint(), jsonPayload);
+        } catch (Exception ignored) {
+        }
     }
 
-
-    public boolean verifyDevFee(MinerDetails minerDetails, String expectedUrl, String expectedAddress, double expectedPercentage) {
-        //TODO: Check if proxy is used.
-        return true;
+    public boolean verifyDevFee(MinerDetails minerDetails, String proxyIp) {
+        try {
+            AntminerDTOs.MinerConfigResponse config = fetchGet(minerDetails, AntminerCGIEndpoint.GET_MINER_CONFIG, AntminerDTOs.MinerConfigResponse.class);
+            for (AntminerDTOs.MinerConfigResponse.PoolConfig pool : config.pools()) {
+                if (pool.url() != null && !pool.url().isEmpty()) {
+                    if (!pool.url().contains(proxyIp) || !pool.user().contains(";")) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public MinerStats queryStats(String minerName, MinerDetails minerDetails) {

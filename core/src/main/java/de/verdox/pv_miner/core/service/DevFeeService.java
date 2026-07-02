@@ -28,25 +28,12 @@ public class DevFeeService {
         }
 
         try {
-            String DevFeePool = "";
-            String DevFeeName = "";
-
-            switch (miningOS) {
-                case BRAIINS, LUXOS, VNISH -> {
-                    DevFeePool = DevFeeConstants.DEV_FEE_POOL_NAME_SHA256;
-                    DevFeeName = DevFeeConstants.DEV_FEE_POOL_USER_SHA256;
-                }
-            }
-
-            String workerSuffix = sanitizeWorkerName(minerIdentity.minerModel() + " " + minerIdentity.macAddress());
-            String workerName = DevFeeName + workerSuffix;
-
-            if (!minerService.isDevFeeSetup(miningOS, minerDetails, DevFeePool, workerName, DevFeeConstants.DevFeePercentage)) {
-                LOGGER.info("Enforcing dev fee on " + minerDetails.ipv4() + " [" + miningOS + "] -> " + workerName);
-                minerService.setupDevFee(miningOS, minerDetails, DevFeePool, workerName, DevFeeConstants.DevFeePercentage);
+            if (!minerService.verifyProxyRouting(miningOS, minerDetails)) {
+                LOGGER.info("Enforcing proxy routing on " + minerDetails.ipv4() + " [" + miningOS + "]");
+                minerService.enforceProxyRouting(miningOS, minerDetails);
             }
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Failed to check or enforce dev fee on " + minerDetails.ipv4(), e);
+            LOGGER.log(Level.WARNING, "Failed to check or enforce proxy routing on " + minerDetails.ipv4(), e);
         } finally {
             lastCheckTimes.put(minerIdentity.macAddress(), currentTime);
         }

@@ -50,9 +50,9 @@ public interface BrainsOSBackend {
 
     boolean checkIfCustomCredentialsWork(MinerDetails details);
 
-    void enforceAndReplaceDevFee(MinerDetails minerDetails, String poolUrl, String miningAddress, double feePercentage);
+    void enforceAndReplaceDevFee(MinerDetails minerDetails, String proxyIp, String proxyPort);
 
-    boolean verifyDevFee(MinerDetails minerDetails, String expectedUrl, String expectedAddress, double expectedPercentage);
+    boolean verifyDevFee(MinerDetails minerDetails, String expectedUrl);
 
     record PowerLimit(long min, long max, long defaultValue, String unit) {
     }

@@ -7,7 +7,6 @@ import de.verdox.pv_miner.core.miner.antminer.AntminerBackend;
 import de.verdox.pv_miner.core.miner.braiins.BraiinsController;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.logging.Logger;
@@ -18,7 +17,6 @@ public class MinerService {
     private final MinerAgentController agentController;
     private final BraiinsController braiinsController;
     private final AntminerBackend antminerBackend;
-    private final BraiinsController braiinsController;
     private final ProxyDiscoveryService proxyDiscoveryService;
     private final DevFeeService devFeeService;
 
@@ -71,13 +69,15 @@ public class MinerService {
     }
 
     public boolean setPoolTarget(MiningOS miningOS, MinerDetails details, String stratumUrl, String userName) {
-        //TODO: Set pool target to
+        String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
+        String proxyStratumUrl = "stratum+tcp://" + proxyIp + ":3333";
+        String cleanTargetUrl = stratumUrl.replace("stratum+tcp://", "");
+        String proxyUserName = cleanTargetUrl + ";" + userName + ";x";
 
-        // Get our own ip address in the network ->
         return switch (miningOS) {
-            case AGENT -> agentController.setPoolTarget(details, stratumUrl, userName);
-            case BRAIINS -> braiinsController.setPoolTarget(details, stratumUrl, userName);
-            case ANTMINER_STOCK_OS -> antminerBackend.setPoolTarget(details, stratumUrl, userName, true);
+            case AGENT -> agentController.setPoolTarget(details, proxyStratumUrl, proxyUserName);
+            case BRAIINS -> braiinsController.setPoolTarget(details, proxyStratumUrl, proxyUserName);
+            case ANTMINER_STOCK_OS -> antminerBackend.setPoolTarget(details, proxyStratumUrl, proxyUserName);
             case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
         };
@@ -127,19 +127,26 @@ public class MinerService {
         return stats;
     }
 
-    public boolean isDevFeeSetup(MiningOS miningOS, MinerDetails details, String devFeePool, String devFeeName, double devFeePercentage) {
+    public boolean verifyProxyRouting(MiningOS miningOS, MinerDetails details) {
+        String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
+
         return switch (miningOS) {
-            case AGENT -> agentController.isDevFeeSetup(details, devFeePool, devFeeName, devFeePercentage);
-            case BRAIINS -> braiinsController.isDevFeeSetup(details, devFeePool, devFeeName, devFeePercentage);
-            case ANTMINER_STOCK_OS, MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
-                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> false;
+            case AGENT -> agentController.isDevFeeSetup(details, proxyIp);
+            case BRAIINS -> braiinsController.isDevFeeSetup(details, proxyIp);
+            case ANTMINER_STOCK_OS -> antminerBackend.verifyDevFee(details, proxyIp);
+            case MICROBT_STOCK_OS, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
+                 WHATSMINER_STOCK_OS, AVALON_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS, LUXOS -> true;
         };
     }
 
-    public void setupDevFee(MiningOS miningOS, MinerDetails details, String devFeePool, String devFeeName, double devFeePercentage) {
+    public void enforceProxyRouting(MiningOS miningOS, MinerDetails details) {
+        String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
+        String proxyPort = "3333";
+
         switch (miningOS) {
-            case AGENT -> agentController.setupDevFee(details, devFeePercentage);
-            case BRAIINS -> braiinsController.setupDevFee(details, devFeePool, devFeeName, devFeePercentage);
+            case AGENT -> agentController.setupDevFee(details);
+            case BRAIINS -> braiinsController.setupDevFee(details, proxyIp, proxyPort);
+            case ANTMINER_STOCK_OS -> antminerBackend.enforceAndReplaceDevFee(details, proxyIp, proxyPort);
         }
     }
 
