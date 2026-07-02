@@ -218,7 +218,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
                     double totalConsumption = todayStats.getConsumptionKwh();
                     double totalConsumptionMiners = todayStats.getConsumptionKwhMining();
                     double totalImported = todayStats.getImportKwh();
-
+                    
                     double pureHouseholdConsumption = Math.max(0, totalConsumption - totalConsumptionMiners);
                     double totalEigenverbrauch = Math.max(0, totalConsumption - totalImported);
 
@@ -226,11 +226,15 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
                     double miningEigenverbrauch = Math.max(0, totalEigenverbrauch - householdEigenverbrauch);
 
                     double householdImport = Math.max(0, pureHouseholdConsumption - householdEigenverbrauch);
+                    double miningImport = Math.max(0, totalConsumptionMiners - miningEigenverbrauch);
 
-                    double householdSavings = (pureHouseholdConsumption * stromPreis) - (householdImport * stromPreis);
+                    double householdSavings = householdEigenverbrauch * stromPreis;
                     double revenue = totalExported * einspeiseVerguetung;
                     double totalImportCosts = totalImported * stromPreis;
+
                     double miningOpportunityCosts = miningEigenverbrauch * einspeiseVerguetung;
+                    double miningImportCosts = miningImport * stromPreis;
+                    double totalMiningEnergyCosts = miningOpportunityCosts + miningImportCosts;
 
                     double teraHashPerSecond = pvSiteEntity.getMiners().stream().map(miner -> entityQueryService.getLastResult(miner, MinerStats.DEFAULT)).mapToDouble(MinerStats::terahashPerSecond).sum();
                     long amountRunningMiners = pvSiteEntity.getMiners().stream().map(miner -> entityQueryService.getLastResult(miner, MinerStats.DEFAULT)).filter(minerStats -> minerStats.terahashPerSecond() > 0).count();
