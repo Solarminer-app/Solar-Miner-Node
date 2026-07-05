@@ -705,9 +705,64 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         if (selected.isEmpty()) return;
 
         boolean isSingleSelection = selected.size() == 1;
-        MinerEntity<?> firstSelected = selected.iterator().next();
-        MinerStats hardwareStats = entityQueryService.getLastResult(firstSelected, MinerStats.DEFAULT);
-        boolean supportsScaling = firstSelected.getOS().supportsDynamicPowerScaling();
+
+        // --- 1. Aggregierte Daten über die Auswahl sammeln ---
+        boolean allSupportScaling = true;
+        boolean allHaveSameLimits = true;
+        boolean allHaveSameCustomTargets = true;
+
+        Long commonHwMin = null;
+        Long commonHwMax = null;
+        Long commonHwDef = null;
+        Long commonCustomMin = null;
+        Long commonCustomMax = null;
+
+        Integer commonStepSize = null;
+        Integer commonMinRun = null;
+        Integer commonMinIdle = null;
+        boolean sameStepSize = true, sameMinRun = true, sameMinIdle = true;
+
+        boolean isFirst = true;
+
+        for (MinerEntity<?> miner : selected) {
+            MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
+
+            if (!miner.getOS().supportsDynamicPowerScaling()) {
+                allSupportScaling = false;
+            }
+
+            long hwMin = stats.minPowerTarget();
+            long hwMax = stats.maxPowerTarget();
+            long hwDef = stats.defaultPowerTarget() > 0 ? stats.defaultPowerTarget() : hwMax;
+
+            long customMin = miner.getMinPowerTarget() > 0 ? miner.getMinPowerTarget() : hwMin;
+            long customMax = miner.getMaxPowerTarget() > 0 ? miner.getMaxPowerTarget() : hwMax;
+
+            if (isFirst) {
+                commonHwMin = hwMin;
+                commonHwMax = hwMax;
+                commonHwDef = hwDef;
+
+                commonCustomMin = customMin;
+                commonCustomMax = customMax;
+
+                commonStepSize = miner.getPowerStepSizeWatts();
+                commonMinRun = miner.getMinRunTimeMinutes();
+                commonMinIdle = miner.getMinIdleTimeMinutes();
+
+                isFirst = false;
+            } else {
+                if (commonHwMin != hwMin || commonHwMax != hwMax || commonHwDef != hwDef) {
+                    allHaveSameLimits = false;
+                }
+                if (commonCustomMin != customMin || commonCustomMax != customMax) {
+                    allHaveSameCustomTargets = false;
+                }
+                if (!java.util.Objects.equals(commonStepSize, miner.getPowerStepSizeWatts())) sameStepSize = false;
+                if (!java.util.Objects.equals(commonMinRun, miner.getMinRunTimeMinutes())) sameMinRun = false;
+                if (!java.util.Objects.equals(commonMinIdle, miner.getMinIdleTimeMinutes())) sameMinIdle = false;
+            }
+        }
 
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle(getTranslation(isSingleSelection ? "cluster.dialog.power_targets.title_single" : "cluster.dialog.power_targets.title_bulk", selected.size()));
@@ -720,54 +775,53 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         NumberField minPowerField = new NumberField(getTranslation("cluster.dialog.power_targets.min"));
         NumberField maxPowerField = new NumberField(getTranslation("cluster.dialog.power_targets.max"));
 
-        if (isSingleSelection) {
-            if (!supportsScaling) {
-                Span warning = new Span(getTranslation("cluster.dialog.power_targets.no_scaling"));
-                warning.getStyle().set("color", FrontendColor.TEXT_VALUE_YELLOW);
-                layout.add(warning);
-            } else {
-                long hwMin = hardwareStats.minPowerTarget();
-                long hwMax = hardwareStats.maxPowerTarget();
-                long hwDef = hardwareStats.defaultPowerTarget() > 0 ? hardwareStats.defaultPowerTarget() : hwMax;
+        boolean canEditPower = allSupportScaling && allHaveSameLimits;
 
-                minPowerField.setWidthFull();
-                minPowerField.setMin(hwMin);
-                minPowerField.setMax(hwMax);
-                minPowerField.setValue(firstSelected.getMinPowerTarget() > 0 ? (double) firstSelected.getMinPowerTarget() : hwMin);
-                minPowerField.setStepButtonsVisible(true);
+        if (canEditPower) {
+            minPowerField.setWidthFull();
+            minPowerField.setMin(commonHwMin);
+            minPowerField.setMax(commonHwMax);
+            if (allHaveSameCustomTargets && commonCustomMin != null) minPowerField.setValue(commonCustomMin.doubleValue());
+            minPowerField.setStepButtonsVisible(true);
 
-                maxPowerField.setWidthFull();
-                maxPowerField.setMin(hwMin);
-                maxPowerField.setMax(hwMax);
-                maxPowerField.setValue(firstSelected.getMaxPowerTarget() > 0 ? (double) firstSelected.getMaxPowerTarget() : hwMax);
-                maxPowerField.setStepButtonsVisible(true);
+            maxPowerField.setWidthFull();
+            maxPowerField.setMin(commonHwMin);
+            maxPowerField.setMax(commonHwMax);
+            if (allHaveSameCustomTargets && commonCustomMax != null) maxPowerField.setValue(commonCustomMax.doubleValue());
+            maxPowerField.setStepButtonsVisible(true);
 
-                maxPowerField.addValueChangeListener(e -> {
-                    if (e.getValue() != null && e.getValue() > hwDef) {
-                        maxPowerField.getStyle().set("--vaadin-input-field-border-color", "#e74c3c"); // Rot
-                        maxPowerField.setHelperText(getTranslation("cluster.dialog.power_targets.overclocking_warning"));
-                    } else {
-                        maxPowerField.getStyle().remove("--vaadin-input-field-border-color");
-                        maxPowerField.setHelperText("");
-                    }
-                    if (e.getValue() != null && minPowerField.getValue() != null && e.getValue() < minPowerField.getValue()) {
-                        minPowerField.setValue(e.getValue());
-                    }
-                });
+            final long finalHwDef = commonHwDef;
+            maxPowerField.addValueChangeListener(e -> {
+                if (e.getValue() != null && e.getValue() > finalHwDef) {
+                    maxPowerField.getStyle().set("--vaadin-input-field-border-color", "#e74c3c");
+                    maxPowerField.setHelperText(getTranslation("cluster.dialog.power_targets.overclocking_warning"));
+                } else {
+                    maxPowerField.getStyle().remove("--vaadin-input-field-border-color");
+                    maxPowerField.setHelperText("");
+                }
+                if (e.getValue() != null && minPowerField.getValue() != null && e.getValue() < minPowerField.getValue()) {
+                    minPowerField.setValue(e.getValue());
+                }
+            });
 
-                minPowerField.addValueChangeListener(e -> {
-                    if (e.getValue() != null && maxPowerField.getValue() != null && e.getValue() > maxPowerField.getValue()) {
-                        maxPowerField.setValue(e.getValue());
-                    }
-                });
+            minPowerField.addValueChangeListener(e -> {
+                if (e.getValue() != null && maxPowerField.getValue() != null && e.getValue() > maxPowerField.getValue()) {
+                    maxPowerField.setValue(e.getValue());
+                }
+            });
 
-                layout.add(new TranslatableH3("cluster.dialog.power_targets.section_power"));
-                layout.add(new HorizontalLayout(minPowerField, maxPowerField));
-            }
+            layout.add(new TranslatableH3("cluster.dialog.power_targets.section_power"));
+            layout.add(new HorizontalLayout(minPowerField, maxPowerField));
         } else {
-            Span bulkWarning = new Span(getTranslation("cluster.dialog.power_targets.bulk_warning"));
-            bulkWarning.getStyle().set("color", FrontendColor.TEXT_VALUE_GRAY).set("font-size", "12px");
-            layout.add(bulkWarning);
+            Span warning = new Span();
+            if (!allSupportScaling) {
+                warning.setText(getTranslation("cluster.dialog.power_targets.no_scaling"));
+                warning.getStyle().set("color", FrontendColor.TEXT_VALUE_YELLOW);
+            } else {
+                warning.setText(getTranslation("cluster.dialog.power_targets.bulk_warning"));
+                warning.getStyle().set("color", FrontendColor.TEXT_VALUE_GRAY).set("font-size", "12px");
+            }
+            layout.add(warning);
         }
 
         layout.add(new TranslatableH3("cluster.dialog.power_targets.section_locks"));
@@ -775,19 +829,19 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         NumberField stepSizeField = new NumberField(getTranslation("cluster.dialog.power_targets.step_size"));
         stepSizeField.setPlaceholder(getTranslation("cluster.grid.default"));
         stepSizeField.setStepButtonsVisible(true);
-        if (isSingleSelection && firstSelected.getPowerStepSizeWatts() != null) stepSizeField.setValue(firstSelected.getPowerStepSizeWatts().doubleValue());
+        if (sameStepSize && commonStepSize != null) stepSizeField.setValue(commonStepSize.doubleValue());
 
         NumberField minRunTimeField = new NumberField(getTranslation("cluster.dialog.power_targets.run_time_min"));
         minRunTimeField.setPlaceholder(getTranslation("cluster.grid.default"));
         minRunTimeField.setStepButtonsVisible(true);
-        if (isSingleSelection && firstSelected.getMinRunTimeMinutes() != null) minRunTimeField.setValue(firstSelected.getMinRunTimeMinutes().doubleValue());
+        if (sameMinRun && commonMinRun != null) minRunTimeField.setValue(commonMinRun.doubleValue());
 
         NumberField minIdleTimeField = new NumberField(getTranslation("cluster.dialog.power_targets.idle_time_min"));
         minIdleTimeField.setPlaceholder(getTranslation("cluster.grid.default"));
         minIdleTimeField.setStepButtonsVisible(true);
-        if (isSingleSelection && firstSelected.getMinIdleTimeMinutes() != null) minIdleTimeField.setValue(firstSelected.getMinIdleTimeMinutes().doubleValue());
+        if (sameMinIdle && commonMinIdle != null) minIdleTimeField.setValue(commonMinIdle.doubleValue());
 
-        HorizontalLayout locksRow = supportsScaling ? new HorizontalLayout(stepSizeField, minRunTimeField, minIdleTimeField) : new HorizontalLayout(minRunTimeField, minIdleTimeField);
+        HorizontalLayout locksRow = allSupportScaling ? new HorizontalLayout(stepSizeField, minRunTimeField, minIdleTimeField) : new HorizontalLayout(minRunTimeField, minIdleTimeField);
         locksRow.setWidthFull();
         layout.add(locksRow);
 
@@ -805,7 +859,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
                             .orElse(null);
 
                     if (freshMiner != null) {
-                        if (isSingleSelection && supportsScaling) {
+                        if (canEditPower) {
                             if (minPowerField.getValue() != null) freshMiner.setMinPowerTarget(minPowerField.getValue().intValue());
                             if (maxPowerField.getValue() != null) freshMiner.setMaxPowerTarget(maxPowerField.getValue().intValue());
                         }
