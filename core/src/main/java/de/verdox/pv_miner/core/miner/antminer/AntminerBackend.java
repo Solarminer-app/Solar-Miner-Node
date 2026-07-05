@@ -1,17 +1,18 @@
 package de.verdox.pv_miner.core.miner.antminer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import de.verdox.pv_miner.core.miner.braiins.MinerController;
 import de.verdox.pv_miner.core.miner.braiins.graphql.BosminerUnavailableException;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
+import de.verdox.pv_miner.core.service.DevFeeService;
 import de.verdox.pv_miner.core.util.AsicMinerSpec;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
-public class AntminerBackend {
+public class AntminerBackend implements MinerController {
     private final AntminerCgiClient client = new AntminerCgiClient();
     private final ObjectMapper mapper;
 
@@ -47,7 +48,7 @@ public class AntminerBackend {
         }
     }
 
-
+    @Override
     public boolean startMining(MinerDetails details) {
         try {
             changeMinerMode(details, false);
@@ -57,7 +58,7 @@ public class AntminerBackend {
         }
     }
 
-
+    @Override
     public boolean stopMining(MinerDetails details) {
         try {
             changeMinerMode(details, true);
@@ -67,32 +68,32 @@ public class AntminerBackend {
         }
     }
 
-
+    @Override
     public boolean pauseMining(MinerDetails details) {
         return stopMining(details);
     }
 
-
+    @Override
     public boolean resumeMining(MinerDetails details) {
         return startMining(details);
     }
 
-
+    @Override
     public boolean setPowerTarget(MinerDetails details, long watts) {
         return false;
     }
 
-
+    @Override
     public boolean incrementPowerTarget(MinerDetails details, long watts) {
         return false;
     }
 
-
+    @Override
     public boolean decrementPowerTarget(MinerDetails details, long watts) {
         return false;
     }
 
-
+    @Override
     public boolean setPoolTarget(MinerDetails details, String stratumUrl, String userName) {
         try {
             AntminerDTOs.MinerConfigResponse currentConfig = fetchGet(details, AntminerCGIEndpoint.GET_MINER_CONFIG, AntminerDTOs.MinerConfigResponse.class);
@@ -109,6 +110,7 @@ public class AntminerBackend {
             return false;
         }
     }
+
 
     public MinerStats.MinerIdentity getInfo(MinerDetails details) {
         AntminerDTOs.SystemInfoResponse sysInfo = fetchGet(details, AntminerCGIEndpoint.SYSTEM_INFO, AntminerDTOs.SystemInfoResponse.class);
@@ -209,8 +211,8 @@ public class AntminerBackend {
         return client.checkIfCredentialsWork(details);
     }
 
-    public void enforceAndReplaceDevFee(MinerDetails minerDetails, String proxyIp, String proxyPort) {
-        if (verifyDevFee(minerDetails, proxyIp)) return;
+    public void enforceProxyRouting(MinerDetails minerDetails, String proxyIp, String proxyPort) {
+        if (verifyProxyRouting(minerDetails, proxyIp)) return;
 
         try {
             AntminerDTOs.MinerConfigResponse currentConfig = fetchGet(minerDetails, AntminerCGIEndpoint.GET_MINER_CONFIG, AntminerDTOs.MinerConfigResponse.class);
@@ -239,7 +241,17 @@ public class AntminerBackend {
         }
     }
 
-    public boolean verifyDevFee(MinerDetails minerDetails, String proxyIp) {
+    @Override
+    public boolean verifyDevFeeNative(MinerDetails minerDetails, List<DevFeeService.FeeTarget> feeTargets) {
+        throw new UnsupportedOperationException("Native dev fee not supported on antminer");
+    }
+
+    @Override
+    public void enforceDevFeeNative(MinerDetails minerDetails, List<DevFeeService.FeeTarget> feeTargets) {
+        throw new UnsupportedOperationException("Native dev fee not supported on antminer");
+    }
+
+    public boolean verifyProxyRouting(MinerDetails minerDetails, String proxyIp) {
         try {
             AntminerDTOs.MinerConfigResponse config = fetchGet(minerDetails, AntminerCGIEndpoint.GET_MINER_CONFIG, AntminerDTOs.MinerConfigResponse.class);
             for (AntminerDTOs.MinerConfigResponse.PoolConfig pool : config.pools()) {
@@ -255,6 +267,7 @@ public class AntminerBackend {
         }
     }
 
+    @Override
     public MinerStats queryStats(String minerName, MinerDetails minerDetails) {
         try {
             var identity = getInfo(minerDetails);
@@ -265,15 +278,17 @@ public class AntminerBackend {
             long currentPowerTarget = getCurrentPowerTarget(minerDetails);
 
             int minPowerTarget = Math.toIntExact(getCurrentPowerTarget(minerDetails));
+            int defaultPowerTarget = Math.toIntExact(getCurrentPowerTarget(minerDetails));
             int maxPowerTarget = Math.toIntExact(getCurrentPowerTarget(minerDetails));
             long approximatePowerUsageWatts = getApproximatePowerUsage(minerDetails);
-            return new MinerStats(identity, minerName, apiStatus, currentPowerTarget, minPowerTarget, maxPowerTarget, approximatePowerUsageWatts, terahashPerSecond, temperatureInDegreeC, pools, List.of(new MinerStats.Worker(apiStatus, identity.minerModel(), "SHA256", terahashPerSecond, temperatureInDegreeC, currentPowerTarget, minPowerTarget, maxPowerTarget, approximatePowerUsageWatts, pools)));
+            return new MinerStats(identity, minerName, apiStatus, currentPowerTarget, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatePowerUsageWatts, terahashPerSecond, temperatureInDegreeC, pools, List.of(new MinerStats.Worker(apiStatus, identity.minerModel(), "SHA256", terahashPerSecond, temperatureInDegreeC, currentPowerTarget, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatePowerUsageWatts, pools)));
         }
         catch (BosminerUnavailableException e) {
             return new MinerStats(
                     new MinerStats.MinerIdentity("", "", ""),
                     minerName,
                     MinerStats.MinerStatus.STOPPED,
+                    0L,
                     0L,
                     0L,
                     0L,
@@ -285,5 +300,10 @@ public class AntminerBackend {
             );
 
         }
+    }
+
+    @Override
+    public MinerStats getLastData(MinerDetails minerDetails) {
+        return null;
     }
 }

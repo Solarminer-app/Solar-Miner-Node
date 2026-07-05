@@ -92,14 +92,14 @@ public class MinerDiscoveryService {
             } else if (lowerResponse.contains("vnish")) {
                 os = MiningOS.VNISH;
             } else if (lowerResponse.contains("luxos")) {
-                os = MiningOS.LUXOS;
+                os = MiningOS.LUX_OS;
             }
 
             if (os != null) {
                 String defaultModel = switch (os) {
                     case BRAIINS -> "Braiins OS - Miner";
                     case VNISH -> "Vnish - Miner";
-                    case LUXOS -> "LuxOS - Miner";
+                    case LUX_OS -> "LuxOS - Miner";
                     default -> "Unknown Miner";
                 };
                 String model = parseJsonValue(response, "Model", defaultModel);

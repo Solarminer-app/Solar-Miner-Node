@@ -77,6 +77,21 @@ public abstract class MinerEntity<MC extends MinerEntityController> extends Abst
     @JsonIgnore
     public abstract MiningOS getOS();
 
+    @Setter
+    @Getter
+    @Column(name = "power_step_size_watts")
+    private Integer powerStepSizeWatts;
+
+    @Setter
+    @Getter
+    @Column(name = "min_run_time_minutes")
+    private Integer minRunTimeMinutes;
+
+    @Setter
+    @Getter
+    @Column(name = "min_idle_time_minutes")
+    private Integer minIdleTimeMinutes;
+
     @Transient
     @JsonIgnore
     public abstract MinerApiClient.MinerDetails getDetails();

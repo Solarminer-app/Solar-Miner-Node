@@ -9,7 +9,7 @@ public record MinerStandardCredentials(String username, String password) {
     static {
         create(MiningOS.ANTMINER_STOCK_OS, "root", "root");
         create(MiningOS.WHATSMINER_STOCK_OS, "admin", "admin");
-        create(MiningOS.AVALON_STOCK_OS, "root", "root");
+        create(MiningOS.CANAAN_STOCK_OS, "root", "root");
         create(MiningOS.INNOSILICON_STOCK_OS, "admin", "admin");
 
         create(MiningOS.BRAIINS, "root", "password");

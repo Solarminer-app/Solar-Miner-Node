@@ -7,6 +7,7 @@ public record MinerStats(
         MinerStats.MinerIdentity minerIdentity, String name, MinerStatus miningStatus,
         long powerTargetWatts,
         long minPowerTarget,
+        long defaultPowerTarget,
         long maxPowerTarget,
         long approximatedPowerUsageWatts,
         double terahashPerSecond, double temperatureCelsius,
@@ -15,22 +16,14 @@ public record MinerStats(
 ) {
 
     public MinerStats withName(String name) {
-        return new MinerStats(minerIdentity, name, miningStatus, powerTargetWatts, minPowerTarget, maxPowerTarget, approximatedPowerUsageWatts, terahashPerSecond, temperatureCelsius, pools, workers);
-    }
-
-    public MinerStats withMinPowerTarget(long minPowerTarget) {
-        return new MinerStats(minerIdentity, name, miningStatus, powerTargetWatts, minPowerTarget, maxPowerTarget, approximatedPowerUsageWatts, terahashPerSecond, temperatureCelsius, pools, workers);
-    }
-
-    public MinerStats withMaxPowerTarget(long maxPowerTarget) {
-        return new MinerStats(minerIdentity, name, miningStatus, powerTargetWatts, minPowerTarget, maxPowerTarget, approximatedPowerUsageWatts, terahashPerSecond, temperatureCelsius, pools, workers);
+        return new MinerStats(minerIdentity, name, miningStatus, powerTargetWatts, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatedPowerUsageWatts, terahashPerSecond, temperatureCelsius, pools, workers);
     }
 
     public static final MinerStats DEFAULT = new MinerStats(
             new MinerIdentity("", "", ""),
             "-",
             MinerStatus.ERROR,
-            0, 0, 0, 0, 0.0, 0.0,
+            0, 0,0, 0, 0, 0.0, 0.0,
             List.of(),
             List.of()
     );
@@ -51,6 +44,7 @@ public record MinerStats(
             double temperatureCelsius,
             long powerTargetWatts,
             long minPowerTarget,
+            long defaultPowerTarget,
             long maxPowerTarget,
             long approximatedPowerUsageWatts,
             List<Pools> pools

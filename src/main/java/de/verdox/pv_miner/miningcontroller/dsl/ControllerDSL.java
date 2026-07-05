@@ -5,10 +5,13 @@ import de.verdox.pv_miner.SpringContextHelper;
 import de.verdox.pv_miner.influx.InfluxService;
 import de.verdox.pv_miner.influx.InfluxUtil;
 import de.verdox.pv_miner.miner.MinerEntityController;
+import de.verdox.pv_miner.pvsite.PVPanels;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
+import de.verdox.pv_miner.pvsite.PVSiteInfluxStrategy;
 import de.verdox.vserializer.SerializableField;
 import de.verdox.vserializer.generic.Serializer;
 import de.verdox.vserializer.generic.SerializerBuilder;
+import lombok.Getter;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -48,7 +51,7 @@ public class ControllerDSL {
          */
         EQUAL_DISTRIBUTION,
         /** Prioritizes the most efficient miners first. */
-        /*EFFICIENCY_FIRST,*/
+        EFFICIENCY_FIRST,
     }
 
     /**
@@ -116,29 +119,74 @@ public class ControllerDSL {
     /**
      * The metrics that can be retrieved and evaluated from a PV Site.
      */
+    @Getter
     public enum PVSiteVariableType {
         BATTERY_SOC("Battery SoC in % [0;100]") {
             @Override
             public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                return queryInflux(pvSiteEntity, valueAdjustment, "BatteryStateOfCharge");
+                return queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.BATTERY_STATE_OF_CHARGE);
+            }
+        },
+        IMPORT_POWER_KW("Total import power used from the grid") {
+            @Override
+            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                return queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.FEED_IN_POWER_IN_KW);
+            }
+        },
+        CURRENT_HOUR_OF_DAY("Current time as hour of day [0.0 ; 24.0)") {
+            @Override
+            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                java.time.LocalTime now = java.time.LocalTime.now(pvSiteEntity.getZoneId());
+                return now.getHour() + (now.getMinute() / 60.0);
+            }
+        },
+        SUNRISE_HOUR("Time of sunrise as decimal hour [0.0 ; 24.0)") {
+            @Override
+            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                return calculateSunEvent(pvSiteEntity, true);
+            }
+        },
+        SUNSET_HOUR("Time of sunset as decimal hour [0.0 ; 24.0)") {
+            @Override
+            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                return calculateSunEvent(pvSiteEntity, false);
+            }
+        },
+        IS_DAYLIGHT("1.0 if sun is up, 0.0 if sun is down") {
+            @Override
+            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                double current = CURRENT_HOUR_OF_DAY.getValueFromPVSite(pvSiteEntity, valueAdjustment);
+                double sunrise = SUNRISE_HOUR.getValueFromPVSite(pvSiteEntity, valueAdjustment);
+                double sunset = SUNSET_HOUR.getValueFromPVSite(pvSiteEntity, valueAdjustment);
+
+                if (sunrise == 0.0 && sunset == 24.0) return 1.0;
+                if (sunrise == 24.0 && sunset == 0.0) return 0.0;
+
+                return (current >= sunrise && current <= sunset) ? 1.0 : 0.0;
+            }
+        },
+        BATTERY_POWER_KW("Total battery power [positive = charging]") {
+            @Override
+            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                return queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.BATTERY_CHARGE_POWER);
             }
         },
         LOADS_KW("Total power used in kw") {
             @Override
             public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                return queryInflux(pvSiteEntity, valueAdjustment, "LoadsPowerInKw");
+                return queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.LOADS_POWER_IN_KW);
             }
         },
         MINER_POWER_KW("Total power used by all miners in kw") {
             @Override
             public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                return queryInflux(pvSiteEntity, valueAdjustment, "MinerPowerInKw");
+                return queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.MINER_POWER_IN_KW);
             }
         },
         PV_PRODUCTION("PV Production in kW") {
             @Override
             public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                return queryInflux(pvSiteEntity, valueAdjustment, "PVPowerInKw");
+                return queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.PV_POWER_IN_KW);
             }
         },
         POTENTIAL_PV_SURPLUS("Potential pv surplus in kW minus all miner power.") {
@@ -154,7 +202,7 @@ public class ControllerDSL {
             @Override
             public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
                 double pvProduction = PV_PRODUCTION.getValueFromPVSite(pvSiteEntity, valueAdjustment);
-                double loadsPower = queryInflux(pvSiteEntity, valueAdjustment, "LoadsPowerInKw");
+                double loadsPower = queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.LOADS_POWER_IN_KW);
                 return Math.max(0, pvProduction - loadsPower);
             }
         },
@@ -188,10 +236,6 @@ public class ControllerDSL {
 
         PVSiteVariableType(String display) {
             this.display = display;
-        }
-
-        public String getDisplay() {
-            return display;
         }
 
         public abstract double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment);
@@ -456,6 +500,7 @@ public class ControllerDSL {
             return action;
         }
 
+        @Getter
         private final String name;
         private final BiFunction<MinerEntityController, T, Boolean> controllerLogic;
         private final Function<String, T> stringToValueParser;
@@ -466,10 +511,6 @@ public class ControllerDSL {
             this.stringToValueParser = stringToValueParser;
         }
 
-        public String getName() {
-            return name;
-        }
-
         @Override
         public Boolean apply(MinerEntityController miner, String s) {
             if (stringToValueParser.apply(s) != null) {
@@ -477,5 +518,47 @@ public class ControllerDSL {
             }
             return controllerLogic.apply(miner, null);
         }
+    }
+
+    private static double calculateSunEvent(PVSiteEntity pvSiteEntity, boolean isSunrise) {
+        Set<PVPanels> panels = pvSiteEntity.getPvPanels();
+
+        if (panels == null || panels.isEmpty()) {
+            return isSunrise ? 6.0 : 18.0;
+        }
+
+        double latSum = 0.0;
+        double lonSum = 0.0;
+        for (PVPanels panel : panels) {
+            latSum += panel.getLatitudeDeg();
+            lonSum += panel.getLongitudeDeg();
+        }
+        double centroidLat = latSum / panels.size();
+        double centroidLon = lonSum / panels.size();
+
+        java.time.ZoneId zoneId = java.time.ZoneId.systemDefault();
+        if (pvSiteEntity.getTimezoneId() != null && !pvSiteEntity.getTimezoneId().isBlank()) {
+            zoneId = java.time.ZoneId.of(pvSiteEntity.getTimezoneId());
+        }
+
+        org.shredzone.commons.suncalc.SunTimes times = org.shredzone.commons.suncalc.SunTimes.compute()
+                .on(java.time.ZonedDateTime.now(zoneId))
+                .at(centroidLat, centroidLon)
+                .execute();
+
+        if (times.isAlwaysUp()) {
+            return isSunrise ? 0.0 : 24.0;
+        } else if (times.isAlwaysDown()) {
+            return isSunrise ? 24.0 : 0.0;
+        }
+
+        java.time.ZonedDateTime eventTime = isSunrise ? times.getRise() : times.getSet();
+
+        if (eventTime == null) {
+            return isSunrise ? 6.0 : 18.0;
+        }
+        return eventTime.getHour()
+                + (eventTime.getMinute() / 60.0)
+                + (eventTime.getSecond() / 3600.0);
     }
 }

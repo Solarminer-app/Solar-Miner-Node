@@ -108,39 +108,51 @@ public class MinerApiClient {
     }
 
     private boolean executeStateCommand(String path, MiningOS os, MinerDetails details) {
-        Boolean result = restClient.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path(path)
-                        .queryParamIfPresent("os", Optional.ofNullable(os))
-                        .build())
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(details)
-                .retrieve()
-                .body(Boolean.class);
+        try {
+            Boolean result = restClient.post()
+                    .uri(uriBuilder -> uriBuilder
+                            .path(path)
+                            .queryParamIfPresent("os", Optional.ofNullable(os))
+                            .build())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(details)
+                    .retrieve()
+                    .body(Boolean.class);
 
-        return Boolean.TRUE.equals(result);
+            return Boolean.TRUE.equals(result);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private boolean executePowerCommand(String path, PowerTargetRequest request) {
-        Boolean result = restClient.post()
-                .uri(path)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .body(Boolean.class);
+        try {
+            Boolean result = restClient.post()
+                    .uri(path)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .body(Boolean.class);
 
-        return Boolean.TRUE.equals(result);
+            return Boolean.TRUE.equals(result);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private boolean executePoolCommand(String path, SetPoolRequest request) {
-        Boolean result = restClient.post()
-                .uri(path)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .body(Boolean.class);
+        try {
+            Boolean result = restClient.post()
+                    .uri(path)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .body(Boolean.class);
 
-        return Boolean.TRUE.equals(result);
+            return Boolean.TRUE.equals(result);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public record MinerDetails(UUID id, String ipv4, int port, String username, String password) {

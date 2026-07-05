@@ -3,12 +3,12 @@ package de.verdox.pv_miner.core.util;
 import java.util.HashMap;
 import java.util.Map;
 
-public record AsicMinerSpec(String model, String algorithm, int watts) {
+public record AsicMinerSpec(String model, String algorithm, int watts, long hs) {
 
     private static final Map<String, AsicMinerSpec> KNOWN_SPECS = new HashMap<>();
 
     private static AsicMinerSpec register(String model, String algorithm, int watts) {
-        var spec = new AsicMinerSpec(model, algorithm, watts);
+        var spec = new AsicMinerSpec(model, algorithm, watts, 0);
         KNOWN_SPECS.put(model.toUpperCase(), spec);
         return spec;
     }
@@ -21,12 +21,13 @@ public record AsicMinerSpec(String model, String algorithm, int watts) {
     }
 
     static {
-        Antminer.registerAllAntminerModels();
+        Antminer.registerAll();
+        Whatsminer.registerAll();
     }
 
     private static class Antminer {
 
-        private static void registerAllAntminerModels() {
+        private static void registerAll() {
 
             final String SHA256 = "SHA-256";
 
@@ -112,5 +113,62 @@ public record AsicMinerSpec(String model, String algorithm, int watts) {
             register("ANTMINER S1", SHA256, 360);
             register("ANTROUTER R1", SHA256, 5);
         }
+    }
+
+    private static class Whatsminer {
+        private static void registerAll() {
+            final String SHA256 = "SHA-256";
+
+            register("WHATSMINER M60", SHA256, 3300);
+            register("WHATSMINER M60S", SHA256, 3300);
+            register("WHATSMINER M63S", SHA256, 6800);
+
+
+            register("WHATSMINER M50", SHA256, 3300);
+            register("WHATSMINER M50S", SHA256, 3270);
+            register("WHATSMINER M53", SHA256, 6500);
+
+
+            register("WHATSMINER M30S", SHA256, 3360);
+            register("WHATSMINER M30S+", SHA256, 3400);
+            register("WHATSMINER M30S++", SHA256, 3472);
+            register("WHATSMINER M31S", SHA256, 3220);
+
+            register("WHATSMINER M21S", SHA256, 3220);
+            register("WHATSMINER M21", SHA256, 3220);
+        }
+    }
+
+    private static class Avalon {
+        private static void registerAll() {
+            final String SHA256 = "SHA-256";
+
+            register("AVALON A1466", SHA256, 3260);
+            register("AVALON A1346", SHA256, 3300);
+            register("AVALON A1246", SHA256, 3425);
+            register("AVALON A1166 PRO", SHA256, 3400);
+            register("AVALON A1066", SHA256, 3250);
+        }
+    }
+
+    /**
+     * Input GigaHashes/s - Output H/s
+     */
+    private static long ghs(double ghs) {
+        return (long) (ghs * 1_000_000_000L);
+    }
+
+    /**
+     * Input TeraHashes/s - Output H/s
+     */
+    private static long ths(double ths) {
+        return (long) (ths * 1_000_000_000_000L);
+    }
+
+    /**
+     * Input KiloHashes/s - Output H/s
+     */
+    private static long khs(double khs) {
+        return (long) (khs * 1_000L);
     }
 }

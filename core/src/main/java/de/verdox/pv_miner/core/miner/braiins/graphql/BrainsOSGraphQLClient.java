@@ -6,6 +6,7 @@ import de.verdox.pv_miner.core.miner.braiins.BrainsOSBackend;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
+import de.verdox.pv_miner.core.service.DevFeeService;
 
 import java.net.http.HttpResponse;
 import java.time.Instant;
@@ -65,8 +66,7 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
     }
 
     private JsonNode execute(MinerDetails details, BraiinsQuery query, Map<String, Object> variables) {
-        ensureAuthenticated(details);
-        try {
+        try {ensureAuthenticated(details);
             JsonNode root = executor.execute(details.ipv4(), query.query(), variables, getSessionCookie(details));
             if (root.has("errors")) {
                 String errorJson = root.get("errors").toPrettyString();
@@ -110,13 +110,13 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
             execute(details, BraiinsQuery.START);
             return true;
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Could not start miner ", e);
+            logMinerError("Could not start miner " + details.ipv4(), e);
             return false;
         }
     }
 
     public String version(MinerDetails details) {
-        return getVersion(details).at("/data/bos/info/version/full").asText();
+        return tryOrDefault(details, () -> getVersion(details).at("/data/bos/info/version/full").asText(), "Unknown");
     }
 
     @Override
@@ -125,7 +125,7 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
             execute(details, BraiinsQuery.STOP);
             return true;
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Could not stop miner ", e);
+            logMinerError("Could not stop miner " + details.ipv4(), e);
             return false;
         }
     }
@@ -222,39 +222,34 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
 
     @Override
     public long getCurrentPowerTarget(MinerDetails details) {
-        JsonNode root = execute(details, BraiinsQuery.GET_POWER_TARGET);
-
-        long value = root.at("/data/bosminer/config/autotuning/powerTarget").asLong();
-
-        if (value != 0) {
-            return value;
-        }
-
-        return root.at("/data/bosminer/info/summary/power/limitW").asLong();
+        return tryOrDefault(details, () -> {
+            JsonNode root = execute(details, BraiinsQuery.GET_POWER_TARGET);
+            long value = root.at("/data/bosminer/config/autotuning/powerTarget").asLong();
+            if (value != 0) {
+                return value;
+            }
+            return root.at("/data/bosminer/info/summary/power/limitW").asLong();
+        }, 0L);
     }
 
     @Override
     public PowerLimit getPowerLimit(MinerDetails details) {
-        JsonNode root = execute(details, BraiinsQuery.GET_POWER_TARGET_LIMITS);
-        JsonNode node = root.at("/data/bosminer/metadata/autotuning/powerTarget");
-
-        if (node.isMissingNode()) {
-            return null;
-        }
-
-        return new PowerLimit(node.path("min").asLong(), node.path("max").asLong(), node.path("default").asLong(), node.path("unit").asText());
+        return tryOrDefault(details, () -> {
+            JsonNode root = execute(details, BraiinsQuery.GET_POWER_TARGET_LIMITS);
+            JsonNode node = root.at("/data/bosminer/metadata/autotuning/powerTarget");
+            if (node.isMissingNode()) return null;
+            return new PowerLimit(node.path("min").asLong(), node.path("max").asLong(), node.path("default").asLong(), node.path("unit").asText());
+        }, null);
     }
 
     @Override
     public TemperatureLimit getTargetTemperature(MinerDetails details) {
-        JsonNode root = execute(details, BraiinsQuery.GET_TEMPERATURE_LIMITS);
-        JsonNode node = root.at("/data/bosminer/metadata/tempControl/targetTemp");
-
-        if (node.isMissingNode()) {
-            return null;
-        }
-
-        return new TemperatureLimit(node.path("min").asDouble(), node.path("max").asDouble(), node.path("default").asDouble(), node.path("unit").asText());
+        return tryOrDefault(details, () -> {
+            JsonNode root = execute(details, BraiinsQuery.GET_TEMPERATURE_LIMITS);
+            JsonNode node = root.at("/data/bosminer/metadata/tempControl/targetTemp");
+            if (node.isMissingNode()) return null;
+            return new TemperatureLimit(node.path("min").asDouble(), node.path("max").asDouble(), node.path("default").asDouble(), node.path("unit").asText());
+        }, null);
     }
 
     @Override
@@ -283,32 +278,33 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
 
     @Override
     public long getApproximatePowerUsage(MinerDetails details) {
-        return status(details).at("/data/bosminer/info/summary/power/approxConsumptionW").asLong();
+        return tryOrDefault(details, () -> status(details).at("/data/bosminer/info/summary/power/approxConsumptionW").asLong(), 0L);
     }
 
     @Override
     public double getTemperatureInDegreeC(MinerDetails details) {
-        return status(details).at("/data/bosminer/info/summary/temperatureChip/degreesC").asDouble();
+        return tryOrDefault(details, () -> status(details).at("/data/bosminer/info/summary/temperatureChip/degreesC").asDouble(), 0.0);
     }
 
     @Override
     public double getHashrateTH(MinerDetails details) {
-        double mhs = status(details).at("/data/bosminer/info/summary/realHashrate/mhs5S").asDouble();
-        return mhs / 1000D / 1000D;
+        return tryOrDefault(details, () -> {
+            double mhs = status(details).at("/data/bosminer/info/summary/realHashrate/mhs5S").asDouble();
+            return mhs / 1000D / 1000D;
+        }, 0.0);
     }
 
     @Override
     public MinerStats.MinerStatus getMinerStatus(MinerDetails details) {
-        String status = status(details).at("/data/bosminer/info/summary/tunerStatus").asText("").toUpperCase();
-        return switch (status) {
-            case "RUNNING", "MINING" -> MinerStats.MinerStatus.MINING;
-
-            case "PAUSED", "DISABLED" -> MinerStats.MinerStatus.PAUSED;
-
-            case "STOPPED, DISABLED" -> MinerStats.MinerStatus.STOPPED;
-
-            default -> MinerStats.MinerStatus.ERROR;
-        };
+        return tryOrDefault(details, () -> {
+            String status = status(details).at("/data/bosminer/info/summary/tunerStatus").asText("").toUpperCase();
+            return switch (status) {
+                case "RUNNING", "MINING" -> MinerStats.MinerStatus.MINING;
+                case "PAUSED", "DISABLED" -> MinerStats.MinerStatus.PAUSED;
+                case "STOPPED, DISABLED" -> MinerStats.MinerStatus.STOPPED;
+                default -> MinerStats.MinerStatus.ERROR;
+            };
+        }, MinerStats.MinerStatus.ERROR);
     }
 
     @Override
@@ -347,15 +343,15 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
     }
 
     @Override
-    public void enforceAndReplaceDevFee(MinerDetails minerDetails, String proxyIp, String proxyPort) {
-        boolean changed = internalEnforceAndReplaceDevFee(minerDetails, proxyIp, proxyPort);
+    public void enforceProxyRouting(MinerDetails minerDetails, String proxyIp, String proxyPort) {
+        boolean changed = internalEnforceProxyRouting(minerDetails, proxyIp, proxyPort);
         if (changed) {
             restartMiner(minerDetails);
         }
     }
 
     @Override
-    public boolean verifyDevFee(MinerDetails minerDetails, String proxyIp) {
+    public boolean verifyProxyRouting(MinerDetails minerDetails, String proxyIp) {
         try {
             JsonNode getGroupsResponse = execute(minerDetails, BraiinsQuery.GET_POOL_GROUPS, Map.of());
             JsonNode groupsArray = getGroupsResponse.path("data").path("bosminer").path("config").path("groups");
@@ -398,8 +394,156 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
         return "";
     }
 
-    private boolean internalEnforceAndReplaceDevFee(MinerDetails minerDetails, String proxyIp, String proxyPort) {
-        if (verifyDevFee(minerDetails, proxyIp)) return false;
+    @Override
+    public void enforceDevFeeNative(MinerDetails minerDetails, List<DevFeeService.FeeTarget> feeTargets) {
+        boolean changed = internalEnforceDevFeeNative(minerDetails, feeTargets);
+        if (changed) {
+            restartMiner(minerDetails);
+        }
+    }
+
+    @Override
+    public boolean verifyDevFeeNative(MinerDetails minerDetails, List<DevFeeService.FeeTarget> feeTargets) {
+        try {
+            JsonNode getGroupsResponse = execute(minerDetails, BraiinsQuery.GET_POOL_GROUPS, Map.of());
+            JsonNode groupsArray = getGroupsResponse.path("data").path("bosminer").path("config").path("groups");
+
+            if (!groupsArray.isArray()) return false;
+
+            for (DevFeeService.FeeTarget feeTarget : feeTargets) {
+                String expectedWorker = feeTarget.workerName();
+                double expectedPercentage = feeTarget.percentage();
+                String expectedUrl = feeTarget.poolAddress();
+                String cleanExpectedUrl = expectedUrl.replace("stratum+tcp://", "");
+
+                String groupName = derivePoolGroupName(feeTarget);
+
+                boolean targetFound = false;
+                for (JsonNode group : groupsArray) {
+                    if (groupName.equals(group.path("name").asText())) {
+                        JsonNode strategy = group.path("strategy");
+                        if (strategy.has("fixedShareRatio")) {
+                            double ratio = strategy.path("fixedShareRatio").asDouble();
+                            double expectedRatio = expectedPercentage / 100.0;
+                            double epsilon = 0.001;
+
+                            if (Math.abs(ratio - expectedRatio) < epsilon) {
+                                JsonNode pools = group.path("pools");
+
+                                for (JsonNode pool : pools) {
+                                    String url = pool.path("url").asText().replace("stratum+tcp://", "");
+                                    String user = pool.path("user").asText();
+                                    boolean enabled = pool.path("enabled").asBoolean();
+
+                                    if (url.contains(cleanExpectedUrl) && user.startsWith(expectedWorker) && enabled) {
+                                        targetFound = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!targetFound) return false;
+            }
+            return true;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Could not verify dev fee for " + minerDetails.ipv4(), e);
+            return false;
+        }
+    }
+
+    @Override
+    public boolean setPoolTargetAndSetNativeDevFees(MinerDetails details, String stratumUrl, String userName, boolean alsoSetDevFee, List<DevFeeService.FeeTarget> feeTargets) {
+        try {
+            boolean configChanged = false;
+
+            String hwid = getHwid(details);
+            String expectedUser = userName + hwid;
+
+            JsonNode getGroupsResponse = execute(details, BraiinsQuery.GET_POOL_GROUPS, Map.of());
+            JsonNode configNode = getGroupsResponse.path("data").path("bosminer").path("config");
+            JsonNode groupsArray = configNode.path("groups");
+
+            String solarminerGroupId = null;
+
+            if (groupsArray.isArray()) {
+                for (JsonNode group : groupsArray) {
+                    String id = group.path("id").asText();
+                    String name = group.path("name").asText();
+
+                    if ("Solarminer".equals(name)) {
+                        JsonNode pools = group.path("pools");
+                        boolean perfectlyMatches = false;
+
+
+                        if (pools.isArray() && pools.size() == 1) {
+                            JsonNode pool = pools.get(0);
+                            if (pool.path("url").asText().equals(stratumUrl) && pool.path("user").asText().equals(expectedUser)) {
+                                perfectlyMatches = true;
+                            }
+                        }
+
+                        if (perfectlyMatches) {
+                            solarminerGroupId = id;
+                        } else {
+
+                            execute(details, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", id));
+                            configChanged = true;
+                        }
+                    } else if (name.startsWith(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME)) {
+                        if (!alsoSetDevFee) {
+                            execute(details, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", id));
+                            configChanged = true;
+                        }
+                    } else {
+
+                        execute(details, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", id));
+                        configChanged = true;
+                    }
+                }
+            }
+
+
+            if (solarminerGroupId == null || solarminerGroupId.isEmpty()) {
+                JsonNode addResponse = execute(details, BraiinsQuery.ADD_POOL_GROUP, Map.of("name", "Solarminer", "quota", 1));
+                JsonNode newGroupNode = addResponse.path("data").path("bosminer").path("config").path("addGroupWithQuota");
+
+                if (newGroupNode.has("id")) {
+                    solarminerGroupId = newGroupNode.path("id").asText();
+                }
+
+                if (solarminerGroupId != null && !solarminerGroupId.isEmpty()) {
+                    execute(details, BraiinsQuery.SET_POOL, Map.of("url", stratumUrl, "user", expectedUser, "groupId", solarminerGroupId, "password", "x"));
+                    configChanged = true;
+                } else {
+                    throw new IllegalStateException("Solarminer Group ID konnte weder ermittelt noch in Braiins OS erstellt werden.");
+                }
+            }
+
+
+            if (alsoSetDevFee) {
+                boolean devFeeChanged = internalEnforceDevFeeNative(details, feeTargets);
+                if (devFeeChanged) {
+                    configChanged = true;
+                }
+            }
+
+
+            if (configChanged) {
+                restartMiner(details);
+            }
+
+            return true;
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Could not set pool target for " + details.ipv4(), e);
+            return false;
+        }
+    }
+
+    private boolean internalEnforceProxyRouting(MinerDetails minerDetails, String proxyIp, String proxyPort) {
+        if (verifyProxyRouting(minerDetails, proxyIp)) return false;
 
         try {
             JsonNode getGroupsResponse = execute(minerDetails, BraiinsQuery.GET_POOL_GROUPS, Map.of());
@@ -455,150 +599,8 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
         }
     }
 
-    @Override
-    public void enforceAndReplaceDevFeeNoProxy(MinerDetails minerDetails, String poolUrl, String miningAddress, double feePercentage) {
-        boolean changed = internalEnforceAndReplaceDevFeeNoProxy(minerDetails, poolUrl, miningAddress, feePercentage);
-        if (changed) {
-            restartMiner(minerDetails);
-        }
-    }
-
-    @Override
-    public boolean verifyDevFeeNoProxy(MinerDetails minerDetails, String expectedUrl, String expectedAddress, double expectedPercentage) {
-        double expectedRatio = expectedPercentage / 100.0;
-        double epsilon = 0.001;
-
-        try {
-            JsonNode getGroupsResponse = execute(minerDetails, BraiinsQuery.GET_POOL_GROUPS, Map.of());
-            JsonNode groupsArray = getGroupsResponse.path("data").path("bosminer").path("config").path("groups");
-
-            if (!groupsArray.isArray()) return false;
-
-            String cleanExpectedUrl = expectedUrl.replace("stratum+tcp://", "");
-
-            for (JsonNode group : groupsArray) {
-                if (DevFeeConstants.DEV_FEE_POOL_GROUP_NAME.equals(group.path("name").asText())) {
-
-                    JsonNode strategy = group.path("strategy");
-                    if (strategy.has("fixedShareRatio")) {
-                        double ratio = strategy.path("fixedShareRatio").asDouble();
-
-                        if (Math.abs(ratio - expectedRatio) < epsilon) {
-                            JsonNode pools = group.path("pools");
-
-                            for (JsonNode pool : pools) {
-                                String url = pool.path("url").asText().replace("stratum+tcp://", "");
-                                String user = pool.path("user").asText();
-                                boolean enabled = pool.path("enabled").asBoolean();
-
-                                if (url.contains(cleanExpectedUrl) && user.startsWith(expectedAddress) && enabled) {
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return false;
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Could not verify dev fee for " + minerDetails.ipv4(), e);
-            return false;
-        }
-    }
-
-    public boolean setPoolTargetNoProxy(MinerDetails details, String stratumUrl, String userName, boolean alsoSetDevFee) {
-        try {
-            boolean configChanged = false;
-
-            String hwid = getHwid(details);
-            String expectedUser = userName + hwid;
-
-            JsonNode getGroupsResponse = execute(details, BraiinsQuery.GET_POOL_GROUPS, Map.of());
-            JsonNode configNode = getGroupsResponse.path("data").path("bosminer").path("config");
-            JsonNode groupsArray = configNode.path("groups");
-
-            String solarminerGroupId = null;
-
-            if (groupsArray.isArray()) {
-                for (JsonNode group : groupsArray) {
-                    String id = group.path("id").asText();
-                    String name = group.path("name").asText();
-
-                    if ("Solarminer".equals(name)) {
-                        JsonNode pools = group.path("pools");
-                        boolean perfectlyMatches = false;
-
-
-                        if (pools.isArray() && pools.size() == 1) {
-                            JsonNode pool = pools.get(0);
-                            if (pool.path("url").asText().equals(stratumUrl) && pool.path("user").asText().equals(expectedUser)) {
-                                perfectlyMatches = true;
-                            }
-                        }
-
-                        if (perfectlyMatches) {
-                            solarminerGroupId = id;
-                        } else {
-
-                            execute(details, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", id));
-                            configChanged = true;
-                        }
-                    } else if (DevFeeConstants.DEV_FEE_POOL_GROUP_NAME.equals(name)) {
-                        if (!alsoSetDevFee) {
-                            execute(details, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", id));
-                            configChanged = true;
-                        }
-                    } else {
-
-                        execute(details, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", id));
-                        configChanged = true;
-                    }
-                }
-            }
-
-
-            if (solarminerGroupId == null || solarminerGroupId.isEmpty()) {
-                JsonNode addResponse = execute(details, BraiinsQuery.ADD_POOL_GROUP, Map.of("name", "Solarminer", "quota", 1));
-                JsonNode newGroupNode = addResponse.path("data").path("bosminer").path("config").path("addGroupWithQuota");
-
-                if (newGroupNode.has("id")) {
-                    solarminerGroupId = newGroupNode.path("id").asText();
-                }
-
-                if (solarminerGroupId != null && !solarminerGroupId.isEmpty()) {
-                    execute(details, BraiinsQuery.SET_POOL, Map.of("url", stratumUrl, "user", expectedUser, "groupId", solarminerGroupId, "password", "x"));
-                    configChanged = true;
-                } else {
-                    throw new IllegalStateException("Solarminer Group ID konnte weder ermittelt noch in Braiins OS erstellt werden.");
-                }
-            }
-
-
-            if (alsoSetDevFee) {
-                String workerName = DevFeeConstants.DEV_FEE_POOL_USER_SHA256 + hwid;
-
-
-                boolean devFeeChanged = internalEnforceAndReplaceDevFeeNoProxy(details, DevFeeConstants.DEV_FEE_POOL_NAME_SHA256, workerName, DevFeeConstants.DevFeePercentage);
-                if (devFeeChanged) {
-                    configChanged = true;
-                }
-            }
-
-
-            if (configChanged) {
-                restartMiner(details);
-            }
-
-            return true;
-
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Could not set pool target for " + details.ipv4(), e);
-            return false;
-        }
-    }
-
-    private boolean internalEnforceAndReplaceDevFeeNoProxy(MinerDetails minerDetails, String poolUrl, String miningAddress, double feePercentage) {
-        if (verifyDevFeeNoProxy(minerDetails, poolUrl, miningAddress, feePercentage)) {
+    private boolean internalEnforceDevFeeNative(MinerDetails minerDetails, List<DevFeeService.FeeTarget> feeTargets) {
+        if (verifyDevFeeNative(minerDetails, feeTargets)) {
             return false;
         }
 
@@ -608,27 +610,37 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
 
             if (groupsArray.isArray()) {
                 for (JsonNode group : groupsArray) {
-                    if (DevFeeConstants.DEV_FEE_POOL_GROUP_NAME.equals(group.path("name").asText())) {
+                    if (group.path("name").asText().startsWith(DevFeeConstants.DEV_FEE_POOL_GROUP_NAME)) {
                         execute(minerDetails, BraiinsQuery.REMOVE_POOL_GROUP, Map.of("id", group.path("id").asText()));
                     }
                 }
             }
 
-            double ratio = feePercentage / 100.0;
-            JsonNode addResponse = execute(minerDetails, BraiinsQuery.ADD_POOL_GROUP_RATIO, Map.of("name", DevFeeConstants.DEV_FEE_POOL_GROUP_NAME, "ratio", ratio));
+            for (DevFeeService.FeeTarget feeTarget : feeTargets) {
+                double ratio = feeTarget.percentage() / 100.0;
+                String groupName = derivePoolGroupName(feeTarget);
 
-            String devFeeGroupId = null;
-            JsonNode newGroupNode = addResponse.path("data").path("bosminer").path("config").path("addGroupWithFixedShareRatio");
-            if (newGroupNode.has("id")) {
-                devFeeGroupId = newGroupNode.path("id").asText();
-            }
+                JsonNode addResponse = execute(minerDetails, BraiinsQuery.ADD_POOL_GROUP_RATIO, Map.of("name", groupName, "ratio", ratio));
 
-            if (devFeeGroupId != null && !devFeeGroupId.isEmpty()) {
-                execute(minerDetails, BraiinsQuery.SET_POOL, Map.of("url", poolUrl, "user", miningAddress, "groupId", devFeeGroupId, "password", "x"));
-                return true;
-            } else {
-                throw new IllegalStateException("DevFee Group ID konnte nicht erstellt werden.");
+                String devFeeGroupId = null;
+                JsonNode newGroupNode = addResponse.path("data").path("bosminer").path("config").path("addGroupWithFixedShareRatio");
+                if (newGroupNode.has("id")) {
+                    devFeeGroupId = newGroupNode.path("id").asText();
+                }
+
+                if (devFeeGroupId != null && !devFeeGroupId.isEmpty()) {
+                    String password = (feeTarget.password() != null && !feeTarget.password().isBlank()) ? feeTarget.password() : "x";
+                    execute(minerDetails, BraiinsQuery.SET_POOL, Map.of(
+                            "url", feeTarget.poolAddress(),
+                            "user", feeTarget.workerName(),
+                            "groupId", devFeeGroupId,
+                            "password", password
+                    ));
+                } else {
+                    throw new IllegalStateException("DevFee Group ID konnte nicht erstellt werden für " + groupName);
+                }
             }
+            return true;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Could not enforce dev fee for " + minerDetails.ipv4(), e);
             return false;
@@ -640,16 +652,41 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
             T result = request.get();
             return result == null ? defaultValue : result;
         } catch (BosminerUnavailableException e) {
-
             return defaultValue;
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Communication problem with miner " + details.ipv4() + " (" + e.getClass().getSimpleName() + ")", e);
+            if (isNetworkTimeout(e)) {
+                LOGGER.log(Level.FINE, "Miner " + details.ipv4() + " unreachable (Timeout/Offline). Returning default.");
+            } else {
+                LOGGER.log(Level.WARNING, "Communication problem with miner " + details.ipv4() + " (" + e.getClass().getSimpleName() + ")", e);
+            }
             return defaultValue;
         }
     }
 
     private void invalidateSession(MinerDetails minerDetails) {
+        if(!sessionCookies.containsKey(minerDetails.ipv4())) {
+            return;
+        }
         sessionCookies.remove(minerDetails.ipv4());
         LOGGER.info("Removed invalid cookie for miner " + minerDetails.ipv4());
+    }
+
+    private boolean isNetworkTimeout(Throwable t) {
+        Throwable cause = t;
+        while (cause != null) {
+            if (cause instanceof java.io.IOException) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
+    }
+
+    private void logMinerError(String message, Exception e) {
+        if (isNetworkTimeout(e)) {
+            LOGGER.log(Level.FINE, message + " - Miner is offline or unreachable.");
+        } else {
+            LOGGER.log(Level.SEVERE, message, e);
+        }
     }
 }

@@ -1,5 +1,6 @@
 package de.verdox.pv_miner.core.service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -26,7 +27,7 @@ public class ProxyDiscoveryService {
     }
 
 
-    @EventListener(ApplicationReadyEvent.class)
+    @PostConstruct
     public void fetchProxyIpOnStartup() {
         LOGGER.info("Fetching proxy ip from proxy api url: " + proxyApiUrl);
         boolean ipFound = false;

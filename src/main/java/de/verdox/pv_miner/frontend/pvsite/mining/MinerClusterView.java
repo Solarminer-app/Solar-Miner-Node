@@ -338,56 +338,137 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         setupMinerGridColumns(minerGrid);
         styleGrid(minerGrid);
 
-        // HIER IST DER FIX FÜR DIE HÖHE:
-        minerGrid.setSizeFull(); // Nimm 100% Breite und Höhe
-        minerGrid.getStyle().set("flex-grow", "1"); // Fülle den kompletten restlichen Platz aus
-        minerGrid.removeClassNames("dynamic-height-grid", "miner-grid-height"); // Fehleranfällige CSS-Klassen entfernen
+        minerGrid.setSizeFull();
+        minerGrid.getStyle().set("flex-grow", "1");
+        minerGrid.removeClassNames("dynamic-height-grid", "miner-grid-height");
 
         right.add(headerRow, actionToolbar, minerGrid);
         return right;
     }
 
     private void setupMinerGridColumns(Grid<MinerEntity<?>> grid) {
-        grid.addColumn(miner -> {
-            MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
-            return stats.minerIdentity().minerModel();
-        }).setHeader(new TranslatableSpan("cluster.grid.miner.name")).setSortable(true);
-        grid.addColumn(miner -> {
-            MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
-            return miner.getIP();
-        }).setHeader(new TranslatableSpan("cluster.grid.miner.ip_mac"));
         grid.addColumn(new ComponentRenderer<>(miner -> {
             MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
-            return createStatusBadge(stats.miningStatus() != null ? stats.miningStatus().name() : "UNKNOWN");
-        })).setHeader(new TranslatableSpan("cluster.grid.miner.status"));
 
-        grid.addColumn(MinerEntity::getCurrentMiningPoolTarget).setHeader(new TranslatableSpan("cluster.grid.miner.pool")).setAutoWidth(true);
+            Span nameSpan = new Span(stats.minerIdentity().minerModel());
+            nameSpan.getStyle().set("font-weight", "bold").set("color", FrontendColor.TEXT_VALUE_WHITE);
 
-        grid.addColumn(miner -> {
-            MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
-            return FormatUtil.formatHashrateFromTHs(stats.terahashPerSecond());
-        }).setHeader(new TranslatableSpan("cluster.grid.miner.hashrate"));
-        grid.addColumn(miner -> {
-            MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
-            return stats.approximatedPowerUsageWatts() + " W";
-        }).setHeader(new TranslatableSpan("cluster.grid.miner.power"));
+            // IP-Adresse
+            Span ipSpan = new Span(miner.getIP());
+            ipSpan.getStyle().set("font-size", "12px").set("color", FrontendColor.TEXT_VALUE_GRAY);
 
-        grid.addColumn(miner -> {
+            // Neuer Pool-Badge (klein und dezent darunter)
+            Span poolSpan = new Span(miner.getCurrentMiningPoolTarget() != null ? miner.getCurrentMiningPoolTarget() : "No Pool");
+            poolSpan.getStyle()
+                    .set("font-size", "10px")
+                    .set("color", "#bdc3c7")
+                    .set("background-color", "rgba(189, 195, 199, 0.1)")
+                    .set("padding", "2px 6px")
+                    .set("border-radius", "4px")
+                    .set("margin-top", "2px");
+
+            VerticalLayout layout = new VerticalLayout(nameSpan, ipSpan, poolSpan);
+            layout.setPadding(false);
+            layout.setSpacing(false);
+            return layout;
+        })).setHeader(new TranslatableSpan("cluster.grid.miner.name")).setSortable(true).setAutoWidth(true);
+
+        grid.addColumn(new ComponentRenderer<>(miner -> {
             MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
-            if (stats.minPowerTarget() == stats.maxPowerTarget()) {
-                return stats.minPowerTarget() + " W";
+            Component badge = createStatusBadge(stats.miningStatus() != null ? stats.miningStatus().name() : "UNKNOWN");
+
+            Span hashrateSpan = new Span(FormatUtil.formatHashrateFromTHs(stats.terahashPerSecond()));
+            hashrateSpan.getStyle().set("font-size", "12px").set("color", FrontendColor.TEXT_VALUE_YELLOW);
+
+            Span temperatureSpan = new Span(stats.temperatureCelsius() + " °C");
+            if (stats.temperatureCelsius() >= 90) {
+                temperatureSpan.getStyle().set("color", "#e74c3c");
+            } else if (stats.temperatureCelsius() >= 80) {
+                temperatureSpan.getStyle().set("color", "#f39c12");
             } else {
-                return stats.minPowerTarget() + " - " + stats.maxPowerTarget() + " W";
+                temperatureSpan.getStyle().set("color", FrontendColor.TEXT_VALUE_GRAY);
             }
-        }).setHeader(new TranslatableSpan("cluster.grid.miner.power_range.firmware")).setAutoWidth(true).setSortable(true);
+            temperatureSpan.getStyle().set("font-size", "12px").set("margin-left", "8px");
 
-        grid.addColumn(miner -> {
-            if (miner.getMinPowerTarget() == miner.getMaxPowerTarget()) {
-                return miner.getMinPowerTarget() + " W";
+            HorizontalLayout metricsRow = new HorizontalLayout(hashrateSpan, temperatureSpan);
+            metricsRow.setSpacing(false);
+            metricsRow.setAlignItems(Alignment.CENTER);
+            metricsRow.getStyle().set("margin-top", "4px");
+
+            VerticalLayout layout = new VerticalLayout(badge, metricsRow);
+            layout.setPadding(false);
+            layout.setSpacing(false);
+            layout.setAlignItems(Alignment.START);
+            return layout;
+        })).setHeader(new TranslatableSpan("cluster.grid.miner.status")).setAutoWidth(true);
+
+        grid.addColumn(new ComponentRenderer<>(miner -> {
+            MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
+            boolean supportsScaling = miner.getOS().supportsDynamicPowerScaling();
+
+            Span powerSpan = new Span(stats.approximatedPowerUsageWatts() + " W");
+            powerSpan.getStyle()
+                    .set("font-weight", "bold")
+                    .set("font-size", "16px")
+                    .set("color", FrontendColor.TEXT_VALUE_WHITE);
+
+            String hwLimits = (stats.minPowerTarget() == stats.maxPowerTarget())
+                    ? stats.minPowerTarget() + "W"
+                    : stats.minPowerTarget() + " - " + stats.maxPowerTarget() + "W";
+
+            String customLimits = "-";
+            if (supportsScaling) {
+                customLimits = (miner.getMinPowerTarget() == miner.getMaxPowerTarget())
+                        ? miner.getMinPowerTarget() + "W"
+                        : miner.getMinPowerTarget() + " - " + miner.getMaxPowerTarget() + "W";
             } else {
-                return miner.getMinPowerTarget() + " - " + miner.getMaxPowerTarget() + " W";
+                customLimits = stats.maxPowerTarget() + "W (Fix)";
             }
-        }).setHeader(new TranslatableSpan("cluster.grid.miner.power_range.custom")).setAutoWidth(true).setSortable(true);
+
+            Span hwSpan = new Span("HW: " + hwLimits);
+            hwSpan.getStyle().set("font-size", "11px").set("color", FrontendColor.TEXT_VALUE_GRAY);
+
+            Span customSpan = new Span("Target: " + customLimits);
+            customSpan.getStyle().set("font-size", "11px").set("color", FrontendColor.TEXT_VALUE_YELLOW); // Target leicht farblich abheben
+
+            VerticalLayout layout = new VerticalLayout(powerSpan, hwSpan, customSpan);
+            layout.setPadding(false);
+            layout.setSpacing(false);
+            return layout;
+        })).setHeader(new TranslatableSpan("cluster.grid.miner.power")).setAutoWidth(true).setFlexGrow(2); // Nimmt nun den meisten Platz ein
+
+        grid.addColumn(new ComponentRenderer<>(miner -> {
+            HorizontalLayout layout = new HorizontalLayout();
+            layout.setSpacing(true);
+            layout.setAlignItems(Alignment.CENTER);
+
+            java.util.function.BiConsumer<VaadinIcon, String> addIcon = (iconType, value) -> {
+                Icon icon = iconType.create();
+                icon.setSize("12px");
+                icon.getStyle().set("color", FrontendColor.TEXT_VALUE_GRAY).set("margin-right", "4px");
+
+                Span valSpan = new Span(value != null ? value : "-");
+                valSpan.getStyle().set("font-size", "12px").set("color", FrontendColor.TEXT_VALUE_WHITE);
+
+                HorizontalLayout pair = new HorizontalLayout(icon, valSpan);
+                pair.setSpacing(false);
+                pair.setAlignItems(Alignment.CENTER);
+                pair.getElement().setProperty("title", "Override active");
+                layout.add(pair);
+            };
+
+            if (miner.getPowerStepSizeWatts() != null) addIcon.accept(VaadinIcon.BOLT, miner.getPowerStepSizeWatts() + "W");
+            if (miner.getMinRunTimeMinutes() != null) addIcon.accept(VaadinIcon.PLAY, miner.getMinRunTimeMinutes() + "m");
+            if (miner.getMinIdleTimeMinutes() != null) addIcon.accept(VaadinIcon.PAUSE, miner.getMinIdleTimeMinutes() + "m");
+
+            if (layout.getComponentCount() == 0) {
+                Span defaultSpan = new Span(getTranslation("cluster.grid.default"));
+                defaultSpan.getStyle().set("font-size", "12px").set("color", FrontendColor.TEXT_VALUE_GRAY);
+                layout.add(defaultSpan);
+            }
+
+            return layout;
+        })).setHeader(new TranslatableSpan("cluster.grid.miner.locks")).setAutoWidth(true);
     }
 
     private void openBulkMinerCostDialog() {
@@ -623,49 +704,119 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         Set<MinerEntity<?>> selected = minerGrid.getSelectedItems();
         if (selected.isEmpty()) return;
 
+        boolean isSingleSelection = selected.size() == 1;
+        MinerEntity<?> firstSelected = selected.iterator().next();
+        MinerStats hardwareStats = entityQueryService.getLastResult(firstSelected, MinerStats.DEFAULT);
+        boolean supportsScaling = firstSelected.getOS().supportsDynamicPowerScaling();
+
         Dialog dialog = new Dialog();
-        dialog.setHeaderTitle(getTranslation("cluster.dialog.power_targets.title", selected.size()));
-        dialog.setWidth("400px");
+        dialog.setHeaderTitle(getTranslation(isSingleSelection ? "cluster.dialog.power_targets.title_single" : "cluster.dialog.power_targets.title_bulk", selected.size()));
+        dialog.setWidth("500px");
 
-        NumberField minField = new NumberField(getTranslation("cluster.dialog.power_targets.min"));
-        minField.setWidthFull();
-        minField.setPlaceholder("z.B. 2000");
-
-        NumberField maxField = new NumberField(getTranslation("cluster.dialog.power_targets.max"));
-        maxField.setWidthFull();
-        maxField.setPlaceholder("z.B. 3500");
-
-        VerticalLayout layout = new VerticalLayout(minField, maxField);
+        VerticalLayout layout = new VerticalLayout();
         layout.setPadding(false);
+        layout.setSpacing(true);
+
+        NumberField minPowerField = new NumberField(getTranslation("cluster.dialog.power_targets.min"));
+        NumberField maxPowerField = new NumberField(getTranslation("cluster.dialog.power_targets.max"));
+
+        if (isSingleSelection) {
+            if (!supportsScaling) {
+                Span warning = new Span(getTranslation("cluster.dialog.power_targets.no_scaling"));
+                warning.getStyle().set("color", FrontendColor.TEXT_VALUE_YELLOW);
+                layout.add(warning);
+            } else {
+                long hwMin = hardwareStats.minPowerTarget();
+                long hwMax = hardwareStats.maxPowerTarget();
+                long hwDef = hardwareStats.defaultPowerTarget() > 0 ? hardwareStats.defaultPowerTarget() : hwMax;
+
+                minPowerField.setWidthFull();
+                minPowerField.setMin(hwMin);
+                minPowerField.setMax(hwMax);
+                minPowerField.setValue(firstSelected.getMinPowerTarget() > 0 ? (double) firstSelected.getMinPowerTarget() : hwMin);
+                minPowerField.setStepButtonsVisible(true);
+
+                maxPowerField.setWidthFull();
+                maxPowerField.setMin(hwMin);
+                maxPowerField.setMax(hwMax);
+                maxPowerField.setValue(firstSelected.getMaxPowerTarget() > 0 ? (double) firstSelected.getMaxPowerTarget() : hwMax);
+                maxPowerField.setStepButtonsVisible(true);
+
+                maxPowerField.addValueChangeListener(e -> {
+                    if (e.getValue() != null && e.getValue() > hwDef) {
+                        maxPowerField.getStyle().set("--vaadin-input-field-border-color", "#e74c3c"); // Rot
+                        maxPowerField.setHelperText(getTranslation("cluster.dialog.power_targets.overclocking_warning"));
+                    } else {
+                        maxPowerField.getStyle().remove("--vaadin-input-field-border-color");
+                        maxPowerField.setHelperText("");
+                    }
+                    if (e.getValue() != null && minPowerField.getValue() != null && e.getValue() < minPowerField.getValue()) {
+                        minPowerField.setValue(e.getValue());
+                    }
+                });
+
+                minPowerField.addValueChangeListener(e -> {
+                    if (e.getValue() != null && maxPowerField.getValue() != null && e.getValue() > maxPowerField.getValue()) {
+                        maxPowerField.setValue(e.getValue());
+                    }
+                });
+
+                layout.add(new TranslatableH3("cluster.dialog.power_targets.section_power"));
+                layout.add(new HorizontalLayout(minPowerField, maxPowerField));
+            }
+        } else {
+            Span bulkWarning = new Span(getTranslation("cluster.dialog.power_targets.bulk_warning"));
+            bulkWarning.getStyle().set("color", FrontendColor.TEXT_VALUE_GRAY).set("font-size", "12px");
+            layout.add(bulkWarning);
+        }
+
+        layout.add(new TranslatableH3("cluster.dialog.power_targets.section_locks"));
+
+        NumberField stepSizeField = new NumberField(getTranslation("cluster.dialog.power_targets.step_size"));
+        stepSizeField.setPlaceholder(getTranslation("cluster.grid.default"));
+        stepSizeField.setStepButtonsVisible(true);
+        if (isSingleSelection && firstSelected.getPowerStepSizeWatts() != null) stepSizeField.setValue(firstSelected.getPowerStepSizeWatts().doubleValue());
+
+        NumberField minRunTimeField = new NumberField(getTranslation("cluster.dialog.power_targets.run_time_min"));
+        minRunTimeField.setPlaceholder(getTranslation("cluster.grid.default"));
+        minRunTimeField.setStepButtonsVisible(true);
+        if (isSingleSelection && firstSelected.getMinRunTimeMinutes() != null) minRunTimeField.setValue(firstSelected.getMinRunTimeMinutes().doubleValue());
+
+        NumberField minIdleTimeField = new NumberField(getTranslation("cluster.dialog.power_targets.idle_time_min"));
+        minIdleTimeField.setPlaceholder(getTranslation("cluster.grid.default"));
+        minIdleTimeField.setStepButtonsVisible(true);
+        if (isSingleSelection && firstSelected.getMinIdleTimeMinutes() != null) minIdleTimeField.setValue(firstSelected.getMinIdleTimeMinutes().doubleValue());
+
+        HorizontalLayout locksRow = supportsScaling ? new HorizontalLayout(stepSizeField, minRunTimeField, minIdleTimeField) : new HorizontalLayout(minRunTimeField, minIdleTimeField);
+        locksRow.setWidthFull();
+        layout.add(locksRow);
+
         dialog.add(layout);
 
         Button cancelBtn = new Button(getTranslation("btn.cancel"), e -> dialog.close());
         Button saveBtn = new Button(getTranslation("btn.save"), e -> {
-            Double minVal = minField.getValue();
-            Double maxVal = maxField.getValue();
-
-            if (minVal != null && maxVal != null && minVal > maxVal) {
-                Notification.show(getTranslation("cluster.notification.target_error"))
-                        .addThemeVariants(NotificationVariant.LUMO_ERROR);
-                return;
-            }
-
             try {
                 PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteEntity.getId()).orElseThrow();
 
-                selected.forEach(staleMiner -> {
+                for (MinerEntity<?> staleMiner : selected) {
                     MinerEntity<?> freshMiner = freshSite.getMiners().stream()
                             .filter(m -> m.getId().equals(staleMiner.getId()))
                             .findFirst()
                             .orElse(null);
 
                     if (freshMiner != null) {
-                        if (minVal != null) freshMiner.setMinPowerTarget(minVal.intValue());
-                        if (maxVal != null) freshMiner.setMaxPowerTarget(maxVal.intValue());
+                        if (isSingleSelection && supportsScaling) {
+                            if (minPowerField.getValue() != null) freshMiner.setMinPowerTarget(minPowerField.getValue().intValue());
+                            if (maxPowerField.getValue() != null) freshMiner.setMaxPowerTarget(maxPowerField.getValue().intValue());
+                        }
+
+                        freshMiner.setPowerStepSizeWatts(stepSizeField.getValue() != null ? stepSizeField.getValue().intValue() : null);
+                        freshMiner.setMinRunTimeMinutes(minRunTimeField.getValue() != null ? minRunTimeField.getValue().intValue() : null);
+                        freshMiner.setMinIdleTimeMinutes(minIdleTimeField.getValue() != null ? minIdleTimeField.getValue().intValue() : null);
 
                         entityService.save(freshMiner, freshSite);
                     }
-                });
+                }
 
                 Notification.show(getTranslation("cluster.notification.targets_updated", selected.size()))
                         .addThemeVariants(NotificationVariant.LUMO_SUCCESS);

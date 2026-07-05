@@ -4,7 +4,7 @@ import de.verdox.pv_miner.core.miner.DevFeeConstants;
 import de.verdox.pv_miner.core.miner.braiins.MinerController;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
-import de.verdox.pv_miner.core.miner.dto.Pools;
+import de.verdox.pv_miner.core.service.DevFeeService;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
@@ -101,17 +101,32 @@ public class MinerAgentController implements MinerController {
         return lastQueriedStats.getOrDefault(minerDetails.id(), null);
     }
 
+    @Override
+    public boolean checkIfCustomCredentialsWork(MinerDetails details) {
+        return true;
+    }
+
+    @Override
+    public boolean checkIfStandardCredentialsWork(MinerDetails details) {
+        return true;
+    }
+
     //TODO: Always return false. We simply send the agent the dev fee all the time for now.
-    public boolean isDevFeeSetup(MinerDetails details, String proxyIp) {
+    public boolean verifyProxyRouting(MinerDetails details, String proxyIp) {
         return false;
     }
 
-    public boolean setupDevFee(MinerDetails details) {
-        try {
-            var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/setPowerTarget").queryParam("devFeePercentage", DevFeeConstants.DevFeePercentage).build()).retrieve().body(Boolean.class));
-        } catch (Throwable e) {
-            return false;
-        }
+    public void enforceProxyRouting(MinerDetails details, String proxyIP, String proxyPort) {
+
+    }
+
+    @Override
+    public boolean verifyDevFeeNative(MinerDetails minerDetails, List<DevFeeService.FeeTarget> feeTargets) {
+        return false;
+    }
+
+    @Override
+    public void enforceDevFeeNative(MinerDetails minerDetails, List<DevFeeService.FeeTarget> feeTargets) {
+
     }
 }

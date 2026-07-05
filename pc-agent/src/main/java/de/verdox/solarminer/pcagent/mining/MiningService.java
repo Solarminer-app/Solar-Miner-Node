@@ -84,6 +84,7 @@ public class MiningService {
         workers.add(xmrMinerService.getWorkerStats());
         long totalPowerTarget = 0;
         long totalMinPowerTarget = 0;
+        long totalDefaultPowerTarget = 0;
         long totalMaxPowerTarget = 0;
         long totalApproximatedPowerUsage = 0;
         double totalTerahashPerSecond = 0.0;
@@ -97,6 +98,7 @@ public class MiningService {
         for (MinerStats.Worker worker : workers) {
             totalPowerTarget += worker.powerTargetWatts();
             totalMinPowerTarget += worker.minPowerTarget();
+            totalDefaultPowerTarget += worker.defaultPowerTarget();
             totalMaxPowerTarget += worker.maxPowerTarget();
             totalApproximatedPowerUsage += worker.approximatedPowerUsageWatts();
             totalTerahashPerSecond += worker.terahashPerSecond();
@@ -137,6 +139,7 @@ public class MiningService {
                 globalStatus,
                 totalPowerTarget,
                 totalMinPowerTarget,
+                totalDefaultPowerTarget,
                 totalMaxPowerTarget,
                 totalApproximatedPowerUsage,
                 totalTerahashPerSecond,

@@ -30,6 +30,15 @@ public abstract class PVSiteEntity extends AbstractAuditableEntity implements Qu
 
     @Setter
     @Getter
+    @Column(name = "timezone_id")
+    private String timezoneId;
+
+    public java.time.ZoneId getZoneId() {
+        return timezoneId != null ? java.time.ZoneId.of(timezoneId) : java.time.ZoneId.systemDefault();
+    }
+
+    @Setter
+    @Getter
     private String name;
 
     @Setter

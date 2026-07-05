@@ -38,6 +38,7 @@ repositories {
 
 
 dependencies {
+    implementation("org.shredzone.commons:commons-suncalc:3.5")
     implementation("com.openhtmltopdf:openhtmltopdf-core:1.0.10")
     implementation("com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10")
     implementation("org.springframework.boot:spring-boot-starter-actuator")

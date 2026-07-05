@@ -2,16 +2,15 @@ package de.verdox.pv_miner.core.miner.braiins;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.cgminerapi.CGMinerClient;
-import de.verdox.cgminerapi.StandardCommand;
 import de.verdox.pv_miner.core.miner.braiins.graphql.BosminerUnavailableException;
 import de.verdox.pv_miner.core.miner.braiins.graphql.BrainsOSGraphQLClient;
 import de.verdox.pv_miner.core.miner.braiins.grpc.BraiinsOSGRPCClient;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
+import de.verdox.pv_miner.core.service.DevFeeService;
 import de.verdox.pv_miner.core.util.AsicMinerSpec;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +36,6 @@ public class BraiinsController implements MinerController {
 
         return apiCapabilities.supportsGRPC() ? brainsOSGRPCClient : brainsOSGraphQLClient;
     }
-
 
     @Override
     public boolean startMining(MinerDetails details) {
@@ -93,18 +91,19 @@ public class BraiinsController implements MinerController {
             long currentPowerTarget = client.getCurrentPowerTarget(minerDetails);
 
             int minPowerTarget = Math.toIntExact(client.getPowerLimit(minerDetails).min());
-            int maxPowerTarget = Math.toIntExact(client.getPowerLimit(minerDetails).defaultValue());
+            int defaultPowerTarget = Math.toIntExact(client.getPowerLimit(minerDetails).defaultValue());
+            int maxPowerTarget = Math.toIntExact(client.getPowerLimit(minerDetails).max());
             long approximatePowerUsageWatts = client.getApproximatePowerUsage(minerDetails);
-            var newStats = new MinerStats(identity, minerName, apiStatus, currentPowerTarget, minPowerTarget, maxPowerTarget, approximatePowerUsageWatts, terahashPerSecond, temperatureInDegreeC, pools, List.of(new MinerStats.Worker(apiStatus, identity.minerModel(), "SHA256", terahashPerSecond, temperatureInDegreeC, currentPowerTarget, minPowerTarget, maxPowerTarget, approximatePowerUsageWatts, pools)));
+            var newStats = new MinerStats(identity, minerName, apiStatus, currentPowerTarget, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatePowerUsageWatts, terahashPerSecond, temperatureInDegreeC, pools, List.of(new MinerStats.Worker(apiStatus, identity.minerModel(), "SHA256", terahashPerSecond, temperatureInDegreeC, currentPowerTarget, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatePowerUsageWatts, pools)));
             lastStats.put(minerDetails, newStats);
             return newStats;
-        }
-        catch (BosminerUnavailableException e) {
+        } catch (BosminerUnavailableException e) {
             return new MinerStats(
                     identity,
                     minerName,
                     MinerStats.MinerStatus.STOPPED,
                     0L,
+                    asicStandardPowerTarget,
                     asicStandardPowerTarget,
                     asicStandardPowerTarget,
                     0L,
@@ -113,7 +112,6 @@ public class BraiinsController implements MinerController {
                     List.of(),
                     List.of()
             );
-
         }
     }
 
@@ -122,27 +120,37 @@ public class BraiinsController implements MinerController {
         return lastStats.get(minerDetails);
     }
 
-    public boolean isDevFeeSetup(MinerDetails minerDetails, String proxyIp) {
-        return client(minerDetails).verifyDevFee(minerDetails, proxyIp);
-    }
-
-    public void setupDevFee(MinerDetails minerDetails, String proxyIp, String proxyPort) {
-        client(minerDetails).enforceAndReplaceDevFee(minerDetails, proxyIp, proxyPort);
-    }
-
+    @Override
     public boolean checkIfStandardCredentialsWork(MinerDetails details) {
         return client(details).checkIfStandardCredentialsWork(details);
     }
 
+    @Override
     public boolean checkIfCustomCredentialsWork(MinerDetails details) {
         return client(details).checkIfCustomCredentialsWork(details);
     }
 
-    public boolean isDevFeeSetupNoProxy(MinerDetails minerDetails, String devFeePool, String devFeeName, double devFeePercentage) {
-        return client(minerDetails).verifyDevFeeNoProxy(minerDetails, devFeePool, devFeeName, devFeePercentage);
+    @Override
+    public boolean verifyProxyRouting(MinerDetails minerDetails, String proxyIp) {
+        return client(minerDetails).verifyProxyRouting(minerDetails, proxyIp);
     }
 
-    public void setupDevFeeNoProxy(MinerDetails minerDetails, String devFeePool, String devFeeName, double devFeePercentage) {
-        client(minerDetails).enforceAndReplaceDevFeeNoProxy(minerDetails, devFeePool, devFeeName, devFeePercentage);
+    @Override
+    public void enforceProxyRouting(MinerDetails minerDetails, String proxyIp, String proxyPort) {
+        client(minerDetails).enforceProxyRouting(minerDetails, proxyIp, proxyPort);
+    }
+
+    @Override
+    public boolean verifyDevFeeNative(MinerDetails minerDetails, List<DevFeeService.FeeTarget> feeTargets) {
+        return client(minerDetails).verifyDevFeeNative(minerDetails, feeTargets);
+    }
+
+    @Override
+    public void enforceDevFeeNative(MinerDetails minerDetails, List<DevFeeService.FeeTarget> feeTargets) {
+        client(minerDetails).enforceDevFeeNative(minerDetails, feeTargets);
+    }
+
+    public boolean setPoolTargetNoProxy(MinerDetails minerDetails, String stratumUrl, String userName, List<DevFeeService.FeeTarget> feeTargets) {
+        return client(minerDetails).setPoolTargetAndSetNativeDevFees(minerDetails, stratumUrl, userName, true, feeTargets);
     }
 }

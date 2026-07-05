@@ -1,10 +1,14 @@
 package de.verdox.pv_miner.core.miner.braiins;
 
+import de.verdox.pv_miner.core.miner.DevFeeConstants;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
+import de.verdox.pv_miner.core.service.DevFeeService;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.UUID;
 
 public interface BrainsOSBackend {
 
@@ -52,20 +56,26 @@ public interface BrainsOSBackend {
 
     // ### Dev Fee with Proxy
 
-    void enforceAndReplaceDevFee(MinerDetails minerDetails, String proxyIp, String proxyPort);
+    void enforceProxyRouting(MinerDetails minerDetails, String proxyIp, String proxyPort);
 
-    boolean verifyDevFee(MinerDetails minerDetails, String expectedUrl);
+    boolean verifyProxyRouting(MinerDetails minerDetails, String expectedUrl);
 
     // ### Dev Fee no Proxy
 
-    void enforceAndReplaceDevFeeNoProxy(MinerDetails minerDetails, String poolUrl, String miningAddress, double feePercentage);
+    void enforceDevFeeNative(MinerDetails minerDetails, List<DevFeeService.FeeTarget> feeTargets);
 
-    boolean verifyDevFeeNoProxy(MinerDetails minerDetails, String expectedUrl, String expectedAddress, double expectedPercentage);
+    boolean verifyDevFeeNative(MinerDetails minerDetails, List<DevFeeService.FeeTarget> feeTargets);
 
+    boolean setPoolTargetAndSetNativeDevFees(MinerDetails minerDetails, String stratumUrl, String userName, boolean alsoSetDevFee, List<DevFeeService.FeeTarget> feeTargets);
 
     record PowerLimit(long min, long max, long defaultValue, String unit) {
     }
 
     record TemperatureLimit(double min, double max, double defaultValue, String unit) {
+    }
+
+    default String derivePoolGroupName(DevFeeService.FeeTarget feeTarget) {
+
+        return DevFeeConstants.DEV_FEE_POOL_GROUP_NAME+"-" + UUID.nameUUIDFromBytes((feeTarget.poolAddress()+feeTarget.workerName()).getBytes(StandardCharsets.UTF_8));
     }
 }

@@ -27,7 +27,6 @@ public class ClusterController {
     private final PVSiteEntity pvSite;
     private final MinerControllerConfig config;
 
-    private record MinerLock(Instant unlockTime, Instant lockStartTime, double expectedPowerWatts) {}
     private final Map<UUID, MinerLock> activeLocks = new ConcurrentHashMap<>();
 
     private ControllerDSL.OperatingMode activeMode = null;
@@ -98,16 +97,16 @@ public class ClusterController {
             for (MinerEntity<?> miner : minerCluster) {
                 boolean isEmergencyPause = action.controllerActionType() == ControllerDSL.ControllerActionType.PAUSE;
 
-                if (isEmergencyPause || !isMinerLocked(miner, queryService)) {
+                if (isEmergencyPause || !isMinerStateLocked(miner)) {
                     var controller = controllerService.getController(miner);
-
                     action.controllerActionType().apply(controller, null);
 
-                    double expectedPower = isEmergencyPause
-                            ? 0.0
-                            : queryService.getLastResult(miner, MinerStats.DEFAULT).minPowerTarget();
+                    boolean supportsScaling = miner.getOS().supportsDynamicPowerScaling();
+                    var stats = queryService.getLastResult(miner, MinerStats.DEFAULT);
+                    double expectedPower = isEmergencyPause ? 0.0 : (supportsScaling ? stats.minPowerTarget() : stats.maxPowerTarget());
 
-                    activeLocks.put(miner.getId(), new MinerLock(Instant.now().plus(mode.minRunTime()), Instant.now(), expectedPower));
+                    Instant stateUnlock = Instant.now().plus(isEmergencyPause ? getEffectiveMinIdleTime(miner, mode) : getEffectiveMinRunTime(miner, mode));
+                    activeLocks.put(miner.getId(), new MinerLock(stateUnlock, stateUnlock, Instant.now(), expectedPower));
                 }
             }
             return;
@@ -119,135 +118,144 @@ public class ClusterController {
             for (MinerEntity<?> miner : minerCluster) {
                 var stats = queryService.getLastResult(miner, MinerStats.DEFAULT);
                 var controller = controllerService.getController(miner);
+                MinerLock currentLock = activeLocks.get(miner.getId());
 
-                if (isMinerLocked(miner, queryService)) {
+                boolean supportsScaling = miner.getOS().supportsDynamicPowerScaling();
+
+                double maxPower = stats.maxPowerTarget();
+                double minPower = supportsScaling ? stats.minPowerTarget() : maxPower;
+                int stepSize = getEffectiveStepSize(miner, action, supportsScaling);
+
+                boolean isCurrentlyMining = currentLock != null && currentLock.expectedPowerWatts() > 0;
+
+                if (isMinerPowerLocked(miner)) {
                     remainingPower -= stats.approximatedPowerUsageWatts();
                     continue;
                 }
 
-                double maxPower = stats.maxPowerTarget();
-                double minPower = stats.minPowerTarget();
-                int stepSize = action.stepSizeWatts() > 0 ? action.stepSizeWatts() : 250;
+                if (remainingPower >= minPower) {
+                    double allocation = Math.min(remainingPower, maxPower);
+                    double steppedAllocation = roundToStepDown(allocation, stepSize);
 
-                if (remainingPower >= maxPower) {
-                    double steppedMax = roundToStepDown(maxPower, stepSize);
-
-                    if (steppedMax >= minPower) {
-                        applyPowerAndRecordState(miner, controller, action, String.valueOf((long) steppedMax), mode);
-                        remainingPower -= steppedMax;
+                    if (steppedAllocation >= minPower) {
+                        applyPowerAndRecordState(miner, controller, action, steppedAllocation, mode, isCurrentlyMining);
+                        remainingPower -= steppedAllocation;
                     } else {
-                        pauseMiner(miner, controller, mode);
+                        handleMinerShutdownOrUndervolt(miner, queryService, controller, mode, minPower, isCurrentlyMining, supportsScaling);
                     }
                 } else {
-                    double allocation = roundToStepDown(remainingPower, stepSize);
-
-                    if (allocation >= minPower) {
-                        applyPowerAndRecordState(miner, controller, action, String.valueOf((long) allocation), mode);
-                        remainingPower -= allocation;
-                    } else {
-                        pauseMiner(miner, controller, mode);
-                    }
+                    handleMinerShutdownOrUndervolt(miner, queryService, controller, mode, minPower, isCurrentlyMining, supportsScaling);
                 }
             }
         }
+
         else if (action.strategy() == ControllerDSL.MinerDistributionStrategy.EQUAL_DISTRIBUTION) {
             double remainingPower = targetPowerWatts;
-            List<MinerEntity<?>> unlockedMiners = new ArrayList<>();
+            List<MinerEntity<?>> adjustableMiners = new ArrayList<>();
 
             for (MinerEntity<?> miner : minerCluster) {
-                if (isMinerLocked(miner, queryService)) {
+                if (isMinerPowerLocked(miner)) {
                     var stats = queryService.getLastResult(miner, MinerStats.DEFAULT);
                     remainingPower -= stats.approximatedPowerUsageWatts();
                 } else {
-                    unlockedMiners.add(miner);
+                    adjustableMiners.add(miner);
                 }
             }
 
             if (remainingPower <= 0) {
-                for (MinerEntity<?> miner : unlockedMiners) {
+                for (MinerEntity<?> miner : adjustableMiners) {
                     var controller = controllerService.getController(miner);
-                    pauseMiner(miner, controller, mode);
+                    MinerLock lock = activeLocks.get(miner.getId());
+                    boolean isMining = lock != null && lock.expectedPowerWatts() > 0;
+                    boolean supportsScaling = miner.getOS().supportsDynamicPowerScaling();
+                    double minPower = supportsScaling ? queryService.getLastResult(miner, MinerStats.DEFAULT).minPowerTarget() : queryService.getLastResult(miner, MinerStats.DEFAULT).maxPowerTarget();
+                    handleMinerShutdownOrUndervolt(miner, queryService, controller, mode, minPower, isMining, supportsScaling);
                 }
                 return;
             }
 
-            unlockedMiners.sort(java.util.Comparator.comparingDouble(m ->
-                    queryService.getLastResult(m, MinerStats.DEFAULT).maxPowerTarget()
-            ));
+            int minersLeft = adjustableMiners.size();
+            if (minersLeft == 0) return;
 
-            int minersLeftToAllocate = unlockedMiners.size();
-
-            for (MinerEntity<?> miner : unlockedMiners) {
+            for (MinerEntity<?> miner : adjustableMiners) {
                 var stats = queryService.getLastResult(miner, MinerStats.DEFAULT);
                 var controller = controllerService.getController(miner);
+                MinerLock lock = activeLocks.get(miner.getId());
+                boolean isMining = lock != null && lock.expectedPowerWatts() > 0;
+                boolean supportsScaling = miner.getOS().supportsDynamicPowerScaling();
 
                 double maxPower = stats.maxPowerTarget();
-                double minPower = stats.minPowerTarget();
+                double minPower = supportsScaling ? stats.minPowerTarget() : maxPower;
 
-                double fairShare = remainingPower / minersLeftToAllocate;
+                double fairShare = remainingPower / minersLeft;
                 double allocation = Math.min(fairShare, maxPower);
-
-                int stepSize = action.stepSizeWatts() > 0 ? action.stepSizeWatts() : 1;
+                int stepSize = supportsScaling ? (action.stepSizeWatts() > 0 ? action.stepSizeWatts() : 1) : 1;
                 double steppedAllocation = roundToStepDown(allocation, stepSize);
 
                 if (steppedAllocation >= minPower) {
-                    applyPowerAndRecordState(miner, controller, action, String.valueOf((long) steppedAllocation), mode);
+                    applyPowerAndRecordState(miner, controller, action, steppedAllocation, mode, isMining);
                     remainingPower -= steppedAllocation;
                 } else {
-                    pauseMiner(miner, controller, mode);
+                    handleMinerShutdownOrUndervolt(miner, queryService, controller, mode, minPower, isMining, supportsScaling);
                 }
-
-                minersLeftToAllocate--;
+                minersLeft--;
             }
         }
-    } private void applyPowerAndRecordState(MinerEntity<?> miner, Object controller, ControllerDSL.ControllerAction action, String valueStr, ControllerDSL.OperatingMode mode) {
-        action.controllerActionType().apply((MinerEntityController) controller, valueStr);
-        double expectedPower = Double.parseDouble(valueStr);
-        activeLocks.put(miner.getId(), new MinerLock(Instant.now().plus(mode.minRunTime()), Instant.now(), expectedPower));
     }
 
-    private void pauseMiner(MinerEntity<?> miner, Object controller, ControllerDSL.OperatingMode mode) {
-        ControllerDSL.ControllerActionType.PAUSE.apply((MinerEntityController) controller, null);
-        activeLocks.put(miner.getId(), new MinerLock(Instant.now().plus(mode.minIdleTime()), Instant.now(), 0.0));
+    private void handleMinerShutdownOrUndervolt(MinerEntity<?> miner, EntityQueryService queryService, Object controller, ControllerDSL.OperatingMode mode, double minPower, boolean isCurrentlyMining, boolean supportsScaling) {
+        if (isCurrentlyMining && isMinerStateLocked(miner)) {
+            double targetWatts = supportsScaling ? minPower : queryService.getLastResult(miner, MinerStats.DEFAULT).maxPowerTarget();
+
+            ControllerDSL.ControllerActionType.SET_POWER_TARGET.apply((MinerEntityController) controller, String.valueOf((long) targetWatts));
+            Instant existingStateUnlock = activeLocks.get(miner.getId()).stateUnlockTime();
+            activeLocks.put(miner.getId(), new MinerLock(existingStateUnlock, Instant.now().plus(Duration.ofMinutes(2)), Instant.now(), targetWatts));
+
+            LOGGER.warning("Miner " + miner.getId() + " is in active state lock! " +
+                    (supportsScaling ? "Undervolt to min power target (" + targetWatts + "W)." : "OS does not support dynamic power scaling. It must run on (" + targetWatts + "W)."));
+        } else {
+            ControllerDSL.ControllerActionType.PAUSE.apply((MinerEntityController) controller, null);
+            Instant stateUnlock = Instant.now().plus(getEffectiveMinIdleTime(miner, mode));
+            activeLocks.put(miner.getId(), new MinerLock(stateUnlock, stateUnlock, Instant.now(), 0.0));
+        }
+    }
+    private void applyPowerAndRecordState(MinerEntity<?> miner, Object controller, ControllerDSL.ControllerAction action, double watts, ControllerDSL.OperatingMode mode, boolean wasAlreadyMining) {
+        action.controllerActionType().apply((MinerEntityController) controller, String.valueOf((long) watts));
+
+        Instant stateUnlock = wasAlreadyMining && activeLocks.containsKey(miner.getId())
+                ? activeLocks.get(miner.getId()).stateUnlockTime()
+                : Instant.now().plus(getEffectiveMinRunTime(miner, mode));
+
+        Instant powerUnlock = Instant.now().plus(Duration.ofMinutes(2));
+
+        activeLocks.put(miner.getId(), new MinerLock(stateUnlock, powerUnlock, Instant.now(), watts));
     }
 
-    private boolean isMinerLocked(MinerEntity<?> miner, EntityQueryService queryService) {
+    private boolean isMinerStateLocked(MinerEntity<?> miner) {
         MinerLock lock = activeLocks.get(miner.getId());
-
-        if (lock == null || Instant.now().isAfter(lock.unlockTime())) {
-            if (lock != null) activeLocks.remove(miner.getId());
+        if (lock == null) return false;
+        if (Instant.now().isAfter(lock.stateUnlockTime())) {
             return false;
         }
+        return true;
+    }
 
-        if (Duration.between(lock.lockStartTime(), Instant.now()).toMinutes() < 3) {
-            return true;
-        }
-
-        var stats = queryService.getLastResult(miner, MinerStats.DEFAULT);
-        double actualPower = stats.approximatedPowerUsageWatts();
-
-        boolean expectedToMine = lock.expectedPowerWatts() > 0;
-        boolean actuallyMining = actualPower > 50.0;
-
-        if (expectedToMine && !actuallyMining) {
-            activeLocks.remove(miner.getId());
+    private boolean isMinerPowerLocked(MinerEntity<?> miner) {
+        MinerLock lock = activeLocks.get(miner.getId());
+        if (lock == null) return false;
+        if (Instant.now().isAfter(lock.powerUnlockTime())) {
             return false;
         }
-
-        if (!expectedToMine && actuallyMining) {
-            activeLocks.remove(miner.getId());
-            return false;
-        }
-
         return true;
     }
 
     private void pauseAllUnlockedMiners(EntityControllerService controllerService, EntityQueryService queryService) {
         for (MinerEntity<?> miner : minerCluster) {
-            if (!isMinerLocked(miner, queryService)) {
+            if (!isMinerStateLocked(miner)) {
                 var controller = controllerService.getController(miner);
                 ControllerDSL.ControllerActionType.PAUSE.apply((MinerEntityController) controller, null);
-                activeLocks.put(miner.getId(), new MinerLock(Instant.now().plus(Duration.ofMinutes(5)), Instant.now(), 0.0));
+                Instant stateUnlock = Instant.now().plus(Duration.ofMinutes(5));
+                activeLocks.put(miner.getId(), new MinerLock(stateUnlock, stateUnlock, Instant.now(), 0.0));
             }
         }
     }
@@ -261,5 +269,28 @@ public class ClusterController {
     private double roundToStepDown(double value, int stepSize) {
         if (stepSize <= 1) return value;
         return Math.floor(value / stepSize) * stepSize;
+    }
+
+    private Duration getEffectiveMinRunTime(MinerEntity<?> miner, ControllerDSL.OperatingMode mode) {
+        if (miner.getMinRunTimeMinutes() != null && miner.getMinRunTimeMinutes() > 0) {
+            return Duration.ofMinutes(miner.getMinRunTimeMinutes());
+        }
+        return mode.minRunTime();
+    }
+
+    private Duration getEffectiveMinIdleTime(MinerEntity<?> miner, ControllerDSL.OperatingMode mode) {
+        if (miner.getMinIdleTimeMinutes() != null && miner.getMinIdleTimeMinutes() > 0) {
+            return Duration.ofMinutes(miner.getMinIdleTimeMinutes());
+        }
+        return mode.minIdleTime();
+    }
+
+    private int getEffectiveStepSize(MinerEntity<?> miner, ControllerDSL.ControllerAction action, boolean supportsScaling) {
+        if (!supportsScaling) return 1;
+
+        if (miner.getPowerStepSizeWatts() != null && miner.getPowerStepSizeWatts() > 0) {
+            return miner.getPowerStepSizeWatts();
+        }
+        return action.stepSizeWatts() > 0 ? action.stepSizeWatts() : 250;
     }
 }
