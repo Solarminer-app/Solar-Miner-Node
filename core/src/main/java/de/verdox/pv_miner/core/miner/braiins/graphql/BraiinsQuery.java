@@ -20,15 +20,17 @@ public enum BraiinsQuery {
     ;
 
     private final String resource;
-    private final String query;
+    private String query;
 
     BraiinsQuery(String resource) {
         this.resource = resource;
-        this.query = GraphQLQueries.load(resource);
     }
 
     public String query() {
-        return query;
+        if (this.query == null) {
+            this.query = GraphQLQueries.load(this.resource);
+        }
+        return this.query;
     }
 
     public String resource() {
