@@ -174,6 +174,8 @@ public class ClusterController {
                 return;
             }
 
+            adjustableMiners.sort(java.util.Comparator.comparing(m -> m.getOS().supportsDynamicPowerScaling()));
+
             int minersLeft = adjustableMiners.size();
             if (minersLeft == 0) return;
 
