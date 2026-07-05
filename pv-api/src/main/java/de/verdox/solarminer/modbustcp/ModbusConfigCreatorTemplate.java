@@ -31,9 +31,9 @@ public record ModbusConfigCreatorTemplate(String id, String name, List<RequiredF
     public ModbusConfig createTemplateConfig() {
         Map<String, ModbusConfig.Entry<?>> templateValues = new HashMap<>();
         for (RequiredField requiredField : requiredFields) {
-            templateValues.put(requiredField.field(), new ModbusConfig.Entry<>(40000, 1, 1, "", ModbusParameterType.INT32, ModbusReadOperationType.READ_HOLDING_REGISTER, ByteOrder.BIG_ENDIAN));
+            templateValues.put(requiredField.field(), new ModbusConfig.Entry<>(40000, 2, 1, "", ModbusParameterType.INT32, ModbusReadOperationType.READ_HOLDING_REGISTER, ByteOrder.BIG_ENDIAN));
         }
-        return new ModbusConfig(new ModbusConfig.Fingerprint(40000, 1, ModbusParameterType.INT32, ModbusReadOperationType.READ_HOLDING_REGISTER, ByteOrder.BIG_ENDIAN, ""),templateValues);
+        return new ModbusConfig(new ModbusConfig.Fingerprint(40000, 2, ModbusParameterType.INT32, ModbusReadOperationType.READ_HOLDING_REGISTER, ByteOrder.BIG_ENDIAN, ""),templateValues);
     }
 
 }
