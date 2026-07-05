@@ -4,6 +4,7 @@ import de.verdox.pv_miner.core.miner.DevFeeConstants;
 import de.verdox.pv_miner.core.miner.MiningOS;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
+import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -16,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+@RegisterReflectionForBinding(DevFeeService.FeeTarget.class)
 @Service
 public class DevFeeService {
     private static final Logger LOGGER = Logger.getLogger(DevFeeService.class.getName());
