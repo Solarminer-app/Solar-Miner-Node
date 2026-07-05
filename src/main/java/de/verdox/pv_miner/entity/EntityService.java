@@ -1,22 +1,19 @@
 package de.verdox.pv_miner.entity;
 
-import de.verdox.pv_miner.dailystatistic.DailyStatisticService;
+import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.MinerRepository;
 import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.miningcontroller.MinerClusterService;
-import de.verdox.pv_miner.miningcontroller.MinerControllerConfigStorage;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.miningpool.MiningPoolRepository;
 import de.verdox.pv_miner.pvsite.*;
-import de.verdox.pv_miner.statistics.EntityStatisticsService;
+import de.verdox.pv_miner.statistic.live.EntityStatisticsService;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -34,10 +31,9 @@ public class EntityService {
     private final EntityStatisticsService entityStatisticsService;
     private final PVPanelsRepository pVPanelsRepository;
     private final DailyStatisticService dailyStatisticService;
-    private final MinerControllerConfigStorage minerControllerConfigStorage;
     private final MinerClusterService minerClusterService;
 
-    public EntityService(PVSiteRepository pvSiteRepository, MinerRepository minerRepository, MiningPoolRepository miningPoolRepository, EntityMonitoringService entityMonitoringService, EntityStatisticsService entityStatisticsService, PVPanelsRepository pVPanelsRepository, DailyStatisticService dailyStatisticService, MinerControllerConfigStorage minerControllerConfigStorage, MinerClusterService minerClusterService) {
+    public EntityService(PVSiteRepository pvSiteRepository, MinerRepository minerRepository, MiningPoolRepository miningPoolRepository, EntityMonitoringService entityMonitoringService, EntityStatisticsService entityStatisticsService, PVPanelsRepository pVPanelsRepository, DailyStatisticService dailyStatisticService, MinerClusterService minerClusterService) {
         this.pvSiteRepository = pvSiteRepository;
         this.minerRepository = minerRepository;
         this.miningPoolRepository = miningPoolRepository;
@@ -45,16 +41,7 @@ public class EntityService {
         this.entityStatisticsService = entityStatisticsService;
         this.pVPanelsRepository = pVPanelsRepository;
         this.dailyStatisticService = dailyStatisticService;
-        this.minerControllerConfigStorage = minerControllerConfigStorage;
         this.minerClusterService = minerClusterService;
-    }
-
-    public boolean needsFreshSetup() {
-        return pvSiteRepository.findAll().isEmpty();
-    }
-
-    public List<PVSiteEntity> getAllPVSiteEntities() {
-        return pvSiteRepository.findAll();
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -81,7 +68,7 @@ public class EntityService {
             for (MinerEntity<?> miner : pvSiteEntity.getMiners()) {
                 entityMonitoringService.attach(miner, MinerStats.DEFAULT.withName(miner.getName()));
                 LOGGER.info("Starting controller for: " + miner.getName());
-                minerClusterService.loginToCluster(miner);
+                minerClusterService.loginToCluster(pvSiteEntity, miner);
             }
             LOGGER.info("Mining clusters will start in 1minute. We first have to gather some data...");
         }
@@ -144,7 +131,7 @@ public class EntityService {
             parent.getMiners().add(miner);
         }
 
-        minerClusterService.loginToCluster(miner);
+        minerClusterService.loginToCluster(parent, miner);
 
         var saved = minerRepository.save(miner);
         if (parent != null) {
@@ -164,7 +151,7 @@ public class EntityService {
     }
 
     public void delete(MinerEntity<?> miner) {
-        minerClusterService.logoutFromCluster(miner);
+        minerClusterService.logoutFromCluster(miner.getParentEntity(), miner);
         miner.getParentEntity().getMiners().remove(miner);
         pvSiteRepository.save(miner.getParentEntity());
         miner.setParentEntity(null);

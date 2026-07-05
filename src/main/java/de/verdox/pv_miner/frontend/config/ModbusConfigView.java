@@ -28,12 +28,14 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
 import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
-import de.verdox.pv_miner.formula.FormulaEngine;
 import de.verdox.pv_miner.util.FormatUtil;
 import de.verdox.pv_miner.frontend.FrontendService;
-import de.verdox.pv_miner_extensions.modbus.TCPModbusClient;
-import de.verdox.pv_miner_extensions.modbus.config.*;
+import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusConfigStorage;
+import de.verdox.solarminer.RequiredField;
+import de.verdox.solarminer.formula.FormulaEngine;
+import de.verdox.solarminer.modbustcp.*;
 import de.verdox.vserializer.json.JsonSerializerContext;
+import lombok.Getter;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -717,6 +719,7 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
     }
 
     public static class TestSection extends Div {
+        @Getter
         private TCPModbusClient client;
         private final TextField ip = new TextField("IP Adresse", "192.168.178.50", "");
         private final IntegerField port = new IntegerField("Port");
@@ -791,10 +794,6 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
             HorizontalLayout layout = new HorizontalLayout(ip, port, slaveId, connect);
             layout.setAlignItems(Alignment.BASELINE);
             add(layout);
-        }
-
-        public TCPModbusClient getClient() {
-            return client;
         }
 
         @Override

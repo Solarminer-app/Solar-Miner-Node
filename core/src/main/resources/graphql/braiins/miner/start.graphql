@@ -1,0 +1,13 @@
+mutation StartMining {
+    bosminer {
+        start {
+            __typename
+            ... on VoidResult {
+                void
+            }
+            ... on BosminerError {
+                message
+            }
+        }
+    }
+}

@@ -137,7 +137,7 @@ public class AddPoolStandaloneView extends VerticalLayout implements BeforeEnter
         contentArea.getElement().executeJs("setTimeout(() => { this.classList.add('fade-in'); }, 10);");
 
         backButton.setVisible(index > 0);
-        nextButton.setText(index == steps.size() - 1 ? getTranslation("btn.done") : getTranslation("btn.next"));
+        nextButton.setText(index == steps.size() - 1 ? "btn.done" : "btn.next");
 
         updateButtonStates();
         step.onEnter();

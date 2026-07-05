@@ -6,10 +6,13 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.value.ValueChangeMode;
+import lombok.Getter;
 
 public class ConfirmAndTypeDialog extends Dialog {
 
+    @Getter
     private final Button cancelButton = new Button("Cancel");
+    @Getter
     private final Button confirm = new Button("Confirm");
     private final TextField confirmationTextField;
     private final Span text = new Span();
@@ -37,13 +40,5 @@ public class ConfirmAndTypeDialog extends Dialog {
     public void setCancellable(boolean cancellable) {
         this.cancelButton.setVisible(cancellable);
         this.cancelButton.setEnabled(cancellable);
-    }
-
-    public Button getConfirm() {
-        return confirm;
-    }
-
-    public Button getCancelButton() {
-        return cancelButton;
     }
 }

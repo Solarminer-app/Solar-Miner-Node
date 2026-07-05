@@ -1,6 +1,8 @@
 package de.verdox.pv_miner.finance;
 
-import de.verdox.pv_miner.dailystatistic.DailyStatisticService;
+import de.verdox.pv_miner.finance.dto.FinanceKpiDto;
+import de.verdox.pv_miner.finance.dto.PVStatisticDto;
+import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.miningpool.MiningPoolStatisticsAccumulator;

@@ -21,7 +21,8 @@ public class MinerClusterService {
 
     private final EntityControllerService entityControllerService;
     private final MinerControllerConfigStorage configStorage;
-    private final Map<String, ClusterInstance> clusterInstances = new ConcurrentHashMap<>();
+
+    private final Map<UUID, Map<String, ClusterInstance>> siteClusters = new ConcurrentHashMap<>();
 
     private final ScheduledExecutorService clusterScheduler = Executors.newScheduledThreadPool(4);
     private final MinerRepository minerRepository;
@@ -32,8 +33,8 @@ public class MinerClusterService {
         this.minerRepository = minerRepository;
         this.entityControllerService = entityControllerService;
         this.configStorage = configStorage;
-        refreshClustersFromStorage();
         this.pVSiteRepository = pVSiteRepository;
+        refreshClustersFromStorage();
     }
 
     public void startClustersForSite(PVSiteEntity pvSite) throws Exception {
@@ -42,33 +43,38 @@ public class MinerClusterService {
         }
     }
 
-    public void loginToCluster(MinerEntity<?> miner) {
-        if (miner == null || miner.getClusterName() == null) {
+    public void loginToCluster(PVSiteEntity pvSite, MinerEntity<?> miner) {
+        if (pvSite == null || miner == null || miner.getClusterName() == null) {
             return;
         }
-        var foundCluster = getCluster(miner.getClusterName());
+        var foundCluster = getCluster(pvSite, miner.getClusterName());
         if (foundCluster == null) {
             miner.setClusterName(null);
+        } else {
+            foundCluster.assignMiners(Set.of(miner));
         }
-        foundCluster.assignMiners(Set.of(miner));
     }
 
-    public void logoutFromCluster(MinerEntity<?> miner) {
-        if (miner == null || miner.getClusterName() == null) {
+    public void logoutFromCluster(PVSiteEntity pvSite, MinerEntity<?> miner) {
+        if (pvSite == null || miner == null || miner.getClusterName() == null) {
             return;
         }
-        var foundCluster = getCluster(miner.getClusterName());
-        if (foundCluster == null) {
-            return;
+        var foundCluster = getCluster(pvSite, miner.getClusterName());
+        if (foundCluster != null) {
+            foundCluster.removeMiners(Set.of(miner));
         }
-        foundCluster.removeMiners(Set.of(miner));
     }
 
     public void refreshClustersFromStorage() {
         try {
             List<String> savedConfigs = configStorage.getNameOfSavedConfigs();
-            for (String configName : savedConfigs) {
-                clusterInstances.putIfAbsent(configName, new ClusterInstance(configName, clusterScheduler));
+            Iterable<PVSiteEntity> allSites = pVSiteRepository.findAll();
+
+            for (PVSiteEntity site : allSites) {
+                siteClusters.putIfAbsent(site.getId(), new ConcurrentHashMap<>());
+                for (String configName : savedConfigs) {
+                    siteClusters.get(site.getId()).putIfAbsent(configName, new ClusterInstance(configName, site.getId(), clusterScheduler));
+                }
             }
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Could not load cluster config.", e);
@@ -76,13 +82,21 @@ public class MinerClusterService {
     }
 
     public List<String> getAvailableClusterNames() {
-        refreshClustersFromStorage();
-
-        return new ArrayList<>(clusterInstances.keySet());
+        try {
+            return configStorage.getNameOfSavedConfigs();
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "Fehler beim Abrufen der Cluster-Namen.", e);
+            return new ArrayList<>();
+        }
     }
 
-    public ClusterInstance getCluster(String clusterName) {
-        return clusterInstances.get(clusterName);
+    public ClusterInstance getCluster(PVSiteEntity pvSite, String clusterName) {
+        if (pvSite == null || clusterName == null) return null;
+
+        siteClusters.putIfAbsent(pvSite.getId(), new ConcurrentHashMap<>());
+        siteClusters.get(pvSite.getId()).putIfAbsent(clusterName, new ClusterInstance(clusterName, pvSite.getId(), clusterScheduler));
+
+        return siteClusters.get(pvSite.getId()).get(clusterName);
     }
 
     public Set<MinerEntity<?>> getUnassignedMiners(PVSiteEntity pvSite) {
@@ -97,38 +111,46 @@ public class MinerClusterService {
     }
 
     public void startCluster(String clusterName, PVSiteEntity pvSite) throws Exception {
-        ClusterInstance cluster = getCluster(clusterName);
-        if (cluster == null) throw new IllegalArgumentException("Cluster not found: " + clusterName);
+        ClusterInstance cluster = getCluster(pvSite, clusterName);
+        if (cluster == null) throw new IllegalArgumentException("Cluster nicht gefunden: " + clusterName);
 
         MinerControllerConfig latestConfig = configStorage.get(clusterName);
         cluster.start(pvSite, latestConfig);
     }
 
-    public void stopCluster(String clusterName) {
-        ClusterInstance cluster = getCluster(clusterName);
+    public void stopCluster(PVSiteEntity pvSite, String clusterName) {
+        ClusterInstance cluster = getCluster(pvSite, clusterName);
         if (cluster != null) {
             cluster.stop();
         }
     }
 
     public void deleteCluster(String clusterName) {
-        ClusterInstance cluster = getCluster(clusterName);
-        if (cluster != null) {
-            if (cluster.isRunning()) {
-                cluster.stop();
+        for (Map<String, ClusterInstance> siteMap : siteClusters.values()) {
+            ClusterInstance cluster = siteMap.get(clusterName);
+            if (cluster != null) {
+                if (cluster.isRunning()) {
+                    cluster.stop();
+                }
+                Set<MinerEntity<?>> assigned = new HashSet<>(cluster.getAssignedMiners());
+                if (!assigned.isEmpty()) {
+                    cluster.removeMiners(assigned);
+                }
+                siteMap.remove(clusterName);
             }
-            Set<MinerEntity<?>> assigned = new HashSet<>(cluster.getAssignedMiners());
-            if (!assigned.isEmpty()) {
-                cluster.removeMiners(assigned);
-            }
-            clusterInstances.remove(clusterName);
         }
-        configStorage.delete(clusterName);
+
+        try {
+            configStorage.delete(clusterName);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Fehler beim Löschen der Konfiguration: " + clusterName, e);
+        }
     }
 
 
     public class ClusterInstance {
         private final String clusterName;
+        private final UUID siteId;
         private final ScheduledExecutorService scheduler;
 
         private final Set<UUID> assignedMinerIds = ConcurrentHashMap.newKeySet();
@@ -137,8 +159,9 @@ public class MinerClusterService {
         private ScheduledFuture<?> scheduledTask;
         private boolean isRunning = false;
 
-        public ClusterInstance(String clusterName, ScheduledExecutorService scheduler) {
+        public ClusterInstance(String clusterName, UUID siteId, ScheduledExecutorService scheduler) {
             this.clusterName = clusterName;
+            this.siteId = siteId;
             this.scheduler = scheduler;
         }
 
@@ -169,7 +192,7 @@ public class MinerClusterService {
             minerRepository.saveAll(freshMiners);
             assignedMinerIds.addAll(minerIds);
 
-            LOGGER.info("Assigned " + freshMiners.size() + " to cluster " + clusterName);
+            LOGGER.info("Assigned " + freshMiners.size() + " to cluster " + clusterName + " on site " + siteId);
         }
 
         public void removeMiners(Set<MinerEntity<?>> miners) {
@@ -188,7 +211,7 @@ public class MinerClusterService {
 
             minerRepository.saveAll(freshMiners);
 
-            LOGGER.info("Removed " + freshMiners.size() + " from cluster " + clusterName);
+            LOGGER.info("Removed " + freshMiners.size() + " from cluster " + clusterName + " on site " + siteId);
         }
 
         public void start(PVSiteEntity pvSite, MinerControllerConfig config) {
@@ -213,10 +236,10 @@ public class MinerClusterService {
             if (scheduledTask != null) {
                 scheduledTask.cancel(false);
             }
-             List<MinerEntity<?>> currentMiners = minerRepository.findAllById(assignedMinerIds);
-             for (MinerEntity<?> miner : currentMiners) {
-                 entityControllerService.getController(miner).pauseMining();
-             }
+            List<MinerEntity<?>> currentMiners = minerRepository.findAllById(assignedMinerIds);
+            for (MinerEntity<?> miner : currentMiners) {
+                entityControllerService.getController(miner).pauseMining();
+            }
             this.isRunning = false;
             LOGGER.info("Cluster " + clusterName + " automation stopped.");
         }

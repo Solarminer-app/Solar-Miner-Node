@@ -1,0 +1,7 @@
+mutation Logout {
+    auth {
+        logout {
+            __typename
+        }
+    }
+}

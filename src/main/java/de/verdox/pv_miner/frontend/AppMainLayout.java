@@ -54,13 +54,15 @@ public class AppMainLayout extends AppLayout implements AfterNavigationObserver,
 
     private final SettingsHeader settingsHeader;
     private final PVSiteRepository pvSiteRepository;
+    private final EntityService entityService;
     private final UserSessionContext userSessionContext;
     private PVSiteEntity pvSiteEntity;
 
     private Dialog mobileMenuDialog;
 
-    public AppMainLayout(@Autowired PVSiteRepository pvSiteRepository, @Autowired EntityService pvSiteService, @Autowired UserSessionContext userSessionContext) {
+    public AppMainLayout(@Autowired PVSiteRepository pvSiteRepository, @Autowired EntityService entityService, @Autowired UserSessionContext userSessionContext) {
         this.pvSiteRepository = pvSiteRepository;
+        this.entityService = entityService;
         this.userSessionContext = userSessionContext;
 
         getElement().setAttribute("theme", Lumo.DARK);
@@ -215,6 +217,8 @@ public class AppMainLayout extends AppLayout implements AfterNavigationObserver,
         box.addValueChangeListener(event -> {
             if (event.getValue() != null && event.isFromClient()) {
                 userSessionContext.setZoneId(ZoneId.of(event.getValue()));
+                pvSiteEntity.setTimezoneId(event.getValue());
+                entityService.save(pvSiteEntity);
             }
         });
         return box;

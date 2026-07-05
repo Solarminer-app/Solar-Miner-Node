@@ -1,0 +1,31 @@
+mutation UpdatePoolGroupQuota($id: ID!, $quota: Int!) {
+    bosminer {
+        config {
+            group(id: $id) {
+                __typename
+                ... on GroupConfigurator {
+                    setQuota(quota: $quota) {
+                        __typename
+                        ... on GroupConfig {
+                            id
+                            name
+                            strategy {
+                                __typename
+                                ... on QuotaStrategy {
+                                    quota
+                                }
+                            }
+                        }
+                        ... on GroupRecordError {
+                            message
+                            strategy
+                        }
+                    }
+                }
+                ... on AttributeError {
+                    message
+                }
+            }
+        }
+    }
+}

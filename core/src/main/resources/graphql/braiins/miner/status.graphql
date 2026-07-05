@@ -1,0 +1,75 @@
+query Status {
+
+    bos {
+        hostname
+        hwid
+    }
+
+    bosminer {
+
+        info {
+
+            modelName
+
+            summary {
+
+                foundBlocks
+                bestShare
+                tunerStatus
+
+                realHashrate {
+                    mhsAv
+                    mhs5S
+                    mhs1M
+                    mhs5M
+                    mhs15M
+                    mhs24H
+                }
+
+                power {
+                    limitW
+                    approxConsumptionW
+                    efficiencyWMhs
+                }
+
+                temperature {
+                    degreesC
+                }
+            }
+
+            poolGroups {
+                pools {
+                    url
+                    user
+                }
+            }
+        }
+
+        config {
+
+            ... on BosminerConfig {
+
+                autotuning {
+                    enabled
+                    mode
+                    powerTarget
+                    hashrateTarget
+                }
+
+                groups {
+
+                    id
+                    name
+
+                    pools {
+                        id
+                        enabled
+                        url
+                        user
+                        password
+                    }
+                }
+            }
+        }
+    }
+}

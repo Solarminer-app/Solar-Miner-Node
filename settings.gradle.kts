@@ -8,3 +8,6 @@ include("core")
 include("proto")
 include("currency-rates")
 include("pc-agent")
+
+include("cgminerapi")
+include("pv-api")

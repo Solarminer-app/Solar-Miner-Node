@@ -1,0 +1,2234 @@
+[
+  {
+    "hersteller": "Bitdeer",
+    "modell": "SealMiner A4 Ultra Hydro",
+    "leistung_th": 886.0,
+    "release": "2026-05",
+    "verbrauch_watt": 8372,
+    "ertrag_tag_eur": 5.10,
+    "effizienz_j_th": 9.449
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S23 Hyd 3U",
+    "leistung_th": 1160.0,
+    "release": "2026-01",
+    "verbrauch_watt": 11020,
+    "ertrag_tag_eur": 6.55,
+    "effizienz_j_th": 9.5
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S23 Hyd",
+    "leistung_th": 580.0,
+    "release": "2026-01",
+    "verbrauch_watt": 5510,
+    "ertrag_tag_eur": 3.28,
+    "effizienz_j_th": 9.5
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S23e Hyd 2U",
+    "leistung_th": 865.0,
+    "release": "2026-04",
+    "verbrauch_watt": 8650,
+    "ertrag_tag_eur": 3.95,
+    "effizienz_j_th": 10.0
+  },
+  {
+    "hersteller": "Bitdeer",
+    "modell": "SealMiner A4 Pro Air",
+    "leistung_th": 336.0,
+    "release": "2026-05",
+    "verbrauch_watt": 3662,
+    "ertrag_tag_eur": 0.88,
+    "effizienz_j_th": 10.899
+  },
+  {
+    "hersteller": "Bitdeer",
+    "modell": "SealMiner A4 Pro Hydro",
+    "leistung_th": 680.0,
+    "release": "2026-05",
+    "verbrauch_watt": 7412,
+    "ertrag_tag_eur": 1.78,
+    "effizienz_j_th": 10.9
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S23",
+    "leistung_th": 318.0,
+    "release": "2026-01",
+    "verbrauch_watt": 3498,
+    "ertrag_tag_eur": 0.77,
+    "effizienz_j_th": 11.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21 XP+ Hyd",
+    "leistung_th": 500.0,
+    "release": "2025-07",
+    "verbrauch_watt": 5500,
+    "ertrag_tag_eur": 1.20,
+    "effizienz_j_th": 11.0
+  },
+  {
+    "hersteller": "Bitaxe",
+    "modell": "Gamma 602",
+    "leistung_th": 0.0013,
+    "release": "2026-03",
+    "verbrauch_watt": 15,
+    "ertrag_tag_eur": 0.0,
+    "effizienz_j_th": 12.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21 XP Hyd",
+    "leistung_th": 473.0,
+    "release": "2024-11",
+    "verbrauch_watt": 5676,
+    "ertrag_tag_eur": 0.12,
+    "effizienz_j_th": 12.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S23 Imm.",
+    "leistung_th": 442.0,
+    "release": "2026-01",
+    "verbrauch_watt": 5304,
+    "ertrag_tag_eur": 0.11,
+    "effizienz_j_th": 12.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21j XP Hyd",
+    "leistung_th": 495.0,
+    "release": "2026-03",
+    "verbrauch_watt": 5940,
+    "ertrag_tag_eur": 0.12,
+    "effizienz_j_th": 12.0
+  },
+  {
+    "hersteller": "Bitdeer",
+    "modell": "SealMiner A3 Pro Air",
+    "leistung_th": 290.0,
+    "release": "2025-09",
+    "verbrauch_watt": 3625,
+    "ertrag_tag_eur": -0.24,
+    "effizienz_j_th": 12.5
+  },
+  {
+    "hersteller": "Bitdeer",
+    "modell": "SealMiner A3 Pro Hydro",
+    "leistung_th": 660.0,
+    "release": "2025-09",
+    "verbrauch_watt": 8250,
+    "ertrag_tag_eur": -0.55,
+    "effizienz_j_th": 12.5
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon A16XP-300T",
+    "leistung_th": 300.0,
+    "release": "2026-04",
+    "verbrauch_watt": 3850,
+    "ertrag_tag_eur": -0.47,
+    "effizienz_j_th": 12.833
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M70S+",
+    "leistung_th": 244.0,
+    "release": "2025-12",
+    "verbrauch_watt": 3140,
+    "ertrag_tag_eur": -0.4,
+    "effizienz_j_th": 12.869
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21e XP Hyd",
+    "leistung_th": 430.0,
+    "release": "2024-11",
+    "verbrauch_watt": 5590,
+    "ertrag_tag_eur": -0.82,
+    "effizienz_j_th": 13.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21e XP Hyd 3U",
+    "leistung_th": 860.0,
+    "release": "2025-01",
+    "verbrauch_watt": 11180,
+    "ertrag_tag_eur": -1.64,
+    "effizienz_j_th": 13.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M73S+",
+    "leistung_th": 540.0,
+    "release": "2025-12",
+    "verbrauch_watt": 7200,
+    "ertrag_tag_eur": -1.42,
+    "effizienz_j_th": 13.333
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M76S+",
+    "leistung_th": 390.0,
+    "release": "2025-12",
+    "verbrauch_watt": 5200,
+    "ertrag_tag_eur": -1.03,
+    "effizienz_j_th": 13.333
+  },
+  {
+    "hersteller": "Bitdeer",
+    "modell": "SealMiner A3 Hydro",
+    "leistung_th": 500.0,
+    "release": "2025-09",
+    "verbrauch_watt": 6750,
+    "ertrag_tag_eur": -1.5,
+    "effizienz_j_th": 13.5
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21 XP Imm.",
+    "leistung_th": 300.0,
+    "release": "2024-10",
+    "verbrauch_watt": 4050,
+    "ertrag_tag_eur": -0.9,
+    "effizienz_j_th": 13.5
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21 XP",
+    "leistung_th": 270.0,
+    "release": "2024-10",
+    "verbrauch_watt": 3645,
+    "ertrag_tag_eur": -0.81,
+    "effizienz_j_th": 13.5
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M7DS",
+    "leistung_th": 680.0,
+    "release": "2026-03",
+    "verbrauch_watt": 9200,
+    "ertrag_tag_eur": -2.08,
+    "effizienz_j_th": 13.529
+  },
+  {
+    "hersteller": "Bitaxe",
+    "modell": "Touch",
+    "leistung_th": 0.0016,
+    "release": "2025-01",
+    "verbrauch_watt": 22,
+    "ertrag_tag_eur": -0.01,
+    "effizienz_j_th": 14.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon A16-282T",
+    "leistung_th": 282.0,
+    "release": "2026-03",
+    "verbrauch_watt": 3900,
+    "ertrag_tag_eur": -1.04,
+    "effizienz_j_th": 13.83
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M78S",
+    "leistung_th": 472.0,
+    "release": "2025-12",
+    "verbrauch_watt": 6550,
+    "ertrag_tag_eur": -1.8,
+    "effizienz_j_th": 13.877
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M70S",
+    "leistung_th": 226.0,
+    "release": "2025-12",
+    "verbrauch_watt": 3140,
+    "ertrag_tag_eur": -0.87,
+    "effizienz_j_th": 13.894
+  },
+  {
+    "hersteller": "Bitdeer",
+    "modell": "SealMiner A3 Air",
+    "leistung_th": 260.0,
+    "release": "2025-09",
+    "verbrauch_watt": 3640,
+    "ertrag_tag_eur": -1.06,
+    "effizienz_j_th": 14.0
+  },
+  {
+    "hersteller": "Bitaxe",
+    "modell": "Gamma 601",
+    "leistung_th": 0.0012,
+    "release": "2024-08",
+    "verbrauch_watt": 17,
+    "ertrag_tag_eur": -0.01,
+    "effizienz_j_th": 14.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M76S",
+    "leistung_th": 362.0,
+    "release": "2025-12",
+    "verbrauch_watt": 5200,
+    "ertrag_tag_eur": -1.76,
+    "effizienz_j_th": 14.365
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M73S",
+    "leistung_th": 500.0,
+    "release": "2025-12",
+    "verbrauch_watt": 7200,
+    "ertrag_tag_eur": -2.47,
+    "effizienz_j_th": 14.4
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M7D",
+    "leistung_th": 634.0,
+    "release": "2026-03",
+    "verbrauch_watt": 9200,
+    "ertrag_tag_eur": -3.28,
+    "effizienz_j_th": 14.511
+  },
+  {
+    "hersteller": "Bitaxe",
+    "modell": "Gamma Turbo",
+    "leistung_th": 0.0024,
+    "release": "2025-03",
+    "verbrauch_watt": 35,
+    "ertrag_tag_eur": -0.01,
+    "effizienz_j_th": 14.5
+  },
+  {
+    "hersteller": "Proto",
+    "modell": "Rig",
+    "leistung_th": 819.0,
+    "release": "2025-09",
+    "verbrauch_watt": 12000,
+    "ertrag_tag_eur": -4.49,
+    "effizienz_j_th": 14.652
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M70",
+    "leistung_th": 214.0,
+    "release": "2025-12",
+    "verbrauch_watt": 3140,
+    "ertrag_tag_eur": -1.18,
+    "effizienz_j_th": 14.673
+  },
+  {
+    "hersteller": "Fluminer",
+    "modell": "T3",
+    "leistung_th": 115.0,
+    "release": "2025-09",
+    "verbrauch_watt": 1700,
+    "ertrag_tag_eur": -0.66,
+    "effizienz_j_th": 14.783
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M79S",
+    "leistung_th": 1350.0,
+    "release": "2025-12",
+    "verbrauch_watt": 20000,
+    "ertrag_tag_eur": -7.87,
+    "effizienz_j_th": 14.815
+  },
+  {
+    "hersteller": "Bitdeer",
+    "modell": "SealMiner A2 Pro Air",
+    "leistung_th": 255.0,
+    "release": "2025-03",
+    "verbrauch_watt": 3790,
+    "ertrag_tag_eur": -1.51,
+    "effizienz_j_th": 14.863
+  },
+  {
+    "hersteller": "Bitdeer",
+    "modell": "SealMiner A2 Pro Hyd",
+    "leistung_th": 500.0,
+    "release": "2025-03",
+    "verbrauch_watt": 7450,
+    "ertrag_tag_eur": -3.01,
+    "effizienz_j_th": 14.9
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21 Pro",
+    "leistung_th": 234.0,
+    "release": "2024-07",
+    "verbrauch_watt": 3510,
+    "ertrag_tag_eur": -1.46,
+    "effizienz_j_th": 15.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21+ Hyd",
+    "leistung_th": 319.0,
+    "release": "2025-02",
+    "verbrauch_watt": 4785,
+    "ertrag_tag_eur": -1.99,
+    "effizienz_j_th": 15.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21+ Hyd",
+    "leistung_th": 358.0,
+    "release": "2025-08",
+    "verbrauch_watt": 5370,
+    "ertrag_tag_eur": -2.23,
+    "effizienz_j_th": 15.0
+  },
+  {
+    "hersteller": "Digital Shovel",
+    "modell": "BluAx",
+    "leistung_th": 0.0012,
+    "release": "2025-07",
+    "verbrauch_watt": 18,
+    "ertrag_tag_eur": -0.01,
+    "effizienz_j_th": 15.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21 Pro",
+    "leistung_th": 245.0,
+    "release": "2025-11",
+    "verbrauch_watt": 3510,
+    "ertrag_tag_eur": -1.53,
+    "effizienz_j_th": 15.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M72S",
+    "leistung_th": 264.0,
+    "release": "2025-12",
+    "verbrauch_watt": 4000,
+    "ertrag_tag_eur": -1.73,
+    "effizienz_j_th": 15.152
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M73",
+    "leistung_th": 470.0,
+    "release": "2025-12",
+    "verbrauch_watt": 7200,
+    "ertrag_tag_eur": -3.25,
+    "effizienz_j_th": 15.319
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M76",
+    "leistung_th": 336.0,
+    "release": "2025-12",
+    "verbrauch_watt": 5200,
+    "ertrag_tag_eur": -2.44,
+    "effizienz_j_th": 15.476
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M66S++",
+    "leistung_th": 356.0,
+    "release": "2024-12",
+    "verbrauch_watt": 5518,
+    "ertrag_tag_eur": -2.60,
+    "effizienz_j_th": 15.5
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M63S++",
+    "leistung_th": 464.0,
+    "release": "2024-12",
+    "verbrauch_watt": 7200,
+    "ertrag_tag_eur": -3.41,
+    "effizienz_j_th": 15.517
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M6DS++",
+    "leistung_th": 592.0,
+    "release": "2026-03",
+    "verbrauch_watt": 9200,
+    "ertrag_tag_eur": -4.38,
+    "effizienz_j_th": 15.541
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M79",
+    "leistung_th": 920.0,
+    "release": "2026-01",
+    "verbrauch_watt": 14500,
+    "ertrag_tag_eur": -7.24,
+    "effizienz_j_th": 15.761
+  },
+  {
+    "hersteller": "NerdMiner",
+    "modell": "NerdQaxe++ Hydro",
+    "leistung_th": 0.0048,
+    "release": "2026-02",
+    "verbrauch_watt": 76,
+    "ertrag_tag_eur": -0.04,
+    "effizienz_j_th": 16.0
+  },
+  {
+    "hersteller": "NerdMiner",
+    "modell": "NerdQaxe++",
+    "leistung_th": 0.0048,
+    "release": "2025-04",
+    "verbrauch_watt": 76,
+    "ertrag_tag_eur": -0.04,
+    "effizienz_j_th": 16.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M60S++",
+    "leistung_th": 226.0,
+    "release": "2024-12",
+    "verbrauch_watt": 3600,
+    "ertrag_tag_eur": -1.86,
+    "effizienz_j_th": 15.929
+  },
+  {
+    "hersteller": "Bitaxe",
+    "modell": "Gamma Duo 650",
+    "leistung_th": 0.00163,
+    "release": "2026-02",
+    "verbrauch_watt": 26,
+    "ertrag_tag_eur": -0.01,
+    "effizienz_j_th": 16.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21 Hyd",
+    "leistung_th": 335.0,
+    "release": "2024-02",
+    "verbrauch_watt": 5360,
+    "ertrag_tag_eur": -2.81,
+    "effizienz_j_th": 16.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21+",
+    "leistung_th": 225.0,
+    "release": "2025-06",
+    "verbrauch_watt": 3712,
+    "ertrag_tag_eur": -2.13,
+    "effizienz_j_th": 16.498
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21+",
+    "leistung_th": 235.0,
+    "release": "2025-06",
+    "verbrauch_watt": 3877,
+    "ertrag_tag_eur": -2.22,
+    "effizienz_j_th": 16.498
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21+",
+    "leistung_th": 216.0,
+    "release": "2025-02",
+    "verbrauch_watt": 3564,
+    "ertrag_tag_eur": -2.05,
+    "effizienz_j_th": 16.5
+  },
+  {
+    "hersteller": "Bitdeer",
+    "modell": "SealMiner A2 Hyd",
+    "leistung_th": 446.0,
+    "release": "2025-03",
+    "verbrauch_watt": 7360,
+    "ertrag_tag_eur": -4.23,
+    "effizienz_j_th": 16.502
+  },
+  {
+    "hersteller": "Bitdeer",
+    "modell": "SealMiner A2",
+    "leistung_th": 226.0,
+    "release": "2025-03",
+    "verbrauch_watt": 3730,
+    "ertrag_tag_eur": -2.14,
+    "effizienz_j_th": 16.504
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon A15Pro-221T",
+    "leistung_th": 221.0,
+    "release": "2025-03",
+    "verbrauch_watt": 0,
+    "ertrag_tag_eur": -2.13,
+    "effizienz_j_th": 16.57
+  },
+  {
+    "hersteller": "NerdMiner",
+    "modell": "NerdOCTAxe",
+    "leistung_th": 0.0096,
+    "release": "2025-11",
+    "verbrauch_watt": 160,
+    "ertrag_tag_eur": -0.09,
+    "effizienz_j_th": 17.0
+  },
+  {
+    "hersteller": "Lucky Miner",
+    "modell": "LV07 Pro",
+    "leistung_th": 0.003,
+    "release": "2026-05",
+    "verbrauch_watt": 50,
+    "ertrag_tag_eur": -0.03,
+    "effizienz_j_th": 17.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon A15Pro-218T",
+    "leistung_th": 218.0,
+    "release": "2025-02",
+    "verbrauch_watt": 3662,
+    "ertrag_tag_eur": -2.21,
+    "effizienz_j_th": 16.798
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon A1566HA 2U",
+    "leistung_th": 480.0,
+    "release": "2025-06",
+    "verbrauch_watt": 8064,
+    "ertrag_tag_eur": -4.86,
+    "effizienz_j_th": 16.8
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M60S+",
+    "leistung_th": 212.0,
+    "release": "2024-08",
+    "verbrauch_watt": 3600,
+    "ertrag_tag_eur": -2.23,
+    "effizienz_j_th": 16.981
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21e Hyd",
+    "leistung_th": 288.0,
+    "release": "2025-04",
+    "verbrauch_watt": 4896,
+    "ertrag_tag_eur": -3.04,
+    "effizienz_j_th": 17.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21e Hyd",
+    "leistung_th": 310.0,
+    "release": "2025-08",
+    "verbrauch_watt": 5270,
+    "ertrag_tag_eur": -3.27,
+    "effizienz_j_th": 17.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M63S+",
+    "leistung_th": 424.0,
+    "release": "2024-09",
+    "verbrauch_watt": 7208,
+    "ertrag_tag_eur": -4.47,
+    "effizienz_j_th": 17.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M66S+",
+    "leistung_th": 318.0,
+    "release": "2024-09",
+    "verbrauch_watt": 5406,
+    "ertrag_tag_eur": -3.36,
+    "effizienz_j_th": 17.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M6DS+",
+    "leistung_th": 540.0,
+    "release": "2026-03",
+    "verbrauch_watt": 9200,
+    "ertrag_tag_eur": -5.74,
+    "effizienz_j_th": 17.037
+  },
+  {
+    "hersteller": "NerdMiner",
+    "modell": "NerdQaxe++ Rev 6.1",
+    "leistung_th": 0.006,
+    "release": "2026-02",
+    "verbrauch_watt": 103,
+    "ertrag_tag_eur": -0.07,
+    "effizienz_j_th": 17.0
+  },
+  {
+    "hersteller": "NerdMiner",
+    "modell": "NerdQaxe++ Hydro Rev 6.1",
+    "leistung_th": 0.006,
+    "release": "2026-02",
+    "verbrauch_watt": 103,
+    "ertrag_tag_eur": -0.07,
+    "effizienz_j_th": 17.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon A1566I",
+    "leistung_th": 261.0,
+    "release": "2024-07",
+    "verbrauch_watt": 4500,
+    "ertrag_tag_eur": -2.89,
+    "effizienz_j_th": 17.241
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21",
+    "leistung_th": 200.0,
+    "release": "2024-02",
+    "verbrauch_watt": 3550,
+    "ertrag_tag_eur": -2.33,
+    "effizienz_j_th": 17.5
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon A15XP-206T",
+    "leistung_th": 206.0,
+    "release": "2024-12",
+    "verbrauch_watt": 3667,
+    "ertrag_tag_eur": -2.53,
+    "effizienz_j_th": 17.801
+  },
+  {
+    "hersteller": "Bitaxe",
+    "modell": "Supra Hex 701",
+    "leistung_th": 0.0042,
+    "release": "2025-06",
+    "verbrauch_watt": 75,
+    "ertrag_tag_eur": -0.05,
+    "effizienz_j_th": 18.0
+  },
+  {
+    "hersteller": "Auradine",
+    "modell": "Teraflux AH3880",
+    "leistung_th": 600.0,
+    "release": "2025-03",
+    "verbrauch_watt": 10740,
+    "ertrag_tag_eur": -7.50,
+    "effizienz_j_th": 17.9
+  },
+  {
+    "hersteller": "Auradine",
+    "modell": "Teraflux AT2880",
+    "leistung_th": 260.0,
+    "release": "2024-11",
+    "verbrauch_watt": 4680,
+    "ertrag_tag_eur": -3.30,
+    "effizienz_j_th": 18.0
+  },
+  {
+    "hersteller": "21energy",
+    "modell": "Ofen 2 Pro",
+    "leistung_th": 0.06,
+    "release": "2026-04",
+    "verbrauch_watt": 1100,
+    "ertrag_tag_eur": -0.81,
+    "effizienz_j_th": 18.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon A1566",
+    "leistung_th": 185.0,
+    "release": "2024-10",
+    "verbrauch_watt": 3420,
+    "ertrag_tag_eur": -2.55,
+    "effizienz_j_th": 18.486
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M60S",
+    "leistung_th": 186.0,
+    "release": "2024-02",
+    "verbrauch_watt": 3441,
+    "ertrag_tag_eur": -2.57,
+    "effizienz_j_th": 18.5
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M66S",
+    "leistung_th": 298.0,
+    "release": "2023-11",
+    "verbrauch_watt": 5513,
+    "ertrag_tag_eur": -4.11,
+    "effizienz_j_th": 18.5
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M63S",
+    "leistung_th": 390.0,
+    "release": "2023-11",
+    "verbrauch_watt": 7215,
+    "ertrag_tag_eur": -5.38,
+    "effizienz_j_th": 18.5
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S21 Imm.",
+    "leistung_th": 301.0,
+    "release": "2024-12",
+    "verbrauch_watt": 5569,
+    "ertrag_tag_eur": -4.15,
+    "effizienz_j_th": 18.502
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon Q",
+    "leistung_th": 0.09,
+    "release": "2025-04",
+    "verbrauch_watt": 1674,
+    "ertrag_tag_eur": -1.26,
+    "effizienz_j_th": 19.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon A15-194T",
+    "leistung_th": 194.0,
+    "release": "2024-12",
+    "verbrauch_watt": 3647,
+    "ertrag_tag_eur": -2.8,
+    "effizienz_j_th": 18.799
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19 XP+ Hyd",
+    "leistung_th": 293.0,
+    "release": "2025-04",
+    "verbrauch_watt": 5567,
+    "ertrag_tag_eur": -4.36,
+    "effizienz_j_th": 19.0
+  },
+  {
+    "hersteller": "Auradine",
+    "modell": "Teraflux AI3680",
+    "leistung_th": 360.0,
+    "release": "2024-12",
+    "verbrauch_watt": 6840,
+    "ertrag_tag_eur": -5.35,
+    "effizienz_j_th": 19.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19 XP+ Hyd",
+    "leistung_th": 279.0,
+    "release": "2025-01",
+    "verbrauch_watt": 5301,
+    "ertrag_tag_eur": -4.15,
+    "effizienz_j_th": 19.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T21",
+    "leistung_th": 190.0,
+    "release": "2024-02",
+    "verbrauch_watt": 3610,
+    "ertrag_tag_eur": -2.83,
+    "effizienz_j_th": 19.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T21",
+    "leistung_th": 180.0,
+    "release": "2024-04",
+    "verbrauch_watt": 3420,
+    "ertrag_tag_eur": -2.68,
+    "effizienz_j_th": 19.0
+  },
+  {
+    "hersteller": "Jingle Miner",
+    "modell": "BTC Solo Lite",
+    "leistung_th": 0.0012,
+    "release": "2025-09",
+    "verbrauch_watt": 23,
+    "ertrag_tag_eur": -0.02,
+    "effizienz_j_th": 19.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M60",
+    "leistung_th": 172.0,
+    "release": "2024-02",
+    "verbrauch_watt": 3422,
+    "ertrag_tag_eur": -2.89,
+    "effizienz_j_th": 19.895
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M63",
+    "leistung_th": 334.0,
+    "release": "2023-11",
+    "verbrauch_watt": 6646,
+    "ertrag_tag_eur": -5.62,
+    "effizienz_j_th": 19.898
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M66",
+    "leistung_th": 280.0,
+    "release": "2023-11",
+    "verbrauch_watt": 5572,
+    "ertrag_tag_eur": -4.71,
+    "effizienz_j_th": 19.9
+  },
+  {
+    "hersteller": "NerdMiner",
+    "modell": "NerdQaxe+",
+    "leistung_th": 0.0025,
+    "release": "2025-03",
+    "verbrauch_watt": 50,
+    "ertrag_tag_eur": -0.04,
+    "effizienz_j_th": 20.0
+  },
+  {
+    "hersteller": "Jingle Miner",
+    "modell": "BTC Solo Pro",
+    "leistung_th": 0.0048,
+    "release": "2025-09",
+    "verbrauch_watt": 96,
+    "ertrag_tag_eur": -0.08,
+    "effizienz_j_th": 20.0
+  },
+  {
+    "hersteller": "NerdMiner",
+    "modell": "NerdOCTAxe Rev 3.1",
+    "leistung_th": 0.012,
+    "release": "2026-01",
+    "verbrauch_watt": 240,
+    "ertrag_tag_eur": -0.2,
+    "effizienz_j_th": 20.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19 XP Hyd 3U",
+    "leistung_th": 512.0,
+    "release": "2025-01",
+    "verbrauch_watt": 10600,
+    "ertrag_tag_eur": -9.5,
+    "effizienz_j_th": 20.703
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19 XP Hyd",
+    "leistung_th": 257.0,
+    "release": "2022-10",
+    "verbrauch_watt": 5345,
+    "ertrag_tag_eur": -4.82,
+    "effizienz_j_th": 20.798
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon Mini 3",
+    "leistung_th": 0.0375,
+    "release": "2025-02",
+    "verbrauch_watt": 800,
+    "ertrag_tag_eur": -0.75,
+    "effizienz_j_th": 21.0
+  },
+  {
+    "hersteller": "Lucky Miner",
+    "modell": "LV08 Pro",
+    "leistung_th": 0.007,
+    "release": "2026-05",
+    "verbrauch_watt": 150,
+    "ertrag_tag_eur": -0.14,
+    "effizienz_j_th": 21.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19 XP",
+    "leistung_th": 140.0,
+    "release": "2022-07",
+    "verbrauch_watt": 3010,
+    "ertrag_tag_eur": -2.84,
+    "effizienz_j_th": 21.5
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19j XP",
+    "leistung_th": 151.0,
+    "release": "2024-07",
+    "verbrauch_watt": 3247,
+    "ertrag_tag_eur": -3.06,
+    "effizienz_j_th": 21.503
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon Made A1466",
+    "leistung_th": 150.0,
+    "release": "2023-09",
+    "verbrauch_watt": 3230,
+    "ertrag_tag_eur": -3.05,
+    "effizienz_j_th": 21.533
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T19 Pro Hyd",
+    "leistung_th": 235.0,
+    "release": "2024-02",
+    "verbrauch_watt": 5170,
+    "ertrag_tag_eur": -5.02,
+    "effizienz_j_th": 22.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19k Pro",
+    "leistung_th": 120.0,
+    "release": "2023-04",
+    "verbrauch_watt": 2760,
+    "ertrag_tag_eur": -2.82,
+    "effizienz_j_th": 23.0
+  },
+  {
+    "hersteller": "Bitaxe",
+    "modell": "Supra 401",
+    "leistung_th": 0.0006,
+    "release": "2024-07",
+    "verbrauch_watt": 14,
+    "ertrag_tag_eur": -0.01,
+    "effizienz_j_th": 23.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon Nano 3S",
+    "leistung_th": 0.006,
+    "release": "2025-01",
+    "verbrauch_watt": 140,
+    "ertrag_tag_eur": -0.15,
+    "effizienz_j_th": 23.0
+  },
+  {
+    "hersteller": "NerdMiner",
+    "modell": "NerdQaxe+ Hydro",
+    "leistung_th": 0.0025,
+    "release": "2025-06",
+    "verbrauch_watt": 60,
+    "ertrag_tag_eur": -0.06,
+    "effizienz_j_th": 24.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon Made A1446",
+    "leistung_th": 135.0,
+    "release": "2023-09",
+    "verbrauch_watt": 3310,
+    "ertrag_tag_eur": -3.62,
+    "effizienz_j_th": 24.519
+  },
+  {
+    "hersteller": "21energy",
+    "modell": "Ofen 2",
+    "leistung_th": 0.04,
+    "release": "2026-04",
+    "verbrauch_watt": 1000,
+    "ertrag_tag_eur": -1.11,
+    "effizienz_j_th": 25.0
+  },
+  {
+    "hersteller": "Lucky Miner",
+    "modell": "LV07",
+    "leistung_th": 0.001,
+    "release": "2024-06",
+    "verbrauch_watt": 25,
+    "ertrag_tag_eur": -0.03,
+    "effizienz_j_th": 25.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon Made A1366",
+    "leistung_th": 130.0,
+    "release": "2022-11",
+    "verbrauch_watt": 3250,
+    "ertrag_tag_eur": -3.62,
+    "effizienz_j_th": 25.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M50S",
+    "leistung_th": 128.0,
+    "release": "2022-07",
+    "verbrauch_watt": 3276,
+    "ertrag_tag_eur": -3.73,
+    "effizienz_j_th": 25.594
+  },
+  {
+    "hersteller": "Bitaxe",
+    "modell": "Ultra 1366",
+    "leistung_th": 0.000425,
+    "release": "2023-08",
+    "verbrauch_watt": 11,
+    "ertrag_tag_eur": -0.01,
+    "effizienz_j_th": 26.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M53S",
+    "leistung_th": 260.0,
+    "release": "2023-05",
+    "verbrauch_watt": 6760,
+    "ertrag_tag_eur": -7.8,
+    "effizienz_j_th": 26.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19 Pro++",
+    "leistung_th": 125.0,
+    "release": "2024-09",
+    "verbrauch_watt": 3250,
+    "ertrag_tag_eur": -3.75,
+    "effizienz_j_th": 26.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M56S",
+    "leistung_th": 212.0,
+    "release": "2023-01",
+    "verbrauch_watt": 5550,
+    "ertrag_tag_eur": -6.44,
+    "effizienz_j_th": 26.179
+  },
+  {
+    "hersteller": "Lucky Miner",
+    "modell": "LV08",
+    "leistung_th": 0.0045,
+    "release": "2025-01",
+    "verbrauch_watt": 120,
+    "ertrag_tag_eur": -0.14,
+    "effizienz_j_th": 27.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19j Pro+",
+    "leistung_th": 122.0,
+    "release": "2022-12",
+    "verbrauch_watt": 3355,
+    "ertrag_tag_eur": -4.05,
+    "effizienz_j_th": 27.5
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19 Pro+ Hyd",
+    "leistung_th": 198.0,
+    "release": "2022-05",
+    "verbrauch_watt": 5445,
+    "ertrag_tag_eur": -6.58,
+    "effizienz_j_th": 27.5
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "WhatsMiner M56",
+    "leistung_th": 194.0,
+    "release": "2023-01",
+    "verbrauch_watt": 5550,
+    "ertrag_tag_eur": -6.91,
+    "effizienz_j_th": 28.608
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M53",
+    "leistung_th": 230.0,
+    "release": "2023-05",
+    "verbrauch_watt": 6670,
+    "ertrag_tag_eur": -8.39,
+    "effizienz_j_th": 29.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M50",
+    "leistung_th": 114.0,
+    "release": "2022-07",
+    "verbrauch_watt": 3306,
+    "ertrag_tag_eur": -4.16,
+    "effizienz_j_th": 29.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19 Pro Hyd",
+    "leistung_th": 177.0,
+    "release": "2023-01",
+    "verbrauch_watt": 5221,
+    "ertrag_tag_eur": -6.65,
+    "effizienz_j_th": 29.497
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19j Pro",
+    "leistung_th": 104.0,
+    "release": "2021-07",
+    "verbrauch_watt": 3068,
+    "ertrag_tag_eur": -3.91,
+    "effizienz_j_th": 29.5
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19j Pro",
+    "leistung_th": 96.0,
+    "release": "2021-08",
+    "verbrauch_watt": 2832,
+    "ertrag_tag_eur": -3.6,
+    "effizienz_j_th": 29.5
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19 Pro",
+    "leistung_th": 110.0,
+    "release": "2020-05",
+    "verbrauch_watt": 3250,
+    "ertrag_tag_eur": -4.14,
+    "effizienz_j_th": 29.545
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M33S++",
+    "leistung_th": 242.0,
+    "release": "2022-12",
+    "verbrauch_watt": 7260,
+    "ertrag_tag_eur": -9.35,
+    "effizienz_j_th": 30.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon Made A1346",
+    "leistung_th": 110.0,
+    "release": "2022-11",
+    "verbrauch_watt": 3300,
+    "ertrag_tag_eur": -4.25,
+    "effizienz_j_th": 30.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon Miner A1366I",
+    "leistung_th": 119.0,
+    "release": "2024-06",
+    "verbrauch_watt": 3570,
+    "ertrag_tag_eur": -4.6,
+    "effizienz_j_th": 30.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19j Pro",
+    "leistung_th": 100.0,
+    "release": "2021-06",
+    "verbrauch_watt": 3050,
+    "ertrag_tag_eur": -3.97,
+    "effizienz_j_th": 30.5
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M30S++",
+    "leistung_th": 112.0,
+    "release": "2020-10",
+    "verbrauch_watt": 3472,
+    "ertrag_tag_eur": -4.57,
+    "effizienz_j_th": 31.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M36S+",
+    "leistung_th": 164.0,
+    "release": "2023-05",
+    "verbrauch_watt": 5576,
+    "ertrag_tag_eur": -7.75,
+    "effizienz_j_th": 34.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M30S+",
+    "leistung_th": 100.0,
+    "release": "2020-10",
+    "verbrauch_watt": 3400,
+    "ertrag_tag_eur": -4.73,
+    "effizienz_j_th": 34.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19",
+    "leistung_th": 95.0,
+    "release": "2020-05",
+    "verbrauch_watt": 3250,
+    "ertrag_tag_eur": -4.53,
+    "effizienz_j_th": 34.2
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19 Hydro",
+    "leistung_th": 158.0,
+    "release": "2022-10",
+    "verbrauch_watt": 5451,
+    "ertrag_tag_eur": -7.64,
+    "effizienz_j_th": 34.5
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T19 Hydro",
+    "leistung_th": 158.0,
+    "release": "2022-10",
+    "verbrauch_watt": 5451,
+    "ertrag_tag_eur": -7.64,
+    "effizienz_j_th": 34.5
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "Avalon Nano 3",
+    "leistung_th": 0.004,
+    "release": "2024-02",
+    "verbrauch_watt": 140,
+    "ertrag_tag_eur": -0.2,
+    "effizienz_j_th": 35.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S19j",
+    "leistung_th": 90.0,
+    "release": "2021-06",
+    "verbrauch_watt": 3250,
+    "ertrag_tag_eur": -4.66,
+    "effizienz_j_th": 36.11
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T19",
+    "leistung_th": 84.0,
+    "release": "2020-06",
+    "verbrauch_watt": 3150,
+    "ertrag_tag_eur": -4.61,
+    "effizienz_j_th": 37.5
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T19 Hydro",
+    "leistung_th": 145.0,
+    "release": "2022-10",
+    "verbrauch_watt": 5438,
+    "ertrag_tag_eur": -7.95,
+    "effizienz_j_th": 37.503
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "AvalonMiner 1246",
+    "leistung_th": 90.0,
+    "release": "2021-01",
+    "verbrauch_watt": 3420,
+    "ertrag_tag_eur": -5.03,
+    "effizienz_j_th": 38.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M30S",
+    "leistung_th": 86.0,
+    "release": "2020-04",
+    "verbrauch_watt": 3268,
+    "ertrag_tag_eur": -4.81,
+    "effizienz_j_th": 38.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T19",
+    "leistung_th": 88.0,
+    "release": "2021-08",
+    "verbrauch_watt": 3344,
+    "ertrag_tag_eur": -4.92,
+    "effizienz_j_th": 38.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S17 Pro",
+    "leistung_th": 50.0,
+    "release": "2019-04",
+    "verbrauch_watt": 1975,
+    "ertrag_tag_eur": -2.96,
+    "effizienz_j_th": 39.5
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S17 Pro",
+    "leistung_th": 53.0,
+    "release": "2019-04",
+    "verbrauch_watt": 2094,
+    "ertrag_tag_eur": -3.14,
+    "effizienz_j_th": 39.5
+  },
+  {
+    "hersteller": "StrongU",
+    "modell": "Hornbill H8 Pro",
+    "leistung_th": 84.0,
+    "release": "2021-07",
+    "verbrauch_watt": 3360,
+    "ertrag_tag_eur": -5.06,
+    "effizienz_j_th": 40.0
+  },
+  {
+    "hersteller": "Heatbit",
+    "modell": "Heatbit Trio",
+    "leistung_th": 10.0,
+    "release": "2025-02",
+    "verbrauch_watt": 400,
+    "ertrag_tag_eur": -0.6,
+    "effizienz_j_th": 40.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S17+",
+    "leistung_th": 73.0,
+    "release": "2019-12",
+    "verbrauch_watt": 2920,
+    "ertrag_tag_eur": -4.4,
+    "effizienz_j_th": 40.0
+  },
+  {
+    "hersteller": "Braiins",
+    "modell": "BMM100",
+    "leistung_th": 1.0,
+    "release": "2024-06",
+    "verbrauch_watt": 40,
+    "ertrag_tag_eur": -0.06,
+    "effizienz_j_th": 40.0
+  },
+  {
+    "hersteller": "Braiins",
+    "modell": "BMM101",
+    "leistung_th": 1.0,
+    "release": "2025-04",
+    "verbrauch_watt": 40,
+    "ertrag_tag_eur": -0.06,
+    "effizienz_j_th": 40.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "AvalonMiner 1166 Pro",
+    "leistung_th": 81.0,
+    "release": "2020-08",
+    "verbrauch_watt": 3400,
+    "ertrag_tag_eur": -5.22,
+    "effizienz_j_th": 41.97
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M31S+",
+    "leistung_th": 80.0,
+    "release": "2020-12",
+    "verbrauch_watt": 3360,
+    "ertrag_tag_eur": -5.16,
+    "effizienz_j_th": 42.0
+  },
+  {
+    "hersteller": "Innosilicon",
+    "modell": "T3+ 52T",
+    "leistung_th": 52.0,
+    "release": "2019-05",
+    "verbrauch_watt": 2800,
+    "ertrag_tag_eur": -3.39,
+    "effizienz_j_th": 53.846
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M31S",
+    "leistung_th": 76.0,
+    "release": "2020-04",
+    "verbrauch_watt": 3220,
+    "ertrag_tag_eur": -5.23,
+    "effizienz_j_th": 42.368
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S17e",
+    "leistung_th": 64.0,
+    "release": "2019-11",
+    "verbrauch_watt": 2880,
+    "ertrag_tag_eur": -4.55,
+    "effizienz_j_th": 45.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S17",
+    "leistung_th": 53.0,
+    "release": "2019-04",
+    "verbrauch_watt": 2385,
+    "ertrag_tag_eur": -3.76,
+    "effizienz_j_th": 45.0
+  },
+  {
+    "hersteller": "Ebang",
+    "modell": "Ebit E11++",
+    "leistung_th": 44.0,
+    "release": "2018-10",
+    "verbrauch_watt": 1980,
+    "ertrag_tag_eur": -3.13,
+    "effizienz_j_th": 45.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S17",
+    "leistung_th": 56.0,
+    "release": "2019-04",
+    "verbrauch_watt": 2520,
+    "ertrag_tag_eur": -3.98,
+    "effizienz_j_th": 45.0
+  },
+  {
+    "hersteller": "StrongU",
+    "modell": "Hornbill H8",
+    "leistung_th": 74.0,
+    "release": "2020-10",
+    "verbrauch_watt": 3330,
+    "ertrag_tag_eur": -5.26,
+    "effizienz_j_th": 45.0
+  },
+  {
+    "hersteller": "StrongU",
+    "modell": "STU-U8",
+    "leistung_th": 46.0,
+    "release": "2019-07",
+    "verbrauch_watt": 2100,
+    "ertrag_tag_eur": -3.33,
+    "effizienz_j_th": 45.652
+  },
+  {
+    "hersteller": "StrongU",
+    "modell": "STU-U8 Pro",
+    "leistung_th": 60.0,
+    "release": "2019-09",
+    "verbrauch_watt": 2800,
+    "ertrag_tag_eur": -4.48,
+    "effizienz_j_th": 46.667
+  },
+  {
+    "hersteller": "Bolon Miner",
+    "modell": "B11",
+    "leistung_th": 70.0,
+    "release": "2021-08",
+    "verbrauch_watt": 3300,
+    "ertrag_tag_eur": -5.30,
+    "effizienz_j_th": 47.143
+  },
+  {
+    "hersteller": "Innosilicon",
+    "modell": "T3 43T",
+    "leistung_th": 43.0,
+    "release": "2019-01",
+    "verbrauch_watt": 2100,
+    "ertrag_tag_eur": -3.41,
+    "effizienz_j_th": 48.837
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M20S",
+    "leistung_th": 68.0,
+    "release": "2019-08",
+    "verbrauch_watt": 3360,
+    "ertrag_tag_eur": -5.48,
+    "effizienz_j_th": 49.412
+  },
+  {
+    "hersteller": "iPollo",
+    "modell": "B1L",
+    "leistung_th": 60.0,
+    "release": "2022-03",
+    "verbrauch_watt": 3000,
+    "ertrag_tag_eur": -4.91,
+    "effizienz_j_th": 50.0
+  },
+  {
+    "hersteller": "Ebang",
+    "modell": "Ebit E12+",
+    "leistung_th": 50.0,
+    "release": "2019-09",
+    "verbrauch_watt": 2500,
+    "ertrag_tag_eur": -4.09,
+    "effizienz_j_th": 50.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T17+",
+    "leistung_th": 64.0,
+    "release": "2019-12",
+    "verbrauch_watt": 3200,
+    "ertrag_tag_eur": -5.24,
+    "effizienz_j_th": 50.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "AvalonMiner 1126 Pro",
+    "leistung_th": 68.0,
+    "release": "2021-08",
+    "verbrauch_watt": 3420,
+    "ertrag_tag_eur": -5.61,
+    "effizienz_j_th": 50.294
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M32S",
+    "leistung_th": 66.0,
+    "release": "2020-11",
+    "verbrauch_watt": 3432,
+    "ertrag_tag_eur": -5.69,
+    "effizienz_j_th": 52.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "AvalonMiner 1146 Pro",
+    "leistung_th": 63.0,
+    "release": "2020-08",
+    "verbrauch_watt": 3276,
+    "ertrag_tag_eur": -5.43,
+    "effizienz_j_th": 52.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M32",
+    "leistung_th": 62.0,
+    "release": "2020-07",
+    "verbrauch_watt": 3348,
+    "ertrag_tag_eur": -5.61,
+    "effizienz_j_th": 54.0
+  },
+  {
+    "hersteller": "Ebang",
+    "modell": "Ebit E11+",
+    "leistung_th": 37.0,
+    "release": "2018-10",
+    "verbrauch_watt": 2035,
+    "ertrag_tag_eur": -3.43,
+    "effizienz_j_th": 55.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T17e",
+    "leistung_th": 53.0,
+    "release": "2019-11",
+    "verbrauch_watt": 2915,
+    "ertrag_tag_eur": -4.91,
+    "effizienz_j_th": 55.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T17",
+    "leistung_th": 40.0,
+    "release": "2019-05",
+    "verbrauch_watt": 2200,
+    "ertrag_tag_eur": -3.71,
+    "effizienz_j_th": 55.0
+  },
+  {
+    "hersteller": "Innosilicon",
+    "modell": "T3 39T",
+    "leistung_th": 39.0,
+    "release": "2019-03",
+    "verbrauch_watt": 2150,
+    "ertrag_tag_eur": -3.62,
+    "effizienz_j_th": 55.128
+  },
+  {
+    "hersteller": "Ebang",
+    "modell": "Ebit E12",
+    "leistung_th": 44.0,
+    "release": "2019-09",
+    "verbrauch_watt": 2500,
+    "ertrag_tag_eur": -4.25,
+    "effizienz_j_th": 56.818
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S15",
+    "leistung_th": 28.0,
+    "release": "2018-12",
+    "verbrauch_watt": 1596,
+    "ertrag_tag_eur": -2.71,
+    "effizienz_j_th": 57.0
+  },
+  {
+    "hersteller": "Innosilicon",
+    "modell": "T3+ 57T",
+    "leistung_th": 57.0,
+    "release": "2019-09",
+    "verbrauch_watt": 3300,
+    "ertrag_tag_eur": -5.64,
+    "effizienz_j_th": 57.895
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M21",
+    "leistung_th": 31.0,
+    "release": "2019-08",
+    "verbrauch_watt": 1860,
+    "ertrag_tag_eur": -3.21,
+    "effizienz_j_th": 60.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M21S",
+    "leistung_th": 56.0,
+    "release": "2019-06",
+    "verbrauch_watt": 3360,
+    "ertrag_tag_eur": -5.79,
+    "effizienz_j_th": 60.0
+  },
+  {
+    "hersteller": "Innosilicon",
+    "modell": "T3 50T",
+    "leistung_th": 50.0,
+    "release": "2019-07",
+    "verbrauch_watt": 3100,
+    "ertrag_tag_eur": -5.39,
+    "effizienz_j_th": 62.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M10S",
+    "leistung_th": 55.0,
+    "release": "2018-09",
+    "verbrauch_watt": 3500,
+    "ertrag_tag_eur": -6.12,
+    "effizienz_j_th": 63.636
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "AvalonMiner 1047",
+    "leistung_th": 37.0,
+    "release": "2019-09",
+    "verbrauch_watt": 2380,
+    "ertrag_tag_eur": -4.17,
+    "effizienz_j_th": 64.324
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M10",
+    "leistung_th": 33.0,
+    "release": "2018-09",
+    "verbrauch_watt": 2145,
+    "ertrag_tag_eur": -3.77,
+    "effizienz_j_th": 65.0
+  },
+  {
+    "hersteller": "Ebang",
+    "modell": "Ebit E11",
+    "leistung_th": 30.0,
+    "release": "2018-10",
+    "verbrauch_watt": 1950,
+    "ertrag_tag_eur": -3.43,
+    "effizienz_j_th": 65.0
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "AvalonMiner 1066",
+    "leistung_th": 50.0,
+    "release": "2019-09",
+    "verbrauch_watt": 3250,
+    "ertrag_tag_eur": -5.71,
+    "effizienz_j_th": 65.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T15",
+    "leistung_th": 23.0,
+    "release": "2018-12",
+    "verbrauch_watt": 1541,
+    "ertrag_tag_eur": -2.73,
+    "effizienz_j_th": 67.0
+  },
+  {
+    "hersteller": "Innosilicon",
+    "modell": "T2 Turbo+ 32T",
+    "leistung_th": 32.0,
+    "release": "2018-09",
+    "verbrauch_watt": 2200,
+    "ertrag_tag_eur": -3.91,
+    "effizienz_j_th": 68.75
+  },
+  {
+    "hersteller": "Holic",
+    "modell": "H22",
+    "leistung_th": 22.0,
+    "release": "2018-12",
+    "verbrauch_watt": 1700,
+    "ertrag_tag_eur": -2.88,
+    "effizienz_j_th": 77.273
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S11",
+    "leistung_th": 20.5,
+    "release": "2018-11",
+    "verbrauch_watt": 1530,
+    "ertrag_tag_eur": -2.77,
+    "effizienz_j_th": 74.634
+  },
+  {
+    "hersteller": "Holic",
+    "modell": "H28",
+    "leistung_th": 28.0,
+    "release": "2018-12",
+    "verbrauch_watt": 2100,
+    "ertrag_tag_eur": -3.8,
+    "effizienz_j_th": 75.0
+  },
+  {
+    "hersteller": "Bitfury",
+    "modell": "Tardis",
+    "leistung_th": 80.0,
+    "release": "2018-11",
+    "verbrauch_watt": 6300,
+    "ertrag_tag_eur": -11.51,
+    "effizienz_j_th": 78.75
+  },
+  {
+    "hersteller": "Innosilicon",
+    "modell": "T2 Turbo HF+",
+    "leistung_th": 33.0,
+    "release": "2021-07",
+    "verbrauch_watt": 2600,
+    "ertrag_tag_eur": -4.75,
+    "effizienz_j_th": 78.788
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S9 SE",
+    "leistung_th": 16.0,
+    "release": "2019-07",
+    "verbrauch_watt": 1280,
+    "ertrag_tag_eur": -2.35,
+    "effizienz_j_th": 80.0
+  },
+  {
+    "hersteller": "Innosilicon",
+    "modell": "T2 Turbo 29T/30T",
+    "leistung_th": 30.0,
+    "release": "2021-01",
+    "verbrauch_watt": 2400,
+    "ertrag_tag_eur": -4.4,
+    "effizienz_j_th": 80.0
+  },
+  {
+    "hersteller": "Innosilicon",
+    "modell": "T2 Turbo 26T",
+    "leistung_th": 26.0,
+    "release": "2021-07",
+    "verbrauch_watt": 2100,
+    "ertrag_tag_eur": -3.86,
+    "effizienz_j_th": 80.769
+  },
+  {
+    "hersteller": "GMO miner",
+    "modell": "B2",
+    "leistung_th": 24.0,
+    "release": "2018-10",
+    "verbrauch_watt": 1950,
+    "ertrag_tag_eur": -3.58,
+    "effizienz_j_th": 81.25
+  },
+  {
+    "hersteller": "Innosilicon",
+    "modell": "T2 Turbo 25T",
+    "leistung_th": 25.0,
+    "release": "2018-10",
+    "verbrauch_watt": 2050,
+    "ertrag_tag_eur": -3.77,
+    "effizienz_j_th": 82.0
+  },
+  {
+    "hersteller": "Innosilicon",
+    "modell": "T2 Turbo",
+    "leistung_th": 24.0,
+    "release": "2018-08",
+    "verbrauch_watt": 1980,
+    "ertrag_tag_eur": -3.65,
+    "effizienz_j_th": 82.5
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "AvalonMiner 921",
+    "leistung_th": 20.0,
+    "release": "2018-09",
+    "verbrauch_watt": 1700,
+    "ertrag_tag_eur": -3.15,
+    "effizienz_j_th": 85.0
+  },
+  {
+    "hersteller": "Bitfily",
+    "modell": "Snow Panther B1+",
+    "leistung_th": 24.5,
+    "release": "2018-08",
+    "verbrauch_watt": 2100,
+    "ertrag_tag_eur": -3.89,
+    "effizienz_j_th": 85.714
+  },
+  {
+    "hersteller": "Bitfily",
+    "modell": "Snow Panther B1",
+    "leistung_th": 16.0,
+    "release": "2018-07",
+    "verbrauch_watt": 1380,
+    "ertrag_tag_eur": -2.56,
+    "effizienz_j_th": 86.25
+  },
+  {
+    "hersteller": "Innosilicon",
+    "modell": "T2 Terminator",
+    "leistung_th": 17.2,
+    "release": "2018-05",
+    "verbrauch_watt": 1570,
+    "ertrag_tag_eur": -2.94,
+    "effizienz_j_th": 91.279
+  },
+  {
+    "hersteller": "Ebang",
+    "modell": "Ebit E10",
+    "leistung_th": 18.0,
+    "release": "2018-02",
+    "verbrauch_watt": 1650,
+    "ertrag_tag_eur": -3.09,
+    "effizienz_j_th": 91.667
+  },
+  {
+    "hersteller": "Halong Mining",
+    "modell": "DragonMint T1",
+    "leistung_th": 16.0,
+    "release": "2018-04",
+    "verbrauch_watt": 1480,
+    "ertrag_tag_eur": -2.78,
+    "effizienz_j_th": 92.5
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S9j",
+    "leistung_th": 14.5,
+    "release": "2018-08",
+    "verbrauch_watt": 1350,
+    "ertrag_tag_eur": -2.54,
+    "effizienz_j_th": 93.103
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S9i",
+    "leistung_th": 14.0,
+    "release": "2018-05",
+    "verbrauch_watt": 1320,
+    "ertrag_tag_eur": -2.48,
+    "effizienz_j_th": 94.286
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "AvalonMiner 841",
+    "leistung_th": 13.6,
+    "release": "2018-04",
+    "verbrauch_watt": 1290,
+    "ertrag_tag_eur": -2.43,
+    "effizienz_j_th": 94.853
+  },
+  {
+    "hersteller": "Aisen",
+    "modell": "A1 Pro",
+    "leistung_th": 23.0,
+    "release": "2021-05",
+    "verbrauch_watt": 2200,
+    "ertrag_tag_eur": -4.15,
+    "effizienz_j_th": 95.652
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S9 Hydro",
+    "leistung_th": 18.0,
+    "release": "2018-08",
+    "verbrauch_watt": 1728,
+    "ertrag_tag_eur": -3.26,
+    "effizienz_j_th": 96.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S9k",
+    "leistung_th": 13.5,
+    "release": "2019-08",
+    "verbrauch_watt": 1310,
+    "ertrag_tag_eur": -2.48,
+    "effizienz_j_th": 97.037
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer R4",
+    "leistung_th": 8.7,
+    "release": "2017-02",
+    "verbrauch_watt": 845,
+    "ertrag_tag_eur": -1.6,
+    "effizienz_j_th": 97.126
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S9",
+    "leistung_th": 12.5,
+    "release": "2017-02",
+    "verbrauch_watt": 1225,
+    "ertrag_tag_eur": -2.32,
+    "effizienz_j_th": 98.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S9",
+    "leistung_th": 14.0,
+    "release": "2017-11",
+    "verbrauch_watt": 1372,
+    "ertrag_tag_eur": -2.6,
+    "effizienz_j_th": 98.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S9",
+    "leistung_th": 11.5,
+    "release": "2017-06",
+    "verbrauch_watt": 1127,
+    "ertrag_tag_eur": -2.13,
+    "effizienz_j_th": 98.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S9",
+    "leistung_th": 13.5,
+    "release": "2017-09",
+    "verbrauch_watt": 1323,
+    "ertrag_tag_eur": -2.5,
+    "effizienz_j_th": 98.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S9i",
+    "leistung_th": 13.0,
+    "release": "2018-05",
+    "verbrauch_watt": 1280,
+    "ertrag_tag_eur": -2.45,
+    "effizienz_j_th": 98.462
+  },
+  {
+    "hersteller": "Heatbit",
+    "modell": "Heatbit",
+    "leistung_th": 14.0,
+    "release": "2022-12",
+    "verbrauch_watt": 1400,
+    "ertrag_tag_eur": -2.66,
+    "effizienz_j_th": 100.0
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S9",
+    "leistung_th": 13.0,
+    "release": "2017-07",
+    "verbrauch_watt": 1300,
+    "ertrag_tag_eur": -2.47,
+    "effizienz_j_th": 100.0
+  },
+  {
+    "hersteller": "GMO miner",
+    "modell": "B3",
+    "leistung_th": 33.0,
+    "release": "2018-11",
+    "verbrauch_watt": 3417,
+    "ertrag_tag_eur": -6.52,
+    "effizienz_j_th": 103.545
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "AvalonMiner 821",
+    "leistung_th": 11.5,
+    "release": "2018-02",
+    "verbrauch_watt": 1200,
+    "ertrag_tag_eur": -2.29,
+    "effizienz_j_th": 104.348
+  },
+  {
+    "hersteller": "Ebang",
+    "modell": "Ebit E9i",
+    "leistung_th": 13.5,
+    "release": "2018-07",
+    "verbrauch_watt": 1420,
+    "ertrag_tag_eur": -2.71,
+    "effizienz_j_th": 105.185
+  },
+  {
+    "hersteller": "Ebang",
+    "modell": "Ebit E9.2",
+    "leistung_th": 12.0,
+    "release": "2018-05",
+    "verbrauch_watt": 1320,
+    "ertrag_tag_eur": -2.54,
+    "effizienz_j_th": 110.0
+  },
+  {
+    "hersteller": "Ebang",
+    "modell": "Ebit E9.3",
+    "leistung_th": 16.0,
+    "release": "2018-05",
+    "verbrauch_watt": 1760,
+    "ertrag_tag_eur": -3.38,
+    "effizienz_j_th": 110.0
+  },
+  {
+    "hersteller": "Bitfily",
+    "modell": "Snow Panther A1",
+    "leistung_th": 49.0,
+    "release": "2018-01",
+    "verbrauch_watt": 5400,
+    "ertrag_tag_eur": -10.38,
+    "effizienz_j_th": 110.204
+  },
+  {
+    "hersteller": "Pantech",
+    "modell": "SX6",
+    "leistung_th": 8.5,
+    "release": "2017-09",
+    "verbrauch_watt": 1000,
+    "ertrag_tag_eur": -1.94,
+    "effizienz_j_th": 117.647
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T9",
+    "leistung_th": 12.5,
+    "release": "2017-08",
+    "verbrauch_watt": 1576,
+    "ertrag_tag_eur": -3.08,
+    "effizienz_j_th": 126.08
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T9",
+    "leistung_th": 11.5,
+    "release": "2017-04",
+    "verbrauch_watt": 1450,
+    "ertrag_tag_eur": -2.83,
+    "effizienz_j_th": 126.087
+  },
+  {
+    "hersteller": "Bitfury",
+    "modell": "B8",
+    "leistung_th": 49.0,
+    "release": "2017-12",
+    "verbrauch_watt": 6400,
+    "ertrag_tag_eur": -12.54,
+    "effizienz_j_th": 130.612
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer T9+",
+    "leistung_th": 10.5,
+    "release": "2018-01",
+    "verbrauch_watt": 1432,
+    "ertrag_tag_eur": -2.82,
+    "effizienz_j_th": 136.381
+  },
+  {
+    "hersteller": "Ebang",
+    "modell": "Ebit E10D",
+    "leistung_th": 25.0,
+    "release": "2021-09",
+    "verbrauch_watt": 3500,
+    "ertrag_tag_eur": -6.91,
+    "effizienz_j_th": 140.0
+  },
+  {
+    "hersteller": "Ebang",
+    "modell": "Ebit E9+",
+    "leistung_th": 9.0,
+    "release": "2018-01",
+    "verbrauch_watt": 1300,
+    "ertrag_tag_eur": -2.57,
+    "effizienz_j_th": 144.444
+  },
+  {
+    "hersteller": "Pantech",
+    "modell": "WX6",
+    "leistung_th": 34.0,
+    "release": "2018-01",
+    "verbrauch_watt": 5000,
+    "ertrag_tag_eur": -9.91,
+    "effizienz_j_th": 147.059
+  },
+  {
+    "hersteller": "Canaan",
+    "modell": "AvalonMiner 741",
+    "leistung_th": 7.3,
+    "release": "2017-04",
+    "verbrauch_watt": 1150,
+    "ertrag_tag_eur": -2.29,
+    "effizienz_j_th": 157.534
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M3X",
+    "leistung_th": 12.5,
+    "release": "2018-03",
+    "verbrauch_watt": 2050,
+    "ertrag_tag_eur": -4.1,
+    "effizienz_j_th": 164.0
+  },
+  {
+    "hersteller": "MicroBT",
+    "modell": "Whatsminer M3",
+    "leistung_th": 12.0,
+    "release": "2018-01",
+    "verbrauch_watt": 2000,
+    "ertrag_tag_eur": -4.01,
+    "effizienz_j_th": 166.667
+  },
+  {
+    "hersteller": "Ebang",
+    "modell": "Ebit E9",
+    "leistung_th": 6.3,
+    "release": "2018-09",
+    "verbrauch_watt": 1077,
+    "ertrag_tag_eur": -2.16,
+    "effizienz_j_th": 170.952
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer V9",
+    "leistung_th": 4.0,
+    "release": "2018-03",
+    "verbrauch_watt": 1027,
+    "ertrag_tag_eur": -2.11,
+    "effizienz_j_th": 256.75
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S7-LN",
+    "leistung_th": 2.7,
+    "release": "2016-06",
+    "verbrauch_watt": 697,
+    "ertrag_tag_eur": -1.43,
+    "effizienz_j_th": 258.148
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S7",
+    "leistung_th": 4.73,
+    "release": "2015-09",
+    "verbrauch_watt": 1293,
+    "ertrag_tag_eur": -2.67,
+    "effizienz_j_th": 273.362
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S5",
+    "leistung_th": 1.155,
+    "release": "2014-12",
+    "verbrauch_watt": 590,
+    "ertrag_tag_eur": -1.24,
+    "effizienz_j_th": 510.823
+  },
+  {
+    "hersteller": "Bitmain",
+    "modell": "Antminer S3",
+    "leistung_th": 0.478,
+    "release": "2014-07",
+    "verbrauch_watt": 366,
+    "ertrag_tag_eur": -0.78,
+    "effizienz_j_th": 765.69
+  }
+]

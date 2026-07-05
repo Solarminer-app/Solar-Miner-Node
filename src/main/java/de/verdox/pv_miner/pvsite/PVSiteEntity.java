@@ -8,6 +8,8 @@ import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 
 import de.verdox.pv_miner.util.Money;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -20,57 +22,78 @@ import java.util.*;
 @EntityListeners(AuditingEntityListener.class)
 public abstract class PVSiteEntity extends AbstractAuditableEntity implements QueryEntity<PVSiteDataDTO> {
 
+    @Setter
+    @Getter
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Setter
+    @Getter
+    @Column(name = "timezone_id")
+    private String timezoneId;
+
+    public java.time.ZoneId getZoneId() {
+        return timezoneId != null ? java.time.ZoneId.of(timezoneId) : java.time.ZoneId.systemDefault();
+    }
+
+    @Setter
+    @Getter
     private String name;
 
+    @Setter
+    @Getter
     private int batteryCapacityWh;
 
+    @Setter
+    @Getter
     @Column(name = "setup_date", nullable = false)
     @ColumnDefault("'2000-01-01'")
     private LocalDate setupDate = LocalDate.now();
 
+    @Setter
     @AttributeOverrides({
             @AttributeOverride(name = "amount", column = @Column(name = "pvCostAmount")),
             @AttributeOverride(name = "currencyCode", column = @Column(name = "pvCostCurrency"))
     })
     private Money pvCost;
 
+    @Setter
+    @Getter
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "pv_site_feed_in_tariffs", joinColumns = @JoinColumn(name = "pv_site_id"))
     @OrderBy("validFrom DESC")
     private List<HistoricalPrice> feedInTariffHistory = new ArrayList<>();
 
+    @Setter
+    @Getter
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "pv_site_electricity_prices", joinColumns = @JoinColumn(name = "pv_site_id"))
     @OrderBy("validFrom DESC")
     private List<HistoricalPrice> electricityPriceHistory = new ArrayList<>();
 
+    @Setter
+    @Getter
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "pv_site_btc_sales", joinColumns = @JoinColumn(name = "pv_site_id"))
     @OrderBy("saleDate DESC")
     private List<BitcoinSale> bitcoinSales = new ArrayList<>();
 
-    public List<BitcoinSale> getBitcoinSales() {
-        return bitcoinSales;
-    }
-
-    public void setBitcoinSales(List<BitcoinSale> bitcoinSales) {
-        this.bitcoinSales = bitcoinSales;
-    }
-
+    @Setter
+    @Getter
     @OneToMany(mappedBy = "parentEntity", fetch = FetchType.EAGER)
     private Set<MinerEntity<?>> miners = new LinkedHashSet<>();
 
+    @Setter
+    @Getter
     @OneToMany(mappedBy = "parentEntity", fetch = FetchType.EAGER)
     private Set<PVPanels> pvPanels = new LinkedHashSet<>();
 
+    @Setter
+    @Getter
     @OneToMany(mappedBy = "parentEntity", fetch = FetchType.EAGER)
     private Set<MiningPoolEntity<?>> connectedMiningPools = new LinkedHashSet<>();
 
-    // --- Helper für aktuelle Preise ---
     public Money getCurrentFeedInTariff() {
         return getCurrentPriceFromHistory(feedInTariffHistory);
     }
@@ -88,18 +111,8 @@ public abstract class PVSiteEntity extends AbstractAuditableEntity implements Qu
                 .filter(hp -> !hp.getValidFrom().isAfter(today))
                 .findFirst()
                 .map(HistoricalPrice::getPrice)
-                .orElse(history.get(history.size() - 1).getPrice()); // Fallback zum ältesten
+                .orElse(history.getLast().getPrice());
     }
-
-    // --- Getter & Setter ---
-    public List<HistoricalPrice> getFeedInTariffHistory() { return feedInTariffHistory; }
-    public void setFeedInTariffHistory(List<HistoricalPrice> feedInTariffHistory) { this.feedInTariffHistory = feedInTariffHistory; }
-
-    public List<HistoricalPrice> getElectricityPriceHistory() { return electricityPriceHistory; }
-    public void setElectricityPriceHistory(List<HistoricalPrice> electricityPriceHistory) { this.electricityPriceHistory = electricityPriceHistory; }
-
-    public LocalDate getSetupDate() { return setupDate; }
-    public void setSetupDate(LocalDate setupDate) { this.setupDate = setupDate; }
 
     public double getKwp() {
         return pvPanels.stream().mapToDouble(PVPanels::getMaxPowerInKw).sum();
@@ -109,23 +122,4 @@ public abstract class PVSiteEntity extends AbstractAuditableEntity implements Qu
         return pvCost != null ? pvCost : new Money(0.0, CustomCurrency.getInstance("EUR"));
     }
 
-    public void setPvCost(Money pvCost) { this.pvCost = pvCost; }
-
-    public int getBatteryCapacityWh() { return batteryCapacityWh; }
-    public void setBatteryCapacityWh(int batteryCapacityWh) { this.batteryCapacityWh = batteryCapacityWh; }
-
-    public Set<MinerEntity<?>> getMiners() { return miners; }
-    public void setMiners(Set<MinerEntity<?>> getMiners) { this.miners = getMiners; }
-
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
-
-    public Set<MiningPoolEntity<?>> getConnectedMiningPools() { return connectedMiningPools; }
-    public void setConnectedMiningPools(Set<MiningPoolEntity<?>> connectedMiningPools) { this.connectedMiningPools = connectedMiningPools; }
-
-    public Set<PVPanels> getPvPanels() { return pvPanels; }
-    public void setPvPanels(Set<PVPanels> pvPanels) { this.pvPanels = pvPanels; }
 }

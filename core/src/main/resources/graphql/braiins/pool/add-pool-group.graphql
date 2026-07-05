@@ -1,0 +1,24 @@
+mutation AddPoolGroup($name: String!, $quota: Int) {
+    bosminer {
+        config {
+            addGroupWithQuota(name: $name, quota: $quota) {
+                __typename
+                ... on GroupConfig {
+                    id
+                    name
+                    strategy {
+                        __typename
+                        ... on QuotaStrategy {
+                            quota
+                        }
+                    }
+                }
+                ... on GroupRecordError {
+                    message
+                    name
+                    strategy
+                }
+            }
+        }
+    }
+}

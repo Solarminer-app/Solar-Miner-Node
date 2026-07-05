@@ -5,12 +5,12 @@ import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
 import de.verdox.pv_miner.miner.MinerApiClient;
 import de.verdox.pv_miner.miner.MiningOS;
 import de.verdox.pv_miner.pvsite.SunspecConfigService;
-import de.verdox.pv_miner_extensions.modbus.TCPModbusClient;
-import de.verdox.pv_miner_extensions.modbus.config.ModbusConfig;
-import de.verdox.pv_miner_extensions.modbus.config.ModbusConfigCreatorTemplate;
-import de.verdox.pv_miner_extensions.modbus.config.ModbusConfigStorage;
-import de.verdox.pv_miner_extensions.restpv.config.RestConfigCreatorTemplate;
-import de.verdox.pv_miner_extensions.restpv.config.RestConfigStorage;
+import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusConfigStorage;
+import de.verdox.pv_miner_extensions.inverter.rest.RestConfigStorage;
+import de.verdox.solarminer.modbustcp.ModbusConfig;
+import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
+import de.verdox.solarminer.modbustcp.TCPModbusClient;
+import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
 import org.springframework.stereotype.Service;
 
 import java.net.*;
@@ -163,6 +163,7 @@ public class DiscoveryService {
                     executor.submit(() -> {
                         try {
                             var detectedMiner = minerApiClient.identifyMiningOS(ip);
+
                             if (detectedMiner != null) {
                                 onMinerFound.accept(new MinerInfo(detectedMiner.model(), ip, detectedMiner.os()));
                             }

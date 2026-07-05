@@ -1,0 +1,10 @@
+query Version {
+    bos {
+        info {
+            mode
+            version {
+                full
+            }
+        }
+    }
+}

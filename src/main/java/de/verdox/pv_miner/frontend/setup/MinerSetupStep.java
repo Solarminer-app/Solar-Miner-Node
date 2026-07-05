@@ -5,10 +5,12 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
@@ -35,17 +37,22 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
     private final Icon radarIcon;
     private final Grid<MinerConfigEntry> minerGrid;
     private final HorizontalLayout bulkConfigLayout;
-    private final TextField subnetField;
+    private final HorizontalLayout subnetLayout;
+    private final IntegerField octet1 = new IntegerField();
+    private final IntegerField octet2 = new IntegerField();
+    private final IntegerField octet3 = new IntegerField();
     private final Checkbox skipCheckbox;
 
     private final List<MinerConfigEntry> discoveredMiners = new ArrayList<>();
     private boolean scanComplete = false;
     private final Runnable onScanFinishedCallback;
+    private final Runnable onValidationChanged;
 
     private PVSiteEntity existingSite;
 
-    public MinerSetupStep(Runnable onScanFinishedCallback) {
+    public MinerSetupStep(Runnable onScanFinishedCallback, Runnable onValidationChanged) {
         this.onScanFinishedCallback = onScanFinishedCallback;
+        this.onValidationChanged = onValidationChanged;
 
         setAlignItems(Alignment.CENTER);
         setJustifyContentMode(JustifyContentMode.START);
@@ -60,12 +67,33 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
         statusText.getStyle().set("font-size", "1.1em");
         statusText.getStyle().set("font-weight", "500");
 
-        subnetField = new TextField(getTranslation("setup.miner.subnet"));
-        subnetField.setValue(guessLocalSubnet());
-        subnetField.setWidth("200px");
+
+        setupOctetField(octet1);
+        setupOctetField(octet2);
+        setupOctetField(octet3);
+
+        int[] guessed = guessLocalSubnetOctets();
+        octet1.setValue(guessed[0]);
+        octet2.setValue(guessed[1]);
+        octet3.setValue(guessed[2]);
+
+        TranslatableSpan subnetLabel = new TranslatableSpan("setup.miner.subnet");
+        subnetLabel.getStyle().set("margin-right", "10px");
+
+        subnetLayout = new HorizontalLayout(
+                subnetLabel,
+                octet1, new Span("."),
+                octet2, new Span("."),
+                octet3, new Span(". * (0-255)")
+        );
+        subnetLayout.setAlignItems(Alignment.BASELINE);
+        subnetLayout.setSpacing(false);
+        subnetLayout.getThemeList().add("spacing-s");
 
         Button scanBtn = new TranslatableButton("setup.miner.btn_rescan", VaadinIcon.REFRESH.create(), e -> startScan());
-        HorizontalLayout scanLayout = new HorizontalLayout(subnetField, scanBtn);
+        scanBtn.getStyle().set("margin-left", "15px");
+
+        HorizontalLayout scanLayout = new HorizontalLayout(subnetLayout, scanBtn);
         scanLayout.setAlignItems(Alignment.BASELINE);
 
         minerGrid = new Grid<>();
@@ -77,6 +105,12 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
         minerGrid.addColumn(entry -> entry.getMinerInfo().model()).setHeader(new TranslatableSpan("setup.miner.scan.grid.header.model")).setSortable(true).setAutoWidth(true);
         minerGrid.addColumn(entry -> entry.getMinerInfo().ipAddress()).setHeader(new TranslatableSpan("setup.miner.scan.grid.header.ip")).setSortable(true).setAutoWidth(true);
         minerGrid.addColumn(entry -> entry.getMinerInfo().os()).setHeader(new TranslatableSpan("setup.miner.scan.grid.header.os")).setSortable(true).setAutoWidth(true);
+
+        minerGrid.addSelectionListener(e -> {
+            if (this.onValidationChanged != null) {
+                this.onValidationChanged.run();
+            }
+        });
 
         minerGrid.addColumn(new ComponentRenderer<>(entry -> {
             if (!entry.isNeedsCustomCredentials()) return new TranslatableSpan("setup.miner.credentials.standard");
@@ -120,9 +154,12 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
             boolean skip = e.getValue();
             minerGrid.setEnabled(!skip);
             scanBtn.setEnabled(!skip);
-            subnetField.setEnabled(!skip);
+            octet1.setEnabled(!skip);
+            octet2.setEnabled(!skip);
+            octet3.setEnabled(!skip);
             bulkConfigLayout.setEnabled(!skip);
             if (onScanFinishedCallback != null) onScanFinishedCallback.run();
+            if (onValidationChanged != null) onValidationChanged.run();
         });
 
         add(radarIcon, statusText, scanLayout, skipCheckbox, minerGrid, bulkConfigLayout);
@@ -185,7 +222,7 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
         statusText.setText("setup.miner.scan.status.scanning");
         DiscoveryService discoveryService = SpringContextHelper.getBean(DiscoveryService.class);
 
-        String localSubnet = subnetField.getValue();
+        String localSubnet = octet1.getValue() + "." + octet2.getValue() + "." + octet3.getValue() + ".";
 
         discoveryService.discoverMiners(
                 localSubnet,
@@ -239,6 +276,7 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
                 entry.setNeedsCustomCredentials(true);
             }
             minerGrid.getDataProvider().refreshItem(entry);
+            if (onValidationChanged != null) onValidationChanged.run();
         });
     }
 
@@ -253,6 +291,7 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
             statusIconToUpdate.getElement().setAttribute("icon", newIcon.getElement().getAttribute("icon"));
             statusIconToUpdate.setColor(newIcon.getColor());
         }
+        if (onValidationChanged != null) onValidationChanged.run();
     }
 
     private Icon createStatusIcon(TestStatus status) {
@@ -264,6 +303,32 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
             default: icon = VaadinIcon.QUESTION_CIRCLE_O.create(); icon.setColor("var(--lumo-contrast-50pct)"); break;
         }
         return icon;
+    }
+
+    private void setupOctetField(IntegerField field) {
+        field.setMin(0);
+        field.setMax(255);
+        field.setStepButtonsVisible(false);
+        field.setWidth("60px");
+        field.addValueChangeListener(e -> {
+            if (e.getValue() == null) field.setValue(0);
+        });
+    }
+
+    private int[] guessLocalSubnetOctets() {
+        try {
+            String ip = InetAddress.getLocalHost().getHostAddress();
+            String[] parts = ip.split("\\.");
+            if (parts.length == 4) {
+                return new int[]{
+                        Integer.parseInt(parts[0]),
+                        Integer.parseInt(parts[1]),
+                        Integer.parseInt(parts[2])
+                };
+            }
+        } catch (Exception ignored) {}
+        // Fallback
+        return new int[]{192, 168, 178};
     }
 
     private void updateGridData() {
@@ -282,7 +347,21 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
     public String getTitleTranslationKey() { return "setup.miner.scan.title"; }
 
     @Override
-    public boolean isValid() { return skipCheckbox.getValue() || true; }
+    public boolean isValid() {
+        if (skipCheckbox.getValue()) {
+            return true;
+        }
+
+        Set<MinerConfigEntry> selectedMiners = getSelectedMiners();
+
+        for (MinerConfigEntry entry : selectedMiners) {
+            if (entry.isNeedsCustomCredentials() && entry.getTestStatus() != TestStatus.SUCCESS) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     public enum TestStatus { UNTESTED, TESTING, SUCCESS, FAILED }
 

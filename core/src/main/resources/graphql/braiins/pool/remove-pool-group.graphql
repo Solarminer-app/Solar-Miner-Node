@@ -1,0 +1,21 @@
+mutation RemovePoolGroup($id: ID!) {
+    bosminer {
+        config {
+            removeGroup(id: $id) {
+                __typename
+                ... on GroupList {
+                    groups {
+                        id
+                        name
+                    }
+                }
+                ... on GroupListError {
+                    message
+                }
+                ... on AttributeError {
+                    message
+                }
+            }
+        }
+    }
+}

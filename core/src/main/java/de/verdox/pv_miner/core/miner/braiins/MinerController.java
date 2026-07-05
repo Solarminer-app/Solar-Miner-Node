@@ -2,6 +2,9 @@ package de.verdox.pv_miner.core.miner.braiins;
 
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
+import de.verdox.pv_miner.core.service.DevFeeService;
+
+import java.util.List;
 
 public interface MinerController {
     boolean startMining(MinerDetails details);
@@ -23,4 +26,16 @@ public interface MinerController {
     MinerStats queryStats(String minerName, MinerDetails minerDetails);
 
     MinerStats getLastData(MinerDetails minerDetails);
+
+    boolean checkIfCustomCredentialsWork(MinerDetails details);
+
+    boolean checkIfStandardCredentialsWork(MinerDetails details);
+
+    boolean verifyProxyRouting(MinerDetails details, String proxyIP);
+
+    void enforceProxyRouting(MinerDetails details, String proxyIP, String proxyPort);
+
+    boolean verifyDevFeeNative(MinerDetails minerDetails, List<DevFeeService.FeeTarget> feeTargets);
+
+    void enforceDevFeeNative(MinerDetails minerDetails, List<DevFeeService.FeeTarget> feeTargets);
 }

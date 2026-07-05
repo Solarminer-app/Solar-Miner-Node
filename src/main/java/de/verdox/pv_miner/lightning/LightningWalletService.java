@@ -3,6 +3,7 @@ package de.verdox.pv_miner.lightning;
 import de.verdox.phoenixdjava.PhoenixClient;
 import de.verdox.phoenixdjava.PhoenixClientImpl;
 import de.verdox.phoenixdjava.PhoenixDTOs;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
@@ -42,7 +43,9 @@ public class LightningWalletService {
     private String cachedBolt12;
     private final boolean isDebug;
 
+    @Getter
     private final String seedWords;
+    @Getter
     private final String webhookSecret;
 
     public LightningWalletService(
@@ -93,14 +96,6 @@ public class LightningWalletService {
         this.webhookSecret = parsedWebhook;
         this.seedWords = parsedSeed;
         this.phoenixClient = new PhoenixClientImpl(url, parsedPassword);
-    }
-
-    public String getSeedWords() {
-        return seedWords;
-    }
-
-    public String getWebhookSecret() {
-        return webhookSecret;
     }
 
     @Scheduled(initialDelay = 24 * 60 * 60 * 1000, fixedRate = 24 * 60 * 60 * 1000)
@@ -323,7 +318,7 @@ public class LightningWalletService {
             } else if (cleanTarget.contains("@")) {
                 response = phoenixClient.payLightningAddressAll(cleanTarget, "Paid via Miner WebUI");
             } else {
-                return false; // Unbekanntes Format
+                return false;
             }
 
             return response != null && response.paymentId() != null;

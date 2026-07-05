@@ -35,6 +35,7 @@ graalvmNative {
 }
 
 dependencies {
+    implementation(project(":cgminerapi"))
     implementation("io.netty:netty-handler:4.2.15.Final")
 
     implementation("io.grpc:grpc-okhttp:1.50.2")
