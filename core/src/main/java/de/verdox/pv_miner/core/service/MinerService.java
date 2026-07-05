@@ -140,7 +140,7 @@ public class MinerService {
                 return stats;
             }
             catch (Throwable e) {
-                LOGGER.log(Level.SEVERE, "Error while getting data of miner "+details.ipv4());
+                LOGGER.log(Level.SEVERE, "Error while getting data of miner "+details.ipv4(), e);
                 var cachedStats = minerDataRegistry.getIdentity(details);
                 return new MinerStats(
                         cachedStats.minerIdentity(),
