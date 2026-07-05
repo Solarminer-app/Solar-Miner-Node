@@ -7,6 +7,7 @@ import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
 import de.verdox.pv_miner.core.service.DevFeeService;
+import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 
 import java.net.http.HttpResponse;
 import java.time.Instant;
@@ -17,6 +18,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+@RegisterReflectionForBinding({
+        MinerDetails.class,
+        MinerStats.class,
+        Pools.class
+})
 public class BrainsOSGraphQLClient implements BrainsOSBackend {
     private static final Logger LOGGER = Logger.getLogger(BrainsOSGraphQLClient.class.getName());
 
