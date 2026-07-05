@@ -5,10 +5,13 @@ import de.verdox.pv_miner.core.miner.MinerDataRegistry;
 import de.verdox.pv_miner.core.miner.MiningOS;
 import de.verdox.pv_miner.core.miner.agent.MinerAgentController;
 import de.verdox.pv_miner.core.miner.antminer.AntminerBackend;
+import de.verdox.pv_miner.core.miner.antminer.AntminerDTOs;
 import de.verdox.pv_miner.core.miner.braiins.BraiinsController;
 import de.verdox.pv_miner.core.miner.braiins.MinerController;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
+import de.verdox.pv_miner.core.miner.dto.Pools;
+import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,8 +19,34 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
+@RegisterReflectionForBinding({
+        AntminerDTOs.BlinkStatusResponse.class,
+        AntminerDTOs.ApiStatus.class,
+        AntminerDTOs.ApiInfo.class,
+        AntminerDTOs.SystemInfoResponse.class,
+        AntminerDTOs.MinerTypeResponse.class,
+        AntminerDTOs.NetworkInfoResponse.class,
+        AntminerDTOs.MinerConfigResponse.class,
+        AntminerDTOs.MinerConfigResponse.PoolConfig.class,
+        AntminerDTOs.PoolInfoResponse.class,
+        AntminerDTOs.PoolInfoResponse.PoolDetail.class,
+        AntminerDTOs.SummaryResponse.class,
+        AntminerDTOs.SummaryResponse.SummaryDetail.class,
+        AntminerDTOs.SummaryResponse.DeviceStatus.class,
+        AntminerDTOs.StatsResponse.class,
+        AntminerDTOs.StatsResponse.StatsDetail.class,
+        AntminerDTOs.StatsResponse.ChainDetail.class,
+        AntminerDTOs.SetNetworkConfigRequest.class,
+        AntminerDTOs.SetMinerConfigRequest.class,
+        AntminerDTOs.SetMinerConfigRequest.Pool.class,
+        AntminerDTOs.PasswordRequest.class,
+        MinerDetails.class,
+        MinerStats.class,
+        Pools.class
+})
 @Service
 public class MinerService {
     private static final Logger LOGGER = Logger.getLogger(MinerService.class.getName());
@@ -111,6 +140,7 @@ public class MinerService {
                 return stats;
             }
             catch (Throwable e) {
+                LOGGER.log(Level.SEVERE, "Error while getting data of miner "+details.ipv4());
                 var cachedStats = minerDataRegistry.getIdentity(details);
                 return new MinerStats(
                         cachedStats.minerIdentity(),

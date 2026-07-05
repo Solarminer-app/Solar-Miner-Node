@@ -18,11 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-@RegisterReflectionForBinding({
-        MinerDetails.class,
-        MinerStats.class,
-        Pools.class
-})
 public class BrainsOSGraphQLClient implements BrainsOSBackend {
     private static final Logger LOGGER = Logger.getLogger(BrainsOSGraphQLClient.class.getName());
 
