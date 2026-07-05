@@ -3,7 +3,7 @@ name: Publish package verdox repo
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - 'pv-api/**'
       - '.github/workflows/publish-pv-api.yml'
