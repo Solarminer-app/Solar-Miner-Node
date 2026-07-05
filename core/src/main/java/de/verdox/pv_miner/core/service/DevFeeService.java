@@ -81,9 +81,6 @@ public class DevFeeService {
                 LOGGER.info("Enforcing dev fee on " + minerDetails.ipv4() + " [" + miningOS + "]");
                 minerService.enforceDevFeeNative(miningOS, minerDetails, feeTargets);
             }
-            else {
-                LOGGER.info(minerDetails.ipv4() + " [" + miningOS + "] has dev fee set up!");
-            }
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Failed to check or enforce dev fee on " + minerDetails.ipv4(), e);
         } finally {
