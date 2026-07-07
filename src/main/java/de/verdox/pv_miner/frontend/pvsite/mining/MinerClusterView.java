@@ -92,6 +92,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
     private final TranslatableButton btnConfigCluster = new TranslatableButton("cluster.btn.config", VaadinIcon.COG.create());
     private final TranslatableButton btnDeleteCluster = new TranslatableButton("cluster.btn.delete_cluster", VaadinIcon.TRASH.create());
 
+    private final TranslatableButton btnShowDetails = new TranslatableButton("cluster.btn.show_details", VaadinIcon.PLUS.create());
     private final TranslatableButton btnAddMiner = new TranslatableButton("cluster.btn.add_miner", VaadinIcon.PLUS.create());
     private final TranslatableButton btnChangePool = new TranslatableButton("cluster.btn.change_pool", VaadinIcon.EXCHANGE.create());
     private final TranslatableButton btnTogglePower = new TranslatableButton("cluster.btn.toggle_power", VaadinIcon.POWER_OFF.create());
@@ -161,6 +162,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         minerGrid.addSelectionListener(e -> {
             boolean hasSelection = !e.getAllSelectedItems().isEmpty();
             enableBulkActions(hasSelection);
+            btnShowDetails.setEnabled(!e.getAllSelectedItems().isEmpty());
         });
 
         btnStartCluster.setEnabled(false);
@@ -273,6 +275,16 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
 
         btnAddMiner.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         btnAddMiner.addClickListener(e -> openAddMinerDialog());
+
+        btnShowDetails.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        btnShowDetails.setEnabled(false);
+        btnShowDetails.addClickListener(e -> {
+            Set<MinerEntity<?>> selectedMiners = minerGrid.getSelectedItems();
+            String idsParam = selectedMiners.stream()
+                    .map(miner -> miner.getId().toString())
+                    .collect(java.util.stream.Collectors.joining(","));
+            UI.getCurrent().getPage().open("miner-details/" + pvSiteEntity.getId() + "?miners=" + idsParam, "_blank");
+        });
 
         btnChangePool.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
         btnChangePool.addClickListener(e -> openChangePoolDialog());

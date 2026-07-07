@@ -4,8 +4,9 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.charts.model.RangeSelectorButton;
-import com.vaadin.flow.component.charts.model.RangeSelectorTimespan;
+import com.vaadin.flow.component.charts.Chart;
+import com.vaadin.flow.component.charts.model.*;
+import com.vaadin.flow.component.charts.model.style.SolidColor;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
@@ -48,9 +49,11 @@ import de.verdox.pv_miner.frontend.AppMainLayout;
 import de.verdox.pv_miner.frontend.FrontendColor;
 import de.verdox.pv_miner.frontend.LightningWalletView;
 import de.verdox.pv_miner.frontend.components.InfluxChart;
+import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.Disposable;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -85,6 +88,10 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
     private final InfluxChart liveChart = new InfluxChart();
     private final InfluxChart historyChart = new InfluxChart();
+    private final Chart automationChart = new Chart(ChartType.LINE);
+    private DataSeries automationPowerSeries;
+    private DataSeries automationAllocatedSeries;
+    private DataSeries automationFlagsSeries;
 
     private final DailyStatisticRow exportedToday = new DailyStatisticRow("pv_site.card_data.grid.exported", FrontendColor.TEXT_VALUE_GRAY);
     private final DailyStatisticRow revenueExportToday = new DailyStatisticRow("pv_site.card_data.grid.revenue_export", FrontendColor.TEXT_VALUE_GRAY);
@@ -286,6 +293,82 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         refreshClusterList();
         updateMinerGridLive();
         updatePoolGridLive();
+        updateAutomationChart();
+    }
+
+    private void updateAutomationChart() {
+        List<String> clusters = clusterService.getAvailableClusterNames();
+        if (clusters.isEmpty()) return;
+
+        MinerClusterService.ClusterInstance cluster = clusterService.getCluster(pvSiteEntity, clusters.get(0));
+        if (cluster == null || !cluster.isRunning()) return;
+
+        List<MinerClusterService.ClusterInstance.ClusterStateSnapshot> history = cluster.getHistory();
+
+        List<DataSeriesItem> powerItems = new ArrayList<>();
+        List<DataSeriesItem> allocatedItems = new ArrayList<>();
+        List<DataSeriesItem> flagItems = new ArrayList<>();
+
+        for (var snapshot : history) {
+            long time = snapshot.timestamp().toEpochMilli();
+
+            DataSeriesItem powerItem = new DataSeriesItem(time, snapshot.targetPowerWatts());
+            powerItem.setName(snapshot.activeModeName());
+            powerItems.add(powerItem);
+
+            DataSeriesItem allocatedItem = new DataSeriesItem(time, snapshot.allocatedPowerWatts());
+            allocatedItem.setName("Active Power");
+            allocatedItems.add(allocatedItem);
+
+            if (snapshot.eventDescription() != null && !snapshot.eventDescription().isBlank()) {
+                FlagItem flag = createFlagForSnapshot(snapshot, time);
+                flagItems.add(flag);
+            }
+        }
+
+        if (!history.isEmpty()) {
+            var lastSnapshot = history.get(history.size() - 1);
+            long now = Instant.now().toEpochMilli();
+
+            DataSeriesItem currentPower = new DataSeriesItem(now, lastSnapshot.targetPowerWatts());
+            currentPower.setName(lastSnapshot.activeModeName());
+            powerItems.add(currentPower);
+
+            DataSeriesItem currentAlloc = new DataSeriesItem(now, lastSnapshot.allocatedPowerWatts());
+            currentAlloc.setName("Active Allocation");
+            allocatedItems.add(currentAlloc);
+        }
+
+        UI.getCurrent().access(() -> {
+            automationPowerSeries.setData(powerItems);
+            automationAllocatedSeries.setData(allocatedItems);
+            automationFlagsSeries.setData(flagItems);
+        });
+    }
+
+    private static @NonNull FlagItem createFlagForSnapshot(MinerClusterService.ClusterInstance.ClusterStateSnapshot snapshot, long time) {
+        FlagItem flag = new FlagItem(time, "!");
+        flag.setX(time);
+        String desc = snapshot.eventDescription().toLowerCase();
+
+        if (desc.contains("start")) {
+            flag.setTitle("▶ Start");
+            flag.setColor(new SolidColor("rgba(46, 204, 113, 0.8)"));
+            flag.setColor(new SolidColor("#2ecc71"));
+        } else if (desc.contains("stop") || desc.contains("drop")) {
+            flag.setTitle("⏸ Stop");
+            flag.setColor(new SolidColor("rgba(231, 76, 60, 0.8)"));
+            flag.setColor(new SolidColor("#e74c3c"));
+        } else {
+            flag.setTitle("ℹ️ Event");
+            flag.setColor(new SolidColor("rgba(52, 152, 219, 0.8)"));
+        }
+
+        flag.setText(snapshot.eventDescription() + " (Modus: " + snapshot.activeModeName() + ")");
+
+
+        flag.setText(snapshot.eventDescription() + " (Mode: " + snapshot.activeModeName() + ")");
+        return flag;
     }
 
     private void updateMinerGridLive() {
@@ -329,8 +412,42 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
         Tab liveTab = new Tab(new TranslatableSpan("dashboard.tab.live"));
         Tab historyTab = new Tab(new TranslatableSpan("dashboard.tab.history"));
-        Tabs chartTabs = new Tabs(liveTab, historyTab);
+        Tab automationTab = new Tab(new TranslatableSpan("dashboard.tab.automation"));
+        Tabs chartTabs = new Tabs(liveTab, historyTab, automationTab);
         chartTabs.getStyle().set("margin-bottom", "10px");
+
+        Configuration autoConf = automationChart.getConfiguration();
+        autoConf.getChart().setAnimation(false);
+        autoConf.setTitle("Mining-Controller");
+
+        XAxis autoX = autoConf.getxAxis();
+        autoX.setType(AxisType.DATETIME);
+
+        applyDarkThemeToChart(automationChart);
+
+        YAxis autoY = autoConf.getyAxis();
+        autoY.setMin(0);
+        autoY.setTitle("Controller Power (W)");
+
+        automationPowerSeries = new DataSeries("Target Power");
+        PlotOptionsLine targetOptions = new PlotOptionsLine();
+        targetOptions.setStep(StepType.LEFT);
+        automationPowerSeries.setPlotOptions(targetOptions);
+
+        automationAllocatedSeries = new DataSeries("Allocated Power");
+        PlotOptionsLine allocatedOptions = new PlotOptionsLine();
+        allocatedOptions.setDashStyle(DashStyle.SHORTDOT);
+        allocatedOptions.setStep(StepType.LEFT);
+        automationAllocatedSeries.setPlotOptions(allocatedOptions);
+
+        automationFlagsSeries = new DataSeries("Events");
+        automationFlagsSeries.setPlotOptions(new PlotOptionsFlags());
+
+        autoConf.addSeries(automationPowerSeries);
+        autoConf.addSeries(automationAllocatedSeries);
+        autoConf.addSeries(automationFlagsSeries);
+        automationChart.setWidth("98.5%");
+        automationChart.getStyle().set("margin-top", "15px");
 
         Div chartContainer = new Div(liveChart);
         chartContainer.setWidth("95%");
@@ -339,8 +456,10 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
             chartContainer.removeAll();
             if (event.getSelectedTab().equals(liveTab)) {
                 chartContainer.add(liveChart);
-            } else {
+            } else if (event.getSelectedTab().equals(historyTab)) {
                 chartContainer.add(historyChart);
+            } else {
+                chartContainer.add(automationChart);
             }
         });
 
@@ -539,8 +658,37 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
             setup();
         } catch (IllegalArgumentException e) {
             e.printStackTrace();
-            System.err.println("Ungültige UUID: " + parameter);
         }
+    }
+
+    private void applyDarkThemeToChart(Chart chart) {
+        chart.getStyle()
+                .set("background-color", "#141416")
+                .set("border", "1px solid #222226")
+                .set("border-radius", "4px")
+                .set("padding", "10px");
+
+        Configuration conf = chart.getConfiguration();
+        conf.getChart().setBackgroundColor(new SolidColor(0, 0, 0, 0));
+
+        XAxis xAxis = conf.getxAxis();
+        xAxis.getLabels().getStyle().setColor(new SolidColor("#8a8a93"));
+        xAxis.setLineColor(new SolidColor("#222226"));
+        xAxis.setTickColor(new SolidColor("#222226"));
+
+        YAxis yAxis = conf.getyAxis();
+        yAxis.getTitle().getStyle().setColor(new SolidColor("#8a8a93"));
+        yAxis.getLabels().getStyle().setColor(new SolidColor("#8a8a93"));
+        yAxis.setGridLineColor(new SolidColor("#222226"));
+
+        Tooltip tooltip = conf.getTooltip();
+        tooltip.setBackgroundColor(new SolidColor("#141416"));
+        tooltip.getStyle().setColor(new SolidColor("#ffffff"));
+        tooltip.setBorderColor(new SolidColor("#222226"));
+
+        Legend legend = conf.getLegend();
+        legend.getItemStyle().setColor(new SolidColor("#8a8a93"));
+        legend.getItemHoverStyle().setColor(new SolidColor("#ffffff"));
     }
 
     public record PoolItem(String url, String status, String hashrate) {

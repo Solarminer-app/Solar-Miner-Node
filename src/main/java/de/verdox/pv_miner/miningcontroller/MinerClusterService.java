@@ -5,10 +5,12 @@ import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.MinerRepository;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.logging.Level;
@@ -103,7 +105,7 @@ public class MinerClusterService {
         pvSite = pVSiteRepository.findById(pvSite.getId()).orElseThrow();
         Set<MinerEntity<?>> unassigned = new HashSet<>();
         for (MinerEntity<?> miner : pvSite.getMiners()) {
-            if(miner.getClusterName() == null || miner.getClusterName().isBlank()) {
+            if (miner.getClusterName() == null || miner.getClusterName().isBlank()) {
                 unassigned.add(miner);
             }
         }
@@ -149,6 +151,7 @@ public class MinerClusterService {
 
 
     public class ClusterInstance {
+        @Getter
         private final String clusterName;
         private final UUID siteId;
         private final ScheduledExecutorService scheduler;
@@ -157,7 +160,15 @@ public class MinerClusterService {
 
         private ClusterController activeController;
         private ScheduledFuture<?> scheduledTask;
+        @Getter
         private boolean isRunning = false;
+
+        public record ClusterStateSnapshot(Instant timestamp, double targetPowerWatts, double allocatedPowerWatts,
+                                           String activeModeName, String eventDescription) {
+        }
+
+        private final Deque<ClusterStateSnapshot> stateHistory = new ConcurrentLinkedDeque<>();
+        private static final int MAX_HISTORY_SIZE = 2880;
 
         public ClusterInstance(String clusterName, UUID siteId, ScheduledExecutorService scheduler) {
             this.clusterName = clusterName;
@@ -165,12 +176,30 @@ public class MinerClusterService {
             this.scheduler = scheduler;
         }
 
-        public String getClusterName() {
-            return clusterName;
+        public void recordState(ClusterStateSnapshot snapshot) {
+            recordState(snapshot.targetPowerWatts, snapshot.allocatedPowerWatts, snapshot.activeModeName, snapshot.eventDescription);
         }
 
-        public boolean isRunning() {
-            return isRunning;
+        public void recordState(double targetPowerWatts, double allocatedPowerWatts, String activeModeName, String eventDescription) {
+            ClusterStateSnapshot last = stateHistory.peekLast();
+
+            boolean hasEvent = eventDescription != null && !eventDescription.isBlank();
+
+            boolean valuesChanged = last == null
+                    || last.targetPowerWatts() != targetPowerWatts
+                    || last.allocatedPowerWatts() != allocatedPowerWatts
+                    || !last.activeModeName().equals(activeModeName);
+
+            if (hasEvent || valuesChanged) {
+                stateHistory.addLast(new ClusterStateSnapshot(Instant.now(), targetPowerWatts, allocatedPowerWatts, activeModeName, eventDescription));
+                while (stateHistory.size() > MAX_HISTORY_SIZE) {
+                    stateHistory.pollFirst();
+                }
+            }
+        }
+
+        public List<ClusterStateSnapshot> getHistory() {
+            return new ArrayList<>(stateHistory);
         }
 
         public Set<MinerEntity<?>> getAssignedMiners() {
@@ -223,7 +252,7 @@ public class MinerClusterService {
 
             List<MinerEntity<?>> currentMiners = minerRepository.findAllById(assignedMinerIds);
 
-            this.activeController = new ClusterController(clusterName, new ArrayList<>(currentMiners), pvSite, config);
+            this.activeController = new ClusterController(clusterName, new ArrayList<>(currentMiners), pvSite, config, this::recordState);
             this.scheduledTask = scheduler.scheduleAtFixedRate(
                     activeController::evaluate, 0, 30, TimeUnit.SECONDS
             );

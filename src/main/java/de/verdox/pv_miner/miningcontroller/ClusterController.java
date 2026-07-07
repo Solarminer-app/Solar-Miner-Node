@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -26,25 +27,30 @@ public class ClusterController {
     private final List<MinerEntity<?>> minerCluster;
     private final PVSiteEntity pvSite;
     private final MinerControllerConfig config;
+    private final Consumer<MinerClusterService.ClusterInstance.ClusterStateSnapshot> stateLogger;
+    private String tickEventMessage = null;
 
     private final Map<UUID, MinerLock> activeLocks = new ConcurrentHashMap<>();
 
     private ControllerDSL.OperatingMode activeMode = null;
 
-    public ClusterController(String clusterName, List<MinerEntity<?>> minerCluster, PVSiteEntity pvSite, MinerControllerConfig config) {
+    public ClusterController(String clusterName, List<MinerEntity<?>> minerCluster, PVSiteEntity pvSite, MinerControllerConfig config, Consumer<MinerClusterService.ClusterInstance.ClusterStateSnapshot> stateLogger) {
         this.clusterName = clusterName;
         this.minerCluster = minerCluster;
         this.pvSite = pvSite;
         this.config = config;
+        this.stateLogger = stateLogger;
     }
 
     public void evaluate() {
         if (minerCluster.isEmpty()) return;
+        this.tickEventMessage = null;
 
         EntityControllerService controllerService = SpringContextHelper.getBean(EntityControllerService.class);
         EntityQueryService queryService = SpringContextHelper.getBean(EntityQueryService.class);
 
         double totalClusterCapacity = calculateTotalClusterCapacity(queryService);
+        double currentTickTargetPower = 0.0;
 
         try {
             ControllerDSL.OperatingMode nextMode = null;
@@ -57,11 +63,15 @@ public class ClusterController {
                         nextMode = mode;
                         break;
                     } else {
-                        LOGGER.info("Cluster " + clusterName + " dropping mode: Stop condition met for '" + mode.modeName() + "'.");
+                        String msg = "Stop condition met for '" + mode.modeName() + "'";
+                        LOGGER.info("Cluster " + clusterName + " dropping mode: " + msg);
+                        this.tickEventMessage = msg;
                     }
                 }
                 else if (mode.startCondition().evaluate(pvSite)) {
-                    LOGGER.info("Cluster " + clusterName + " starting mode: Start condition met for '" + mode.modeName() + "'.");
+                    String msg = "Start condition met for '" + mode.modeName() + "'";
+                    LOGGER.info("Cluster " + clusterName + " starting mode: " + msg);
+                    this.tickEventMessage = msg;
                     nextMode = mode;
                     break;
                 }
@@ -76,6 +86,9 @@ public class ClusterController {
 
                 if (activeMode == null) {
                     pauseAllUnlockedMiners(controllerService, queryService);
+
+                    double allocated = activeLocks.values().stream().mapToDouble(MinerLock::expectedPowerWatts).sum();
+                    stateLogger.accept(new MinerClusterService.ClusterInstance.ClusterStateSnapshot(Instant.now(), 0.0, allocated, "Idle", tickEventMessage));
                     return;
                 }
             }
@@ -83,9 +96,22 @@ public class ClusterController {
             if (activeMode != null) {
                 for (ControllerDSL.ControllerAction action : activeMode.actions()) {
                     double targetPowerWatts = action.valueExpression().evaluate(pvSite, totalClusterCapacity);
+                    currentTickTargetPower = Math.max(currentTickTargetPower, targetPowerWatts); // Maximales Target dieses Ticks merken
                     executeDynamicDistribution(controllerService, queryService, action, targetPowerWatts, activeMode);
                 }
             }
+
+            double totalAllocatedPower = activeLocks.values().stream()
+                    .mapToDouble(MinerLock::expectedPowerWatts)
+                    .sum();
+
+            stateLogger.accept(new MinerClusterService.ClusterInstance.ClusterStateSnapshot(
+                    Instant.now(),
+                    currentTickTargetPower,
+                    totalAllocatedPower,
+                    activeMode != null ? activeMode.modeName() : "Idle",
+                    tickEventMessage
+            ));
 
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error evaluating state for cluster: " + clusterName, e);
