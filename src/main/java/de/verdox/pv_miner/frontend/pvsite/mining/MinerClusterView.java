@@ -98,6 +98,9 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
     private final TranslatableButton btnTogglePower = new TranslatableButton("cluster.btn.toggle_power", VaadinIcon.POWER_OFF.create());
     private final TranslatableButton btnEditPowerTargets = new TranslatableButton("cluster.btn.power_targets", VaadinIcon.BOLT.create());
 
+    // NEU: Button für die Power Locks
+    private final TranslatableButton btnEditPowerLocks = new TranslatableButton("cluster.btn.power_locks", VaadinIcon.LOCK.create());
+
     private final TranslatableButton btnEditMinerCost = new TranslatableButton("cluster.btn.edit_cost", VaadinIcon.MONEY.create());
     private final TranslatableButton btnRemoveMiner = new TranslatableButton("cluster.btn.remove_miner", VaadinIcon.UNLINK.create());
     private final TranslatableButton btnDeleteSystemwide = new TranslatableButton("cluster.btn.delete_systemwide", VaadinIcon.TRASH.create());
@@ -270,7 +273,6 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
 
         Div actionToolbar = new Div();
         actionToolbar.addClassName("action-toolbar");
-
         actionToolbar.getStyle().set("flex-shrink", "0");
 
         btnAddMiner.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -290,50 +292,14 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         btnChangePool.addClickListener(e -> openChangePoolDialog());
 
         btnTogglePower.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
-        btnTogglePower.addClickListener(event -> {
-            Set<MinerEntity<?>> selected = minerGrid.getSelectedItems();
-            if (selected.isEmpty()) return;
-
-            try {
-                PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteEntity.getId()).orElseThrow();
-
-                for (MinerEntity<?> staleMiner : selected) {
-                    MinerEntity<?> freshMiner = freshSite.getMiners().stream()
-                            .filter(m -> m.getId().equals(staleMiner.getId()))
-                            .findFirst()
-                            .orElse(null);
-
-                    if (freshMiner != null) {
-                        var controller = entityControllerService.getController(freshMiner);
-                        MinerStats minerData = entityQueryService.getLastResult(freshMiner, MinerStats.DEFAULT);
-
-                        if (minerData != null && minerData.miningStatus() != null) {
-                            boolean isRunning = minerData.miningStatus().equals(MinerStats.MinerStatus.MINING);
-                            if (isRunning) {
-                                minerApiClient.pauseMining(controller.os(), controller.details());
-                            } else {
-                                minerApiClient.resumeMining(controller.os(), controller.details());
-                            }
-
-                        } else {
-                            throw new IllegalStateException("Could not fetch status of miner");
-                        }
-                    }
-                }
-
-                Notification.show(getTranslation("cluster.notification.power_toggled", selected.size()))
-                        .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
-
-                minerGrid.deselectAll();
-                refreshData();
-            } catch (Exception ex) {
-                Notification.show(getTranslation("cluster.notification.error", ex.getMessage()))
-                        .addThemeVariants(NotificationVariant.LUMO_ERROR);
-            }
-        });
+        btnTogglePower.addClickListener(event -> handleTogglePower(minerGrid.getSelectedItems()));
 
         btnEditPowerTargets.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
         btnEditPowerTargets.addClickListener(e -> openBulkPowerTargetDialog());
+
+        // NEU: Listener für Power Locks
+        btnEditPowerLocks.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
+        btnEditPowerLocks.addClickListener(e -> openBulkPowerLocksDialog());
 
         btnEditMinerCost.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
         btnEditMinerCost.addClickListener(e -> openBulkMinerCostDialog());
@@ -344,7 +310,8 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         btnDeleteSystemwide.addThemeVariants(ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_PRIMARY);
         btnDeleteSystemwide.addClickListener(e -> openDeleteSystemwideDialog());
 
-        actionToolbar.add(btnAddMiner, btnChangePool, btnTogglePower, btnEditPowerTargets, btnEditMinerCost, btnRemoveMiner, btnDeleteSystemwide);
+        // NEU: btnEditPowerLocks zur Toolbar hinzugefügt
+        actionToolbar.add(btnAddMiner, btnChangePool, btnTogglePower, btnEditPowerTargets, btnEditPowerLocks, btnEditMinerCost, btnRemoveMiner, btnDeleteSystemwide);
 
         minerGrid.setSelectionMode(Grid.SelectionMode.MULTI);
         setupMinerGridColumns(minerGrid);
@@ -358,6 +325,44 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         return right;
     }
 
+    private void handleTogglePower(Set<MinerEntity<?>> selected) {
+        if (selected.isEmpty()) return;
+        try {
+            PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteEntity.getId()).orElseThrow();
+            for (MinerEntity<?> staleMiner : selected) {
+                MinerEntity<?> freshMiner = freshSite.getMiners().stream()
+                        .filter(m -> m.getId().equals(staleMiner.getId()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (freshMiner != null) {
+                    var controller = entityControllerService.getController(freshMiner);
+                    MinerStats minerData = entityQueryService.getLastResult(freshMiner, MinerStats.DEFAULT);
+
+                    if (minerData != null && minerData.miningStatus() != null) {
+                        boolean isRunning = minerData.miningStatus().equals(MinerStats.MinerStatus.MINING);
+                        if (isRunning) {
+                            minerApiClient.pauseMining(controller.os(), controller.details());
+                        } else {
+                            minerApiClient.resumeMining(controller.os(), controller.details());
+                        }
+
+                    } else {
+                        throw new IllegalStateException("Could not fetch status of miner");
+                    }
+                }
+            }
+            Notification.show(getTranslation("cluster.notification.power_toggled", selected.size()))
+                    .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+
+            minerGrid.deselectAll();
+            refreshData();
+        } catch (Exception ex) {
+            Notification.show(getTranslation("cluster.notification.error", ex.getMessage()))
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+        }
+    }
+
     private void setupMinerGridColumns(Grid<MinerEntity<?>> grid) {
         grid.addColumn(new ComponentRenderer<>(miner -> {
             MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
@@ -365,11 +370,9 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
             Span nameSpan = new Span(stats.minerIdentity().minerModel());
             nameSpan.getStyle().set("font-weight", "bold").set("color", FrontendColor.TEXT_VALUE_WHITE);
 
-            // IP-Adresse
             Span ipSpan = new Span(miner.getIP());
             ipSpan.getStyle().set("font-size", "12px").set("color", FrontendColor.TEXT_VALUE_GRAY);
 
-            // Neuer Pool-Badge (klein und dezent darunter)
             Span poolSpan = new Span(miner.getCurrentMiningPoolTarget() != null ? miner.getCurrentMiningPoolTarget() : "No Pool");
             poolSpan.getStyle()
                     .set("font-size", "10px")
@@ -441,13 +444,13 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
             hwSpan.getStyle().set("font-size", "11px").set("color", FrontendColor.TEXT_VALUE_GRAY);
 
             Span customSpan = new Span("Target: " + customLimits);
-            customSpan.getStyle().set("font-size", "11px").set("color", FrontendColor.TEXT_VALUE_YELLOW); // Target leicht farblich abheben
+            customSpan.getStyle().set("font-size", "11px").set("color", FrontendColor.TEXT_VALUE_YELLOW);
 
             VerticalLayout layout = new VerticalLayout(powerSpan, hwSpan, customSpan);
             layout.setPadding(false);
             layout.setSpacing(false);
             return layout;
-        })).setHeader(new TranslatableSpan("cluster.grid.miner.power")).setAutoWidth(true).setFlexGrow(2); // Nimmt nun den meisten Platz ein
+        })).setHeader(new TranslatableSpan("cluster.grid.miner.power")).setAutoWidth(true).setFlexGrow(2);
 
         grid.addColumn(new ComponentRenderer<>(miner -> {
             HorizontalLayout layout = new HorizontalLayout();
@@ -473,6 +476,9 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
             if (miner.getMinRunTimeMinutes() != null) addIcon.accept(VaadinIcon.PLAY, miner.getMinRunTimeMinutes() + "m");
             if (miner.getMinIdleTimeMinutes() != null) addIcon.accept(VaadinIcon.PAUSE, miner.getMinIdleTimeMinutes() + "m");
 
+            // NEU: Anzeige für den Power Change Lock
+            if (miner.getPowerChangeLockTimeMinutes() != null) addIcon.accept(VaadinIcon.LOCK, miner.getPowerChangeLockTimeMinutes() + "m");
+
             if (layout.getComponentCount() == 0) {
                 Span defaultSpan = new Span(getTranslation("cluster.grid.default"));
                 defaultSpan.getStyle().set("font-size", "12px").set("color", FrontendColor.TEXT_VALUE_GRAY);
@@ -481,6 +487,80 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
 
             return layout;
         })).setHeader(new TranslatableSpan("cluster.grid.miner.locks")).setAutoWidth(true);
+    }
+
+    // NEU: Dialog für die Power Locks
+    private void openBulkPowerLocksDialog() {
+        Set<MinerEntity<?>> selected = minerGrid.getSelectedItems();
+        if (selected.isEmpty()) return;
+
+        boolean allHaveSamePowerLock = true;
+        Integer commonPowerLock = null;
+        boolean isFirst = true;
+
+        for (MinerEntity<?> miner : selected) {
+            if (isFirst) {
+                commonPowerLock = miner.getPowerChangeLockTimeMinutes();
+                isFirst = false;
+            } else {
+                if (!java.util.Objects.equals(commonPowerLock, miner.getPowerChangeLockTimeMinutes())) {
+                    allHaveSamePowerLock = false;
+                }
+            }
+        }
+
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle(getTranslation("cluster.dialog.power_locks.title", selected.size()));
+        dialog.setWidth("400px");
+
+        VerticalLayout layout = new VerticalLayout();
+        layout.setPadding(false);
+
+        NumberField powerLockField = new NumberField(getTranslation("cluster.dialog.power_locks.time_min"));
+        powerLockField.setPlaceholder(getTranslation("cluster.grid.default"));
+        powerLockField.setStepButtonsVisible(true);
+        powerLockField.setWidthFull();
+        if (allHaveSamePowerLock && commonPowerLock != null) {
+            powerLockField.setValue(commonPowerLock.doubleValue());
+        }
+
+        Span infoSpan = new Span(getTranslation("cluster.dialog.power_locks.description"));
+        infoSpan.getStyle().set("color", FrontendColor.TEXT_VALUE_GRAY).set("font-size", "12px");
+
+        layout.add(infoSpan, powerLockField);
+        dialog.add(layout);
+
+        Button cancelBtn = new Button(getTranslation("btn.cancel"), e -> dialog.close());
+        Button saveBtn = new Button(getTranslation("btn.save"), e -> {
+            try {
+                PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteEntity.getId()).orElseThrow();
+
+                for (MinerEntity<?> staleMiner : selected) {
+                    MinerEntity<?> freshMiner = freshSite.getMiners().stream()
+                            .filter(m -> m.getId().equals(staleMiner.getId()))
+                            .findFirst()
+                            .orElse(null);
+
+                    if (freshMiner != null) {
+                        freshMiner.setPowerChangeLockTimeMinutes(powerLockField.getValue() != null ? powerLockField.getValue().intValue() : null);
+                        entityService.save(freshMiner, freshSite);
+                    }
+                }
+
+                Notification.show(getTranslation("cluster.notification.power_locks_updated", selected.size()))
+                        .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+
+                refreshData();
+                dialog.close();
+            } catch (Exception ex) {
+                Notification.show(getTranslation("cluster.notification.error", ex.getMessage()))
+                        .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            }
+        });
+        saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+        dialog.getFooter().add(cancelBtn, saveBtn);
+        dialog.open();
     }
 
     private void openBulkMinerCostDialog() {
@@ -718,7 +798,6 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
 
         boolean isSingleSelection = selected.size() == 1;
 
-        // --- 1. Aggregierte Daten über die Auswahl sammeln ---
         boolean allSupportScaling = true;
         boolean allHaveSameLimits = true;
         boolean allHaveSameCustomTargets = true;
@@ -943,7 +1022,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         searchField.setValueChangeMode(ValueChangeMode.EAGER);
         searchField.addValueChangeListener(e -> {
             dataProvider.setFilter(miner -> {
-                if (miner.getClusterName().equals(selectedClusterName)) {
+                if (miner.getClusterName() != null && miner.getClusterName().equals(selectedClusterName)) {
                     return false;
                 }
                 String searchTerm = e.getValue().trim().toLowerCase();
@@ -1046,6 +1125,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         btnChangePool.setEnabled(enabled);
         btnTogglePower.setEnabled(enabled);
         btnEditPowerTargets.setEnabled(enabled);
+        btnEditPowerLocks.setEnabled(enabled); // Aktiviert/deaktiviert den neuen Button
         btnEditMinerCost.setEnabled(enabled);
         btnRemoveMiner.setEnabled(enabled);
         btnDeleteSystemwide.setEnabled(enabled);

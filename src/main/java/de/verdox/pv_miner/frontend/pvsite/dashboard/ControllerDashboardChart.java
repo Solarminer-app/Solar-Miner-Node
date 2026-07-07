@@ -112,10 +112,11 @@ public class ControllerDashboardChart extends Div {
         flag.setX(time);
         String desc = snapshot.eventDescription().toLowerCase();
 
-        if (desc.contains("start condition") || desc.contains("▶ start")) {
+        // Checkt nun exakt auf die Aktionen des ClusterControllers (Pause, Start, Regelung)
+        if (desc.contains("▶ start") || desc.contains("resume")) {
             flag.setTitle("▶ Start");
             flag.setColor(new SolidColor("#2ecc71"));
-        } else if (desc.contains("stop condition") || desc.contains("⏸ stop")) {
+        } else if (desc.contains("⏸ stop") || desc.contains("pause")) {
             flag.setTitle("⏸ Stop");
             flag.setColor(new SolidColor("#e74c3c"));
         } else if (desc.contains("⚡ regelung")) {
@@ -128,7 +129,7 @@ public class ControllerDashboardChart extends Div {
             flag.setTitle("ℹ️ Event");
             flag.setColor(new SolidColor("#95a5a6"));
         }
-        
+
         flag.setText(snapshot.eventDescription() + "<br><b>Modus:</b> " + snapshot.activeModeName());
         return flag;
     }

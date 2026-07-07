@@ -89,6 +89,11 @@ public abstract class MinerEntity<MC extends MinerEntityController> extends Abst
 
     @Setter
     @Getter
+    @Column(name = "power_change_lock_time_minutes")
+    private Integer powerChangeLockTimeMinutes;
+
+    @Setter
+    @Getter
     @Column(name = "min_idle_time_minutes")
     private Integer minIdleTimeMinutes;
 

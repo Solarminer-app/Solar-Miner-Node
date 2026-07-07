@@ -20,6 +20,7 @@ public class DSLBuilder {
     private final List<ControllerAction> actions = new ArrayList<>();
     private Duration minRunTime = Duration.ofMinutes(15);
     private Duration minIdleTime = Duration.ofMinutes(5);
+    private Duration powerLock = Duration.ofMinutes(15);
 
     private DSLBuilder(String modeName) {
         this.modeName = modeName;
@@ -44,8 +45,9 @@ public class DSLBuilder {
         return this;
     }
 
-    public DSLBuilder withHardwareLocks(Duration minRunTime, Duration minIdleTime) {
+    public DSLBuilder withHardwareLocks(Duration minRunTime, Duration powerLock, Duration minIdleTime) {
         this.minRunTime = minRunTime;
+        this.powerLock = powerLock;
         this.minIdleTime = minIdleTime;
         return this;
     }
@@ -54,7 +56,7 @@ public class DSLBuilder {
         if (startCondition == null || stopCondition == null || actions.isEmpty()) {
             throw new IllegalStateException("OperatingMode '" + modeName + "' is incomplete! Conditions and at least one Action are required.");
         }
-        return new OperatingMode(modeName, startCondition, stopCondition, actions, minRunTime, minIdleTime);
+        return new OperatingMode(modeName, startCondition, stopCondition, actions, minRunTime, minIdleTime, powerLock);
     }
 
 

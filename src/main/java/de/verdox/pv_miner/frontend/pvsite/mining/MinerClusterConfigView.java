@@ -150,7 +150,11 @@ public class MinerClusterConfigView extends VerticalLayout implements BeforeEnte
             return act != null ? act.stepSizeWatts() + " W" : "-";
         }).setHeader(new TranslatableSpan("cluster.config.grid.step_size"));
 
-        modeGrid.addColumn(m -> getTranslation("cluster.config.grid.locks.format", m.minRunTime().toMinutes(), m.minIdleTime().toMinutes())).setHeader(new TranslatableSpan("cluster.config.grid.locks"));
+        // NEU: Anzeige um powerChangeLockTime erweitert
+        modeGrid.addColumn(m -> {
+            long powerLockMins = m.powerChangeLockTime() != null ? m.powerChangeLockTime().toMinutes() : 8L;
+            return getTranslation("cluster.config.grid.locks.format", m.minRunTime().toMinutes(), powerLockMins, m.minIdleTime().toMinutes());
+        }).setHeader(new TranslatableSpan("cluster.config.grid.locks"));
 
         modeGrid.addComponentColumn(mode -> {
             HorizontalLayout actions = new HorizontalLayout();
@@ -241,13 +245,19 @@ public class MinerClusterConfigView extends VerticalLayout implements BeforeEnte
         dialogLayout.setSpacing(true);
 
         TextField nameField = new TextField(getTranslation("cluster.config.dialog.name"));
-        nameField.setWidth("40%");
+        nameField.setWidth("25%");
         NumberField minRunTime = new NumberField(getTranslation("cluster.config.dialog.min_run_time"));
-        minRunTime.setWidth("30%");
-        NumberField minIdleTime = new NumberField(getTranslation("cluster.config.dialog.min_idle_time"));
-        minIdleTime.setWidth("30%");
+        minRunTime.setWidth("25%");
 
-        HorizontalLayout baseLayout = new HorizontalLayout(nameField, minRunTime, minIdleTime);
+        // NEU: Power Lock Time Field hinzugefügt
+        NumberField powerLockTime = new NumberField(getTranslation("cluster.dialog.power_locks.time_min")); // Verwenden der existierenden Translation
+        powerLockTime.setWidth("25%");
+
+        NumberField minIdleTime = new NumberField(getTranslation("cluster.config.dialog.min_idle_time"));
+        minIdleTime.setWidth("25%");
+
+        // Layout für die Grunddaten erweitert
+        HorizontalLayout baseLayout = new HorizontalLayout(nameField, minRunTime, powerLockTime, minIdleTime);
         baseLayout.setWidthFull();
 
         ConditionBuilder startConditionBuilder = new ConditionBuilder(existingMode != null ? existingMode.startCondition() : null);
@@ -294,6 +304,10 @@ public class MinerClusterConfigView extends VerticalLayout implements BeforeEnte
         if (existingMode != null) {
             nameField.setValue(existingMode.modeName());
             minRunTime.setValue((double) existingMode.minRunTime().toMinutes());
+
+            // NEU: Setze gespeicherten Power Lock oder den Default 8
+            powerLockTime.setValue(existingMode.powerChangeLockTime() != null ? (double) existingMode.powerChangeLockTime().toMinutes() : 8.0);
+
             minIdleTime.setValue((double) existingMode.minIdleTime().toMinutes());
 
             var act = getMainAction(existingMode);
@@ -309,6 +323,7 @@ public class MinerClusterConfigView extends VerticalLayout implements BeforeEnte
             }
         } else {
             minRunTime.setValue(15.0);
+            powerLockTime.setValue(8.0); // NEU: Default Initialisierung
             minIdleTime.setValue(5.0);
             dynamicVarCombo.setValue(ControllerDSL.PVSiteVariableType.POTENTIAL_PV_SURPLUS);
             multiplierField.setValue(1.0);
@@ -348,12 +363,14 @@ public class MinerClusterConfigView extends VerticalLayout implements BeforeEnte
                 return;
             }
 
+            // NEU: Bugfix und Einbindung des powerLockTime
             ControllerDSL.OperatingMode mode = DSLBuilder.create(nameField.getValue())
                     .startWhen(startCond).stopWhen(stopCond)
                     .execute(resumeAction)
                     .execute(targetAction)
                     .withHardwareLocks(
                             Duration.ofMinutes(minRunTime.getValue().intValue()),
+                            Duration.ofMinutes(powerLockTime.getValue().intValue()), // <-- Hier war vorher versehentlich nochmal minRunTime
                             Duration.ofMinutes(minIdleTime.getValue().intValue())
                     ).build();
 

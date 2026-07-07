@@ -19,44 +19,24 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * The core Domain Specific Language (DSL) and Control logic for the PV-Miner application.
- * It provides the necessary structures to define operating modes, conditions,
- * dynamic value expressions, and the stateful ClusterController to manage large fleets of miners.
- */
 public class ControllerDSL {
     private static final Logger LOGGER = Logger.getLogger(ControllerDSL.class.getName());
 
-    /**
-     * Defines the target scope of a controller action.
-     */
     public enum ActionTargetType {
         SINGLE_MINER,
         ALL_MINERS,
         CLUSTER_DYNAMIC
     }
 
-    /**
-     * Strategy used to distribute the calculated power target among miners in a cluster.
-     */
     public enum MinerDistributionStrategy {
-        /**
-         * Fills miners one by one up to their maximum capacity.
-         */
         SEQUENTIAL,
-        /**
-         * Distributes the available power equally among all available miners.
-         */
         EQUAL_DISTRIBUTION,
-        /** Prioritizes the most efficient miners first. */
         EFFICIENCY_FIRST,
     }
 
-    /**
-     * Defines mathematical comparisons for evaluating rules against PV site data.
-     */
     public enum Comparator {
         EQUAL("=") {
             @Override
@@ -102,9 +82,6 @@ public class ControllerDSL {
         public abstract boolean compare(double valueFromPVSite, double ruleValue);
     }
 
-    /**
-     * Represents a time-based aggregation (e.g., 30-minute median) to smooth out volatile sensor data.
-     */
     public record ValueAdjustment(InfluxUtil.AggregateOperation valueFunction, int timeValue, TimeUnit timeUnit) {
         public static final Serializer<ValueAdjustment> SERIALIZER = SerializerBuilder.create("value_adjustment", ValueAdjustment.class)
                 .constructor(
@@ -116,9 +93,6 @@ public class ControllerDSL {
                 .build();
     }
 
-    /**
-     * The metrics that can be retrieved and evaluated from a PV Site.
-     */
     @Getter
     public enum PVSiteVariableType {
         BATTERY_SOC("Battery SoC in % [0;100]") {
@@ -206,10 +180,6 @@ public class ControllerDSL {
                 return Math.max(0, pvProduction - loadsPower);
             }
         },
-        /**
-         * Relative ratio to scale seamlessly regardless of the PV site's size.
-         * Calculates surplus relative to the installed capacity (e.g., 0.15 = 15% of max capacity).
-         */
         PV_SURPLUS_RATIO("PV Surplus Ratio [0.0 ; 1.0]") {
             @Override
             public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
@@ -218,11 +188,6 @@ public class ControllerDSL {
                 return surplusKw / capacityKwp;
             }
         },
-
-        /**
-         * Relative ratio to scale seamlessly regardless of the PV site's size.
-         * Calculates surplus relative to the installed capacity (e.g., 0.15 = 15% of max capacity).
-         */
         POTENTIAL_PV_SURPLUS_RATIO("PV Surplus Ratio [0.0 ; 1.0]") {
             @Override
             public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
@@ -240,9 +205,6 @@ public class ControllerDSL {
 
         public abstract double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment);
 
-        /**
-         * Helper method to reduce boilerplate code when querying InfluxDB.
-         */
         protected double queryInflux(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment, String field) {
             Instant start = Instant.now().minus(Duration.of(valueAdjustment.timeValue(), valueAdjustment.timeUnit().toChronoUnit()));
             Instant end = Instant.now();
@@ -258,9 +220,6 @@ public class ControllerDSL {
         }
     }
 
-    /**
-     * A condition that evaluates to true or false based on the current state of the PV site.
-     */
     public interface Condition {
         boolean evaluate(PVSiteEntity pvSiteEntity);
 
@@ -320,27 +279,11 @@ public class ControllerDSL {
         }
     }
 
-    /**
-     * Dynamically calculates the target power based on runtime variables.
-     * Designed to be fully serializable using the custom vserializer.
-     */
     public sealed interface ValueExpression permits ValueExpression.ClusterCapacityPercentage, ValueExpression.Constant, ValueExpression.DynamicVariable {
-        /**
-         * Evaluates the expression to determine the target power in watts.
-         *
-         * @param pvSiteEntity         The current PV site to draw metrics from.
-         * @param clusterCapacityWatts The maximum theoretical capacity of the entire miner cluster.
-         * @return The calculated power target in watts.
-         */
         double evaluate(PVSiteEntity pvSiteEntity, double clusterCapacityWatts);
 
-        // Static reference to prevent initialization issues during class loading
         Serializer<ValueExpression> SERIALIZER = Serializers.EXPRESSION_SERIALIZER;
 
-        /**
-         * A fixed, constant value (e.g., always target 5000 Watts).
-         * Useful for absolute fallbacks or simple setups.
-         */
         record Constant(double valueWatts) implements ValueExpression {
             public static final Serializer<Constant> SERIALIZER = Serializers.CONSTANT_SERIALIZER;
 
@@ -350,12 +293,6 @@ public class ControllerDSL {
             }
         }
 
-        /**
-         * A dynamic calculation based on a PV metric.
-         * Formula: (PV_Variable * multiplier) + offset
-         * * Example for "Surplus - 5% Buffer in Watts":
-         * Variable = PV_SURPLUS, Multiplier = 950 (kW to W minus 5%), Offset = 0
-         */
         record DynamicVariable(PVSiteVariableType variable, ValueAdjustment adjustment, double multiplier,
                                double offset) implements ValueExpression {
             public static final Serializer<DynamicVariable> SERIALIZER = Serializers.DYNAMIC_VARIABLE_SERIALIZER;
@@ -367,10 +304,6 @@ public class ControllerDSL {
             }
         }
 
-        /**
-         * Calculates a target based purely on the cluster's capabilities.
-         * Example: Run cluster at 50% capacity -> percentage = 0.5
-         */
         record ClusterCapacityPercentage(double percentage) implements ValueExpression {
             public static final Serializer<ClusterCapacityPercentage> SERIALIZER = Serializers.CAPACITY_PERCENTAGE_SERIALIZER;
 
@@ -380,9 +313,6 @@ public class ControllerDSL {
             }
         }
 
-        /**
-         * Inner class to handle serialization registration safely.
-         */
         class Serializers {
             private static final Serializer.Types<ValueExpression> EXPRESSION_TYPES = Serializer.Types.create("value_expression", ValueExpression.class);
             public static final Serializer<ValueExpression> EXPRESSION_SERIALIZER = EXPRESSION_TYPES;
@@ -416,9 +346,6 @@ public class ControllerDSL {
         }
     }
 
-    /**
-     * Defines an action to be executed on a cluster or miner, utilizing dynamic value expressions.
-     */
     public record ControllerAction(
             ControllerActionType<?> controllerActionType,
             ActionTargetType targetType,
@@ -432,21 +359,19 @@ public class ControllerDSL {
                         new SerializableField<>("targetType", Serializer.Enum.create("target_type", ActionTargetType.class), ControllerAction::targetType),
                         new SerializableField<>("strategy", Serializer.Enum.create("strategy", MinerDistributionStrategy.class), ControllerAction::strategy),
                         new SerializableField<>("valueExpression", ValueExpression.SERIALIZER, ControllerAction::valueExpression),
-                        new SerializableField<>("stepSizeWatts", Serializer.Primitive.INTEGER, ControllerAction::stepSizeWatts), // NEU
+                        new SerializableField<>("stepSizeWatts", Serializer.Primitive.INTEGER, ControllerAction::stepSizeWatts),
                         ControllerAction::new
                 ).build();
     }
 
-    /**
-     * NEW: Represents an operating state with hysteresis to prevent flapping.
-     */
     public record OperatingMode(
             String modeName,
             ControllerDSL.Condition startCondition,
             ControllerDSL.Condition stopCondition,
-            List<ControllerDSL.ControllerAction> actions, // <-- Jetzt eine Liste
+            List<ControllerDSL.ControllerAction> actions,
             Duration minRunTime,
-            Duration minIdleTime
+            Duration minIdleTime,
+            Duration powerChangeLockTime
     ) {
         public static final Serializer<OperatingMode> SERIALIZER = SerializerBuilder.create("operating_mode", OperatingMode.class)
                 .constructor(
@@ -456,20 +381,19 @@ public class ControllerDSL {
                         new SerializableField<>("actions", Serializer.Collection.create(ControllerDSL.ControllerAction.SERIALIZER, ArrayList::new), OperatingMode::actions),
                         new SerializableField<>("minRunTimeMinutes", Serializer.Primitive.LONG, mode -> mode.minRunTime().toMinutes()),
                         new SerializableField<>("minIdleTimeMinutes", Serializer.Primitive.LONG, mode -> mode.minIdleTime().toMinutes()),
-                        (modeName, start, stop, actions, runMins, idleMins) -> new OperatingMode(
+                        new SerializableField<>("powerChangeLockTimeMinutes", Serializer.Primitive.LONG, mode -> mode.powerChangeLockTime() != null ? mode.powerChangeLockTime().toMinutes() : 8L),
+                        (modeName, start, stop, actions, runMins, idleMins, powerMins) -> new OperatingMode(
                                 modeName,
                                 start,
                                 stop,
                                 actions,
                                 Duration.ofMinutes(runMins),
-                                Duration.ofMinutes(idleMins)
+                                Duration.ofMinutes(idleMins),
+                                Duration.ofMinutes(powerMins)
                         )
                 ).build();
     }
 
-    /**
-     * Maps action definitions to the underlying API calls for the miners.
-     */
     public static class ControllerActionType<T> implements BiFunction<MinerEntityController, String, Boolean> {
         private static final Map<String, ControllerActionType<?>> actions = new HashMap<>();
         private static final Map<ControllerActionType<?>, String> actionsToIDMapping = new HashMap<>();
@@ -513,8 +437,16 @@ public class ControllerDSL {
 
         @Override
         public Boolean apply(MinerEntityController miner, String s) {
-            if (stringToValueParser.apply(s) != null) {
-                return controllerLogic.apply(miner, stringToValueParser.apply(s));
+            // FIX: Try-Catch fängt Exceptions (z.B. NumberFormatException) beim Parsen ab, sodass die Loop nicht stirbt.
+            try {
+                if (s != null && stringToValueParser != null) {
+                    T parsedValue = stringToValueParser.apply(s);
+                    if (parsedValue != null) {
+                        return controllerLogic.apply(miner, parsedValue);
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "Fehler beim Anwenden der ControllerAction '" + name + "' mit Wert: " + s, e);
             }
             return controllerLogic.apply(miner, null);
         }

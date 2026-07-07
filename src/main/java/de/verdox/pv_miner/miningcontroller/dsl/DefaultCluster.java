@@ -31,19 +31,20 @@ public class DefaultCluster {
                 .execute(new ControllerAction(
                         ControllerActionType.RESUME,
                         ActionTargetType.ALL_MINERS,
-                        MinerDistributionStrategy.EQUAL_DISTRIBUTION,
+                        MinerDistributionStrategy.EFFICIENCY_FIRST,
                         new ValueExpression.Constant(1.0),
                         0
                 ))
                 .execute(new ControllerAction(
                         ControllerActionType.SET_POWER_TARGET,
                         ActionTargetType.CLUSTER_DYNAMIC,
-                        MinerDistributionStrategy.SEQUENTIAL,
+                        MinerDistributionStrategy.EFFICIENCY_FIRST,
                         safeSurplusTarget,
                         250
                 ))
                 .withHardwareLocks(
                         Duration.ofMinutes(30),
+                        Duration.ofMinutes(15),
                         Duration.ofMinutes(5)
                 )
                 .build();
@@ -58,7 +59,7 @@ public class DefaultCluster {
                         new ValueExpression.Constant(0.0),
                         0
                 ))
-                .withHardwareLocks(Duration.ZERO, Duration.ZERO)
+                .withHardwareLocks(Duration.ZERO, Duration.ZERO, Duration.ZERO)
                 .build();
 
         Map<String, OperatingMode> defaultModes = new LinkedHashMap<>();
