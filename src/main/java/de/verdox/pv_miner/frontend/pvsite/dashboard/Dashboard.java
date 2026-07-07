@@ -252,15 +252,18 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
             long stateRemaining = 0;
             long powerRemaining = 0;
+            long controllerPower = 0;
 
             if (lock != null) {
                 Instant now = Instant.now();
-                stateRemaining = Math.max(0, java.time.Duration.between(now, lock.stateUnlockTime()).toSeconds());
-                powerRemaining = Math.max(0, java.time.Duration.between(now, lock.powerUnlockTime()).toSeconds());
+                stateRemaining = Math.max(0, java.time.Duration.between(now, lock.runStateUnlockTime()).toSeconds());
+                powerRemaining = Math.max(0, java.time.Duration.between(now, lock.powerChangeUnlockTime()).toSeconds());
+                controllerPower = (long) lock.expectedPowerWatts();
             }
 
+
             return new MinerDashboardItemDTO(
-                    miner.getName() != null ? miner.getName() : "Miner",
+                    stats.minerIdentity().minerModel(),
                     miner.getIP(),
                     stats.miningStatus() != null ? stats.miningStatus().name() : "UNKNOWN",
                     FormatUtil.formatHashrateFromTHs(stats.terahashPerSecond()),
@@ -268,7 +271,8 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
                     FormatUtil.formatNumber(stats.temperatureCelsius()) + " °C",
                     "-",
                     stateRemaining,
-                    powerRemaining
+                    powerRemaining,
+                    controllerPower
             );
         }).toList();
         minerGrid.setItems(minerItems);

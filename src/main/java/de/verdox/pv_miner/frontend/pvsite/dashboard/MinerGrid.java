@@ -23,8 +23,9 @@ public class MinerGrid extends Grid<MinerDashboardItemDTO> {
         addColumn(new ComponentRenderer<>(miner -> createLockBadge(miner.stateLockRemainingSeconds()))).setHeader(new TranslatableSpan("dashboard.grid.miner.lock.state")).setAutoWidth(true);
         addColumn(new ComponentRenderer<>(miner -> createLockBadge(miner.powerLockRemainingSeconds()))).setHeader(new TranslatableSpan("dashboard.grid.miner.lock.power")).setAutoWidth(true);
 
+        addColumn(new ComponentRenderer<>(miner -> new Span(miner.controllerPowerTarget()+" W"))).setHeader(new TranslatableSpan("dashboard.grid.miner.lock.controller_power")).setAutoWidth(true);
+
         addColumn(MinerDashboardItemDTO::temp).setHeader(new TranslatableSpan("dashboard.grid.miner.temp"));
-        addColumn(MinerDashboardItemDTO::pool).setHeader(new TranslatableSpan("dashboard.grid.miner.pool"));
 
         addThemeVariants(GridVariant.LUMO_NO_BORDER, GridVariant.LUMO_COMPACT, GridVariant.LUMO_ROW_STRIPES);
         getStyle().set("background-color", "transparent").set("border", "none");

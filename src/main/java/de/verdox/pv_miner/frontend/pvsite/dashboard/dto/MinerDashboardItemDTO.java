@@ -9,5 +9,6 @@ public record MinerDashboardItemDTO(
         String temp,
         String pool,
         long stateLockRemainingSeconds,
-        long powerLockRemainingSeconds
+        long powerLockRemainingSeconds,
+        long controllerPowerTarget
 ) {}

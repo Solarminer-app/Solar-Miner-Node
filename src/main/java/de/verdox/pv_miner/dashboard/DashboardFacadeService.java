@@ -6,7 +6,6 @@ import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.DailyFinancialStatsDto;
 import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.LiveDashboardUpdateDto;
 import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.LiveKpiDto;
 import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.MinerLockStatusDto;
-import de.verdox.pv_miner.frontend.pvsite.mining.MinerClusterView;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.lightning.LightningWalletService;
 import de.verdox.pv_miner.miner.data.MinerStats;
@@ -135,8 +134,8 @@ public class DashboardFacadeService {
 
                 if (lock != null) {
                     Instant now = Instant.now();
-                    stateRemaining = Math.max(0, java.time.Duration.between(now, lock.stateUnlockTime()).toSeconds());
-                    powerRemaining = Math.max(0, java.time.Duration.between(now, lock.powerUnlockTime()).toSeconds());
+                    stateRemaining = Math.max(0, java.time.Duration.between(now, lock.runStateUnlockTime()).toSeconds());
+                    powerRemaining = Math.max(0, java.time.Duration.between(now, lock.powerChangeUnlockTime()).toSeconds());
                     expectedPower = lock.expectedPowerWatts();
                 }
 
