@@ -20,15 +20,22 @@ public class MinerInfluxStrategy implements InfluxEntityStrategy<MinerEntity<?>,
     public static final String TERA_HASH_PER_SECOND = "teraHashPerSecond";
     public static final String POWER_TARGET_WATTS = "powerTargetWatts";
     public static final String TEMPERATURE_CHIP_CELSIUS = "temperatureChipCelsius";
+    public static final String EFFICIENCY_J_TH = "efficiencyJTh";
 
     @Override
     public void writeToInflux(WriteApi writeApi, String bucket, String org, MinerEntity<?> entity, MinerStats dataToWrite, Instant timeOfData) {
+        double efficiency = 0.0;
+        if (dataToWrite.terahashPerSecond() > 0) {
+            efficiency = dataToWrite.approximatedPowerUsageWatts() / dataToWrite.terahashPerSecond();
+        }
+
         InfluxUtil.InfluxRecordBuilder influxRecordBuilder = new InfluxUtil.InfluxRecordBuilder(MEASUREMENT)
                 .addTag(InfluxEntityStrategy.ENTITY_TAG, entity.getId().toString())
                 .addField(POWER_USAGE_WATTS, dataToWrite.approximatedPowerUsageWatts())
                 .addField(TERA_HASH_PER_SECOND, dataToWrite.terahashPerSecond())
                 .addField(POWER_TARGET_WATTS, dataToWrite.powerTargetWatts())
                 .addField(TEMPERATURE_CHIP_CELSIUS, dataToWrite.temperatureCelsius())
+                .addField(EFFICIENCY_J_TH, efficiency)
                 .setTimestamp(timeOfData.toEpochMilli());
         writeApi.writeRecord(bucket, org, WritePrecision.MS, influxRecordBuilder.build());
     }
