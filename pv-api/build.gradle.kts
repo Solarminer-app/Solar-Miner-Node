@@ -58,7 +58,7 @@ publishing {
             }
         }
     }
-    repositories {
+/*    repositories {
         maven {
             name = "verdox"
             url = uri("https://repo.verdox.de/snapshots")
@@ -67,5 +67,5 @@ publishing {
                 password = (findProperty("reposilite.verdox.key") ?: System.getenv("REPO_PASSWORD")).toString()
             }
         }
-    }
+    }*/
 }

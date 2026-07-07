@@ -1,6 +1,8 @@
 package de.verdox.pv_miner.miningcontroller;
 
+import de.verdox.pv_miner.SpringContextHelper;
 import de.verdox.pv_miner.entity.EntityControllerService;
+import de.verdox.pv_miner.entity.EntityService;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.MinerRepository;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
@@ -176,6 +178,10 @@ public class MinerClusterService {
             this.scheduler = scheduler;
         }
 
+        public Map<UUID, MinerLock> getActiveLocks() {
+            return activeController != null ? activeController.getActiveLocks() : java.util.Collections.emptyMap();
+        }
+
         public void recordState(ClusterStateSnapshot snapshot) {
             recordState(snapshot.targetPowerWatts, snapshot.allocatedPowerWatts, snapshot.activeModeName, snapshot.eventDescription);
         }
@@ -250,9 +256,7 @@ public class MinerClusterService {
                 return;
             }
 
-            List<MinerEntity<?>> currentMiners = minerRepository.findAllById(assignedMinerIds);
-
-            this.activeController = new ClusterController(clusterName, new ArrayList<>(currentMiners), pvSite, config, this::recordState);
+            this.activeController = new ClusterController(clusterName, SpringContextHelper.getBean(EntityService.class), new ArrayList<>(assignedMinerIds), pvSite, config, this::recordState);
             this.scheduledTask = scheduler.scheduleAtFixedRate(
                     activeController::evaluate, 0, 30, TimeUnit.SECONDS
             );

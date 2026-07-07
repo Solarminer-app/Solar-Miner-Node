@@ -4,7 +4,6 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.charts.Chart;
 import com.vaadin.flow.component.charts.model.*;
 import com.vaadin.flow.component.charts.model.style.SolidColor;
 import com.vaadin.flow.component.dependency.CssImport;
@@ -26,7 +25,9 @@ import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.theme.lumo.Lumo;
 import de.verdox.pv_miner.SpringContextHelper;
-import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
+import de.verdox.pv_miner.dashboard.DashboardFacadeService;
+import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.MinerDashboardItemDTO;
+import de.verdox.pv_miner.miningcontroller.MinerLock;
 import de.verdox.pv_miner.entity.EntityMonitoringService;
 import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
@@ -35,12 +36,9 @@ import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.miningcontroller.MinerClusterService;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
-import de.verdox.pv_miner.pvsite.PVStatisticPerDay;
-import de.verdox.pv_miner.pvsite.PVStatisticsAccumulator;
 import de.verdox.pv_miner.statistic.live.EntityStatisticsService;
 import de.verdox.pv_miner.frontend.user.UserSessionContext;
 import de.verdox.pv_miner.util.FormatUtil;
-import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableButton;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableH3;
@@ -58,6 +56,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -70,37 +69,19 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
     private final MinerClusterService clusterService;
     private final EntityQueryService entityQueryService;
     private final GlobalConstantsService globalConstantsService;
+    private final DashboardFacadeService dashboardFacadeService;
+    private final DashboardKpiHeader dashboardKpiHeader;
+    private final DailyStatisticsWidget dailyStatisticsWidget = new DailyStatisticsWidget();
 
     private Disposable liveDataSubscription;
     private PVSiteEntity pvSiteEntity;
-    private final PVStatisticsAccumulator pvAccumulator = new PVStatisticsAccumulator();
 
-    private final KpiCard activeMiners = new KpiCard("dashboard.kpi.active_miners", FrontendColor.TEXT_VALUE_WHITE, VaadinIcon.SERVER);
-    private final KpiCard totalHashrate = new KpiCard("dashboard.kpi.total_hashrate", FrontendColor.TEXT_VALUE_WHITE, VaadinIcon.DASHBOARD);
-    private final KpiCard pvPower = new KpiCard("dashboard.kpi.pv_power", FrontendColor.TEXT_VALUE_YELLOW, VaadinIcon.SUN_O);
-    private final KpiCard minerPower = new KpiCard("dashboard.kpi.mining_load", FrontendColor.TEXT_VALUE_WHITE, VaadinIcon.PLUG);
-    private final KpiCard powerTotal = new KpiCard("dashboard.kpi.total_load", FrontendColor.TEXT_VALUE_WHITE, VaadinIcon.PLUG);
-
-    private final KpiCard liveImportCard = new KpiCard("dashboard.kpi.live_import", FrontendColor.TEXT_VALUE_WHITE, VaadinIcon.INSERT);
-    private final KpiCard liveExportCard = new KpiCard("dashboard.kpi.live_export", FrontendColor.TEXT_VALUE_WHITE, VaadinIcon.EXTERNAL_LINK);
     private final KpiCard batterySocCard = new KpiCard("dashboard.kpi.battery_soc", FrontendColor.TEXT_VALUE_YELLOW, VaadinIcon.INPUT);
     private final KpiCard batteryPowerCard = new KpiCard("dashboard.kpi.battery_power", FrontendColor.TEXT_VALUE_WHITE, VaadinIcon.GRID);
 
     private final InfluxChart liveChart = new InfluxChart();
     private final InfluxChart historyChart = new InfluxChart();
-    private final Chart automationChart = new Chart(ChartType.LINE);
-    private DataSeries automationPowerSeries;
-    private DataSeries automationAllocatedSeries;
-    private DataSeries automationFlagsSeries;
-
-    private final DailyStatisticRow exportedToday = new DailyStatisticRow("pv_site.card_data.grid.exported", FrontendColor.TEXT_VALUE_GRAY);
-    private final DailyStatisticRow revenueExportToday = new DailyStatisticRow("pv_site.card_data.grid.revenue_export", FrontendColor.TEXT_VALUE_GRAY);
-    private final DailyStatisticRow importToday = new DailyStatisticRow("pv_site.card_data.grid.imported", FrontendColor.TEXT_VALUE_GRAY);
-    private final DailyStatisticRow costImportToday = new DailyStatisticRow("pv_site.card_data.grid.cost_import", FrontendColor.TEXT_VALUE_GRAY);
-    private final DailyStatisticRow loadHomeTotalToday = new DailyStatisticRow("pv_site.card_data.home.used", FrontendColor.TEXT_VALUE_GRAY);
-    private final DailyStatisticRow avoidedEnergyCost = new DailyStatisticRow("pv_site.card_data.home.avoided_import_cost", FrontendColor.TEXT_VALUE_GRAY);
-    private final DailyStatisticRow loadMinerTotalToday = new DailyStatisticRow("pv_site.card_data.mining.consumption", FrontendColor.TEXT_VALUE_GRAY);
-    private final DailyStatisticRow minerNotExported = new DailyStatisticRow("pv_site.card_data.mining.lost_export_revenue", FrontendColor.TEXT_VALUE_GRAY);
+    private final ControllerDashboardChart controllerDashboardChart;
 
     private final MinerGrid minerGrid = new MinerGrid();
     private final Grid<PoolItem> poolGrid = new Grid<>();
@@ -109,13 +90,15 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
     private VerticalLayout clusterListLayout;
 
     @Autowired
-    public Dashboard(PVSiteRepository pVSiteRepository, LightningWalletService walletService, UserSessionContext sessionContext, MinerClusterService clusterService, EntityQueryService entityQueryService, GlobalConstantsService globalConstantsService) {
+    public Dashboard(PVSiteRepository pVSiteRepository, LightningWalletService walletService, UserSessionContext sessionContext, MinerClusterService clusterService, EntityQueryService entityQueryService, GlobalConstantsService globalConstantsService, DashboardFacadeService dashboardFacadeService) {
         this.pVSiteRepository = pVSiteRepository;
         this.walletService = walletService;
         this.sessionContext = sessionContext;
         this.clusterService = clusterService;
         this.entityQueryService = entityQueryService;
         this.globalConstantsService = globalConstantsService;
+        this.dashboardFacadeService = dashboardFacadeService;
+        this.controllerDashboardChart =  new ControllerDashboardChart(clusterService);
 
         liveChart.applyDarkTheme();
         liveChart.getRangeSelector().addButton(new RangeSelectorButton(RangeSelectorTimespan.MINUTE, 60, "1h"));
@@ -133,17 +116,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
         HorizontalLayout header = new DashboardHeader();
 
-        HorizontalLayout kpiRow = new HorizontalLayout(pvPower, powerTotal, liveExportCard, liveImportCard, activeMiners, totalHashrate, minerPower);
-        kpiRow.addClassName("kpi-grid");
-        kpiRow.getStyle().set("flex-wrap", "wrap");
-        kpiRow.setWidthFull();
-        kpiRow.setSpacing(true);
-
-        activeMiners.setValue("0 / 0");
-        totalHashrate.setValue("0.0 TH/s");
-        powerTotal.setValue("0.0 kW");
-        pvPower.setValue("0.0 kW");
-        minerPower.setValue("0.0 kW");
+        dashboardKpiHeader = new DashboardKpiHeader();
 
         HorizontalLayout contentSplit = new HorizontalLayout();
         contentSplit.addClassName("dashboard-content-split");
@@ -155,7 +128,8 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         rightLayout.addClassName("dashboard-right-panel");
 
         contentSplit.add(leftLayout, rightLayout);
-        add(header, kpiRow, contentSplit);
+        add(header, dashboardKpiHeader, contentSplit);
+
     }
 
     @Override
@@ -166,7 +140,6 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
     private void setup() {
         EntityMonitoringService monitoringService = SpringContextHelper.getBean(EntityMonitoringService.class);
         EntityStatisticsService statisticsService = SpringContextHelper.getBean(EntityStatisticsService.class);
-        DailyStatisticService dailyStatisticService = SpringContextHelper.getBean(DailyStatisticService.class);
 
         var zoneId = sessionContext.getZoneId();
 
@@ -210,53 +183,14 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
             liveDataSubscription.dispose();
         }
 
+        dashboardFacadeService.subscribeToLiveUpdates(pvSiteEntity, sessionContext).subscribe(liveDashboardUpdateDto -> {
+            dashboardKpiHeader.update(ui, liveDashboardUpdateDto.kpi());
+            dailyStatisticsWidget.update(ui, liveDashboardUpdateDto.financials());
+        });
+
         liveDataSubscription = monitoringService.hookIntoLiveData(pvSiteEntity)
                 .subscribe(pvSiteData -> {
-                    PVStatisticPerDay todayStats = dailyStatisticService.getLiveDailyStatistic(pvSiteEntity, "PV_DAILY", pvAccumulator);
-
-                    CustomCurrency userCurrency = sessionContext.getCurrency() != null ? sessionContext.getCurrency() : CustomCurrency.getInstance("EUR");
-
-                    Money currentStrom = pvSiteEntity.getCurrentElectricityPrice();
-                    Money currentFeedIn = pvSiteEntity.getCurrentFeedInTariff();
-                    double stromPreis = globalConstantsService.convert(currentStrom, userCurrency).getRawMoneyAmount();
-                    double einspeiseVerguetung = globalConstantsService.convert(currentFeedIn, userCurrency).getRawMoneyAmount();
-
-                    double totalExported = todayStats.getExportKwh();
-                    double totalConsumption = todayStats.getConsumptionKwh();
-                    double totalConsumptionMiners = todayStats.getConsumptionKwhMining();
-                    double totalImported = todayStats.getImportKwh();
-                    
-                    double pureHouseholdConsumption = Math.max(0, totalConsumption - totalConsumptionMiners);
-                    double totalEigenverbrauch = Math.max(0, totalConsumption - totalImported);
-
-                    double householdEigenverbrauch = Math.min(pureHouseholdConsumption, totalEigenverbrauch);
-                    double miningEigenverbrauch = Math.max(0, totalEigenverbrauch - householdEigenverbrauch);
-
-                    double householdImport = Math.max(0, pureHouseholdConsumption - householdEigenverbrauch);
-                    double miningImport = Math.max(0, totalConsumptionMiners - miningEigenverbrauch);
-
-                    double householdSavings = householdEigenverbrauch * stromPreis;
-                    double revenue = totalExported * einspeiseVerguetung;
-                    double totalImportCosts = totalImported * stromPreis;
-
-                    double miningOpportunityCosts = miningEigenverbrauch * einspeiseVerguetung;
-                    double miningImportCosts = miningImport * stromPreis;
-                    double totalMiningEnergyCosts = miningOpportunityCosts + miningImportCosts;
-
-                    double teraHashPerSecond = pvSiteEntity.getMiners().stream().map(miner -> entityQueryService.getLastResult(miner, MinerStats.DEFAULT)).mapToDouble(MinerStats::terahashPerSecond).sum();
-                    long amountRunningMiners = pvSiteEntity.getMiners().stream().map(miner -> entityQueryService.getLastResult(miner, MinerStats.DEFAULT)).filter(minerStats -> minerStats.terahashPerSecond() > 0).count();
-                    int allMiners = pvSiteEntity.getMiners().size();
-
-                    String currencySymbol = userCurrency.getSymbol(sessionContext.getLocale());
-
                     ui.access(() -> {
-                        pvPower.setValue(FormatUtil.formatNumber(pvSiteData.getPvPower()) + " kW");
-                        minerPower.setValue(FormatUtil.formatNumber(pvSiteData.getTotalMinerPowerKw()) + " kW");
-                        powerTotal.setValue(FormatUtil.formatNumber(pvSiteData.getLoadPowerKw()) + " kW");
-
-                        liveImportCard.setValue(FormatUtil.formatNumber(pvSiteData.getImportPowerKw()) + " kW");
-                        liveExportCard.setValue(FormatUtil.formatNumber(pvSiteData.getExportPowerKw()) + " kW");
-
                         batterySocCard.setValue(pvSiteData.getBatterySoC() + " %");
 
                         if (pvSiteData.getBatteryPower() > 0) {
@@ -264,21 +198,6 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
                         } else {
                             batteryPowerCard.setValue(FormatUtil.formatNumber(pvSiteData.getBatteryPower()) + " kW");
                         }
-
-                        this.exportedToday.setValue(FormatUtil.formatNumber(totalExported) + " kWh");
-                        this.revenueExportToday.setValue(FormatUtil.formatNumber(revenue) + " " + currencySymbol);
-                        this.importToday.setValue(FormatUtil.formatNumber(totalImported) + " kWh");
-                        this.costImportToday.setValue(FormatUtil.formatNumber(totalImportCosts) + " " + currencySymbol);
-
-                        this.loadHomeTotalToday.setValue(FormatUtil.formatNumber(pureHouseholdConsumption) + " kWh");
-                        this.avoidedEnergyCost.setValue(FormatUtil.formatNumber(householdSavings) + " " + currencySymbol);
-
-                        this.loadMinerTotalToday.setValue(FormatUtil.formatNumber(totalConsumptionMiners) + " kWh");
-                        this.minerNotExported.setValue(FormatUtil.formatNumber(miningOpportunityCosts) + " " + currencySymbol);
-
-                        totalHashrate.setValue(FormatUtil.formatHashrateFromTHs(teraHashPerSecond));
-                        activeMiners.setValue(amountRunningMiners + " / " + allMiners);
-
                         updateWidgetsLive();
                     });
                 });
@@ -293,57 +212,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         refreshClusterList();
         updateMinerGridLive();
         updatePoolGridLive();
-        updateAutomationChart();
-    }
-
-    private void updateAutomationChart() {
-        List<String> clusters = clusterService.getAvailableClusterNames();
-        if (clusters.isEmpty()) return;
-
-        MinerClusterService.ClusterInstance cluster = clusterService.getCluster(pvSiteEntity, clusters.get(0));
-        if (cluster == null || !cluster.isRunning()) return;
-
-        List<MinerClusterService.ClusterInstance.ClusterStateSnapshot> history = cluster.getHistory();
-
-        List<DataSeriesItem> powerItems = new ArrayList<>();
-        List<DataSeriesItem> allocatedItems = new ArrayList<>();
-        List<DataSeriesItem> flagItems = new ArrayList<>();
-
-        for (var snapshot : history) {
-            long time = snapshot.timestamp().toEpochMilli();
-
-            DataSeriesItem powerItem = new DataSeriesItem(time, snapshot.targetPowerWatts());
-            powerItem.setName(snapshot.activeModeName());
-            powerItems.add(powerItem);
-
-            DataSeriesItem allocatedItem = new DataSeriesItem(time, snapshot.allocatedPowerWatts());
-            allocatedItem.setName("Active Power");
-            allocatedItems.add(allocatedItem);
-
-            if (snapshot.eventDescription() != null && !snapshot.eventDescription().isBlank()) {
-                FlagItem flag = createFlagForSnapshot(snapshot, time);
-                flagItems.add(flag);
-            }
-        }
-
-        if (!history.isEmpty()) {
-            var lastSnapshot = history.get(history.size() - 1);
-            long now = Instant.now().toEpochMilli();
-
-            DataSeriesItem currentPower = new DataSeriesItem(now, lastSnapshot.targetPowerWatts());
-            currentPower.setName(lastSnapshot.activeModeName());
-            powerItems.add(currentPower);
-
-            DataSeriesItem currentAlloc = new DataSeriesItem(now, lastSnapshot.allocatedPowerWatts());
-            currentAlloc.setName("Active Allocation");
-            allocatedItems.add(currentAlloc);
-        }
-
-        UI.getCurrent().access(() -> {
-            automationPowerSeries.setData(powerItems);
-            automationAllocatedSeries.setData(allocatedItems);
-            automationFlagsSeries.setData(flagItems);
-        });
+        controllerDashboardChart.update(UI.getCurrent(), pvSiteEntity);
     }
 
     private static @NonNull FlagItem createFlagForSnapshot(MinerClusterService.ClusterInstance.ClusterStateSnapshot snapshot, long time) {
@@ -374,21 +243,35 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
     private void updateMinerGridLive() {
         if (pvSiteEntity == null) return;
 
-        List<MinerGrid.MinerItem> liveItems = pvSiteEntity.getMiners().stream().map(miner -> {
+        var clusterInstance = clusterService.getCluster(pvSiteEntity, "Standard");
+        Map<UUID, MinerLock> locks = clusterInstance != null ? clusterInstance.getActiveLocks() : Map.of();
+
+        List<MinerDashboardItemDTO> minerItems = pvSiteEntity.getMiners().stream().map(miner -> {
             MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
+            MinerLock lock = locks.get(miner.getId());
 
-            String name = miner.getName() != null ? miner.getName() : "Miner";
-            String ipOrMac = miner.getIP();
-            String status = stats.miningStatus() != null ? stats.miningStatus().name() : "UNKNOWN";
+            long stateRemaining = 0;
+            long powerRemaining = 0;
 
-            String hashrate = FormatUtil.formatHashrateFromTHs(stats.terahashPerSecond());
-            String power = FormatUtil.formatNumber(stats.approximatedPowerUsageWatts()) + " W";
-            String temp = FormatUtil.formatNumber(stats.temperatureCelsius()) + " °C";
+            if (lock != null) {
+                Instant now = Instant.now();
+                stateRemaining = Math.max(0, java.time.Duration.between(now, lock.stateUnlockTime()).toSeconds());
+                powerRemaining = Math.max(0, java.time.Duration.between(now, lock.powerUnlockTime()).toSeconds());
+            }
 
-            return new MinerGrid.MinerItem(stats.minerIdentity().minerModel(), ipOrMac, status, hashrate, power, temp, "-");
+            return new MinerDashboardItemDTO(
+                    miner.getName() != null ? miner.getName() : "Miner",
+                    miner.getIP(),
+                    stats.miningStatus() != null ? stats.miningStatus().name() : "UNKNOWN",
+                    FormatUtil.formatHashrateFromTHs(stats.terahashPerSecond()),
+                    FormatUtil.formatNumber(stats.approximatedPowerUsageWatts()) + " W",
+                    FormatUtil.formatNumber(stats.temperatureCelsius()) + " °C",
+                    "-",
+                    stateRemaining,
+                    powerRemaining
+            );
         }).toList();
-
-        minerGrid.setItems(liveItems);
+        minerGrid.setItems(minerItems);
     }
 
     private void updatePoolGridLive() {
@@ -416,39 +299,6 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         Tabs chartTabs = new Tabs(liveTab, historyTab, automationTab);
         chartTabs.getStyle().set("margin-bottom", "10px");
 
-        Configuration autoConf = automationChart.getConfiguration();
-        autoConf.getChart().setAnimation(false);
-        autoConf.setTitle("Mining-Controller");
-
-        XAxis autoX = autoConf.getxAxis();
-        autoX.setType(AxisType.DATETIME);
-
-        applyDarkThemeToChart(automationChart);
-
-        YAxis autoY = autoConf.getyAxis();
-        autoY.setMin(0);
-        autoY.setTitle("Controller Power (W)");
-
-        automationPowerSeries = new DataSeries("Target Power");
-        PlotOptionsLine targetOptions = new PlotOptionsLine();
-        targetOptions.setStep(StepType.LEFT);
-        automationPowerSeries.setPlotOptions(targetOptions);
-
-        automationAllocatedSeries = new DataSeries("Allocated Power");
-        PlotOptionsLine allocatedOptions = new PlotOptionsLine();
-        allocatedOptions.setDashStyle(DashStyle.SHORTDOT);
-        allocatedOptions.setStep(StepType.LEFT);
-        automationAllocatedSeries.setPlotOptions(allocatedOptions);
-
-        automationFlagsSeries = new DataSeries("Events");
-        automationFlagsSeries.setPlotOptions(new PlotOptionsFlags());
-
-        autoConf.addSeries(automationPowerSeries);
-        autoConf.addSeries(automationAllocatedSeries);
-        autoConf.addSeries(automationFlagsSeries);
-        automationChart.setWidth("98.5%");
-        automationChart.getStyle().set("margin-top", "15px");
-
         Div chartContainer = new Div(liveChart);
         chartContainer.setWidth("95%");
 
@@ -459,7 +309,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
             } else if (event.getSelectedTab().equals(historyTab)) {
                 chartContainer.add(historyChart);
             } else {
-                chartContainer.add(automationChart);
+                chartContainer.add(controllerDashboardChart);
             }
         });
 
@@ -614,20 +464,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         TranslatableH3 hwTitle = new TranslatableH3("dashboard.stats.title");
         hwTitle.getStyle().set("margin-top", "20px").set("font-size", "16px");
 
-        VerticalLayout statsBox = new VerticalLayout();
-        statsBox.getStyle().set("background-color", FrontendColor.CARD_BACKGROUND_COLOR).set("border-radius", "4px").set("padding", "15px");
-        statsBox.add(
-                exportedToday,
-                revenueExportToday,
-                importToday,
-                costImportToday,
-                loadHomeTotalToday,
-                avoidedEnergyCost,
-                loadMinerTotalToday,
-                minerNotExported
-        );
-
-        right.add(liveTitle, metricsContainer, hwTitle, statsBox, walletAndController, poolTitle, poolGrid);
+        right.add(liveTitle, metricsContainer, hwTitle, dailyStatisticsWidget, walletAndController, poolTitle, poolGrid);
         return right;
     }
 
@@ -659,36 +496,6 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         } catch (IllegalArgumentException e) {
             e.printStackTrace();
         }
-    }
-
-    private void applyDarkThemeToChart(Chart chart) {
-        chart.getStyle()
-                .set("background-color", "#141416")
-                .set("border", "1px solid #222226")
-                .set("border-radius", "4px")
-                .set("padding", "10px");
-
-        Configuration conf = chart.getConfiguration();
-        conf.getChart().setBackgroundColor(new SolidColor(0, 0, 0, 0));
-
-        XAxis xAxis = conf.getxAxis();
-        xAxis.getLabels().getStyle().setColor(new SolidColor("#8a8a93"));
-        xAxis.setLineColor(new SolidColor("#222226"));
-        xAxis.setTickColor(new SolidColor("#222226"));
-
-        YAxis yAxis = conf.getyAxis();
-        yAxis.getTitle().getStyle().setColor(new SolidColor("#8a8a93"));
-        yAxis.getLabels().getStyle().setColor(new SolidColor("#8a8a93"));
-        yAxis.setGridLineColor(new SolidColor("#222226"));
-
-        Tooltip tooltip = conf.getTooltip();
-        tooltip.setBackgroundColor(new SolidColor("#141416"));
-        tooltip.getStyle().setColor(new SolidColor("#ffffff"));
-        tooltip.setBorderColor(new SolidColor("#222226"));
-
-        Legend legend = conf.getLegend();
-        legend.getItemStyle().setColor(new SolidColor("#8a8a93"));
-        legend.getItemHoverStyle().setColor(new SolidColor("#ffffff"));
     }
 
     public record PoolItem(String url, String status, String hashrate) {

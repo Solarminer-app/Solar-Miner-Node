@@ -210,6 +210,16 @@ public class WizardSaveService {
                 throw new UnsupportedOperationException("OS " + minerInfo.os() + " not supported.");
             }
 
+            try {
+                var stats = entityQueryService.query(miner);
+                miner.setMinPowerTarget(stats.minPowerTarget() > 0 ? stats.minPowerTarget() : 800);
+                miner.setMaxPowerTarget(stats.defaultPowerTarget() > 0 ? stats.defaultPowerTarget() : 1200);
+            }
+            catch (Throwable ignored) {
+
+            }
+
+
             miner.setParentEntity(site);
             minersToAssign.add(miner);
             entityService.save(miner, site);

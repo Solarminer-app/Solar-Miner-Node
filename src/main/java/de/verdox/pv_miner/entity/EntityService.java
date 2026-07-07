@@ -1,6 +1,5 @@
 package de.verdox.pv_miner.entity;
 
-import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.MinerRepository;
 import de.verdox.pv_miner.miner.data.MinerStats;
@@ -8,12 +7,16 @@ import de.verdox.pv_miner.miningcontroller.MinerClusterService;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.miningpool.MiningPoolRepository;
 import de.verdox.pv_miner.pvsite.*;
+import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
 import de.verdox.pv_miner.statistic.live.EntityStatisticsService;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
+import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -44,12 +47,21 @@ public class EntityService {
         this.minerClusterService = minerClusterService;
     }
 
+    public Ref<UUID, PVSiteEntity, PVSiteRepository> pvSiteRef(UUID uuid) {
+        return new Ref<>(uuid, pvSiteRepository);
+    }
+
+    public List<MinerEntity<?>> getFreshList(Collection<UUID> miners) {
+        return minerRepository.findAllById(miners).stream().toList();
+    }
+
     @EventListener(ApplicationReadyEvent.class)
     public void scheduleClusterStart() {
         CompletableFuture.delayedExecutor(60, TimeUnit.SECONDS).execute(() -> {
             try {
                 LOGGER.info("Clusters are starting now!");
                 for (PVSiteEntity pvSiteEntity : pvSiteRepository.findAll()) {
+                    var ref = pvSiteRef(pvSiteEntity.getId());
                     minerClusterService.startClustersForSite(pvSiteEntity);
                 }
             } catch (Exception e) {
