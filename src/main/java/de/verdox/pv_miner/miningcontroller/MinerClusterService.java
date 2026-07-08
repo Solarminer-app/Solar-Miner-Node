@@ -6,6 +6,7 @@ import de.verdox.pv_miner.entity.EntityService;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.MinerRepository;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
+import de.verdox.pv_miner.pvsite.PVSiteRef;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,9 +42,9 @@ public class MinerClusterService {
         refreshClustersFromStorage();
     }
 
-    public void startClustersForSite(PVSiteEntity pvSite) throws Exception {
+    public void startClustersForSite(PVSiteRef pvSiteRef) throws Exception {
         for (String clusterName : getAvailableClusterNames()) {
-            startCluster(clusterName, pvSite);
+            startCluster(clusterName, pvSiteRef);
         }
     }
 
@@ -59,7 +60,7 @@ public class MinerClusterService {
         }
     }
 
-    public void logoutFromCluster(PVSiteEntity pvSite, MinerEntity<?> miner) {
+    public void logoutFromCluster(UUID pvSite, MinerEntity<?> miner) {
         if (pvSite == null || miner == null || miner.getClusterName() == null) {
             return;
         }
@@ -94,13 +95,24 @@ public class MinerClusterService {
         }
     }
 
-    public ClusterInstance getCluster(PVSiteEntity pvSite, String clusterName) {
-        if (pvSite == null || clusterName == null) return null;
+    @Deprecated
+    public ClusterInstance getCluster(PVSiteEntity entity, String clusterName) {
+        if (entity == null || clusterName == null) return null;
+        return getCluster(entity.getId(), clusterName);
+    }
 
-        siteClusters.putIfAbsent(pvSite.getId(), new ConcurrentHashMap<>());
-        siteClusters.get(pvSite.getId()).putIfAbsent(clusterName, new ClusterInstance(clusterName, pvSite.getId(), clusterScheduler));
+    public ClusterInstance getCluster(PVSiteRef entity, String clusterName) {
+        if (entity == null || clusterName == null) return null;
+        return getCluster(entity.getId(), clusterName);
+    }
 
-        return siteClusters.get(pvSite.getId()).get(clusterName);
+    public ClusterInstance getCluster(UUID pvSiteId, String clusterName) {
+        if (pvSiteId == null || clusterName == null) return null;
+
+        siteClusters.putIfAbsent(pvSiteId, new ConcurrentHashMap<>());
+        siteClusters.get(pvSiteId).putIfAbsent(clusterName, new ClusterInstance(clusterName, pvSiteId, clusterScheduler));
+
+        return siteClusters.get(pvSiteId).get(clusterName);
     }
 
     public Set<MinerEntity<?>> getUnassignedMiners(PVSiteEntity pvSite) {
@@ -114,7 +126,7 @@ public class MinerClusterService {
         return unassigned;
     }
 
-    public void startCluster(String clusterName, PVSiteEntity pvSite) throws Exception {
+    public void startCluster(String clusterName, PVSiteRef pvSite) throws Exception {
         ClusterInstance cluster = getCluster(pvSite, clusterName);
         if (cluster == null) throw new IllegalArgumentException("Cluster nicht gefunden: " + clusterName);
 
@@ -122,7 +134,7 @@ public class MinerClusterService {
         cluster.start(pvSite, latestConfig);
     }
 
-    public void stopCluster(PVSiteEntity pvSite, String clusterName) {
+    public void stopCluster(UUID pvSite, String clusterName) {
         ClusterInstance cluster = getCluster(pvSite, clusterName);
         if (cluster != null) {
             cluster.stop();
@@ -249,7 +261,7 @@ public class MinerClusterService {
             LOGGER.info("Removed " + freshMiners.size() + " from cluster " + clusterName + " on site " + siteId);
         }
 
-        public void start(PVSiteEntity pvSite, MinerControllerConfig config) {
+        public void start(PVSiteRef pvSite, MinerControllerConfig config) {
             if (isRunning) return;
             if (assignedMinerIds.isEmpty()) {
                 LOGGER.warning("Cluster " + clusterName + " has no miners.");

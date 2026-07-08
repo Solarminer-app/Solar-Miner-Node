@@ -8,7 +8,7 @@ import de.verdox.pv_miner.miner.MinerEntityController;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.miningcontroller.dsl.ControllerDSL;
-import de.verdox.pv_miner.pvsite.PVSiteEntity;
+import de.verdox.pv_miner.pvsite.PVSiteRef;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -28,7 +28,7 @@ public class ClusterController {
     private final String clusterName;
     private final EntityService entityService;
     private final List<UUID> minerCluster;
-    private final PVSiteEntity pvSite;
+    private final PVSiteRef pvSiteReference;
     private final MinerControllerConfig config;
     private final Consumer<MinerClusterService.ClusterInstance.ClusterStateSnapshot> stateLogger;
     private String tickEventMessage = null;
@@ -37,11 +37,11 @@ public class ClusterController {
 
     private ControllerDSL.OperatingMode activeMode = null;
 
-    public ClusterController(String clusterName, EntityService entityService, List<UUID> minerCluster, PVSiteEntity pvSite, MinerControllerConfig config, Consumer<MinerClusterService.ClusterInstance.ClusterStateSnapshot> stateLogger) {
+    public ClusterController(String clusterName, EntityService entityService, List<UUID> minerCluster, PVSiteRef pvSiteReference, MinerControllerConfig config, Consumer<MinerClusterService.ClusterInstance.ClusterStateSnapshot> stateLogger) {
         this.clusterName = clusterName;
         this.entityService = entityService;
         this.minerCluster = minerCluster;
-        this.pvSite = pvSite;
+        this.pvSiteReference = pvSiteReference;
         this.config = config;
         this.stateLogger = stateLogger;
     }
@@ -53,6 +53,7 @@ public class ClusterController {
     public void evaluate() {
         if (minerCluster.isEmpty()) return;
         this.tickEventMessage = null;
+        var pvSite = pvSiteReference.read();
 
         EntityControllerService controllerService = SpringContextHelper.getBean(EntityControllerService.class);
         EntityQueryService queryService = SpringContextHelper.getBean(EntityQueryService.class);

@@ -32,6 +32,7 @@ import de.verdox.pv_miner.frontend.pvsite.finance.PVFinanceSubPage;
 import de.verdox.pv_miner.frontend.pvsite.mining.MinerClusterView;
 import de.verdox.pv_miner.frontend.user.UserSessionContext;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
+import de.verdox.pv_miner.pvsite.PVSiteRef;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,7 +57,7 @@ public class AppMainLayout extends AppLayout implements AfterNavigationObserver,
     private final PVSiteRepository pvSiteRepository;
     private final EntityService entityService;
     private final UserSessionContext userSessionContext;
-    private PVSiteEntity pvSiteEntity;
+    private PVSiteRef pvSiteReference;
 
     private Dialog mobileMenuDialog;
 
@@ -151,7 +152,7 @@ public class AppMainLayout extends AppLayout implements AfterNavigationObserver,
     }
 
     private RouterLink createMobileNavLink(Class<? extends Component> view, VaadinIcon icon, String text) {
-        RouteParameters parameters = new RouteParameters(new RouteParam("siteId", pvSiteEntity.getId().toString()));
+        RouteParameters parameters = new RouteParameters(new RouteParam("siteId", pvSiteReference.getId().toString()));
         RouterLink link = new RouterLink(view, parameters);
         link.getStyle()
                 .set("display", "flex")
@@ -215,6 +216,7 @@ public class AppMainLayout extends AppLayout implements AfterNavigationObserver,
         box.setItems(ZoneId.getAvailableZoneIds().stream().sorted().toList());
         box.setValue(userSessionContext.getZoneId() != null ? userSessionContext.getZoneId().getId() : ZoneId.systemDefault().getId());
         box.addValueChangeListener(event -> {
+            var pvSiteEntity = pvSiteReference.read();
             if (event.getValue() != null && event.isFromClient()) {
                 userSessionContext.setZoneId(ZoneId.of(event.getValue()));
                 pvSiteEntity.setTimezoneId(event.getValue());
@@ -240,7 +242,7 @@ public class AppMainLayout extends AppLayout implements AfterNavigationObserver,
     }
 
     private <C extends Component> Tab createRouterTab(Class<? extends C> view, Icon icon, Span text) {
-        RouteParameters parameters = new RouteParameters(new RouteParam("siteId", pvSiteEntity.getId().toString()));
+        RouteParameters parameters = new RouteParameters(new RouteParam("siteId", pvSiteReference.getId().toString()));
         RouterLink link = new RouterLink(view, parameters);
         link.add(icon, text);
         return new Tab(link);
@@ -261,7 +263,7 @@ public class AppMainLayout extends AppLayout implements AfterNavigationObserver,
         String parameter = event.getRouteParameters().get("siteId").orElseThrow();
         try {
             UUID siteUuid = UUID.fromString(parameter);
-            this.pvSiteEntity = pvSiteRepository.findById(siteUuid).orElseThrow();
+            this.pvSiteReference = entityService.pvSiteRef(siteUuid);
             setupNavigationMenu();
         } catch (IllegalArgumentException e) {
             e.printStackTrace();

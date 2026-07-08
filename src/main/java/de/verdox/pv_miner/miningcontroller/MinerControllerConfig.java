@@ -2,13 +2,9 @@ package de.verdox.pv_miner.miningcontroller;
 
 import de.verdox.pv_miner.configuration.SimpleConfig;
 import de.verdox.pv_miner.miningcontroller.dsl.ControllerDSL;
-import de.verdox.vserializer.SerializableField;
 import de.verdox.vserializer.generic.Serializer;
-import de.verdox.vserializer.generic.SerializerBuilder;
 
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 public class MinerControllerConfig extends SimpleConfig<ControllerDSL.OperatingMode> {
     public static final Serializer<MinerControllerConfig> SERIALIZER = SERIALIZER(

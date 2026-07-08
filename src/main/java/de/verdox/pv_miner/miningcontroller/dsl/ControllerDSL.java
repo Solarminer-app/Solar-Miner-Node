@@ -37,6 +37,7 @@ public class ControllerDSL {
         EFFICIENCY_FIRST,
     }
 
+    @Getter
     public enum Comparator {
         EQUAL("=") {
             @Override
@@ -73,10 +74,6 @@ public class ControllerDSL {
 
         Comparator(String symbol) {
             this.symbol = symbol;
-        }
-
-        public String getSymbol() {
-            return symbol;
         }
 
         public abstract boolean compare(double valueFromPVSite, double ruleValue);
@@ -437,7 +434,6 @@ public class ControllerDSL {
 
         @Override
         public Boolean apply(MinerEntityController miner, String s) {
-            // FIX: Try-Catch fängt Exceptions (z.B. NumberFormatException) beim Parsen ab, sodass die Loop nicht stirbt.
             try {
                 if (s != null && stringToValueParser != null) {
                     T parsedValue = stringToValueParser.apply(s);

@@ -123,7 +123,7 @@ public class DashboardFacadeService {
 
             String walletFormatted = convertSatsToUserCurrencyString(walletService.getBalanceSat(), sessionContext);
 
-            var clusterInstance = minerClusterService   .getCluster(pvSiteEntity, "Standard");
+            var clusterInstance = minerClusterService.getCluster(pvSiteEntity, "Standard");
             Map<UUID, MinerLock> locks = clusterInstance != null ? clusterInstance.getActiveLocks() : Map.of();
 
             List<MinerLockStatusDto> lockStatuses = pvSiteEntity.getMiners().stream().map(miner -> {

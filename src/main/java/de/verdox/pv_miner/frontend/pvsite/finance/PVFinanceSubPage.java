@@ -38,6 +38,7 @@ import de.verdox.pv_miner.finance.dto.PVStatisticDto;
 import de.verdox.pv_miner.frontend.user.*;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.pvsite.BitcoinSale;
+import de.verdox.pv_miner.pvsite.PVSiteRef;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
 import de.verdox.pv_miner.finance.TaxReportService;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
@@ -65,7 +66,7 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
     private final PVFinanceService pvFinanceService;
     private final TaxReportService taxReportService;
 
-    private PVSiteEntity pvSiteEntity;
+    private PVSiteRef pvSiteReference;
 
     private final ProgressBar loadingIndicator = new ProgressBar();
 
@@ -299,7 +300,7 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
             Span badge = new Span(item.effectiveYieldPerKwh().toString() + "/kWh");
             badge.addClassName("yield-badge");
 
-            Money currentFeedIn = pvFinanceService.getPriceForDate(pvSiteEntity.getFeedInTariffHistory(), LocalDate.now(userSessionContext.getZoneId()));
+            Money currentFeedIn = pvFinanceService.getPriceForDate(pvSiteReference.read().getFeedInTariffHistory(), LocalDate.now(userSessionContext.getZoneId()));
             double feedInUserCurrency = SpringContextHelper.getBean(GlobalConstantsService.class).convert(currentFeedIn, userSessionContext.getCurrency()).getRawMoneyAmount();
 
             if (item.effectiveYieldPerKwh().getRawMoneyAmount() > feedInUserCurrency) {
@@ -357,6 +358,7 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
 
         ledgerGrid.addComponentColumn(sale -> {
             Button delBtn = new Button(VaadinIcon.TRASH.create(), e -> {
+                var pvSiteEntity = pvSiteReference.read();
                 pvSiteEntity.getBitcoinSales().remove(sale);
                 entityService.save(pvSiteEntity);
                 ledgerGrid.setItems(pvSiteEntity.getBitcoinSales());
@@ -372,6 +374,7 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
     }
 
     private void handleAddSale() {
+        var pvSiteEntity = pvSiteReference.read();
         if (saleDatePicker.getValue() == null || saleBtcField.getValue() == null || saleFiatField.getValue() == null) {
             Notification.show(getTranslation("finance.notification.fill_all_fields", "Bitte alle Felder ausfüllen")).addThemeVariants(NotificationVariant.LUMO_ERROR);
             return;
@@ -424,7 +427,7 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
     }
 
     protected void connectPVSiteEntity(PVSiteEntity pvSiteEntity) {
-        this.pvSiteEntity = pvSiteEntity;
+        this.pvSiteReference = entityService.pvSiteRef(pvSiteEntity.getId());
         ZoneId zoneId = userSessionContext.getZoneId();
 
         datePickerFrom.setMin(pvSiteEntity.getSetupDate());
@@ -443,7 +446,8 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
     }
 
     protected void refresh() {
-        if (this.pvSiteEntity == null) return;
+        if (this.pvSiteReference == null) return;
+        var pvSiteEntity = pvSiteReference.read();
 
         calculateStatistics.setEnabled(false);
         loadingIndicator.setVisible(true);
@@ -570,6 +574,8 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
     }
 
     private StreamResource createCsvResource() {
+        if(pvSiteReference == null) return null;
+        var pvSiteEntity = pvSiteReference.read();
         return new StreamResource("finance_data.csv", () -> {
             LocalDate from = datePickerFrom.getValue() != null ? datePickerFrom.getValue() : pvSiteEntity.getSetupDate();
             LocalDate to = datePickerTo.getValue() != null ? datePickerTo.getValue() : LocalDate.now(userSessionContext.getZoneId());
@@ -578,6 +584,8 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
     }
 
     private StreamResource createMiningPdfResource() {
+        if(pvSiteReference == null) return null;
+        var pvSiteEntity = pvSiteReference.read();
         return new StreamResource("mining_tax_report.pdf", () -> {
             LocalDate from = datePickerFrom.getValue() != null ? datePickerFrom.getValue() : pvSiteEntity.getSetupDate();
             LocalDate to = datePickerTo.getValue() != null ? datePickerTo.getValue() : LocalDate.now(userSessionContext.getZoneId());
@@ -586,6 +594,8 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
     }
 
     private StreamResource createPvPdfResource() {
+        if(pvSiteReference == null) return null;
+        var pvSiteEntity = pvSiteReference.read();
         return new StreamResource("pv_roi_report.pdf", () -> {
             LocalDate from = datePickerFrom.getValue() != null ? datePickerFrom.getValue() : pvSiteEntity.getSetupDate();
             LocalDate to = datePickerTo.getValue() != null ? datePickerTo.getValue() : LocalDate.now(userSessionContext.getZoneId());
@@ -594,6 +604,8 @@ public class PVFinanceSubPage extends VerticalLayout implements LocaleChangeObse
     }
 
     private StreamResource createSalesPdfResource() {
+        if(pvSiteReference == null) return null;
+        var pvSiteEntity = pvSiteReference.read();
         return new StreamResource("crypto_sales_fifo_report.pdf", () -> {
             return taxReportService.generateSalesPdfReport(pvSiteEntity, userSessionContext);
         });

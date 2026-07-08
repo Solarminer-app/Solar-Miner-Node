@@ -30,18 +30,15 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.theme.lumo.Lumo;
 import de.verdox.pv_miner.SpringContextHelper;
 import de.verdox.pv_miner.entity.EntityService;
+import de.verdox.pv_miner.frontend.AppMainLayout;
+import de.verdox.pv_miner.frontend.FrontendColor;
+import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
 import de.verdox.pv_miner.frontend.user.*;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.miner.MinerEntity;
-import de.verdox.pv_miner.pvsite.HistoricalPrice;
-import de.verdox.pv_miner.pvsite.PVSiteRepository;
+import de.verdox.pv_miner.pvsite.*;
 import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
-import de.verdox.pv_miner.pvsite.PVPanels;
-import de.verdox.pv_miner.pvsite.PVSiteEntity;
-import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
-import de.verdox.pv_miner.frontend.AppMainLayout;
-import de.verdox.pv_miner.frontend.FrontendColor;
 
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -53,7 +50,7 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
     private final UserSessionContext userSessionContext;
     private final PVSiteRepository pVSiteRepository;
     private final EntityService entityService;
-    private PVSiteEntity pvSiteEntity;
+    private PVSiteRef pvSiteReference;
     private PVPanels selectedPanels;
 
     private final Span totalPeakPowerSpan = new Span("0.00 kWp");
@@ -129,7 +126,8 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
 
         savePVConfigBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         savePVConfigBtn.addClickListener(e -> {
-            if (pvSiteEntity != null) {
+            if (pvSiteReference != null) {
+                var pvSiteEntity = pvSiteReference.read();
                 CustomCurrency userCurrency = userSessionContext.getCurrency();
                 pvSiteEntity.setPvCost(new Money(pvCostField.getValue(), userCurrency));
                 pvSiteEntity.setSetupDate(setupDatePicker.getValue());
@@ -286,7 +284,8 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
             Button deleteBtn = new Button(VaadinIcon.TRASH.create());
             deleteBtn.addThemeVariants(ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_TERTIARY);
             deleteBtn.addClickListener(e -> {
-                if (pvSiteEntity != null) {
+                if (pvSiteReference != null) {
+                    var pvSiteEntity = pvSiteReference.read();
                     if (isFeedIn) pvSiteEntity.getFeedInTariffHistory().remove(hp);
                     else pvSiteEntity.getElectricityPriceHistory().remove(hp);
 
@@ -300,7 +299,9 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
     }
 
     private void handleAddPrice(boolean isFeedIn, DatePicker datePicker, NumberField priceField, Grid<HistoricalPrice> grid) {
-        if (pvSiteEntity == null || datePicker.getValue() == null || priceField.getValue() == null) return;
+        if (pvSiteReference == null || datePicker.getValue() == null || priceField.getValue() == null) return;
+
+        var pvSiteEntity = pvSiteReference.read();
 
         Money price = new Money(priceField.getValue(), userSessionContext.getCurrency());
         HistoricalPrice hp = new HistoricalPrice(datePicker.getValue(), price);
@@ -349,7 +350,7 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
                 (miner, value) -> {
                     CustomCurrency userCurrency = userSessionContext.getCurrency();
                     miner.setMinerCost(new Money(value, userCurrency));
-                    entityService.save(miner, pvSiteEntity);
+                    entityService.save(miner, pvSiteReference.read());
                 }
         );
 
@@ -371,7 +372,7 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
 
         Button saveButton = new Button(VaadinIcon.CHECK.create(), e -> {
             MinerEntity<?> editedMiner = editor.getItem();
-            SpringContextHelper.getBean(EntityService.class).save(editedMiner, pvSiteEntity);
+            SpringContextHelper.getBean(EntityService.class).save(editedMiner, pvSiteReference.read());
             editor.save();
             Notification.show(getTranslation("finance.notification.miner_updated"));
         });
@@ -405,7 +406,7 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
 
         leafletMap.setInitialView(initLat, initLng, initZoom, hasLocation);
 
-        Double[] selectedCoords = new Double[] { hasLocation ? currentLat : null, hasLocation ? currentLng : null };
+        Double[] selectedCoords = new Double[]{hasLocation ? currentLat : null, hasLocation ? currentLng : null};
 
         leafletMap.setOnMapClickListener((lat, lng) -> {
             selectedCoords[0] = lat;
@@ -497,7 +498,7 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
     }
 
     protected void connectPVSiteEntity(PVSiteEntity pvSiteEntity) {
-        this.pvSiteEntity = pvSiteEntity;
+        this.pvSiteReference = entityService.pvSiteRef(pvSiteEntity.getId());
         refreshGroupSelector();
 
         if (pvSiteEntity.getPvPanels() != null && !pvSiteEntity.getPvPanels().isEmpty()) {
@@ -528,7 +529,8 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
     }
 
     private void refreshGroupSelector() {
-        if (pvSiteEntity == null) return;
+        if (pvSiteReference == null) return;
+        var pvSiteEntity = pvSiteReference.read();
         List<PVPanels> panels = new ArrayList<>(pvSiteEntity.getPvPanels());
         groupSelector.setItems(panels);
     }
@@ -544,7 +546,8 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
     }
 
     private void createNewPanelGroup() {
-        if (pvSiteEntity == null) return;
+        if (pvSiteReference == null) return;
+        var pvSiteEntity = pvSiteReference.read();
         PVPanels newGroup = new PVPanels();
         newGroup.setGroupName(getTranslation("pv.details.group.new_default_name"));
         newGroup.setParentEntity(pvSiteEntity);
@@ -555,7 +558,9 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
     }
 
     private void refreshGlobalKpis() {
-        if (pvSiteEntity == null || pvSiteEntity.getPvPanels() == null) return;
+        if (pvSiteReference == null) return;
+        var pvSiteEntity = pvSiteReference.read();
+        if (pvSiteEntity.getPvPanels() == null) return;
 
         double totalKwp = pvSiteEntity.getKwp();
         int totalPanels = pvSiteEntity.getPvPanels().stream().mapToInt(PVPanels::getAmountOfPanels).sum();
@@ -580,12 +585,14 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
     }
 
     private void deletePanelConfiguration() {
-        if (selectedPanels != null && pvSiteEntity != null) {
+        if (selectedPanels != null && pvSiteReference != null) {
             Dialog confirmDialog = new Dialog();
             confirmDialog.setHeaderTitle(getTranslation("pv.details.dialog.delete_title", "Gruppe löschen"));
             confirmDialog.add(new Span(getTranslation("pv.details.dialog.delete_text", "Möchtest du diese PV-Gruppe wirklich löschen?")));
 
             Button cancelBtn = new Button(getTranslation("btn.cancel", "Abbrechen"), e -> confirmDialog.close());
+
+            var pvSiteEntity = pvSiteReference.read();
 
             Button confirmBtn = new Button(getTranslation("btn.delete", "Löschen"), e -> {
                 pvSiteEntity.getPvPanels().remove(selectedPanels);
@@ -612,9 +619,9 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
     }
 
     private void savePanelConfiguration() {
-        if (selectedPanels != null && pvSiteEntity != null) {
+        if (selectedPanels != null && pvSiteReference != null) {
             if (panelBinder.writeBeanIfValid(selectedPanels)) {
-                SpringContextHelper.getBean(EntityService.class).save(pvSiteEntity, selectedPanels);
+                SpringContextHelper.getBean(EntityService.class).save(pvSiteReference.read(), selectedPanels);
                 refreshGroupSelector();
                 groupSelector.setValue(selectedPanels);
                 refreshGlobalKpis();
@@ -662,6 +669,7 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
     @Override
     public void onCurrencyChange(CurrencyChangeEvent event) {
         updateLabelsAndTexts();
+        var pvSiteEntity = pvSiteReference.read();
         if (pvSiteEntity != null && pvSiteEntity.getPvCost() != null) {
             GlobalConstantsService globalConstantsService = SpringContextHelper.getBean(GlobalConstantsService.class);
             Money convertedPvCost = globalConstantsService.convert(pvSiteEntity.getPvCost(), userSessionContext.getCurrency());

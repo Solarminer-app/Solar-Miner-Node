@@ -49,7 +49,6 @@ public class MinerClusterConfigView extends VerticalLayout implements BeforeEnte
     private final MinerControllerConfigStorage configStorage;
     private final PVSiteRepository pvSiteRepository;
 
-    private PVSiteEntity pvSiteEntity;
     private String configId;
     private boolean isNewConfig;
 
@@ -212,7 +211,6 @@ public class MinerClusterConfigView extends VerticalLayout implements BeforeEnte
         this.configId = event.getRouteParameters().get("configId").orElseThrow();
 
         try {
-            this.pvSiteEntity = pvSiteRepository.findById(UUID.fromString(siteParam)).orElseThrow();
             this.isNewConfig = configId.equalsIgnoreCase("new");
 
             if (isNewConfig) {

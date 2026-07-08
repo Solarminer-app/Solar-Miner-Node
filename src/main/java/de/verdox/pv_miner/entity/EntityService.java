@@ -47,8 +47,8 @@ public class EntityService {
         this.minerClusterService = minerClusterService;
     }
 
-    public Ref<UUID, PVSiteEntity, PVSiteRepository> pvSiteRef(UUID uuid) {
-        return new Ref<>(uuid, pvSiteRepository);
+    public PVSiteRef pvSiteRef(UUID uuid) {
+        return new PVSiteRef(uuid, pvSiteRepository);
     }
 
     public List<MinerEntity<?>> getFreshList(Collection<UUID> miners) {
@@ -62,7 +62,7 @@ public class EntityService {
                 LOGGER.info("Clusters are starting now!");
                 for (PVSiteEntity pvSiteEntity : pvSiteRepository.findAll()) {
                     var ref = pvSiteRef(pvSiteEntity.getId());
-                    minerClusterService.startClustersForSite(pvSiteEntity);
+                    minerClusterService.startClustersForSite(ref);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -163,7 +163,7 @@ public class EntityService {
     }
 
     public void delete(MinerEntity<?> miner) {
-        minerClusterService.logoutFromCluster(miner.getParentEntity(), miner);
+        minerClusterService.logoutFromCluster(miner.getParentEntity().getId(), miner);
         miner.getParentEntity().getMiners().remove(miner);
         pvSiteRepository.save(miner.getParentEntity());
         miner.setParentEntity(null);

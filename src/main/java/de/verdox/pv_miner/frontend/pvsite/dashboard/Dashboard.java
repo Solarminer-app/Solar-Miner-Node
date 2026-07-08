@@ -4,7 +4,9 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.charts.model.*;
+import com.vaadin.flow.component.charts.model.FlagItem;
+import com.vaadin.flow.component.charts.model.RangeSelectorButton;
+import com.vaadin.flow.component.charts.model.RangeSelectorTimespan;
 import com.vaadin.flow.component.charts.model.style.SolidColor;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.grid.Grid;
@@ -26,27 +28,28 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.theme.lumo.Lumo;
 import de.verdox.pv_miner.SpringContextHelper;
 import de.verdox.pv_miner.dashboard.DashboardFacadeService;
-import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.MinerDashboardItemDTO;
-import de.verdox.pv_miner.miningcontroller.MinerLock;
 import de.verdox.pv_miner.entity.EntityMonitoringService;
 import de.verdox.pv_miner.entity.EntityQueryService;
-import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
-import de.verdox.pv_miner.lightning.LightningWalletService;
-import de.verdox.pv_miner.miner.data.MinerStats;
-import de.verdox.pv_miner.miningcontroller.MinerClusterService;
-import de.verdox.pv_miner.pvsite.PVSiteEntity;
-import de.verdox.pv_miner.pvsite.PVSiteRepository;
-import de.verdox.pv_miner.statistic.live.EntityStatisticsService;
-import de.verdox.pv_miner.frontend.user.UserSessionContext;
-import de.verdox.pv_miner.util.FormatUtil;
-import de.verdox.pv_miner.util.currency.CustomCurrency;
-import de.verdox.pv_miner.frontend.components.translatable.TranslatableButton;
-import de.verdox.pv_miner.frontend.components.translatable.TranslatableH3;
-import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
+import de.verdox.pv_miner.entity.EntityService;
 import de.verdox.pv_miner.frontend.AppMainLayout;
 import de.verdox.pv_miner.frontend.FrontendColor;
 import de.verdox.pv_miner.frontend.LightningWalletView;
 import de.verdox.pv_miner.frontend.components.InfluxChart;
+import de.verdox.pv_miner.frontend.components.translatable.TranslatableButton;
+import de.verdox.pv_miner.frontend.components.translatable.TranslatableH3;
+import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
+import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.MinerDashboardItemDTO;
+import de.verdox.pv_miner.frontend.user.UserSessionContext;
+import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
+import de.verdox.pv_miner.lightning.LightningWalletService;
+import de.verdox.pv_miner.miner.data.MinerStats;
+import de.verdox.pv_miner.miningcontroller.MinerClusterService;
+import de.verdox.pv_miner.miningcontroller.MinerLock;
+import de.verdox.pv_miner.pvsite.PVSiteRef;
+import de.verdox.pv_miner.pvsite.PVSiteRepository;
+import de.verdox.pv_miner.statistic.live.EntityStatisticsService;
+import de.verdox.pv_miner.util.FormatUtil;
+import de.verdox.pv_miner.util.currency.CustomCurrency;
 import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.Disposable;
@@ -72,9 +75,10 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
     private final DashboardFacadeService dashboardFacadeService;
     private final DashboardKpiHeader dashboardKpiHeader;
     private final DailyStatisticsWidget dailyStatisticsWidget = new DailyStatisticsWidget();
+    private final EntityService entityService;
 
     private Disposable liveDataSubscription;
-    private PVSiteEntity pvSiteEntity;
+    private PVSiteRef pvSiteReference;
 
     private final KpiCard batterySocCard = new KpiCard("dashboard.kpi.battery_soc", FrontendColor.TEXT_VALUE_YELLOW, VaadinIcon.INPUT);
     private final KpiCard batteryPowerCard = new KpiCard("dashboard.kpi.battery_power", FrontendColor.TEXT_VALUE_WHITE, VaadinIcon.GRID);
@@ -90,7 +94,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
     private VerticalLayout clusterListLayout;
 
     @Autowired
-    public Dashboard(PVSiteRepository pVSiteRepository, LightningWalletService walletService, UserSessionContext sessionContext, MinerClusterService clusterService, EntityQueryService entityQueryService, GlobalConstantsService globalConstantsService, DashboardFacadeService dashboardFacadeService) {
+    public Dashboard(PVSiteRepository pVSiteRepository, LightningWalletService walletService, UserSessionContext sessionContext, MinerClusterService clusterService, EntityQueryService entityQueryService, GlobalConstantsService globalConstantsService, DashboardFacadeService dashboardFacadeService, EntityService entityService) {
         this.pVSiteRepository = pVSiteRepository;
         this.walletService = walletService;
         this.sessionContext = sessionContext;
@@ -98,7 +102,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         this.entityQueryService = entityQueryService;
         this.globalConstantsService = globalConstantsService;
         this.dashboardFacadeService = dashboardFacadeService;
-        this.controllerDashboardChart =  new ControllerDashboardChart(clusterService);
+        this.controllerDashboardChart = new ControllerDashboardChart(clusterService);
 
         liveChart.applyDarkTheme();
         liveChart.getRangeSelector().addButton(new RangeSelectorButton(RangeSelectorTimespan.MINUTE, 60, "1h"));
@@ -129,7 +133,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
         contentSplit.add(leftLayout, rightLayout);
         add(header, dashboardKpiHeader, contentSplit);
-
+        this.entityService = entityService;
     }
 
     @Override
@@ -148,12 +152,14 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
         UI ui = UI.getCurrent();
 
-        var pvPowerFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_POWER_DAY_STATISTIC, pvSiteEntity, startTodayMilli, endTodayMilli, false));
-        var importFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_IMPORT, pvSiteEntity, startTodayMilli, endTodayMilli, false));
-        var exportFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_GRID_EXPORT, pvSiteEntity, startTodayMilli, endTodayMilli, false));
-        var consumptionFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.CONSUMPTION, pvSiteEntity, startTodayMilli, endTodayMilli, false));
-        var minerConsumptionFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.MINER_CONSUMPTION, pvSiteEntity, startTodayMilli, endTodayMilli, false));
-        var historyFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_POWER_PER_HOUR_STATISTIC, pvSiteEntity, startTodayMilli, endTodayMilli, false));
+        var pvSite = pvSiteReference.read();
+
+        var pvPowerFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_POWER_DAY_STATISTIC, pvSite, startTodayMilli, endTodayMilli, false));
+        var importFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_IMPORT, pvSite, startTodayMilli, endTodayMilli, false));
+        var exportFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_GRID_EXPORT, pvSite, startTodayMilli, endTodayMilli, false));
+        var consumptionFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.CONSUMPTION, pvSite, startTodayMilli, endTodayMilli, false));
+        var minerConsumptionFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.MINER_CONSUMPTION, pvSite, startTodayMilli, endTodayMilli, false));
+        var historyFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_POWER_PER_HOUR_STATISTIC, pvSite, startTodayMilli, endTodayMilli, false));
 
         CompletableFuture.allOf(pvPowerFuture, importFuture, exportFuture, consumptionFuture, minerConsumptionFuture)
                 .thenAccept(v -> {
@@ -183,12 +189,12 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
             liveDataSubscription.dispose();
         }
 
-        dashboardFacadeService.subscribeToLiveUpdates(pvSiteEntity, sessionContext).subscribe(liveDashboardUpdateDto -> {
+        dashboardFacadeService.subscribeToLiveUpdates(pvSite, sessionContext).subscribe(liveDashboardUpdateDto -> {
             dashboardKpiHeader.update(ui, liveDashboardUpdateDto.kpi());
             dailyStatisticsWidget.update(ui, liveDashboardUpdateDto.financials());
         });
 
-        liveDataSubscription = monitoringService.hookIntoLiveData(pvSiteEntity)
+        liveDataSubscription = monitoringService.hookIntoLiveData(pvSite)
                 .subscribe(pvSiteData -> {
                     ui.access(() -> {
                         batterySocCard.setValue(pvSiteData.getBatterySoC() + " %");
@@ -212,7 +218,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         refreshClusterList();
         updateMinerGridLive();
         updatePoolGridLive();
-        controllerDashboardChart.update(UI.getCurrent(), pvSiteEntity);
+        controllerDashboardChart.update(UI.getCurrent(), pvSiteReference.read());
     }
 
     private static @NonNull FlagItem createFlagForSnapshot(MinerClusterService.ClusterInstance.ClusterStateSnapshot snapshot, long time) {
@@ -241,12 +247,13 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
     }
 
     private void updateMinerGridLive() {
-        if (pvSiteEntity == null) return;
+        if (pvSiteReference == null) return;
+        var pvSite = pvSiteReference.read();
 
-        var clusterInstance = clusterService.getCluster(pvSiteEntity, "Standard");
+        var clusterInstance = clusterService.getCluster(pvSiteReference.getId(), "Standard");
         Map<UUID, MinerLock> locks = clusterInstance != null ? clusterInstance.getActiveLocks() : Map.of();
 
-        List<MinerDashboardItemDTO> minerItems = pvSiteEntity.getMiners().stream().map(miner -> {
+        List<MinerDashboardItemDTO> minerItems = pvSite.getMiners().stream().map(miner -> {
             MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
             MinerLock lock = locks.get(miner.getId());
 
@@ -279,9 +286,10 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
     }
 
     private void updatePoolGridLive() {
-        if (pvSiteEntity == null) return;
+        if (pvSiteReference == null) return;
+        var pvSite = pvSiteReference.read();
 
-        List<PoolItem> livePools = pvSiteEntity.getConnectedMiningPools().stream().map(pool -> {
+        List<PoolItem> livePools = pvSite.getConnectedMiningPools().stream().map(pool -> {
             String url = pool.getStratumV1Url() != null ? pool.getStratumV1Url() : getTranslation("dashboard.grid.pool_unknown");
             return new PoolItem(url, "Active", getTranslation("dashboard.grid.pool_live_data_soon"));
         }).toList();
@@ -364,6 +372,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
     private void refreshClusterList() {
         if (clusterListLayout == null) return;
         clusterListLayout.removeAll();
+        var pvSite = pvSiteReference.read();
 
         List<String> clusters = clusterService.getAvailableClusterNames();
         if (clusters.isEmpty()) {
@@ -374,7 +383,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         }
 
         for (String clusterName : clusters) {
-            MinerClusterService.ClusterInstance instance = clusterService.getCluster(pvSiteEntity, clusterName);
+            MinerClusterService.ClusterInstance instance = clusterService.getCluster(pvSiteReference.getId(), clusterName);
             boolean isRunning = instance != null && instance.isRunning();
 
             HorizontalLayout row = new HorizontalLayout();
@@ -495,7 +504,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         String parameter = event.getRouteParameters().get("siteId").orElseThrow();
         try {
             UUID siteUuid = UUID.fromString(parameter);
-            this.pvSiteEntity = pVSiteRepository.findById(siteUuid).orElseThrow();
+            this.pvSiteReference = entityService.pvSiteRef(siteUuid);
             setup();
         } catch (IllegalArgumentException e) {
             e.printStackTrace();

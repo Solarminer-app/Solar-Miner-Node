@@ -49,6 +49,7 @@ import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.miningcontroller.MinerClusterService;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
+import de.verdox.pv_miner.pvsite.PVSiteRef;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
 import de.verdox.pv_miner.util.FormatUtil;
 import de.verdox.pv_miner.util.Money;
@@ -75,7 +76,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
     private final EntityControllerService entityControllerService;
     private final UserSessionContext sessionContext;
 
-    private PVSiteEntity pvSiteEntity;
+    private PVSiteRef pvSiteReference;
     private String selectedClusterName;
 
     private Disposable liveDataSubscription;
@@ -193,16 +194,16 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         TranslatableButton btnNewCluster = new TranslatableButton("cluster.btn.new_cluster", VaadinIcon.PLUS_CIRCLE.create());
         btnNewCluster.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         btnNewCluster.addClickListener(e -> {
-            if (pvSiteEntity != null) {
-                UI.getCurrent().getPage().open("site/" + pvSiteEntity.getId() + "/cluster-config/new", "_blank");
+            if (pvSiteReference != null) {
+                UI.getCurrent().getPage().open("site/" + pvSiteReference.getId() + "/cluster-config/new", "_blank");
             }
         });
 
         TranslatableButton btnNewPool = new TranslatableButton("cluster.btn.new_pool", VaadinIcon.LINK.create());
         btnNewPool.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
         btnNewPool.addClickListener(e -> {
-            if (pvSiteEntity != null) {
-                UI.getCurrent().getPage().open("site/" + pvSiteEntity.getId() + "/add-pool", "_blank");
+            if (pvSiteReference != null) {
+                UI.getCurrent().getPage().open("site/" + pvSiteReference.getId() + "/add-pool", "_blank");
             }
         });
 
@@ -250,8 +251,8 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
 
         btnConfigCluster.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         btnConfigCluster.addClickListener(e -> {
-            if (pvSiteEntity != null && selectedClusterName != null) {
-                UI.getCurrent().getPage().open("site/" + pvSiteEntity.getId() + "/cluster-config/" + selectedClusterName, "_blank");
+            if (pvSiteReference != null && selectedClusterName != null) {
+                UI.getCurrent().getPage().open("site/" + pvSiteReference.getId() + "/cluster-config/" + selectedClusterName, "_blank");
             } else {
                 Notification.show(getTranslation("cluster.notification.select_cluster_first"))
                         .addThemeVariants(NotificationVariant.LUMO_WARNING);
@@ -285,7 +286,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
             String idsParam = selectedMiners.stream()
                     .map(miner -> miner.getId().toString())
                     .collect(java.util.stream.Collectors.joining(","));
-            UI.getCurrent().getPage().open("miner-details/" + pvSiteEntity.getId() + "?miners=" + idsParam, "_blank");
+            UI.getCurrent().getPage().open("miner-details/" + pvSiteReference.getId() + "?miners=" + idsParam, "_blank");
         });
 
         btnChangePool.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
@@ -328,7 +329,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
     private void handleTogglePower(Set<MinerEntity<?>> selected) {
         if (selected.isEmpty()) return;
         try {
-            PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteEntity.getId()).orElseThrow();
+            PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteReference.getId()).orElseThrow();
             for (MinerEntity<?> staleMiner : selected) {
                 MinerEntity<?> freshMiner = freshSite.getMiners().stream()
                         .filter(m -> m.getId().equals(staleMiner.getId()))
@@ -533,7 +534,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         Button cancelBtn = new Button(getTranslation("btn.cancel"), e -> dialog.close());
         Button saveBtn = new Button(getTranslation("btn.save"), e -> {
             try {
-                PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteEntity.getId()).orElseThrow();
+                PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteReference.getId()).orElseThrow();
 
                 for (MinerEntity<?> staleMiner : selected) {
                     MinerEntity<?> freshMiner = freshSite.getMiners().stream()
@@ -592,7 +593,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
             }
 
             try {
-                PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteEntity.getId()).orElseThrow();
+                PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteReference.getId()).orElseThrow();
 
                 selected.forEach(staleMiner -> {
                     MinerEntity<?> freshMiner = freshSite.getMiners().stream()
@@ -625,12 +626,13 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
     private void openChangePoolDialog() {
         Set<MinerEntity<?>> selected = minerGrid.getSelectedItems();
         if (selected.isEmpty()) return;
+        var pvSite = pvSiteReference.read();
 
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle(getTranslation("cluster.dialog.change_pool.title", selected.size()));
 
         ComboBox<MiningPoolEntity<?>> poolCombo = new ComboBox<>(getTranslation("cluster.dialog.change_pool.select"));
-        poolCombo.setItems(pvSiteEntity.getConnectedMiningPools());
+        poolCombo.setItems(pvSite.getConnectedMiningPools());
         poolCombo.setItemLabelGenerator(p -> p.getUrlIdentifier() != null ? p.getUrlIdentifier() : "Unknown Pool");
         poolCombo.setWidthFull();
 
@@ -656,7 +658,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
 
             CompletableFuture.runAsync(() -> {
                 try {
-                    PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteEntity.getId()).orElseThrow();
+                    PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteReference.getId()).orElseThrow();
                     int successCount = 0;
 
                     for (MinerEntity<?> staleMiner : selected) {
@@ -729,16 +731,17 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         Button cancelBtn = new Button(getTranslation("btn.cancel"), e -> dialog.close());
         Button confirmBtn = new Button(getTranslation("btn.delete_permanent"), e -> {
             try {
+                var pvSite = pvSiteReference.read();
                 for (MinerEntity<?> staleMiner : selected) {
-                    PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteEntity.getId()).orElseThrow();
+                    PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteReference.getId()).orElseThrow();
                     MinerEntity<?> freshMiner = freshSite.getMiners().stream()
                             .filter(m -> m.getId().equals(staleMiner.getId()))
                             .findFirst()
                             .orElse(null);
 
                     if (freshMiner != null) {
-                        pvSiteEntity.getMiners().remove(freshMiner);
-                        clusterService.logoutFromCluster(pvSiteEntity, freshMiner);
+                        pvSite.getMiners().remove(freshMiner);
+                        clusterService.logoutFromCluster(pvSiteReference.getId(), freshMiner);
                         entityService.delete(freshMiner);
                     }
                 }
@@ -941,7 +944,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         Button cancelBtn = new Button(getTranslation("btn.cancel"), e -> dialog.close());
         Button saveBtn = new Button(getTranslation("btn.save"), e -> {
             try {
-                PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteEntity.getId()).orElseThrow();
+                PVSiteEntity freshSite = pvSiteRepository.findById(pvSiteReference.getId()).orElseThrow();
 
                 for (MinerEntity<?> staleMiner : selected) {
                     MinerEntity<?> freshMiner = freshSite.getMiners().stream()
@@ -980,7 +983,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
     }
 
     private void openAddMinerDialog() {
-        if (selectedClusterName == null || pvSiteEntity == null) return;
+        if (selectedClusterName == null || pvSiteReference == null) return;
 
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle(getTranslation("cluster.dialog.add_miner.title", selectedClusterName));
@@ -1005,7 +1008,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         Button btnConnectNewMiners = new Button(getTranslation("cluster.dialog.add_miner.connect_new"), VaadinIcon.PLUS_CIRCLE.create());
         btnConnectNewMiners.addThemeVariants(ButtonVariant.LUMO_SUCCESS, ButtonVariant.LUMO_PRIMARY);
         btnConnectNewMiners.addClickListener(e -> {
-            UI.getCurrent().getPage().open("site/" + pvSiteEntity.getId() + "/add-miner", "_blank");
+            UI.getCurrent().getPage().open("site/" + pvSiteReference.getId() + "/add-miner", "_blank");
         });
 
         searchAndAddRow.add(searchField, btnConnectNewMiners);
@@ -1015,7 +1018,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         setupMinerGridColumns(unassignedGrid);
         styleGrid(unassignedGrid);
 
-        Set<MinerEntity<?>> unassignedMiners = clusterService.getUnassignedMiners(pvSiteEntity);
+        Set<MinerEntity<?>> unassignedMiners = clusterService.getUnassignedMiners(pvSiteReference.read());
         ListDataProvider<MinerEntity<?>> dataProvider = new ListDataProvider<>(new ArrayList<>(unassignedMiners));
         unassignedGrid.setDataProvider(dataProvider);
 
@@ -1045,7 +1048,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
             }
 
             try {
-                MinerClusterService.ClusterInstance cluster = clusterService.getCluster(pvSiteEntity, selectedClusterName);
+                MinerClusterService.ClusterInstance cluster = clusterService.getCluster(pvSiteReference.getId(), selectedClusterName);
                 cluster.assignMiners(selected);
 
                 Notification.show(getTranslation("cluster.notification.miners_added", selected.size()))
@@ -1068,9 +1071,9 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
     }
 
     private void handleStartCluster() {
-        if (selectedClusterName == null || pvSiteEntity == null) return;
+        if (selectedClusterName == null || pvSiteReference == null) return;
 
-        MinerClusterService.ClusterInstance cluster = clusterService.getCluster(pvSiteEntity, selectedClusterName);
+        MinerClusterService.ClusterInstance cluster = clusterService.getCluster(pvSiteReference.getId(), selectedClusterName);
         if (cluster != null && cluster.getAssignedMiners().isEmpty()) {
             Notification.show(getTranslation("cluster.notification.start_error_empty"))
                     .addThemeVariants(NotificationVariant.LUMO_ERROR);
@@ -1078,7 +1081,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         }
 
         try {
-            clusterService.startCluster(selectedClusterName, pvSiteEntity);
+            clusterService.startCluster(selectedClusterName, pvSiteReference);
             Notification.show(getTranslation("cluster.notification.started", selectedClusterName)).addThemeVariants(NotificationVariant.LUMO_SUCCESS);
             refreshData();
         } catch (Exception ex) {
@@ -1089,7 +1092,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
     private void handleStopCluster() {
         if (selectedClusterName == null) return;
         try {
-            clusterService.stopCluster(pvSiteEntity, selectedClusterName);
+            clusterService.stopCluster(pvSiteReference.getId(), selectedClusterName);
             Notification.show(getTranslation("cluster.notification.stopped", selectedClusterName)).addThemeVariants(NotificationVariant.LUMO_SUCCESS);
             refreshData();
         } catch (Exception ex) {
@@ -1110,7 +1113,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         if (selected.isEmpty() || selectedClusterName == null) return;
 
         try {
-            MinerClusterService.ClusterInstance cluster = clusterService.getCluster(pvSiteEntity, selectedClusterName);
+            MinerClusterService.ClusterInstance cluster = clusterService.getCluster(pvSiteReference.getId(), selectedClusterName);
             cluster.removeMiners(selected);
             Notification.show(getTranslation("cluster.notification.removed", selected.size())).addThemeVariants(NotificationVariant.LUMO_SUCCESS);
 
@@ -1125,7 +1128,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         btnChangePool.setEnabled(enabled);
         btnTogglePower.setEnabled(enabled);
         btnEditPowerTargets.setEnabled(enabled);
-        btnEditPowerLocks.setEnabled(enabled); // Aktiviert/deaktiviert den neuen Button
+        btnEditPowerLocks.setEnabled(enabled);
         btnEditMinerCost.setEnabled(enabled);
         btnRemoveMiner.setEnabled(enabled);
         btnDeleteSystemwide.setEnabled(enabled);
@@ -1136,7 +1139,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         String parameter = event.getRouteParameters().get("siteId").orElseThrow();
         try {
             UUID siteUuid = UUID.fromString(parameter);
-            this.pvSiteEntity = pvSiteRepository.findById(siteUuid).orElseThrow();
+            this.pvSiteReference = entityService.pvSiteRef(siteUuid);
             refreshData();
             setupLiveUpdates();
         } catch (IllegalArgumentException e) {
@@ -1150,7 +1153,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         }
         EntityMonitoringService monitoringService = SpringContextHelper.getBean(EntityMonitoringService.class);
 
-        liveDataSubscription = monitoringService.hookIntoLiveData(pvSiteEntity).subscribe(pvSiteData -> {
+        liveDataSubscription = monitoringService.hookIntoLiveData(pvSiteReference.read()).subscribe(pvSiteData -> {
             FrontendService.scheduleUpdate(getUI(), activeUi -> {
                 refreshData();
             });
@@ -1174,7 +1177,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         List<String> clusterNames = clusterService.getAvailableClusterNames();
 
         List<ClusterItem> items = clusterNames.stream().map(name -> {
-            var instance = clusterService.getCluster(pvSiteEntity, name);
+            var instance = clusterService.getCluster(pvSiteReference.getId(), name);
             int count = instance != null ? instance.getAssignedMiners().size() : 0;
             boolean isRunning = instance != null && instance.isRunning();
             return new ClusterItem(name, count, isRunning ? "Running" : "Stopped", isRunning);
@@ -1187,7 +1190,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
 
         double totalHashrate = 0.0;
         for (String name : clusterNames) {
-            var instance = clusterService.getCluster(pvSiteEntity, name);
+            var instance = clusterService.getCluster(pvSiteReference.getId(), name);
             if (instance != null) {
                 for (MinerEntity<?> miner : instance.getAssignedMiners()) {
                     MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
@@ -1231,7 +1234,7 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
     }
 
     private void loadMinersForCluster(String clusterName) {
-        MinerClusterService.ClusterInstance instance = clusterService.getCluster(pvSiteEntity, clusterName);
+        MinerClusterService.ClusterInstance instance = clusterService.getCluster(pvSiteReference.getId(), clusterName);
         if (instance != null) {
             List<MinerEntity<?>> sortedMiners = instance.getAssignedMiners().stream()
                     .sorted(java.util.Comparator.comparing(
@@ -1244,17 +1247,6 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
         } else {
             minerGrid.setItems(new ArrayList<>());
         }
-    }
-
-    private VerticalLayout createCardLayout() {
-        VerticalLayout layout = new VerticalLayout();
-        layout.setSpacing(true);
-        layout.setPadding(true);
-        layout.getStyle()
-                .set("background-color", FrontendColor.CARD_BACKGROUND_COLOR)
-                .set("border", "1px solid #222226")
-                .set("border-radius", "8px");
-        return layout;
     }
 
     private void styleGrid(Grid<?> grid) {
