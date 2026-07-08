@@ -177,11 +177,11 @@ public class DiscoveryService {
 
                     try (TCPModbusClient modbusClient = new TCPModbusClient(ip, port, 1)) {
                         if (config.getFingerprint() != null) {
-                            if (modbusClient.verifyFingerprint(config.getFingerprint())) return name;
+                            if (modbusClient.verifyFingerprint(0, config.getFingerprint())) return name;
                         } else if (!config.getSections().isEmpty()) {
                             var firstSection = config.getSections().values().iterator().next();
                             if (!firstSection.getEntries().isEmpty()) {
-                                modbusClient.read(firstSection.getEntries().values().iterator().next());
+                                modbusClient.read(0, firstSection.getEntries().values().iterator().next());
                                 return name;
                             }
                         }
@@ -200,13 +200,13 @@ public class DiscoveryService {
             var config = configOpt.get();
             try (TCPModbusClient modbusClient = new TCPModbusClient(ip, 502, 1)) {
                 if (config.getFingerprint() != null) {
-                    if (modbusClient.verifyFingerprint(config.getFingerprint())) return profile.name();
+                    if (modbusClient.verifyFingerprint(0, config.getFingerprint())) return profile.name();
                     continue;
                 }
                 if (!config.getSections().isEmpty()) {
                     var firstSection = config.getSections().values().iterator().next();
                     if (!firstSection.getEntries().isEmpty()) {
-                        modbusClient.read(firstSection.getEntries().values().iterator().next());
+                        modbusClient.read(0, firstSection.getEntries().values().iterator().next());
                         return profile.name();
                     }
                 }

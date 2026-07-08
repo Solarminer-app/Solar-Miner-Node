@@ -24,6 +24,7 @@ import com.vaadin.flow.i18n.LocaleChangeObserver;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
+import de.verdox.pv_miner.frontend.user.UserSessionContext;
 import de.verdox.pv_miner.util.FormatUtil;
 import de.verdox.pv_miner.frontend.FrontendService;
 import de.verdox.pv_miner_extensions.device.rest.RestConfigStorage;
@@ -42,26 +43,31 @@ import java.util.*;
 
 @Route(value = "config/pv/rest")
 @PageTitle("Solarminer.app - Rest-API Profile Editor")
-public class RestPVConfigView extends VerticalLayout implements LocaleChangeObserver {
+public class RestPVConfigView extends VerticalLayout {
     private final RestConfigStorage storage;
     private final ConfigFetcherService configFetcherService;
+    private final UserSessionContext userSessionContext;
     private final ListBox<String> configSelection = new ListBox<>();
     private final VerticalLayout editorLayout = new VerticalLayout();
 
-    private final H2 sidebarTitle = new H2("REST-PV Profile");
+    private final H2 sidebarTitle = new H2();
     private final TextField newConfigName = new TextField();
+    private final H4 localLabel = new H4();
+    private final Button addConfigBtn = new Button(VaadinIcon.PLUS.create());
 
     private final VerticalLayout sectionsContainer = new VerticalLayout();
     private final Map<String, SectionEditorBlock> activeSectionEditors = new HashMap<>();
-    private final TestSection testSection = new TestSection();
+    private final TestSection testSection;
     private String currentConfigName;
 
-    public RestPVConfigView(RestConfigStorage storage, ConfigFetcherService configFetcherService) {
+    public RestPVConfigView(RestConfigStorage storage, ConfigFetcherService configFetcherService, UserSessionContext userSessionContext) {
         this.storage = storage;
         this.configFetcherService = configFetcherService;
+        this.userSessionContext = userSessionContext;
+        this.testSection = new TestSection(userSessionContext);
+
         setSizeFull();
         setPadding(false);
-        newConfigName.setPlaceholder("z.B. HomeAssistant...");
 
         SplitLayout splitLayout = new SplitLayout();
         splitLayout.setSizeFull();
@@ -74,7 +80,8 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
         addConfigLayout.setWidthFull();
         newConfigName.setWidthFull();
         newConfigName.addThemeName("small");
-        Button addConfigBtn = new Button(VaadinIcon.PLUS.create(), e -> {
+
+        addConfigBtn.addClickListener(e -> {
             if (!newConfigName.isEmpty()) {
                 createNewProfile(newConfigName.getValue());
                 newConfigName.clear();
@@ -84,7 +91,6 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
         addConfigLayout.add(newConfigName, addConfigBtn);
         sidebar.add(addConfigLayout);
 
-        H4 localLabel = new H4("Lokale Profile");
         localLabel.getStyle().set("margin-bottom", "0");
         sidebar.add(localLabel);
 
@@ -100,6 +106,13 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
         splitLayout.addToSecondary(editorLayout);
 
         add(splitLayout);
+        updateTexts();
+    }
+
+    private void updateTexts() {
+        sidebarTitle.setText(getTranslation("config.rest.title", "REST-PV Profile"));
+        newConfigName.setPlaceholder(getTranslation("config.placeholder.new_profile_rest", "z.B. HomeAssistant..."));
+        localLabel.setText(getTranslation("config.sidebar.local_profiles", "Lokale Profile"));
     }
 
     private void refreshConfigList() {
@@ -111,7 +124,7 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
                 configSelection.setValue(selected);
             }
         } catch (IOException e) {
-            Notification.show("Fehler beim Laden: " + e.getMessage());
+            Notification.show(getTranslation("config.error.load", "Fehler beim Laden: ") + e.getMessage());
         }
     }
 
@@ -122,7 +135,7 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
             refreshConfigList();
             configSelection.setValue(name);
         } catch (IOException e) {
-            Notification.show("Fehler beim Erstellen.");
+            Notification.show(getTranslation("config.error.create", "Fehler beim Erstellen."));
         }
     }
 
@@ -144,15 +157,15 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
             header.setWidthFull();
             header.setAlignItems(Alignment.CENTER);
             header.setJustifyContentMode(JustifyContentMode.BETWEEN);
-            H2 title = new H2("Profil: " + configName);
+            H2 title = new H2(getTranslation("config.profile.title", "Profil: ") + configName);
             title.getStyle().set("margin", "0");
 
-            Button saveBtn = new Button("Profil Speichern", VaadinIcon.CHECK.create(), e -> saveCurrentProfile());
+            Button saveBtn = new Button(getTranslation("btn.save_profile", "Profil Speichern"), VaadinIcon.CHECK.create(), e -> saveCurrentProfile());
             saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
             header.add(title, saveBtn);
             editorLayout.add(header);
 
-            Details testDetails = new Details("Live-Test Verbindung", testSection);
+            Details testDetails = new Details(getTranslation("config.section.live_test", "Live-Test Verbindung"), testSection);
             testDetails.setWidthFull();
             editorLayout.add(testDetails);
 
@@ -162,22 +175,18 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
             addSectionLayout.getStyle().set("padding-top", "20px");
             addSectionLayout.getStyle().set("border-top", "1px solid var(--lumo-contrast-10pct)");
 
-            H4 sectionTitle = new H4("Fähigkeiten (Sektionen):");
+            H4 sectionTitle = new H4(getTranslation("config.section.capabilities", "Fähigkeiten (Sektionen):"));
             sectionTitle.getStyle().set("margin", "0");
 
             ComboBox<RestConfigCreatorTemplate> templateCombo = new ComboBox<>();
             templateCombo.setItems(List.of(RestConfigCreatorTemplate.INVERTER, RestConfigCreatorTemplate.BATTERY, RestConfigCreatorTemplate.SMART_METER, RestConfigCreatorTemplate.HOME_ASSISTANT_PV));
             templateCombo.setItemLabelGenerator(RestConfigCreatorTemplate::name);
-            templateCombo.setPlaceholder("Template wählen...");
+            templateCombo.setPlaceholder(getTranslation("config.placeholder.select_template", "Template wählen..."));
 
-            Button addSectionBtn = new Button("Sektion hinzufügen", VaadinIcon.PLUS.create(), e -> {
+            Button addSectionBtn = new Button(getTranslation("btn.add_section", "Sektion hinzufügen"), VaadinIcon.PLUS.create(), e -> {
                 RestConfigCreatorTemplate selectedTemplate = templateCombo.getValue();
                 if (selectedTemplate != null) {
-                    if (activeSectionEditors.containsKey(selectedTemplate.id())) {
-                        Notification.show("Sektion existiert bereits!");
-                        return;
-                    }
-                    addSectionToView(selectedTemplate, new RestPVConfig.ConfigSection(selectedTemplate.id(), selectedTemplate.name(), new HashMap<>()));
+                    openNameDialog(selectedTemplate);
                 }
             });
             addSectionBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
@@ -189,13 +198,34 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
             if (config.getSections() != null) {
                 for (Map.Entry<String, RestPVConfig.ConfigSection> entry : config.getSections().entrySet()) {
                     RestConfigCreatorTemplate tpl = getRestTemplateById(entry.getValue().getTemplateId());
-                    if (tpl != null) addSectionToView(tpl, entry.getValue());
+                    if (tpl != null) addSectionToView(entry.getKey(), tpl, entry.getValue());
                 }
             }
 
         } catch (IOException e) {
-            Notification.show("Fehler beim Öffnen: " + e.getMessage());
+            Notification.show(getTranslation("config.error.open", "Fehler beim Öffnen: ") + e.getMessage());
         }
+    }
+
+    private void openNameDialog(RestConfigCreatorTemplate selectedTemplate) {
+        Dialog nameDialog = new Dialog();
+        nameDialog.setHeaderTitle(getTranslation("config.dialog.name_title", "Name der Sektion"));
+
+        TextField sectionName = new TextField(getTranslation("config.dialog.name_label", "Bezeichnung (z.B. Batterie 2)"));
+        sectionName.setValue(selectedTemplate.name());
+        sectionName.setWidthFull();
+
+        Button confirm = new Button(getTranslation("btn.create", "Erstellen"), ev -> {
+            String name = sectionName.getValue().isEmpty() ? selectedTemplate.name() : sectionName.getValue();
+            String newId = UUID.randomUUID().toString(); // Eindeutige ID für die Map
+            addSectionToView(newId, selectedTemplate, new RestPVConfig.ConfigSection(selectedTemplate.id(), name, new HashMap<>()));
+            nameDialog.close();
+        });
+        confirm.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+        nameDialog.add(new VerticalLayout(sectionName));
+        nameDialog.getFooter().add(new Button(getTranslation("btn.cancel", "Abbrechen"), ev -> nameDialog.close()), confirm);
+        nameDialog.open();
     }
 
     private RestConfigCreatorTemplate getRestTemplateById(String id) {
@@ -203,9 +233,9 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
                 .stream().filter(t -> t.id().equals(id)).findFirst().orElse(null);
     }
 
-    private void addSectionToView(RestConfigCreatorTemplate template, RestPVConfig.ConfigSection sectionData) {
-        SectionEditorBlock block = new SectionEditorBlock(template, sectionData);
-        activeSectionEditors.put(template.id(), block);
+    private void addSectionToView(String sectionId, RestConfigCreatorTemplate template, RestPVConfig.ConfigSection sectionData) {
+        SectionEditorBlock block = new SectionEditorBlock(sectionId, template, sectionData);
+        activeSectionEditors.put(sectionId, block); // ID als Schlüssel nutzen
         sectionsContainer.add(block);
     }
 
@@ -217,9 +247,9 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
         RestPVConfig newConfig = new RestPVConfig(finalSections);
         try {
             storage.save(currentConfigName, newConfig);
-            Notification.show("Profil erfolgreich gespeichert!", 2000, Notification.Position.TOP_END);
+            Notification.show(getTranslation("config.success.saved", "Profil erfolgreich gespeichert!"), 2000, Notification.Position.TOP_END);
         } catch (IOException e) {
-            Notification.show("Fehler beim Speichern!");
+            Notification.show(getTranslation("config.error.save", "Fehler beim Speichern!"));
         }
     }
 
@@ -236,19 +266,23 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
         }).orElse(0.0);
     }
 
-    @Override
-    public void localeChange(LocaleChangeEvent event) {
-
-    }
-
     class SectionEditorBlock extends Details {
         private final RestConfigCreatorTemplate template;
+        private final String sectionId;
+        private final TextField sectionNameField;
         @Getter
         private final List<CompactRestFieldRow> fieldRows = new ArrayList<>();
 
-        public SectionEditorBlock(RestConfigCreatorTemplate template, RestPVConfig.ConfigSection sectionData) {
+        public SectionEditorBlock(String sectionId, RestConfigCreatorTemplate template, RestPVConfig.ConfigSection sectionData) {
+            this.sectionId = sectionId;
             this.template = template;
-            setSummaryText("⚙️ Sektion: " + template.name());
+
+            this.sectionNameField = new TextField(getTranslation("config.field.section_name", "Anzeigename"));
+            this.sectionNameField.setValue(sectionData.getName() != null ? sectionData.getName() : template.name());
+
+            setSummaryText("⚙️ " + this.sectionNameField.getValue());
+            this.sectionNameField.addValueChangeListener(e -> setSummaryText("⚙️ " + e.getValue()));
+
             setWidthFull();
             getStyle().set("margin-top", "10px");
             getStyle().set("border", "1px solid var(--lumo-contrast-20pct)");
@@ -257,26 +291,30 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
             VerticalLayout contentLayout = new VerticalLayout();
             contentLayout.setPadding(true);
 
-            Button removeSectionBtn = new Button("Sektion entfernen", VaadinIcon.TRASH.create(), e -> {
+            HorizontalLayout sectionHeader = new HorizontalLayout(this.sectionNameField);
+            sectionHeader.setAlignItems(Alignment.BASELINE);
+
+            Button removeSectionBtn = new Button(getTranslation("btn.remove_section", "Sektion entfernen"), VaadinIcon.TRASH.create(), e -> {
                 disposeSubscriptions();
-                activeSectionEditors.remove(template.id());
+                activeSectionEditors.remove(this.sectionId);
                 sectionsContainer.remove(this);
             });
             removeSectionBtn.addThemeVariants(ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_SMALL);
-            contentLayout.add(removeSectionBtn);
+            sectionHeader.add(removeSectionBtn);
+            contentLayout.add(sectionHeader);
 
             HorizontalLayout tableHeader = new HorizontalLayout();
             tableHeader.setWidthFull();
             tableHeader.getStyle().set("border-bottom", "2px solid var(--lumo-contrast-20pct)");
 
-            Span hName = new Span("Feldname"); hName.setWidth("150px");
-            Span hMethod = new Span("Methode"); hMethod.setWidth("90px");
-            Span hPath = new Span("URL / Pfad"); hPath.setWidth("240px");
-            Span hJson = new Span("JSON Path"); hJson.setWidth("160px");
-            Span hScale = new Span("Faktor"); hScale.setWidth("70px");
-            Span hFormula = new Span("Formel"); hFormula.setWidth("100px");
-            Span hType = new Span("Typ"); hType.setWidth("90px");
-            Span hLive = new Span("Live-Wert"); hLive.setWidth("120px");
+            Span hName = new Span(getTranslation("config.table.field_name", "Feldname")); hName.setWidth("150px");
+            Span hMethod = new Span(getTranslation("config.table.method", "Methode")); hMethod.setWidth("90px");
+            Span hPath = new Span(getTranslation("config.table.path", "URL / Pfad")); hPath.setWidth("240px");
+            Span hJson = new Span(getTranslation("config.table.json", "JSON Path")); hJson.setWidth("160px");
+            Span hScale = new Span(getTranslation("config.table.scale", "Faktor")); hScale.setWidth("70px");
+            Span hFormula = new Span(getTranslation("config.table.formula", "Formel")); hFormula.setWidth("100px");
+            Span hType = new Span(getTranslation("config.table.type", "Typ")); hType.setWidth("90px");
+            Span hLive = new Span(getTranslation("config.table.live_value", "Live-Wert")); hLive.setWidth("120px");
 
             for (Span span : List.of(hName, hMethod, hPath, hJson, hScale, hFormula, hType, hLive)) span.getStyle().set("font-weight", "bold");
             tableHeader.add(hName, hMethod, hPath, hJson, hScale, hFormula, hType, hLive);
@@ -301,7 +339,7 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
                 var entry = row.buildEntry();
                 if (entry != null) entries.put(row.getFieldName(), entry);
             }
-            return new RestPVConfig.ConfigSection(template.id(), template.name(), entries);
+            return new RestPVConfig.ConfigSection(template.id(), this.sectionNameField.getValue(), entries);
         }
     }
 
@@ -392,17 +430,22 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
     public static class TestSection extends Div {
         @Getter
         private RestPVClient client;
-        private final TextField url = new TextField("Base URL", "http://192.168.178.50:8123", "");
-        private final TextField token = new TextField("API Token");
-        private final Button connect = new Button("Test Connection");
+        private final TextField url;
+        private final TextField token;
+        private final Button connect = new Button();
 
-        public TestSection() {
+        public TestSection(UserSessionContext sessionContext) {
+            url = new TextField(getTranslation("config.field.base_url", "Base URL"), "http://192.168.178.50:8123", "");
+            token = new TextField(getTranslation("config.field.api_token", "API Token"));
+
             url.setWidth("280px"); token.setWidth("250px");
-            url.addThemeName("small"); token.addThemeName("small"); connect.addThemeVariants(ButtonVariant.LUMO_SMALL);
+            url.addThemeName("small"); token.addThemeName("small");
+            connect.setText(getTranslation("btn.test_connection", "Test Connection"));
+            connect.addThemeVariants(ButtonVariant.LUMO_SMALL);
             connect.setDisableOnClick(true);
 
             connect.addClickListener(e -> {
-                connect.setText("Connecting...");
+                connect.setText(getTranslation("btn.connecting", "Connecting..."));
                 var loadingIcon = VaadinIcon.REFRESH.create();
                 loadingIcon.getStyle().set("animation", "spin 1s linear infinite");
                 connect.setIcon(loadingIcon);
@@ -415,12 +458,14 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
                         client = new RestPVClient(url.getValue(), token.getValue());
                         client.ping();
                         ui.access(() -> {
-                            connect.setText("Connected"); connect.setIcon(VaadinIcon.CHECK.create());
+                            connect.setText(getTranslation("btn.connected", "Connected"));
+                            connect.setIcon(VaadinIcon.CHECK.create());
                             connect.addThemeVariants(ButtonVariant.LUMO_SUCCESS); connect.setEnabled(true);
                         });
                     } catch (Exception ex) {
                         ui.access(() -> {
-                            connect.setText("Connection Failed"); connect.setIcon(VaadinIcon.CLOSE.create());
+                            connect.setText(getTranslation("btn.connection_failed", "Connection Failed"));
+                            connect.setIcon(VaadinIcon.CLOSE.create());
                             connect.addThemeVariants(ButtonVariant.LUMO_ERROR); connect.setEnabled(true);
                         });
                     }

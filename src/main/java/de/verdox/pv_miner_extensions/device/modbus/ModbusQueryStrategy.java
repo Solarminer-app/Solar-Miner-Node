@@ -28,25 +28,25 @@ public abstract class ModbusQueryStrategy<RESULT extends QueryResult, MODBUS_ENT
                 @Override
                 public double getValueFor(String variableName) {
                     try {
-                        return evaluateEntry(variableName, section, client, calculatedValues, this);
+                        return evaluateEntry(variableName, section, client, calculatedValues, this, modbusConfig.getAddressOffset());
                     } catch (Exception e) {
                         return 0.0;
                     }
                 }
             };
-            return createResult(section, client, calculatedValues, variableProvider);
+            return createResult(section, client, calculatedValues, variableProvider, modbusConfig.getAddressOffset());
         }
     }
 
-    protected abstract RESULT createResult(ModbusConfig.ConfigSection section, TCPModbusClient client, Map<String, Double> calculatedValues, VariableProvider provider) throws Exception;
+    protected abstract RESULT createResult(ModbusConfig.ConfigSection section, TCPModbusClient client, Map<String, Double> calculatedValues, VariableProvider provider, int offset) throws Exception;
 
-    protected static double evaluateEntry(String id, ModbusConfig.ConfigSection section, TCPModbusClient client, Map<String, Double> calculatedValues, VariableProvider provider) throws Exception {
+    protected static double evaluateEntry(String id, ModbusConfig.ConfigSection section, TCPModbusClient client, Map<String, Double> calculatedValues, VariableProvider provider, int offset) throws Exception {
         if (calculatedValues.containsKey(id)) {
             return calculatedValues.get(id);
         }
 
         ModbusConfig.Entry<?> entry = section.getEntryForId(id);
-        Object rawObj = client.read(entry);
+        Object rawObj = client.read(offset, entry);
         double rawValue = 0.0;
         if (rawObj instanceof Number n) {
             rawValue = n.doubleValue();

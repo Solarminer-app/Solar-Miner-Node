@@ -28,6 +28,7 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
 import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
+import de.verdox.pv_miner.frontend.user.UserSessionContext;
 import de.verdox.pv_miner.util.FormatUtil;
 import de.verdox.pv_miner.frontend.FrontendService;
 import de.verdox.pv_miner_extensions.device.modbus.ModbusConfigStorage;
@@ -51,29 +52,36 @@ import java.util.concurrent.CompletableFuture;
 
 @Route(value = "config/pv/modbus/tcp")
 @PageTitle("Solarminer.app - Modbus Config Editor")
-public class ModbusConfigView extends VerticalLayout implements LocaleChangeObserver {
+public class ModbusConfigView extends VerticalLayout {
     private final ModbusConfigStorage storage;
     private final ConfigFetcherService configFetcherService;
+    private final UserSessionContext userSessionContext;
     private final ListBox<String> configSelection = new ListBox<>();
     private final VerticalLayout editorLayout = new VerticalLayout();
 
-    private final H2 sidebarTitle = new H2("Modbus Profile");
+    private final H2 sidebarTitle = new H2();
     private final TextField newConfigName = new TextField();
+    private final H4 localLabel = new H4();
+    private final Button addConfigBtn = new Button(VaadinIcon.PLUS.create());
 
     private final VerticalLayout sectionsContainer = new VerticalLayout();
     private final Map<String, SectionEditorBlock> activeSectionEditors = new HashMap<>();
 
-    private final TestSection testSection = new TestSection();
-    private final FingerprintSection fingerprintSection = new FingerprintSection(testSection);
+    private final TestSection testSection;
+    private final FingerprintSection fingerprintSection;
+    private final IntegerField addressOffset = new IntegerField();
 
     private String currentConfigName;
 
-    public ModbusConfigView(ModbusConfigStorage storage, ConfigFetcherService configFetcherService) {
+    public ModbusConfigView(ModbusConfigStorage storage, ConfigFetcherService configFetcherService, UserSessionContext userSessionContext) {
         this.storage = storage;
         this.configFetcherService = configFetcherService;
+        this.userSessionContext = userSessionContext;
+        this.testSection = new TestSection(userSessionContext);
+        this.fingerprintSection = new FingerprintSection(testSection, userSessionContext);
+
         setSizeFull();
         setPadding(false);
-        newConfigName.setPlaceholder("z.B. Fronius Gen24...");
 
         SplitLayout splitLayout = new SplitLayout();
         splitLayout.setSizeFull();
@@ -86,7 +94,8 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
         addConfigLayout.setWidthFull();
         newConfigName.setWidthFull();
         newConfigName.addThemeName("small");
-        Button addConfigBtn = new Button(VaadinIcon.PLUS.create(), e -> {
+
+        addConfigBtn.addClickListener(e -> {
             if (!newConfigName.isEmpty()) {
                 createNewProfile(newConfigName.getValue());
                 newConfigName.clear();
@@ -96,7 +105,6 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
         addConfigLayout.add(newConfigName, addConfigBtn);
         sidebar.add(addConfigLayout);
 
-        H4 localLabel = new H4("Lokale Profile");
         localLabel.getStyle().set("margin-bottom", "0");
         sidebar.add(localLabel);
 
@@ -111,7 +119,15 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
         sectionsContainer.setPadding(false);
         splitLayout.addToSecondary(editorLayout);
 
+
         add(splitLayout);
+        updateTexts();
+    }
+
+    private void updateTexts() {
+        sidebarTitle.setText(getTranslation("config.modbus.title", "Modbus Profile"));
+        newConfigName.setPlaceholder(getTranslation("config.placeholder.new_profile", "z.B. Fronius Gen24..."));
+        localLabel.setText(getTranslation("config.sidebar.local_profiles", "Lokale Profile"));
     }
 
     private void refreshConfigList() {
@@ -123,7 +139,7 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
                 configSelection.setValue(selected);
             }
         } catch (IOException e) {
-            Notification.show("Fehler beim Laden: " + e.getMessage());
+            Notification.show(getTranslation("config.error.load", "Fehler beim Laden: ") + e.getMessage());
         }
     }
 
@@ -131,13 +147,14 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
         try {
             ModbusConfig newConfig = new ModbusConfig(
                     new ModbusConfig.Fingerprint(40000, 1, ModbusParameterType.INT32, ModbusReadOperationType.READ_HOLDING_REGISTER, ByteOrder.BIG_ENDIAN, ""),
-                    new HashMap<>()
+                    new HashMap<>(),
+                    addressOffset.getValue()
             );
             storage.save(name, newConfig);
             refreshConfigList();
             configSelection.setValue(name);
         } catch (IOException e) {
-            Notification.show("Fehler beim Erstellen.");
+            Notification.show(getTranslation("config.error.create", "Fehler beim Erstellen."));
         }
     }
 
@@ -160,20 +177,20 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
             header.setAlignItems(Alignment.CENTER);
             header.setJustifyContentMode(JustifyContentMode.BETWEEN);
 
-            H2 title = new H2("Profil: " + configName);
+            H2 title = new H2(getTranslation("config.profile.title", "Profil: ") + configName);
             title.getStyle().set("margin", "0");
 
-            Button saveBtn = new Button("Profil Speichern", VaadinIcon.CHECK.create(), e -> saveCurrentProfile());
+            Button saveBtn = new Button(getTranslation("btn.save_profile", "Profil Speichern"), VaadinIcon.CHECK.create(), e -> saveCurrentProfile());
             saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
             header.add(title, saveBtn);
             editorLayout.add(header);
 
-            Details testDetails = new Details("Live-Test Verbindung", testSection);
+            Details testDetails = new Details(getTranslation("config.section.live_test", "Live-Test Verbindung"), testSection);
             testDetails.setWidthFull();
             editorLayout.add(testDetails);
 
             fingerprintSection.setFingerprint(config.getFingerprint());
-            Details fingerprintDetails = new Details("Geräte-Fingerprint (Identifikation)", fingerprintSection);
+            Details fingerprintDetails = new Details(getTranslation("config.section.fingerprint", "Geräte-Fingerprint (Identifikation)"), fingerprintSection);
             fingerprintDetails.setWidthFull();
             editorLayout.add(fingerprintDetails);
 
@@ -183,48 +200,66 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
             addSectionLayout.getStyle().set("padding-top", "20px");
             addSectionLayout.getStyle().set("border-top", "1px solid var(--lumo-contrast-10pct)");
 
-            H4 sectionTitle = new H4("Fähigkeiten (Sektionen):");
+            H4 sectionTitle = new H4(getTranslation("config.section.capabilities", "Fähigkeiten (Sektionen):"));
             sectionTitle.getStyle().set("margin", "0");
+
 
             ComboBox<ModbusConfigCreatorTemplate> templateCombo = new ComboBox<>();
             templateCombo.setItems(ModbusConfigCreatorTemplate.getAll());
             templateCombo.setItemLabelGenerator(ModbusConfigCreatorTemplate::name);
-            templateCombo.setPlaceholder("Template wählen...");
+            templateCombo.setPlaceholder(getTranslation("config.placeholder.select_template", "Template wählen..."));
 
-            Button addSectionBtn = new Button("Sektion hinzufügen", VaadinIcon.PLUS.create(), e -> {
+            Button addSectionBtn = new Button(getTranslation("btn.add_section", "Sektion hinzufügen"), VaadinIcon.PLUS.create(), e -> {
                 ModbusConfigCreatorTemplate selectedTemplate = templateCombo.getValue();
                 if (selectedTemplate != null) {
-                    // Verwende als Key einfach die template.id() für den Editor
-                    if (activeSectionEditors.containsKey(selectedTemplate.id())) {
-                        Notification.show("Sektion existiert bereits!");
-                        return;
-                    }
-                    addSectionToView(selectedTemplate, new ModbusConfig.ConfigSection(selectedTemplate.id(), selectedTemplate.name(), new HashMap<>()));
+                    openNameDialog(selectedTemplate);
                 }
             });
             addSectionBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
 
-            addSectionLayout.add(sectionTitle, templateCombo, addSectionBtn);
+            addSectionLayout.add(sectionTitle, templateCombo, addSectionBtn, addressOffset);
             editorLayout.add(addSectionLayout);
             editorLayout.add(sectionsContainer);
 
+            // Bestehende Sektionen laden (Map Key ist die sectionId)
             if (config.getSections() != null) {
                 for (Map.Entry<String, ModbusConfig.ConfigSection> entry : config.getSections().entrySet()) {
                     ModbusConfigCreatorTemplate tpl = ModbusConfigCreatorTemplate.byId(entry.getValue().getTemplateId());
                     if (tpl != null) {
-                        addSectionToView(tpl, entry.getValue());
+                        addSectionToView(entry.getKey(), tpl, entry.getValue());
                     }
                 }
             }
 
         } catch (Exception e) {
-            Notification.show("Fehler beim Öffnen: " + e.getMessage());
+            Notification.show(getTranslation("config.error.open", "Fehler beim Öffnen: ") + e.getMessage());
         }
     }
 
-    private void addSectionToView(ModbusConfigCreatorTemplate template, ModbusConfig.ConfigSection sectionData) {
-        SectionEditorBlock block = new SectionEditorBlock(template, sectionData);
-        activeSectionEditors.put(template.id(), block);
+    private void openNameDialog(ModbusConfigCreatorTemplate selectedTemplate) {
+        Dialog nameDialog = new Dialog();
+        nameDialog.setHeaderTitle(getTranslation("config.dialog.name_title", "Name der Sektion"));
+
+        TextField sectionName = new TextField(getTranslation("config.dialog.name_label", "Bezeichnung (z.B. Batterie 2)"));
+        sectionName.setValue(selectedTemplate.name());
+        sectionName.setWidthFull();
+
+        Button confirm = new Button(getTranslation("btn.create", "Erstellen"), ev -> {
+            String name = sectionName.getValue().isEmpty() ? selectedTemplate.name() : sectionName.getValue();
+            String newId = UUID.randomUUID().toString(); // Eindeutige ID für die Map
+            addSectionToView(newId, selectedTemplate, new ModbusConfig.ConfigSection(selectedTemplate.id(), name, new HashMap<>()));
+            nameDialog.close();
+        });
+        confirm.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+        nameDialog.add(new VerticalLayout(sectionName));
+        nameDialog.getFooter().add(new Button(getTranslation("btn.cancel", "Abbrechen"), ev -> nameDialog.close()), confirm);
+        nameDialog.open();
+    }
+
+    private void addSectionToView(String sectionId, ModbusConfigCreatorTemplate template, ModbusConfig.ConfigSection sectionData) {
+        SectionEditorBlock block = new SectionEditorBlock(sectionId, template, sectionData);
+        activeSectionEditors.put(sectionId, block);
         sectionsContainer.add(block);
     }
 
@@ -236,13 +271,13 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
             finalSections.put(entry.getKey(), entry.getValue().buildConfigSection());
         }
 
-        ModbusConfig newConfig = new ModbusConfig(fingerprint, finalSections);
+        ModbusConfig newConfig = new ModbusConfig(fingerprint, finalSections, addressOffset.getValue());
 
         try {
             storage.save(currentConfigName, newConfig);
-            Notification.show("Profil erfolgreich gespeichert!", 2000, Notification.Position.TOP_END);
+            Notification.show(getTranslation("config.success.saved", "Profil erfolgreich gespeichert!"), 2000, Notification.Position.TOP_END);
         } catch (IOException e) {
-            Notification.show("Fehler beim Speichern!");
+            Notification.show(getTranslation("config.error.save", "Fehler beim Speichern!"));
         }
     }
 
@@ -255,7 +290,7 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
                 var entry = row.buildEntry();
                 if (entry == null || testSection.getClient() == null) { return 0.0; }
 
-                Object rawObj = testSection.getClient().read(entry);
+                Object rawObj = testSection.getClient().read(addressOffset.getValue(), entry);
                 double raw = 0.0;
                 if (rawObj instanceof Number n) {
                     raw = n.doubleValue();
@@ -268,19 +303,23 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
         }).orElse(0.0);
     }
 
-    @Override
-    public void localeChange(LocaleChangeEvent event) {
-
-    }
-
     class SectionEditorBlock extends Details {
         private final ModbusConfigCreatorTemplate template;
+        private final String sectionId;
+        private final TextField sectionNameField;
         @Getter
         private final List<FieldRow> fieldRows = new ArrayList<>();
 
-        public SectionEditorBlock(ModbusConfigCreatorTemplate template, ModbusConfig.ConfigSection sectionData) {
+        public SectionEditorBlock(String sectionId, ModbusConfigCreatorTemplate template, ModbusConfig.ConfigSection sectionData) {
+            this.sectionId = sectionId;
             this.template = template;
-            setSummaryText("⚙️ Sektion: " + template.name());
+
+            this.sectionNameField = new TextField(getTranslation("config.field.section_name", "Anzeigename"));
+            this.sectionNameField.setValue(sectionData.getName() != null ? sectionData.getName() : template.name());
+
+            setSummaryText("⚙️ " + this.sectionNameField.getValue());
+            this.sectionNameField.addValueChangeListener(e -> setSummaryText("⚙️ " + e.getValue()));
+
             setWidthFull();
             getStyle().set("margin-top", "10px");
             getStyle().set("border", "1px solid var(--lumo-contrast-20pct)");
@@ -289,27 +328,31 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
             VerticalLayout contentLayout = new VerticalLayout();
             contentLayout.setPadding(true);
 
-            Button removeSectionBtn = new Button("Sektion entfernen", VaadinIcon.TRASH.create(), e -> {
+            HorizontalLayout sectionHeader = new HorizontalLayout(this.sectionNameField);
+            sectionHeader.setAlignItems(Alignment.BASELINE);
+
+            Button removeSectionBtn = new Button(getTranslation("btn.remove_section", "Sektion entfernen"), VaadinIcon.TRASH.create(), e -> {
                 disposeSubscriptions();
-                activeSectionEditors.remove(template.id());
+                activeSectionEditors.remove(this.sectionId);
                 sectionsContainer.remove(this);
             });
             removeSectionBtn.addThemeVariants(ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_SMALL);
-            contentLayout.add(removeSectionBtn);
+            sectionHeader.add(removeSectionBtn);
+            contentLayout.add(sectionHeader);
 
             HorizontalLayout tableHeader = new HorizontalLayout();
             tableHeader.setWidthFull();
             tableHeader.getStyle().set("border-bottom", "2px solid var(--lumo-contrast-20pct)");
 
-            Span hName = new Span("Feldname"); hName.setWidth("130px");
-            Span hAddress = new Span("Register"); hAddress.setWidth("80px");
-            Span hSize = new Span("Länge"); hSize.setWidth("70px");
-            Span hScale = new Span("Faktor"); hScale.setWidth("70px");
-            Span hFormula = new Span("Formel"); hFormula.setWidth("90px");
-            Span hType = new Span("Datentyp"); hType.setWidth("100px");
-            Span hOp = new Span("Operation"); hOp.setWidth("160px");
-            Span hOrder = new Span("Byte Order"); hOrder.setWidth("110px");
-            Span hLive = new Span("Live-Wert"); hLive.setWidth("110px");
+            Span hName = new Span(getTranslation("config.table.field_name", "Feldname")); hName.setWidth("130px");
+            Span hAddress = new Span(getTranslation("config.table.register", "Register")); hAddress.setWidth("80px");
+            Span hSize = new Span(getTranslation("config.table.size", "Länge")); hSize.setWidth("70px");
+            Span hScale = new Span(getTranslation("config.table.scale", "Faktor")); hScale.setWidth("70px");
+            Span hFormula = new Span(getTranslation("config.table.formula", "Formel")); hFormula.setWidth("90px");
+            Span hType = new Span(getTranslation("config.table.type", "Datentyp")); hType.setWidth("100px");
+            Span hOp = new Span(getTranslation("config.table.operation", "Operation")); hOp.setWidth("160px");
+            Span hOrder = new Span(getTranslation("config.table.byte_order", "Byte Order")); hOrder.setWidth("110px");
+            Span hLive = new Span(getTranslation("config.table.live_value", "Live-Wert")); hLive.setWidth("110px");
 
             for (Span span : List.of(hName, hAddress, hSize, hScale, hFormula, hType, hOp, hOrder, hLive)) {
                 span.getStyle().set("font-weight", "bold");
@@ -344,7 +387,8 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
                     entries.put(row.getFieldName(), entry);
                 }
             }
-            return new ModbusConfig.ConfigSection(template.id(), template.name(), entries);
+            // Wirft (templateId, name, entries) zurück - exakt wie im ModbusConfig-Konstruktor definiert
+            return new ModbusConfig.ConfigSection(template.id(), this.sectionNameField.getValue(), entries);
         }
     }
 
@@ -448,20 +492,26 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
     public static class TestSection extends Div {
         @Getter
         private TCPModbusClient client;
-        private final TextField ip = new TextField("IP Address");
-        private final IntegerField port = new IntegerField("Port");
-        private final IntegerField slaveId = new IntegerField("Slave ID");
-        private final Button connect = new Button("Test Connection");
+        private final TextField ip;
+        private final IntegerField port;
+        private final IntegerField slaveId;
+        private final Button connect = new Button();
 
-        public TestSection() {
+        public TestSection(UserSessionContext sessionContext) {
+            ip = new TextField(getTranslation("config.field.ip", "IP Address"));
+            port = new IntegerField(getTranslation("config.field.port", "Port"));
+            slaveId = new IntegerField(getTranslation("config.field.slave_id", "Slave ID"));
+
             ip.setWidth("150px"); port.setWidth("80px"); slaveId.setWidth("80px");
             ip.addThemeName("small"); port.addThemeName("small"); slaveId.addThemeName("small");
             ip.setValue("192.168.178.50"); port.setValue(502); slaveId.setValue(1);
+
+            connect.setText(getTranslation("btn.test_connection", "Test Connection"));
             connect.addThemeVariants(ButtonVariant.LUMO_SMALL);
             connect.setDisableOnClick(true);
 
             connect.addClickListener(e -> {
-                connect.setText("Connecting...");
+                connect.setText(getTranslation("btn.connecting", "Connecting..."));
                 var loadingIcon = VaadinIcon.REFRESH.create();
                 loadingIcon.getStyle().set("animation", "spin 1s linear infinite");
                 connect.setIcon(loadingIcon);
@@ -473,12 +523,14 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
                         if (client != null) client.close();
                         client = new TCPModbusClient(ip.getValue(), port.getValue(), slaveId.getValue());
                         ui.access(() -> {
-                            connect.setText("Connected"); connect.setIcon(VaadinIcon.CHECK.create());
+                            connect.setText(getTranslation("btn.connected", "Connected"));
+                            connect.setIcon(VaadinIcon.CHECK.create());
                             connect.addThemeVariants(ButtonVariant.LUMO_SUCCESS); connect.setEnabled(true);
                         });
                     } catch (Exception ex) {
                         ui.access(() -> {
-                            connect.setText("Connection Failed"); connect.setIcon(VaadinIcon.CLOSE.create());
+                            connect.setText(getTranslation("btn.connection_failed", "Connection Failed"));
+                            connect.setIcon(VaadinIcon.CLOSE.create());
                             connect.addThemeVariants(ButtonVariant.LUMO_ERROR); connect.setEnabled(true);
                         });
                     }
@@ -500,16 +552,24 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
         }
     }
 
-    public static class FingerprintSection extends Div {
-        private final IntegerField startAddressField = new IntegerField("Adresse");
-        private final IntegerField sizeField = new IntegerField("Länge");
-        private final ComboBox<ModbusParameterType<?>> parameterTypeField = new ComboBox<>("Datentyp");
-        private final ComboBox<ModbusReadOperationType> operationType = new ComboBox<>("Operation");
-        private final ComboBox<ByteOrder> byteOrderField = new ComboBox<>("Byte Order");
-        private final TextField expectedValueField = new TextField("Erwarteter Wert");
-        private final Button testFingerprintBtn = new Button("Fingerprint Testen");
+    public class FingerprintSection extends Div {
+        private final IntegerField startAddressField;
+        private final IntegerField sizeField;
+        private final ComboBox<ModbusParameterType<?>> parameterTypeField;
+        private final ComboBox<ModbusReadOperationType> operationType;
+        private final ComboBox<ByteOrder> byteOrderField;
+        private final TextField expectedValueField;
+        private final Button testFingerprintBtn;
 
-        public FingerprintSection(TestSection testSection) {
+        public FingerprintSection(TestSection testSection, UserSessionContext sessionContext) {
+            startAddressField = new IntegerField(getTranslation("config.table.address", "Adresse"));
+            sizeField = new IntegerField(getTranslation("config.table.size", "Länge"));
+            parameterTypeField = new ComboBox<>(getTranslation("config.table.type", "Datentyp"));
+            operationType = new ComboBox<>(getTranslation("config.table.operation", "Operation"));
+            byteOrderField = new ComboBox<>(getTranslation("config.table.byte_order", "Byte Order"));
+            expectedValueField = new TextField(getTranslation("config.field.expected_value", "Erwarteter Wert"));
+            testFingerprintBtn = new Button(getTranslation("btn.test_fingerprint", "Fingerprint Testen"));
+
             startAddressField.setWidth("100px"); sizeField.setWidth("80px"); parameterTypeField.setWidth("120px");
             operationType.setWidth("180px"); byteOrderField.setWidth("120px"); expectedValueField.setWidth("150px");
 
@@ -524,13 +584,13 @@ public class ModbusConfigView extends VerticalLayout implements LocaleChangeObse
 
             testFingerprintBtn.addClickListener(e -> {
                 if (testSection.getClient() == null) {
-                    Notification.show("Bitte zuerst Test-Verbindung herstellen!"); return;
+                    Notification.show(getTranslation("config.error.no_connection", "Bitte zuerst Test-Verbindung herstellen!")); return;
                 }
                 try {
                     ModbusConfig.Fingerprint fp = buildFingerprint();
-                    boolean match = testSection.getClient().verifyFingerprint(fp);
-                    if (match) Notification.show("Fingerprint passt! Gerät erkannt.", 3000, Notification.Position.MIDDLE);
-                    else Notification.show("Fingerprint FEHLSCHLAG. Anderes Gerät?", 3000, Notification.Position.MIDDLE);
+                    boolean match = testSection.getClient().verifyFingerprint(addressOffset.getValue(), fp);
+                    if (match) Notification.show(getTranslation("config.success.fingerprint", "Fingerprint passt! Gerät erkannt."), 3000, Notification.Position.MIDDLE);
+                    else Notification.show(getTranslation("config.error.fingerprint", "Fingerprint FEHLSCHLAG. Anderes Gerät?"), 3000, Notification.Position.MIDDLE);
                 } catch (Exception ex) { Notification.show("Fehler: " + ex.getMessage()); }
             });
 

@@ -71,7 +71,7 @@ public class SunspecConfigService {
         // FIX: Constructor jetzt mit templateId und name!
         sections.put(ModbusConfigCreatorTemplate.PV_SITE.id(), new ModbusConfig.ConfigSection(ModbusConfigCreatorTemplate.PV_SITE.id(), "SunSpec Auto-Generated", entries));
 
-        return new ModbusConfig(null, sections);
+        return new ModbusConfig(null, sections, 0);
     }
 
     private float readLiveScaleFactor(TCPModbusClient client, int address) {
@@ -79,7 +79,7 @@ public class SunspecConfigService {
             ModbusConfig.Entry<Short> scaleEntry = new ModbusConfig.Entry<>(
                     address, 1, 1.0f, "", ModbusParameterType.INT16, ModbusReadOperationType.READ_HOLDING_REGISTER, ByteOrder.BIG_ENDIAN
             );
-            Number rawScale = (Number) client.read(scaleEntry);
+            Number rawScale = (Number) client.read(0, scaleEntry);
             return (float) Math.pow(10, rawScale.intValue());
         } catch (Exception e) {
             return 1.0f;

@@ -57,6 +57,7 @@ public class ModbusConfig {
             .constructor(
                     new SerializableField<>("fingerprint", FINGERPRINT_SERIALIZER, ModbusConfig::getFingerprint),
                     new SerializableField<>("sections", Serializer.Map.create(Serializer.Primitive.STRING, SECTION_SERIALIZER, HashMap::new), ModbusConfig::getSections),
+                    new SerializableField<>("addressOffset", Serializer.Primitive.INTEGER, ModbusConfig::getAddressOffset),
                     ModbusConfig::new
             ).build();
 
@@ -64,10 +65,12 @@ public class ModbusConfig {
     // --- Datenstruktur ---
     private final Fingerprint fingerprint;
     private final Map<String, ConfigSection> sections;
+    private final int addressOffset;
 
-    public ModbusConfig(Fingerprint fingerprint, Map<String, ConfigSection> sections) {
+    public ModbusConfig(Fingerprint fingerprint, Map<String, ConfigSection> sections, int addressOffset) {
         this.fingerprint = fingerprint;
         this.sections = sections != null ? sections : new HashMap<>();
+        this.addressOffset = addressOffset;
     }
 
     public boolean supportsTemplate(String templateId) {
@@ -86,7 +89,6 @@ public class ModbusConfig {
                 '}';
     }
 
-    // --- Innere Klassen / Records ---
 
     @Getter
     public static class ConfigSection {

@@ -45,8 +45,8 @@ public class TCPModbusClient implements Closeable {
         master.connect();
     }
 
-    public Object read(ModbusConfig.Entry<?> configEntry) throws ModbusProtocolException, ModbusNumberException, ModbusIOException {
-        byte[] registers = configEntry.readOperationType().getModbusReadOperation().readRegisters(master, slaveId, configEntry);
+    public Object read(int addressOffset, ModbusConfig.Entry<?> configEntry) throws ModbusProtocolException, ModbusNumberException, ModbusIOException {
+        byte[] registers = configEntry.readOperationType().getModbusReadOperation().readRegisters(master, slaveId, configEntry, addressOffset);
 
         Object readFromRegister = parseRegisterValues(registers, configEntry);
         if (readFromRegister instanceof Number number) {
@@ -69,11 +69,11 @@ public class TCPModbusClient implements Closeable {
         return readFromRegister;
     }
 
-    public boolean verifyFingerprint(ModbusConfig.Fingerprint fingerprint) {
+    public boolean verifyFingerprint(int addressOffset, ModbusConfig.Fingerprint fingerprint) {
         if (fingerprint == null) return false;
 
         try {
-            Object result = read(fingerprint.toDummyEntry());
+            Object result = read(addressOffset, fingerprint.toDummyEntry());
             String actualValue;
 
             if (result instanceof Number n) {
@@ -211,6 +211,6 @@ public class TCPModbusClient implements Closeable {
     }
 
     public interface ModbusReadOperation {
-        byte[] readRegisters(ModbusMaster master, int slaveId, ModbusConfig.Entry<?> configEntry) throws ModbusProtocolException, ModbusNumberException, ModbusIOException;
+        byte[] readRegisters(ModbusMaster master, int slaveId, ModbusConfig.Entry<?> configEntry, int addressOffset) throws ModbusProtocolException, ModbusNumberException, ModbusIOException;
     }
 }
