@@ -16,7 +16,7 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.textfield.TextFieldVariant;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableButton;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableH3;
-import de.verdox.pv_miner.pvsite.PVPanels;
+import de.verdox.pv_miner.pvsite.panels.PVPanels;
 import de.verdox.pv_miner.frontend.pvsite.details.CompassField;
 import de.verdox.pv_miner.frontend.pvsite.details.LeafletMap;
 

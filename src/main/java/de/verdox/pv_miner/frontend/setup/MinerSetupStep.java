@@ -21,6 +21,7 @@ import de.verdox.pv_miner.miner.MiningOS;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableButton;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
+import lombok.Getter;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -365,6 +366,7 @@ public class MinerSetupStep extends VerticalLayout implements WizardStep {
 
     public enum TestStatus { UNTESTED, TESTING, SUCCESS, FAILED }
 
+    @Getter
     public static class MinerConfigEntry {
         private final DiscoveryService.MinerInfo minerInfo;
         private String username = "root";

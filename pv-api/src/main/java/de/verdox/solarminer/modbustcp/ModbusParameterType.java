@@ -22,7 +22,10 @@ public record ModbusParameterType<T>(String identifier, Function<ByteBuffer,  T>
     public static final ModbusParameterType<Short> INT16 = register(new ModbusParameterType<>("int16", ByteBuffer::getShort));
     public static final ModbusParameterType<Long> UINT32 = register(new ModbusParameterType<>("uint32", buffer -> buffer.getInt() & 0xFFFFFFFFL));
     public static final ModbusParameterType<Integer> INT32 = register(new ModbusParameterType<>("int32", ByteBuffer::getInt));
+
     public static final ModbusParameterType<BigInteger> ULONG64 = register(new ModbusParameterType<>("ulong64", buffer -> new BigInteger(1, ByteBuffer.allocate(8).putLong(buffer.getLong()).array())));
+    public static final ModbusParameterType<BigInteger> UINT64 = register(new ModbusParameterType<>("uint64", buffer -> new BigInteger(1, ByteBuffer.allocate(8).putLong(buffer.getLong()).array())));
+
     public static final ModbusParameterType<Float> FLOAT32 = register(new ModbusParameterType<>("float32", ByteBuffer::getFloat));
     public static final ModbusParameterType<Double> DOUBLE64 = register(new ModbusParameterType<>("double64", ByteBuffer::getDouble));
 

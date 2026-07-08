@@ -14,18 +14,24 @@ import de.verdox.pv_miner.miningcontroller.MinerClusterService;
 import de.verdox.pv_miner.miningcontroller.MinerControllerConfigStorage;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.pvsite.HistoricalPrice;
-import de.verdox.pv_miner.pvsite.PVPanels;
+import de.verdox.pv_miner.pvsite.panels.PVPanels;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.util.Money;
+import de.verdox.pv_miner_extensions.device.modbus.battery.ModbusBattery;
+import de.verdox.pv_miner_extensions.device.modbus.inverter.ModbusInverter;
+import de.verdox.pv_miner_extensions.device.modbus.smartmeter.ModbusSmartMeter;
+import de.verdox.pv_miner_extensions.device.rest.battery.RestBattery;
+import de.verdox.pv_miner_extensions.device.rest.inverter.RestInverter;
+import de.verdox.pv_miner_extensions.device.rest.smartmeter.RestSmartMeter;
 import de.verdox.pv_miner_extensions.miner.AgentMinerEntity;
 import de.verdox.pv_miner_extensions.miner.AntminerEntity;
 import de.verdox.pv_miner_extensions.miner.BraiinsOSAsicMinerEntity;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusPVSite;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusConfigStorage;
-import de.verdox.pv_miner_extensions.inverter.rest.RestPVSite;
-import de.verdox.pv_miner_extensions.inverter.rest.RestConfigStorage;
+import de.verdox.pv_miner_extensions.device.modbus.ModbusConfigStorage;
+import de.verdox.pv_miner_extensions.device.rest.RestConfigStorage;
+import de.verdox.solarminer.modbustcp.ModbusConfig;
 import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
 import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
+import de.verdox.solarminer.rest.RestPVConfig;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +39,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -66,44 +73,123 @@ public class WizardSaveService {
             EconomicsStep.EconomicsData economicsData,
             List<PVPanels> panelsList) {
 
-        PVSiteEntity savedSite = null;
+        PVSiteEntity savedSite = new PVSiteEntity();
+        savedSite.setName("PV Site");
+        applyEconomicsDataToSite(savedSite, economicsData);
+        savedSite = entityService.save(savedSite);
 
-        for (PVSetupStep.DiscoveredPVDevice device : pvDevices) {
+        if (pvDevices != null) {
+            for (PVSetupStep.DiscoveredPVDevice device : pvDevices) {
+                String configName = device.getSelectedConfigName();
 
-            if ("Modbus-TCP".equals(device.getProtocol())) {
-                saveModbusConfigIfTakenFromCache(device);
+                if ("Modbus-TCP".equals(device.getProtocol())) {
+                    saveModbusConfigIfTakenFromCache(device);
 
-                ModbusPVSite modbusSite = new ModbusPVSite();
-                modbusSite.setName("Modbus PV " + device.getIpAddress());
-                modbusSite.setIpAddress(device.getIpAddress());
-                modbusSite.setPort(device.getPort());
-                modbusSite.setModbusConfigName(device.getSelectedConfigName());
-                modbusSite.setSlaveId(device.getModbusSlaveId());
+                    try {
+                        ModbusConfig config = modbusConfigStorage.loadConfig(configName);
+                        
+                        for (Map.Entry<String, ModbusConfig.ConfigSection> entry : config.getSections().entrySet()) {
+                            String sectionKey = entry.getKey();
+                            ModbusConfig.ConfigSection section = entry.getValue();
 
-                applyEconomicsDataToSite(modbusSite, economicsData);
+                            if (ModbusConfigCreatorTemplate.INVERTER.id().equals(section.getTemplateId())) {
+                                ModbusInverter inverter = new ModbusInverter();
+                                String devName = section.getName() != null && !section.getName().isEmpty() ? section.getName() : "Inverter";
+                                inverter.setName(devName + " (" + device.getIpAddress() + ")");
+                                inverter.setIpAddress(device.getIpAddress());
+                                inverter.setPort(device.getPort());
+                                inverter.setSlaveId(device.getModbusSlaveId());
+                                inverter.setModbusConfigName(configName);
+                                inverter.setSectionKey(sectionKey);
+                                inverter.setParentSite(savedSite);
+                                entityService.save(inverter);
+                            }
+                            if (ModbusConfigCreatorTemplate.BATTERY.id().equals(section.getTemplateId())) {
+                                ModbusBattery battery = new ModbusBattery();
+                                String devName = section.getName() != null && !section.getName().isEmpty() ? section.getName() : "Battery";
+                                battery.setName(devName + " (" + device.getIpAddress() + ")");
+                                battery.setIpAddress(device.getIpAddress());
+                                battery.setPort(device.getPort());
+                                battery.setSlaveId(device.getModbusSlaveId());
+                                battery.setModbusConfigName(configName);
+                                battery.setSectionKey(sectionKey);
+                                battery.setParentSite(savedSite);
+                                entityService.save(battery);
+                            }
+                            if (ModbusConfigCreatorTemplate.SMART_METER.id().equals(section.getTemplateId()) || ModbusConfigCreatorTemplate.PV_SITE.id().equals(section.getTemplateId())) {
+                                ModbusSmartMeter smartMeter = new ModbusSmartMeter();
+                                String devName = section.getName() != null && !section.getName().isEmpty() ? section.getName() : "Smart Meter";
+                                smartMeter.setName(devName + " (" + device.getIpAddress() + ")");
+                                smartMeter.setIpAddress(device.getIpAddress());
+                                smartMeter.setPort(device.getPort());
+                                smartMeter.setSlaveId(device.getModbusSlaveId());
+                                smartMeter.setModbusConfigName(configName);
+                                smartMeter.setSectionKey(sectionKey);
+                                smartMeter.setParentSite(savedSite);
+                                entityService.save(smartMeter);
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
 
-                savedSite = entityService.save(modbusSite);
-            } else if ("Rest-API".equals(device.getProtocol())) {
-                saveRestConfigIfTakenFromCache(device);
+                } else if ("Rest-API".equals(device.getProtocol())) {
+                    saveRestConfigIfTakenFromCache(device);
 
-                RestPVSite restSite = new RestPVSite();
-                restSite.setName("Rest PV " + device.getIpAddress());
-                restSite.setHostName(device.getIpAddress());
-                restSite.setPort(device.getPort());
-                restSite.setRestPVConfigName(device.getSelectedConfigName());
-                restSite.setApiToken(device.getRestAPIToken());
+                    try {
+                        RestPVConfig config = restConfigStorage.loadConfig(configName);
 
-                applyEconomicsDataToSite(restSite, economicsData);
+                        for (Map.Entry<String, RestPVConfig.ConfigSection> entry : config.getSections().entrySet()) {
+                            String sectionKey = entry.getKey();
+                            RestPVConfig.ConfigSection section = entry.getValue();
 
-                savedSite = entityService.save(restSite);
+                            if (RestConfigCreatorTemplate.INVERTER.id().equals(section.getTemplateId())) {
+                                RestInverter inverter = new RestInverter();
+                                String devName = section.getName() != null && !section.getName().isEmpty() ? section.getName() : "Rest Inverter";
+                                inverter.setName(devName + " (" + device.getIpAddress() + ")");
+                                inverter.setHostName(device.getIpAddress());
+                                inverter.setPort(device.getPort());
+                                inverter.setApiToken(device.getRestAPIToken());
+                                inverter.setRestConfigName(configName);
+                                inverter.setSectionKey(sectionKey);
+                                inverter.setParentSite(savedSite);
+                                entityService.save(inverter);
+                            }
+                            if (RestConfigCreatorTemplate.BATTERY.id().equals(section.getTemplateId())) {
+                                RestBattery battery = new RestBattery();
+                                String devName = section.getName() != null && !section.getName().isEmpty() ? section.getName() : "Rest Battery";
+                                battery.setName(devName + " (" + device.getIpAddress() + ")");
+                                battery.setHostName(device.getIpAddress());
+                                battery.setPort(device.getPort());
+                                battery.setApiToken(device.getRestAPIToken());
+                                battery.setRestConfigName(configName);
+                                battery.setSectionKey(sectionKey);
+                                battery.setParentSite(savedSite);
+                                entityService.save(battery);
+                            }
+                            if (RestConfigCreatorTemplate.SMART_METER.id().equals(section.getTemplateId()) || RestConfigCreatorTemplate.HOME_ASSISTANT_PV.id().equals(section.getTemplateId())) {
+                                RestSmartMeter smartMeter = new RestSmartMeter();
+                                String devName = section.getName() != null && !section.getName().isEmpty() ? section.getName() : "Rest Smart Meter";
+                                smartMeter.setName(devName + " (" + device.getIpAddress() + ")");
+                                smartMeter.setHostName(device.getIpAddress());
+                                smartMeter.setPort(device.getPort());
+                                smartMeter.setApiToken(device.getRestAPIToken());
+                                smartMeter.setRestConfigName(configName);
+                                smartMeter.setSectionKey(sectionKey);
+                                smartMeter.setParentSite(savedSite);
+                                entityService.save(smartMeter);
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
             }
-            break;
         }
-
 
         if (savedSite != null && panelsList != null && !panelsList.isEmpty()) {
             for (PVPanels panel : panelsList) {
-                panel.setParentEntity(savedSite);
+                panel.setParentSite(savedSite);
                 entityService.save(savedSite, panel);
             }
         }
@@ -117,10 +203,10 @@ public class WizardSaveService {
     }
 
     private void saveRestConfigIfTakenFromCache(PVSetupStep.DiscoveredPVDevice device) {
-        if (!restConfigStorage.doesConfigExistOnDisk(RestConfigCreatorTemplate.HOME_ASSISTANT_PV, device.getSelectedConfigName())) {
+        if (!restConfigStorage.doesConfigExistOnDisk(device.getSelectedConfigName())) {
             configFetcherService.getRestPVConfig(device.getSelectedConfigName()).ifPresent(restPVConfig -> {
                 try {
-                    restConfigStorage.save(RestConfigCreatorTemplate.HOME_ASSISTANT_PV, device.getSelectedConfigName(), restPVConfig);
+                    restConfigStorage.save(device.getSelectedConfigName(), restPVConfig);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -129,17 +215,16 @@ public class WizardSaveService {
     }
 
     private void saveModbusConfigIfTakenFromCache(PVSetupStep.DiscoveredPVDevice device) {
-        if (!modbusConfigStorage.doesConfigExistOnDisk(ModbusConfigCreatorTemplate.PV_SITE, device.getSelectedConfigName())) {
+        if (!modbusConfigStorage.doesConfigExistOnDisk(device.getSelectedConfigName())) {
             configFetcherService.getModbusConfig(device.getSelectedConfigName()).ifPresent(modbusConfig -> {
                 try {
-                    modbusConfigStorage.save(ModbusConfigCreatorTemplate.PV_SITE, device.getSelectedConfigName(), modbusConfig);
+                    modbusConfigStorage.save(device.getSelectedConfigName(), modbusConfig);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
             });
         }
     }
-
 
     private void applyEconomicsDataToSite(PVSiteEntity site, EconomicsStep.EconomicsData economicsData) {
         if (economicsData == null) {
@@ -229,7 +314,6 @@ public class WizardSaveService {
                     var details = entityControllerService.getController(miner).details();
                     var identity = entityQueryService.query(miner).minerIdentity();
                     String defaultWorkerName = entityQueryService.query(firstConnectedMiningPool).getDefaultWorkerName();
-                    System.out.println("Setting mining pool to " + firstConnectedMiningPool.getStratumV1Url());
                     minerApiClient.setMiningPoolTarget(minerInfo.os(), details, firstConnectedMiningPool.getStratumV1Url(), defaultWorkerName, identity);
                     miner.setCurrentMiningPoolTarget(firstConnectedMiningPool.getUrlIdentifier());
                     entityService.save(miner, site);

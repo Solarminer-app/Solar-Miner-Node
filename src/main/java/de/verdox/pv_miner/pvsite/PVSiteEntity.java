@@ -2,6 +2,10 @@ package de.verdox.pv_miner.pvsite;
 
 import de.verdox.pv_miner.entity.AbstractAuditableEntity;
 import de.verdox.pv_miner.entity.QueryEntity;
+import de.verdox.pv_miner.pvsite.battery.BatteryEntity;
+import de.verdox.pv_miner.pvsite.inverter.InverterEntity;
+import de.verdox.pv_miner.pvsite.panels.PVPanels;
+import de.verdox.pv_miner.pvsite.smartmeter.SmartMeterEntity;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
@@ -11,7 +15,6 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -19,8 +22,7 @@ import java.util.*;
 @Entity
 @Table(name = "pv_sites")
 @Inheritance(strategy = InheritanceType.JOINED)
-@EntityListeners(AuditingEntityListener.class)
-public abstract class PVSiteEntity extends AbstractAuditableEntity implements QueryEntity<PVSiteDataDTO> {
+public class PVSiteEntity extends AbstractAuditableEntity implements QueryEntity<PVSiteDataDTO> {
 
     @Setter
     @Getter
@@ -87,12 +89,27 @@ public abstract class PVSiteEntity extends AbstractAuditableEntity implements Qu
     @Setter
     @Getter
     @OneToMany(mappedBy = "parentEntity", fetch = FetchType.EAGER)
+    private Set<MiningPoolEntity<?>> connectedMiningPools = new LinkedHashSet<>();
+
+    @Setter
+    @Getter
+    @OneToMany(mappedBy = "parentSite", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<PVPanels> pvPanels = new LinkedHashSet<>();
 
     @Setter
     @Getter
-    @OneToMany(mappedBy = "parentEntity", fetch = FetchType.EAGER)
-    private Set<MiningPoolEntity<?>> connectedMiningPools = new LinkedHashSet<>();
+    @OneToMany(mappedBy = "parentSite", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<BatteryEntity> batteries = new LinkedHashSet<>();
+
+    @Setter
+    @Getter
+    @OneToMany(mappedBy = "parentSite", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<InverterEntity> inverters = new LinkedHashSet<>();
+
+    @Setter
+    @Getter
+    @OneToMany(mappedBy = "parentSite", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<SmartMeterEntity> smartMeters = new LinkedHashSet<>();
 
     public Money getCurrentFeedInTariff() {
         return getCurrentPriceFromHistory(feedInTariffHistory);
@@ -115,7 +132,7 @@ public abstract class PVSiteEntity extends AbstractAuditableEntity implements Qu
     }
 
     public double getKwp() {
-        return pvPanels.stream().mapToDouble(PVPanels::getMaxPowerInKw).sum();
+        return inverters.stream().flatMap(inverterEntity -> getPvPanels().stream()).mapToDouble(PVPanels::getMaxPowerInKw).sum();
     }
 
     public Money getPvCost() {

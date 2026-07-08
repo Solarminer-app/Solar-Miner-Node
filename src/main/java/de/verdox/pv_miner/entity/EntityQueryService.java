@@ -2,17 +2,27 @@ package de.verdox.pv_miner.entity;
 
 import de.verdox.pv_miner.influx.QueryResult;
 import de.verdox.pv_miner.miner.MinerQueryStrategy;
+import de.verdox.pv_miner.pvsite.PVSiteEntity;
+import de.verdox.pv_miner.pvsite.SiteQueryStrategy;
+import de.verdox.pv_miner_extensions.device.modbus.battery.ModbusBattery;
+import de.verdox.pv_miner_extensions.device.modbus.battery.ModbusBatteryQueryStrategy;
+import de.verdox.pv_miner_extensions.device.modbus.inverter.ModbusInverter;
+import de.verdox.pv_miner_extensions.device.modbus.inverter.ModbusInverterQueryStrategy;
+import de.verdox.pv_miner_extensions.device.modbus.smartmeter.ModbusSmartMeter;
+import de.verdox.pv_miner_extensions.device.modbus.smartmeter.ModbusSmartMeterQueryStrategy;
+import de.verdox.pv_miner_extensions.device.rest.battery.RestBattery;
+import de.verdox.pv_miner_extensions.device.rest.battery.RestBatteryQueryStrategy;
+import de.verdox.pv_miner_extensions.device.rest.inverter.RestInverter;
+import de.verdox.pv_miner_extensions.device.rest.inverter.RestInverterQueryStrategy;
+import de.verdox.pv_miner_extensions.device.rest.smartmeter.RestSmartMeter;
+import de.verdox.pv_miner_extensions.device.rest.smartmeter.RestSmartMeterQueryStrategy;
 import de.verdox.pv_miner_extensions.miner.AgentMinerEntity;
 import de.verdox.pv_miner_extensions.miner.AntminerEntity;
 import de.verdox.pv_miner_extensions.miner.BraiinsOSAsicMinerEntity;
 import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolEntity;
 import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolQueryStrategy;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusPVSite;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusPVSiteQueryStrategy;
 import de.verdox.pv_miner_extensions.pools.nicehash.NiceHashPoolEntity;
 import de.verdox.pv_miner_extensions.pools.nicehash.NicehashPoolQueryStrategy;
-import de.verdox.pv_miner_extensions.inverter.rest.RestPVSite;
-import de.verdox.pv_miner_extensions.inverter.rest.RestPVSiteQueryStrategy;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -33,8 +43,15 @@ public class EntityQueryService {
         this.strategies.put(BraiinsOSAsicMinerEntity.class, minerQueryStrategy);
         this.strategies.put(AntminerEntity.class, minerQueryStrategy);
 
-        this.strategies.put(ModbusPVSite.class, new ModbusPVSiteQueryStrategy());
-        this.strategies.put(RestPVSite.class, new RestPVSiteQueryStrategy());
+        this.strategies.put(PVSiteEntity.class, new SiteQueryStrategy());
+
+        this.strategies.put(ModbusBattery.class, new ModbusBatteryQueryStrategy());
+        this.strategies.put(ModbusInverter.class, new ModbusInverterQueryStrategy());
+        this.strategies.put(ModbusSmartMeter.class, new ModbusSmartMeterQueryStrategy());
+
+        this.strategies.put(RestBattery.class, new RestBatteryQueryStrategy());
+        this.strategies.put(RestInverter.class, new RestInverterQueryStrategy());
+        this.strategies.put(RestSmartMeter.class, new RestSmartMeterQueryStrategy());
 
         this.strategies.put(BraiinsPoolEntity.class, new BraiinsPoolQueryStrategy());
         this.strategies.put(NiceHashPoolEntity.class, new NicehashPoolQueryStrategy());

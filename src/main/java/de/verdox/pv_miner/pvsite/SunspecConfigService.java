@@ -2,6 +2,7 @@ package de.verdox.pv_miner.pvsite;
 
 import de.verdox.solarminer.modbustcp.ModbusConfig;
 import de.verdox.solarminer.modbustcp.ModbusParameterType;
+import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
 import de.verdox.solarminer.modbustcp.ModbusReadOperationType;
 import de.verdox.solarminer.modbustcp.TCPModbusClient;
 import org.springframework.stereotype.Service;
@@ -25,7 +26,6 @@ public class SunspecConfigService {
 
         if (inverterBlockId != -1) {
             int blockStart = blockAddresses.get(inverterBlockId);
-
             int wattOffset = 14;
             int scaleFactorOffset = 15;
 
@@ -33,19 +33,13 @@ public class SunspecConfigService {
             float kwScaleFactor = liveScaleFactor * 0.001f;
 
             entries.put("pv_power", new ModbusConfig.Entry<>(
-                    blockStart + wattOffset,
-                    1,
-                    kwScaleFactor,
-                    "",
-                    ModbusParameterType.INT16,
-                    ModbusReadOperationType.READ_HOLDING_REGISTER,
-                    ByteOrder.BIG_ENDIAN
+                    blockStart + wattOffset, 1, kwScaleFactor, "",
+                    ModbusParameterType.INT16, ModbusReadOperationType.READ_HOLDING_REGISTER, ByteOrder.BIG_ENDIAN
             ));
         }
 
         if (blockAddresses.containsKey(THREE_PHASE_SMART_METER)) {
             int meterStart = blockAddresses.get(THREE_PHASE_SMART_METER);
-
             int meterWattOffset = 39;
             int meterScaleFactorOffset = 40;
 
@@ -53,13 +47,8 @@ public class SunspecConfigService {
             float kwScaleFactor = liveScaleFactor * 0.001f;
 
             entries.put("grid_power", new ModbusConfig.Entry<>(
-                    meterStart + meterWattOffset,
-                    1,
-                    kwScaleFactor,
-                    "",
-                    ModbusParameterType.INT16,
-                    ModbusReadOperationType.READ_HOLDING_REGISTER,
-                    ByteOrder.BIG_ENDIAN
+                    meterStart + meterWattOffset, 1, kwScaleFactor, "",
+                    ModbusParameterType.INT16, ModbusReadOperationType.READ_HOLDING_REGISTER, ByteOrder.BIG_ENDIAN
             ));
         }
         if (blockAddresses.containsKey(BATTERY)) {
@@ -71,28 +60,24 @@ public class SunspecConfigService {
             float kwScaleFactor = liveScaleFactor * 0.001f;
 
             entries.put("battery_soc", new ModbusConfig.Entry<>(
-                    battStart + socOffset,
-                    1,
-                    kwScaleFactor,
-                    "",
-                    ModbusParameterType.UINT16,
-                    ModbusReadOperationType.READ_HOLDING_REGISTER,
-                    ByteOrder.BIG_ENDIAN
+                    battStart + socOffset, 1, kwScaleFactor, "",
+                    ModbusParameterType.UINT16, ModbusReadOperationType.READ_HOLDING_REGISTER, ByteOrder.BIG_ENDIAN
             ));
         }
 
         ensureRequiredFields(entries);
 
-        return new ModbusConfig(null, entries);
+        Map<String, ModbusConfig.ConfigSection> sections = new HashMap<>();
+        // FIX: Constructor jetzt mit templateId und name!
+        sections.put(ModbusConfigCreatorTemplate.PV_SITE.id(), new ModbusConfig.ConfigSection(ModbusConfigCreatorTemplate.PV_SITE.id(), "SunSpec Auto-Generated", entries));
+
+        return new ModbusConfig(null, sections);
     }
 
     private float readLiveScaleFactor(TCPModbusClient client, int address) {
         try {
             ModbusConfig.Entry<Short> scaleEntry = new ModbusConfig.Entry<>(
-                    address, 1, 1.0f, "",
-                    ModbusParameterType.INT16,
-                    ModbusReadOperationType.READ_HOLDING_REGISTER,
-                    ByteOrder.BIG_ENDIAN
+                    address, 1, 1.0f, "", ModbusParameterType.INT16, ModbusReadOperationType.READ_HOLDING_REGISTER, ByteOrder.BIG_ENDIAN
             );
             Number rawScale = (Number) client.read(scaleEntry);
             return (float) Math.pow(10, rawScale.intValue());
@@ -106,10 +91,7 @@ public class SunspecConfigService {
         for (String req : required) {
             if (!entries.containsKey(req)) {
                 entries.put(req, new ModbusConfig.Entry<>(
-                        40000, 1, 0.0f, "x * 0",
-                        ModbusParameterType.INT16,
-                        ModbusReadOperationType.READ_HOLDING_REGISTER,
-                        ByteOrder.BIG_ENDIAN
+                        40000, 1, 0.0f, "x * 0", ModbusParameterType.INT16, ModbusReadOperationType.READ_HOLDING_REGISTER, ByteOrder.BIG_ENDIAN
                 ));
             }
         }

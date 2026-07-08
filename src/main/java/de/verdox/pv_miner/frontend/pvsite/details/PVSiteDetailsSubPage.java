@@ -37,6 +37,7 @@ import de.verdox.pv_miner.frontend.user.*;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.pvsite.*;
+import de.verdox.pv_miner.pvsite.panels.PVPanels;
 import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
 
@@ -550,7 +551,8 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
         var pvSiteEntity = pvSiteReference.read();
         PVPanels newGroup = new PVPanels();
         newGroup.setGroupName(getTranslation("pv.details.group.new_default_name"));
-        newGroup.setParentEntity(pvSiteEntity);
+        //newGroup.setParentEntity(pvSiteEntity);
+        //TODO: MUST BE REFACTORED!
 
         SpringContextHelper.getBean(EntityService.class).save(pvSiteEntity, newGroup);
         refreshGroupSelector();

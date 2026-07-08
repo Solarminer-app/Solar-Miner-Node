@@ -1,6 +1,8 @@
 package de.verdox.pv_miner.pvsite.battery;
 
 import de.verdox.pv_miner.entity.AbstractAuditableEntity;
+import de.verdox.pv_miner.entity.QueryEntity;
+import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.inverter.InverterEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -13,7 +15,7 @@ import java.util.UUID;
 @Table(name = "batteries")
 @Inheritance(strategy = InheritanceType.JOINED)
 @EntityListeners(AuditingEntityListener.class)
-public abstract class BatteryEntity extends AbstractAuditableEntity {
+public abstract class BatteryEntity extends AbstractAuditableEntity implements QueryEntity<BatteryDataDTO> {
     @Setter
     @Getter
     @Id
@@ -23,8 +25,8 @@ public abstract class BatteryEntity extends AbstractAuditableEntity {
     @Getter
     @Setter
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "inverter_id", nullable = false)
-    private InverterEntity parentInverter;
+    @JoinColumn(name = "pv_site_id", nullable = false)
+    private PVSiteEntity parentSite;
 
     @Getter
     @Setter

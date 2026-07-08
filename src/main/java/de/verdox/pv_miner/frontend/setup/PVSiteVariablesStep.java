@@ -18,7 +18,7 @@ import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.textfield.TextFieldVariant;
-import de.verdox.pv_miner.pvsite.PVPanels;
+import de.verdox.pv_miner.pvsite.panels.PVPanels;
 import de.verdox.pv_miner.frontend.user.UserSessionContext;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
 import de.verdox.pv_miner.frontend.pvsite.details.CompassField;

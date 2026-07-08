@@ -21,8 +21,8 @@ import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
 import de.verdox.pv_miner.discovery.DiscoveryService;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableButton;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusConfigStorage;
-import de.verdox.pv_miner_extensions.inverter.rest.RestConfigStorage;
+import de.verdox.pv_miner_extensions.device.modbus.ModbusConfigStorage;
+import de.verdox.pv_miner_extensions.device.rest.RestConfigStorage;
 import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
 import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
 
@@ -252,26 +252,17 @@ public class PVSetupStep extends VerticalLayout implements WizardStep {
         onStateChangedCallback.run();
     }
 
-    /**
-     * NEU: Kombiniert lokale und Community-Konfigurationen im Dropdown.
-     * Lokale Namen überschreiben dank LinkedHashSet implizit Duplikate.
-     */
+
     private List<String> getProfilesForProtocol(String protocol) {
         Set<String> uniqueProfileNames = new LinkedHashSet<>();
 
         try {
             if ("Modbus-TCP".equals(protocol)) {
                 ModbusConfigStorage modbusStorage = SpringContextHelper.getBean(ModbusConfigStorage.class);
-                if (modbusStorage != null) {
-                    var pvSiteTemplate = ModbusConfigCreatorTemplate.PV_SITE;
-                    uniqueProfileNames.addAll(modbusStorage.getSavedConfigs(pvSiteTemplate));
-                }
+                uniqueProfileNames.addAll(modbusStorage.getSavedConfigs());
             } else if ("Rest-API".equals(protocol)) {
                 RestConfigStorage restStorage = SpringContextHelper.getBean(RestConfigStorage.class);
-                if (restStorage != null) {
-                    var pvSiteTemplate = RestConfigCreatorTemplate.HOME_ASSISTANT_PV;
-                    uniqueProfileNames.addAll(restStorage.getSavedConfigs(pvSiteTemplate));
-                }
+                uniqueProfileNames.addAll(restStorage.getSavedConfigs());
             }
         } catch (Exception ignored) {
         }

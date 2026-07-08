@@ -102,7 +102,7 @@ public class TCPModbusClient implements Closeable {
         try {
             return configEntry.modbusParameterType().parser().apply(buffer);
         } catch (java.nio.BufferUnderflowException e) {
-            LOGGER.warning("WARNUNG: Buffer to short! " + registers.length + " bytes but " + configEntry.modbusParameterType().identifier() + " needs more!");
+            //LOGGER.warning("WARNUNG: Buffer to short! " + registers.length + " bytes but " + configEntry.modbusParameterType().identifier() + " needs more!");
             return null;
         }
     }

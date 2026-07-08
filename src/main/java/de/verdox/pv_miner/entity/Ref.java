@@ -18,7 +18,7 @@ public class Ref<KEY, ENTITY, REPOSITORY extends JpaRepository<ENTITY, KEY>> {
     }
 
     public ENTITY read() {
-        return repository.getReferenceById(id);
+        return repository.findById(id).orElseThrow();
     }
 
     public void write(Consumer<ENTITY> writeAction) {
