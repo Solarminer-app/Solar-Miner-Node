@@ -1,8 +1,5 @@
 package de.verdox.pv_miner.miningcontroller.dsl;
 
-import com.influxdb.query.FluxRecord;
-import de.verdox.pv_miner.SpringContextHelper;
-import de.verdox.pv_miner.influx.InfluxService;
 import de.verdox.pv_miner.influx.InfluxUtil;
 import de.verdox.pv_miner.miner.MinerEntityController;
 import de.verdox.pv_miner.pvsite.PVPanels;
@@ -14,7 +11,6 @@ import de.verdox.vserializer.generic.SerializerBuilder;
 import lombok.Getter;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
@@ -94,41 +90,41 @@ public class ControllerDSL {
     public enum PVSiteVariableType {
         BATTERY_SOC("Battery SoC in % [0;100]") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                return queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.BATTERY_STATE_OF_CHARGE);
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                return controllerValueProvider.getValue(PVSiteInfluxStrategy.BATTERY_STATE_OF_CHARGE, pvSiteEntity, valueAdjustment);
             }
         },
         IMPORT_POWER_KW("Total import power used from the grid") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                return queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.FEED_IN_POWER_IN_KW);
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                return controllerValueProvider.getValue(PVSiteInfluxStrategy.FEED_IN_POWER_IN_KW, pvSiteEntity, valueAdjustment);
             }
         },
         CURRENT_HOUR_OF_DAY("Current time as hour of day [0.0 ; 24.0)") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
                 java.time.LocalTime now = java.time.LocalTime.now(pvSiteEntity.getZoneId());
                 return now.getHour() + (now.getMinute() / 60.0);
             }
         },
         SUNRISE_HOUR("Time of sunrise as decimal hour [0.0 ; 24.0)") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
                 return calculateSunEvent(pvSiteEntity, true);
             }
         },
         SUNSET_HOUR("Time of sunset as decimal hour [0.0 ; 24.0)") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
                 return calculateSunEvent(pvSiteEntity, false);
             }
         },
         IS_DAYLIGHT("1.0 if sun is up, 0.0 if sun is down") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                double current = CURRENT_HOUR_OF_DAY.getValueFromPVSite(pvSiteEntity, valueAdjustment);
-                double sunrise = SUNRISE_HOUR.getValueFromPVSite(pvSiteEntity, valueAdjustment);
-                double sunset = SUNSET_HOUR.getValueFromPVSite(pvSiteEntity, valueAdjustment);
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                double current = CURRENT_HOUR_OF_DAY.getValueFromPVSite(controllerValueProvider, pvSiteEntity, valueAdjustment);
+                double sunrise = SUNRISE_HOUR.getValueFromPVSite(controllerValueProvider, pvSiteEntity, valueAdjustment);
+                double sunset = SUNSET_HOUR.getValueFromPVSite(controllerValueProvider, pvSiteEntity, valueAdjustment);
 
                 if (sunrise == 0.0 && sunset == 24.0) return 1.0;
                 if (sunrise == 24.0 && sunset == 0.0) return 0.0;
@@ -138,57 +134,57 @@ public class ControllerDSL {
         },
         BATTERY_POWER_KW("Total battery power [positive = charging]") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                return queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.BATTERY_CHARGE_POWER);
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                return controllerValueProvider.getValue(PVSiteInfluxStrategy.BATTERY_CHARGE_POWER, pvSiteEntity, valueAdjustment);
             }
         },
         LOADS_KW("Total power used in kw") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                return queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.LOADS_POWER_IN_KW);
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                return controllerValueProvider.getValue(PVSiteInfluxStrategy.LOADS_POWER_IN_KW, pvSiteEntity, valueAdjustment);
             }
         },
         MINER_POWER_KW("Total power used by all miners in kw") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                return queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.MINER_POWER_IN_KW);
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                return controllerValueProvider.getValue(PVSiteInfluxStrategy.MINER_POWER_IN_KW, pvSiteEntity, valueAdjustment);
             }
         },
         PV_PRODUCTION("PV Production in kW") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                return queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.PV_POWER_IN_KW);
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                return controllerValueProvider.getValue(PVSiteInfluxStrategy.PV_POWER_IN_KW, pvSiteEntity, valueAdjustment);
             }
         },
         POTENTIAL_PV_SURPLUS("Potential pv surplus in kW minus all miner power.") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                double pvProduction = PV_PRODUCTION.getValueFromPVSite(pvSiteEntity, valueAdjustment);
-                double minerPower = MINER_POWER_KW.getValueFromPVSite(pvSiteEntity, valueAdjustment);
-                double loadsPowerKW = LOADS_KW.getValueFromPVSite(pvSiteEntity, valueAdjustment);
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                double pvProduction = PV_PRODUCTION.getValueFromPVSite(controllerValueProvider, pvSiteEntity, valueAdjustment);
+                double minerPower = MINER_POWER_KW.getValueFromPVSite(controllerValueProvider, pvSiteEntity, valueAdjustment);
+                double loadsPowerKW = LOADS_KW.getValueFromPVSite(controllerValueProvider, pvSiteEntity, valueAdjustment);
                 return Math.max(0, pvProduction - (loadsPowerKW - minerPower));
             }
         },
         PV_SURPLUS("PV Surplus in kW") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                double pvProduction = PV_PRODUCTION.getValueFromPVSite(pvSiteEntity, valueAdjustment);
-                double loadsPower = queryInflux(pvSiteEntity, valueAdjustment, PVSiteInfluxStrategy.LOADS_POWER_IN_KW);
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                double pvProduction = PV_PRODUCTION.getValueFromPVSite(controllerValueProvider, pvSiteEntity, valueAdjustment);
+                double loadsPower = controllerValueProvider.getValue(PVSiteInfluxStrategy.LOADS_POWER_IN_KW, pvSiteEntity, valueAdjustment);
                 return Math.max(0, pvProduction - loadsPower);
             }
         },
         PV_SURPLUS_RATIO("PV Surplus Ratio [0.0 ; 1.0]") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                double surplusKw = PV_SURPLUS.getValueFromPVSite(pvSiteEntity, valueAdjustment);
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                double surplusKw = PV_SURPLUS.getValueFromPVSite(controllerValueProvider, pvSiteEntity, valueAdjustment);
                 double capacityKwp = Math.max(1.0, pvSiteEntity.getKwp());
                 return surplusKw / capacityKwp;
             }
         },
         POTENTIAL_PV_SURPLUS_RATIO("PV Surplus Ratio [0.0 ; 1.0]") {
             @Override
-            public double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                double surplusKw = POTENTIAL_PV_SURPLUS.getValueFromPVSite(pvSiteEntity, valueAdjustment);
+            public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
+                double surplusKw = POTENTIAL_PV_SURPLUS.getValueFromPVSite(controllerValueProvider, pvSiteEntity, valueAdjustment);
                 double capacityKwp = Math.max(1.0, pvSiteEntity.getKwp());
                 return surplusKw / capacityKwp;
             }
@@ -200,25 +196,11 @@ public class ControllerDSL {
             this.display = display;
         }
 
-        public abstract double getValueFromPVSite(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment);
-
-        protected double queryInflux(PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment, String field) {
-            Instant start = Instant.now().minus(Duration.of(valueAdjustment.timeValue(), valueAdjustment.timeUnit().toChronoUnit()));
-            Instant end = Instant.now();
-            List<FluxRecord> any = SpringContextHelper.getBean(InfluxService.class).queryDataFromApi(pvSiteEntity, start, end, influxQueryBuilder -> {
-                influxQueryBuilder
-                        .setAggregation(valueAdjustment.valueFunction(), Duration.of(valueAdjustment.timeValue(), valueAdjustment.timeUnit().toChronoUnit()))
-                        .addField(field);
-            });
-            if (any.isEmpty()) {
-                throw new NoSuchElementException("No single data point could be queried from influx");
-            }
-            return ((Number) any.getFirst().getValue()).doubleValue();
-        }
+        public abstract double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment);
     }
 
     public interface Condition {
-        boolean evaluate(PVSiteEntity pvSiteEntity);
+        boolean evaluate(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity);
 
         Serializer<Condition> SERIALIZER = Serializers.CONDITION_SERIALIZER;
 
@@ -228,12 +210,12 @@ public class ControllerDSL {
             public static final Serializer<LogicalCondition> SERIALIZER = Serializers.LOGICAL_CONDITION_SERIALIZER;
 
             @Override
-            public boolean evaluate(PVSiteEntity pvSiteEntity) {
+            public boolean evaluate(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity) {
                 if (subConditions.isEmpty()) return true;
                 return switch (operator) {
-                    case AND -> subConditions.stream().allMatch(c -> c.evaluate(pvSiteEntity));
-                    case OR -> subConditions.stream().anyMatch(c -> c.evaluate(pvSiteEntity));
-                    case NOT -> !subConditions.getFirst().evaluate(pvSiteEntity);
+                    case AND -> subConditions.stream().allMatch(c -> c.evaluate(controllerValueProvider, pvSiteEntity));
+                    case OR -> subConditions.stream().anyMatch(c -> c.evaluate(controllerValueProvider, pvSiteEntity));
+                    case NOT -> !subConditions.getFirst().evaluate(controllerValueProvider, pvSiteEntity);
                 };
             }
         }
@@ -243,8 +225,8 @@ public class ControllerDSL {
             public static final Serializer<Predicate> SERIALIZER = Serializers.PREDICATE_SERIALIZER;
 
             @Override
-            public boolean evaluate(PVSiteEntity pvSiteEntity) {
-                double valueFromPVSite = pvSiteVariableType.getValueFromPVSite(pvSiteEntity, scope);
+            public boolean evaluate(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity) {
+                double valueFromPVSite = pvSiteVariableType.getValueFromPVSite(controllerValueProvider, pvSiteEntity, scope);
                 return comparator.compare(valueFromPVSite, value);
             }
         }
@@ -277,7 +259,7 @@ public class ControllerDSL {
     }
 
     public sealed interface ValueExpression permits ValueExpression.ClusterCapacityPercentage, ValueExpression.Constant, ValueExpression.DynamicVariable {
-        double evaluate(PVSiteEntity pvSiteEntity, double clusterCapacityWatts);
+        double evaluate(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, double clusterCapacityWatts);
 
         Serializer<ValueExpression> SERIALIZER = Serializers.EXPRESSION_SERIALIZER;
 
@@ -285,7 +267,7 @@ public class ControllerDSL {
             public static final Serializer<Constant> SERIALIZER = Serializers.CONSTANT_SERIALIZER;
 
             @Override
-            public double evaluate(PVSiteEntity pvSiteEntity, double clusterCapacityWatts) {
+            public double evaluate(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, double clusterCapacityWatts) {
                 return valueWatts;
             }
         }
@@ -295,8 +277,8 @@ public class ControllerDSL {
             public static final Serializer<DynamicVariable> SERIALIZER = Serializers.DYNAMIC_VARIABLE_SERIALIZER;
 
             @Override
-            public double evaluate(PVSiteEntity pvSiteEntity, double clusterCapacityWatts) {
-                double baseValue = variable.getValueFromPVSite(pvSiteEntity, adjustment);
+            public double evaluate(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, double clusterCapacityWatts) {
+                double baseValue = variable.getValueFromPVSite(controllerValueProvider, pvSiteEntity, adjustment);
                 return (baseValue * multiplier) + offset;
             }
         }
@@ -305,7 +287,7 @@ public class ControllerDSL {
             public static final Serializer<ClusterCapacityPercentage> SERIALIZER = Serializers.CAPACITY_PERCENTAGE_SERIALIZER;
 
             @Override
-            public double evaluate(PVSiteEntity pvSiteEntity, double clusterCapacityWatts) {
+            public double evaluate(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, double clusterCapacityWatts) {
                 return clusterCapacityWatts * percentage;
             }
         }

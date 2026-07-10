@@ -57,7 +57,7 @@ public class ControllerDashboardChart extends Div {
         add(automationChart);
     }
 
-    public void update(UI ui, PVSiteEntity pvSiteEntity) {
+    public void update(PVSiteEntity pvSiteEntity) {
         List<String> clusters = clusterService.getAvailableClusterNames();
         if (clusters.isEmpty()) return;
 
@@ -100,11 +100,9 @@ public class ControllerDashboardChart extends Div {
             allocatedItems.add(currentAlloc);
         }
 
-        UI.getCurrent().access(() -> {
-            automationPowerSeries.setData(powerItems);
-            automationAllocatedSeries.setData(allocatedItems);
-            automationFlagsSeries.setData(flagItems);
-        });
+        automationPowerSeries.setData(powerItems);
+        automationAllocatedSeries.setData(allocatedItems);
+        automationFlagsSeries.setData(flagItems);
     }
 
     private @NonNull FlagItem createFlagForSnapshot(MinerClusterService.ClusterInstance.ClusterStateSnapshot snapshot, long time) {

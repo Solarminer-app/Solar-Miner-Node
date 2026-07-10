@@ -45,6 +45,7 @@ import de.verdox.pv_miner.lightning.LightningWalletService;
 import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.miningcontroller.MinerClusterService;
 import de.verdox.pv_miner.miningcontroller.MinerLock;
+import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVSiteRef;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
 import de.verdox.pv_miner.statistic.live.EntityStatisticsService;
@@ -141,16 +142,16 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         return getTranslation("dashboard.page.title");
     }
 
-    private void setup() {
+    private void setup(UI ui) {
         EntityMonitoringService monitoringService = SpringContextHelper.getBean(EntityMonitoringService.class);
         EntityStatisticsService statisticsService = SpringContextHelper.getBean(EntityStatisticsService.class);
 
+
+        PVSiteEntity pvSiteEntity = pvSiteReference.read();
         var zoneId = sessionContext.getZoneId();
 
         long startTodayMilli = LocalDate.now(zoneId).atStartOfDay(zoneId).toInstant().toEpochMilli();
         long endTodayMilli = LocalDate.now(zoneId).atTime(LocalTime.of(23, 59, 59, 999)).atZone(zoneId).toInstant().toEpochMilli();
-
-        UI ui = UI.getCurrent();
 
         var pvSite = pvSiteReference.read();
 
@@ -196,6 +197,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
         liveDataSubscription = monitoringService.hookIntoLiveData(pvSite)
                 .subscribe(pvSiteData -> {
+                    PVSiteEntity fresh = pvSiteReference.read();
                     ui.access(() -> {
                         batterySocCard.setValue(pvSiteData.getBatterySoC() + " %");
 
@@ -204,21 +206,23 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
                         } else {
                             batteryPowerCard.setValue(FormatUtil.formatNumber(pvSiteData.getBatteryPower()) + " kW");
                         }
-                        updateWidgetsLive();
+                        updateWidgetsLive(fresh);
                     });
                 });
 
-        updateWidgetsLive();
+        ui.access(() -> {
+            updateWidgetsLive(pvSiteEntity);
+        });
     }
 
-    private void updateWidgetsLive() {
+    private void updateWidgetsLive(PVSiteEntity pvSiteEntity) {
         if (walletBalanceSpan != null) {
             walletBalanceSpan.setText(convertSatsToUserCurrencyString(walletService.getBalanceSat()));
         }
-        refreshClusterList();
-        updateMinerGridLive();
-        updatePoolGridLive();
-        controllerDashboardChart.update(UI.getCurrent(), pvSiteReference.read());
+        refreshClusterList(pvSiteEntity);
+        updateMinerGridLive(pvSiteEntity);
+        updatePoolGridLive(pvSiteEntity);
+        controllerDashboardChart.update(pvSiteEntity);
     }
 
     private static @NonNull FlagItem createFlagForSnapshot(MinerClusterService.ClusterInstance.ClusterStateSnapshot snapshot, long time) {
@@ -246,9 +250,8 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         return flag;
     }
 
-    private void updateMinerGridLive() {
+    private void updateMinerGridLive(PVSiteEntity pvSite) {
         if (pvSiteReference == null) return;
-        var pvSite = pvSiteReference.read();
 
         var clusterInstance = clusterService.getCluster(pvSiteReference.getId(), "Standard");
         Map<UUID, MinerLock> locks = clusterInstance != null ? clusterInstance.getActiveLocks() : Map.of();
@@ -285,9 +288,8 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         minerGrid.setItems(minerItems);
     }
 
-    private void updatePoolGridLive() {
+    private void updatePoolGridLive(PVSiteEntity pvSite) {
         if (pvSiteReference == null) return;
-        var pvSite = pvSiteReference.read();
 
         List<PoolItem> livePools = pvSite.getConnectedMiningPools().stream().map(pool -> {
             String url = pool.getStratumV1Url() != null ? pool.getStratumV1Url() : getTranslation("dashboard.grid.pool_unknown");
@@ -369,10 +371,9 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         return card;
     }
 
-    private void refreshClusterList() {
+    private void refreshClusterList(PVSiteEntity pvSite) {
         if (clusterListLayout == null) return;
         clusterListLayout.removeAll();
-        var pvSite = pvSiteReference.read();
 
         List<String> clusters = clusterService.getAvailableClusterNames();
         if (clusters.isEmpty()) {
@@ -501,11 +502,12 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
+
         String parameter = event.getRouteParameters().get("siteId").orElseThrow();
         try {
             UUID siteUuid = UUID.fromString(parameter);
             this.pvSiteReference = entityService.pvSiteRef(siteUuid);
-            setup();
+            setup(event.getUI());
         } catch (IllegalArgumentException e) {
             e.printStackTrace();
         }
