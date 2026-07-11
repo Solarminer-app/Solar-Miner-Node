@@ -10,6 +10,8 @@ import de.verdox.pv_miner.pvsite.PVSiteRef;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -39,7 +41,6 @@ public class MinerClusterService {
         this.entityControllerService = entityControllerService;
         this.configStorage = configStorage;
         this.pVSiteRepository = pVSiteRepository;
-        refreshClustersFromStorage();
     }
 
     public void startClustersForSite(PVSiteRef pvSiteRef) throws Exception {
@@ -70,6 +71,7 @@ public class MinerClusterService {
         }
     }
 
+    @EventListener(ApplicationReadyEvent.class)
     public void refreshClustersFromStorage() {
         try {
             List<String> savedConfigs = configStorage.getNameOfSavedConfigs();

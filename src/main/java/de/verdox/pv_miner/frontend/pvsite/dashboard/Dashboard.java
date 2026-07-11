@@ -16,6 +16,7 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.Tabs;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
@@ -58,10 +59,7 @@ import reactor.core.Disposable;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 @Route(value = "site/:siteId/dashboard", layout = AppMainLayout.class)
@@ -78,8 +76,13 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
     private final DailyStatisticsWidget dailyStatisticsWidget = new DailyStatisticsWidget();
     private final EntityService entityService;
 
+    private Disposable subscription;
     private Disposable liveDataSubscription;
     private PVSiteRef pvSiteReference;
+
+    // Cluster Auswahl Variablen
+    private final Select<String> clusterSelector = new Select<>();
+    private String selectedClusterName = "Standard";
 
     private final KpiCard batterySocCard = new KpiCard("dashboard.kpi.battery_soc", FrontendColor.TEXT_VALUE_YELLOW, VaadinIcon.INPUT);
     private final KpiCard batteryPowerCard = new KpiCard("dashboard.kpi.battery_power", FrontendColor.TEXT_VALUE_WHITE, VaadinIcon.GRID);
@@ -93,6 +96,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
     private Span walletBalanceSpan;
     private VerticalLayout clusterListLayout;
+
 
     @Autowired
     public Dashboard(PVSiteRepository pVSiteRepository, LightningWalletService walletService, UserSessionContext sessionContext, MinerClusterService clusterService, EntityQueryService entityQueryService, GlobalConstantsService globalConstantsService, DashboardFacadeService dashboardFacadeService, EntityService entityService) {
@@ -146,7 +150,6 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         EntityMonitoringService monitoringService = SpringContextHelper.getBean(EntityMonitoringService.class);
         EntityStatisticsService statisticsService = SpringContextHelper.getBean(EntityStatisticsService.class);
 
-
         PVSiteEntity pvSiteEntity = pvSiteReference.read();
         var zoneId = sessionContext.getZoneId();
 
@@ -189,8 +192,11 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         if (liveDataSubscription != null) {
             liveDataSubscription.dispose();
         }
+        if(subscription != null) {
+            subscription.dispose();
+        }
 
-        dashboardFacadeService.subscribeToLiveUpdates(pvSite, sessionContext).subscribe(liveDashboardUpdateDto -> {
+        subscription = dashboardFacadeService.subscribeToLiveUpdates(pvSite, sessionContext).subscribe(liveDashboardUpdateDto -> {
             dashboardKpiHeader.update(ui, liveDashboardUpdateDto.kpi());
             dailyStatisticsWidget.update(ui, liveDashboardUpdateDto.financials());
         });
@@ -222,7 +228,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         refreshClusterList(pvSiteEntity);
         updateMinerGridLive(pvSiteEntity);
         updatePoolGridLive(pvSiteEntity);
-        controllerDashboardChart.update(pvSiteEntity);
+        controllerDashboardChart.update(pvSiteEntity, selectedClusterName);
     }
 
     private static @NonNull FlagItem createFlagForSnapshot(MinerClusterService.ClusterInstance.ClusterStateSnapshot snapshot, long time) {
@@ -232,11 +238,9 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
         if (desc.contains("start")) {
             flag.setTitle("▶ Start");
-            flag.setColor(new SolidColor("rgba(46, 204, 113, 0.8)"));
             flag.setColor(new SolidColor("#2ecc71"));
         } else if (desc.contains("stop") || desc.contains("drop")) {
             flag.setTitle("⏸ Stop");
-            flag.setColor(new SolidColor("rgba(231, 76, 60, 0.8)"));
             flag.setColor(new SolidColor("#e74c3c"));
         } else {
             flag.setTitle("ℹ️ Event");
@@ -244,16 +248,13 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         }
 
         flag.setText(snapshot.eventDescription() + " (Modus: " + snapshot.activeModeName() + ")");
-
-
-        flag.setText(snapshot.eventDescription() + " (Mode: " + snapshot.activeModeName() + ")");
         return flag;
     }
 
     private void updateMinerGridLive(PVSiteEntity pvSite) {
         if (pvSiteReference == null) return;
 
-        var clusterInstance = clusterService.getCluster(pvSiteReference.getId(), "Standard");
+        var clusterInstance = clusterService.getCluster(pvSiteReference.getId(), selectedClusterName);
         Map<UUID, MinerLock> locks = clusterInstance != null ? clusterInstance.getActiveLocks() : Map.of();
 
         List<MinerDashboardItemDTO> minerItems = pvSite.getMiners().stream().map(miner -> {
@@ -271,7 +272,6 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
                 controllerPower = (long) lock.expectedPowerWatts();
             }
 
-
             return new MinerDashboardItemDTO(
                     stats.minerIdentity().minerModel(),
                     miner.getIP(),
@@ -284,7 +284,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
                     powerRemaining,
                     controllerPower
             );
-        }).toList();
+        }).sorted(Comparator.comparing(MinerDashboardItemDTO::hashrate)).toList();
         minerGrid.setItems(minerItems);
     }
 
@@ -311,7 +311,27 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         Tab historyTab = new Tab(new TranslatableSpan("dashboard.tab.history"));
         Tab automationTab = new Tab(new TranslatableSpan("dashboard.tab.automation"));
         Tabs chartTabs = new Tabs(liveTab, historyTab, automationTab);
-        chartTabs.getStyle().set("margin-bottom", "10px");
+
+        clusterSelector.setItems(clusterService.getAvailableClusterNames());
+        clusterSelector.setValue(selectedClusterName);
+        clusterSelector.setVisible(false);
+
+        clusterSelector.addValueChangeListener(event -> {
+            if (event.getValue() != null) {
+                selectedClusterName = event.getValue();
+                if (pvSiteReference != null) {
+                    var pvSite = pvSiteReference.read();
+                    controllerDashboardChart.update(pvSite, selectedClusterName);
+                    updateMinerGridLive(pvSite);
+                }
+            }
+        });
+
+        HorizontalLayout tabsAndSelector = new HorizontalLayout(chartTabs, clusterSelector);
+        tabsAndSelector.setWidthFull();
+        tabsAndSelector.setAlignItems(Alignment.BASELINE);
+        tabsAndSelector.setJustifyContentMode(JustifyContentMode.BETWEEN);
+        tabsAndSelector.getStyle().set("margin-bottom", "10px");
 
         Div chartContainer = new Div(liveChart);
         chartContainer.setWidth("95%");
@@ -319,11 +339,21 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         chartTabs.addSelectedChangeListener(event -> {
             chartContainer.removeAll();
             if (event.getSelectedTab().equals(liveTab)) {
+                clusterSelector.setVisible(false);
                 chartContainer.add(liveChart);
             } else if (event.getSelectedTab().equals(historyTab)) {
+                clusterSelector.setVisible(false);
                 chartContainer.add(historyChart);
             } else {
+                clusterSelector.setVisible(true);
+                clusterSelector.setItems(clusterService.getAvailableClusterNames());
+                if(clusterSelector.getValue() == null && !clusterService.getAvailableClusterNames().isEmpty()) {
+                    clusterSelector.setValue(clusterService.getAvailableClusterNames().getFirst());
+                }
                 chartContainer.add(controllerDashboardChart);
+                if (pvSiteReference != null) {
+                    controllerDashboardChart.update(pvSiteReference.read(), selectedClusterName);
+                }
             }
         });
 
@@ -338,7 +368,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
                 .set("border-radius", "4px")
                 .set("border", "1px solid #222226");
 
-        left.add(chartTitle, chartTabs, chartContainer, minerTitle, gridContainer);
+        left.add(chartTitle, tabsAndSelector, chartContainer, minerTitle, gridContainer);
         return left;
     }
 
@@ -497,6 +527,9 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
     protected void onDetach(DetachEvent detachEvent) {
         if (liveDataSubscription != null) {
             liveDataSubscription.dispose();
+        }
+        if(subscription != null) {
+            subscription.dispose();
         }
     }
 
