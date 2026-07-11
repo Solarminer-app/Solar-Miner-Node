@@ -27,7 +27,8 @@ public class RestPVConfig extends SimpleConfig<RestPVConfig.Entry<?>> {
     public record Entry<T extends Number>(
             String urlExtension,
             RestHttpMethod httpMethod,
-            String jsonPath,
+            RestResponseType responseType,
+            String dataPath,
             float scaleFactor,
             String formula,
             RestParameterType<T> restParameterType
@@ -36,7 +37,8 @@ public class RestPVConfig extends SimpleConfig<RestPVConfig.Entry<?>> {
                 .constructor(
                         new SerializableField<>("urlExtension", Serializer.Primitive.STRING, Entry::urlExtension),
                         new SerializableField<>("httpMethod", RestHttpMethod.SERIALIZER, Entry::httpMethod),
-                        new SerializableField<>("jsonPath", Serializer.Primitive.STRING, Entry::jsonPath),
+                        new SerializableField<>("responseType", RestResponseType.SERIALIZER, Entry::responseType),
+                        new SerializableField<>("dataPath", Serializer.Primitive.STRING, Entry::dataPath),
                         new SerializableField<>("scaleFactor", Serializer.Primitive.FLOAT, Entry::scaleFactor),
                         new SerializableField<>("formula", Serializer.Primitive.STRING, Entry::formula),
                         new SerializableField<>("parameterType", RestParameterType.SERIALIZER, Entry::restParameterType),

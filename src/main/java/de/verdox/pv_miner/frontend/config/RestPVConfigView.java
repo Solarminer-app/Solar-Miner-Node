@@ -330,21 +330,22 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
             tableHeader.getStyle().set("padding-bottom", "4px");
             tableHeader.getStyle().set("margin-top", "15px");
 
-            Span hName = new Span(getTranslation("rest.header.name", "Feldname")); hName.setWidth("150px");
-            Span hMethod = new Span(getTranslation("rest.header.method", "Methode")); hMethod.setWidth("90px");
-            Span hPath = new Span(getTranslation("rest.header.path", "URL Extension / Pfad")); hPath.setWidth("240px");
-            Span hJsonPath = new Span(getTranslation("rest.header.jsonpath", "JSON Path")); hJsonPath.setWidth("160px");
-            Span hScale = new Span(getTranslation("rest.header.scale", "Faktor")); hScale.setWidth("70px");
-            Span hFormula = new Span(getTranslation("rest.header.formula", "Formel")); hFormula.setWidth("100px");
-            Span hType = new Span(getTranslation("rest.header.type", "Typ")); hType.setWidth("90px");
-            Span hLive = new Span(getTranslation("rest.header.live", "Live-Wert")); hLive.setWidth("120px");
+            Span hName = new Span(getTranslation("rest.header.name", "Feldname")); hName.setWidth("130px");
+            Span hMethod = new Span(getTranslation("rest.header.method", "Methode")); hMethod.setWidth("80px");
+            Span hFormat = new Span(getTranslation("rest.header.format", "Format")); hFormat.setWidth("90px"); // NEUE SPALTE
+            Span hPath = new Span(getTranslation("rest.header.path", "URL Extension / Pfad")); hPath.setWidth("200px");
+            Span hDataPath = new Span(getTranslation("rest.header.datapath", "JSON/XPath")); hDataPath.setWidth("140px"); // UMBENANNT
+            Span hScale = new Span(getTranslation("rest.header.scale", "Faktor")); hScale.setWidth("60px");
+            Span hFormula = new Span(getTranslation("rest.header.formula", "Formel")); hFormula.setWidth("90px");
+            Span hType = new Span(getTranslation("rest.header.type", "Typ")); hType.setWidth("80px");
+            Span hLive = new Span(getTranslation("rest.header.live", "Live-Wert")); hLive.setWidth("110px");
 
-            for (Span span : List.of(hName, hMethod, hPath, hJsonPath, hScale, hFormula, hType, hLive)) {
+            for (Span span : List.of(hName, hMethod, hFormat, hPath, hDataPath, hScale, hFormula, hType, hLive)) {
                 span.getStyle().set("font-weight", "bold");
                 span.getStyle().set("color", "var(--lumo-secondary-text-color)");
             }
 
-            tableHeader.add(hName, hMethod, hPath, hJsonPath, hScale, hFormula, hType, hLive);
+            tableHeader.add(hName, hMethod, hFormat, hPath, hDataPath, hScale, hFormula, hType, hLive);
             editorLayout.add(tableHeader);
 
             for (RequiredField reqField : currentTemplate.requiredFields()) {
@@ -418,8 +419,9 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
     class CompactRestFieldRow extends HorizontalLayout {
         private final RequiredField requiredField;
         private final ComboBox<RestHttpMethod> httpMethod = new ComboBox<>();
+        private final ComboBox<RestResponseType> responseTypeField = new ComboBox<>(); // NEUES FELD
         private final TextField urlExtensionField = new TextField();
-        private final TextField jsonPathField = new TextField();
+        private final TextField dataPathField = new TextField(); // UMBENANNT
         private final NumberField scaleFactorField = new NumberField();
         private final TextField formulaField = new TextField();
         private final ComboBox<RestParameterType<?>> parameterTypeField = new ComboBox<>();
@@ -435,55 +437,63 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
             getStyle().set("padding-bottom", "4px");
 
             Span nameLabel = new Span(requiredField.field());
-            nameLabel.setWidth("150px");
+            nameLabel.setWidth("130px");
             nameLabel.getStyle().set("font-weight", "600");
 
             httpMethod.setItems(RestHttpMethod.values());
-            httpMethod.setWidth("90px");
+            httpMethod.setWidth("80px");
+
+            // NEUES FELD INIT
+            responseTypeField.setItems(RestResponseType.values());
+            responseTypeField.setWidth("90px");
 
             urlExtensionField.setPlaceholder("/api/states/...");
-            urlExtensionField.setWidth("240px");
+            urlExtensionField.setWidth("200px");
             urlExtensionField.setValueChangeMode(ValueChangeMode.EAGER);
 
-            jsonPathField.setPlaceholder("state");
-            jsonPathField.setWidth("160px");
-            jsonPathField.setValueChangeMode(ValueChangeMode.EAGER);
+            dataPathField.setPlaceholder("state");
+            dataPathField.setWidth("140px");
+            dataPathField.setValueChangeMode(ValueChangeMode.EAGER);
 
-            scaleFactorField.setWidth("70px");
+            scaleFactorField.setWidth("60px");
             scaleFactorField.setValueChangeMode(ValueChangeMode.EAGER);
 
             formulaField.setPlaceholder("x");
-            formulaField.setWidth("100px");
+            formulaField.setWidth("90px");
             formulaField.setValueChangeMode(ValueChangeMode.EAGER);
 
             parameterTypeField.setItems(RestParameterType.INT, RestParameterType.LONG, RestParameterType.FLOAT, RestParameterType.DOUBLE);
             parameterTypeField.setItemLabelGenerator(RestParameterType::identifier);
-            parameterTypeField.setWidth("90px");
+            parameterTypeField.setWidth("80px");
 
             liveValueDisplay.setReadOnly(true);
-            liveValueDisplay.setWidth("120px");
+            liveValueDisplay.setWidth("110px");
             liveValueDisplay.addThemeName("align-right");
             liveValueDisplay.getStyle().set("font-family", "monospace");
 
-            applySmallTheme(httpMethod, urlExtensionField, jsonPathField, scaleFactorField, formulaField, parameterTypeField, liveValueDisplay);
+            // NEUES FELD IN THEME AUFNEHMEN
+            applySmallTheme(httpMethod, responseTypeField, urlExtensionField, dataPathField, scaleFactorField, formulaField, parameterTypeField, liveValueDisplay);
 
             if (entry != null) {
                 httpMethod.setValue(entry.httpMethod());
+                responseTypeField.setValue(entry.responseType()); // WERT SETZEN
                 urlExtensionField.setValue(entry.urlExtension());
-                jsonPathField.setValue(entry.jsonPath());
+                dataPathField.setValue(entry.dataPath()); // WERT SETZEN
                 scaleFactorField.setValue((double) entry.scaleFactor());
                 formulaField.setValue(entry.formula());
                 parameterTypeField.setValue(entry.restParameterType());
             } else {
                 httpMethod.setValue(RestHttpMethod.GET);
+                responseTypeField.setValue(RestResponseType.JSON); // DEFAULT WERT
                 urlExtensionField.setValue("/api/states/sensor." + requiredField.field());
-                jsonPathField.setValue("state");
+                dataPathField.setValue("state");
                 scaleFactorField.setValue(1.0);
                 formulaField.setValue("x");
                 parameterTypeField.setValue(RestParameterType.FLOAT);
             }
 
-            add(nameLabel, httpMethod, urlExtensionField, jsonPathField, scaleFactorField, formulaField, parameterTypeField, liveValueDisplay);
+            // NEUES FELD ZUM LAYOUT HINZUFÜGEN
+            add(nameLabel, httpMethod, responseTypeField, urlExtensionField, dataPathField, scaleFactorField, formulaField, parameterTypeField, liveValueDisplay);
         }
 
         @Override
@@ -520,10 +530,12 @@ public class RestPVConfigView extends VerticalLayout implements LocaleChangeObse
 
         public RestPVConfig.Entry<?> buildEntry() {
             try {
+                // ANPASSUNG AN DIE NEUE ENTRY-SIGNATUR
                 return new RestPVConfig.Entry<>(
                         urlExtensionField.getValue(),
                         httpMethod.getValue(),
-                        jsonPathField.getValue(),
+                        responseTypeField.getValue(),
+                        dataPathField.getValue(),
                         scaleFactorField.getValue().floatValue(),
                         formulaField.getValue(),
                         parameterTypeField.getValue()

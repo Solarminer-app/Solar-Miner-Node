@@ -26,6 +26,7 @@ public record RestConfigCreatorTemplate(String id, String name, List<RequiredFie
             templateValues.put(requiredField.field(), new RestPVConfig.Entry<>(
                     defaultExtension,
                     RestHttpMethod.GET,
+                    RestResponseType.JSON,
                     "state",
                     1.0f,
                     "",
