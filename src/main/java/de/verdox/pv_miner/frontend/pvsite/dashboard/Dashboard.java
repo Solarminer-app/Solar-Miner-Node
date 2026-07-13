@@ -153,6 +153,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         PVSiteEntity pvSiteEntity = pvSiteReference.read();
         var zoneId = sessionContext.getZoneId();
 
+        long pvSiteStartMilli = pvSiteEntity.getSetupDate().atStartOfDay(zoneId).toInstant().toEpochMilli();
         long startTodayMilli = LocalDate.now(zoneId).atStartOfDay(zoneId).toInstant().toEpochMilli();
         long endTodayMilli = LocalDate.now(zoneId).atTime(LocalTime.of(23, 59, 59, 999)).atZone(zoneId).toInstant().toEpochMilli();
 
@@ -163,7 +164,8 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         var exportFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_GRID_EXPORT, pvSite, startTodayMilli, endTodayMilli, false));
         var consumptionFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.CONSUMPTION, pvSite, startTodayMilli, endTodayMilli, false));
         var minerConsumptionFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.MINER_CONSUMPTION, pvSite, startTodayMilli, endTodayMilli, false));
-        var historyFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_POWER_PER_HOUR_STATISTIC, pvSite, startTodayMilli, endTodayMilli, false));
+
+        var historyFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_POWER_PER_HOUR_STATISTIC, pvSite, pvSiteStartMilli, endTodayMilli, false));
 
         CompletableFuture.allOf(pvPowerFuture, importFuture, exportFuture, consumptionFuture, minerConsumptionFuture)
                 .thenAccept(v -> {
