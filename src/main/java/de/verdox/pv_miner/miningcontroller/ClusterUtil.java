@@ -39,11 +39,17 @@ public class ClusterUtil {
 
     public static long getMinPowerTargetForMiner(MinerEntity<?> miner) {
         var stats = SpringContextHelper.getBean(EntityQueryService.class).getLastResult(miner, MinerStats.DEFAULT);
+        if (stats == null) {
+            return miner.getMinPowerTarget();
+        }
         return Math.max(miner.getMinPowerTarget(), stats.minPowerTarget());
     }
 
     public static long getMaxPowerForMiner(MinerEntity<?> miner) {
         var stats = SpringContextHelper.getBean(EntityQueryService.class).getLastResult(miner, MinerStats.DEFAULT);
+        if (stats == null) {
+            return miner.getMaxPowerTarget();
+        }
         return Math.min(miner.getMaxPowerTarget(), stats.maxPowerTarget());
     }
 }

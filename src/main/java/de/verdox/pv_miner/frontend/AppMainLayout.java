@@ -1,6 +1,7 @@
 package de.verdox.pv_miner.frontend;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -54,15 +55,13 @@ public class AppMainLayout extends AppLayout implements AfterNavigationObserver,
     private final TranslatableSpan financeButton = new TranslatableSpan("pv_site.subpage.header.finance");
 
     private final SettingsHeader settingsHeader;
-    private final PVSiteRepository pvSiteRepository;
     private final EntityService entityService;
     private final UserSessionContext userSessionContext;
     private PVSiteRef pvSiteReference;
 
     private Dialog mobileMenuDialog;
 
-    public AppMainLayout(@Autowired PVSiteRepository pvSiteRepository, @Autowired EntityService entityService, @Autowired UserSessionContext userSessionContext) {
-        this.pvSiteRepository = pvSiteRepository;
+    public AppMainLayout(@Autowired EntityService entityService, @Autowired UserSessionContext userSessionContext) {
         this.entityService = entityService;
         this.userSessionContext = userSessionContext;
 
@@ -178,12 +177,14 @@ public class AppMainLayout extends AppLayout implements AfterNavigationObserver,
                 new SupportedLanguage("🇩🇪", "de", getTranslation("lang.de"))
         );
         box.setItems(languages);
+        Locale sessionLocale = userSessionContext.getLocale();
 
-        Locale currentUiLocale = getLocale();
+        UI.getCurrent().setLocale(sessionLocale);
+
         languages.stream()
-                .filter(l -> l.code().equalsIgnoreCase(currentUiLocale.getLanguage()))
+                .filter(l -> l.code().equalsIgnoreCase(sessionLocale.getLanguage()))
                 .findFirst()
-                .ifPresentOrElse(box::setValue, () -> box.setValue(languages.get(1)));
+                .ifPresentOrElse(box::setValue, () -> box.setValue(languages.getFirst()));
 
         box.addValueChangeListener(event -> {
             if (event.getValue() != null && event.isFromClient()) {
@@ -216,11 +217,8 @@ public class AppMainLayout extends AppLayout implements AfterNavigationObserver,
         box.setItems(ZoneId.getAvailableZoneIds().stream().sorted().toList());
         box.setValue(userSessionContext.getZoneId() != null ? userSessionContext.getZoneId().getId() : ZoneId.systemDefault().getId());
         box.addValueChangeListener(event -> {
-            var pvSiteEntity = pvSiteReference.read();
             if (event.getValue() != null && event.isFromClient()) {
                 userSessionContext.setZoneId(ZoneId.of(event.getValue()));
-                pvSiteEntity.setTimezoneId(event.getValue());
-                entityService.save(pvSiteEntity);
             }
         });
         return box;

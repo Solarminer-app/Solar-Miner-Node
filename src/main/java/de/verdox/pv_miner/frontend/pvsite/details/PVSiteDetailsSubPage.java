@@ -41,6 +41,7 @@ import de.verdox.pv_miner.pvsite.panels.PVPanels;
 import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
 
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -77,6 +78,7 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
     private final H3 formTitle = new H3();
     private final H3 forecastTitle = new H3();
 
+    private final ComboBox<String> siteTimezoneSelector = new ComboBox<>();
     private final NumberField pvCostField = new NumberField();
     private final DatePicker setupDatePicker = new DatePicker();
     private final Button savePVConfigBtn = new Button();
@@ -123,6 +125,7 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
 
         HorizontalLayout pvForm = new HorizontalLayout();
         pvForm.setAlignItems(FlexComponent.Alignment.BASELINE);
+        siteTimezoneSelector.setItems(ZoneId.getAvailableZoneIds().stream().sorted().toList());
         pvCostField.setValue(0.0);
 
         savePVConfigBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -132,11 +135,16 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
                 CustomCurrency userCurrency = userSessionContext.getCurrency();
                 pvSiteEntity.setPvCost(new Money(pvCostField.getValue(), userCurrency));
                 pvSiteEntity.setSetupDate(setupDatePicker.getValue());
+
+                if (siteTimezoneSelector.getValue() != null) {
+                    pvSiteEntity.setTimezoneId(siteTimezoneSelector.getValue());
+                }
+
                 SpringContextHelper.getBean(EntityService.class).save(pvSiteEntity);
                 Notification.show(getTranslation("finance.notification.pv_saved"));
             }
         });
-        pvForm.add(pvCostField, setupDatePicker, savePVConfigBtn);
+        pvForm.add(pvCostField, setupDatePicker, siteTimezoneSelector, savePVConfigBtn);
         pvConfigCard.add(pvInvestmentTitle, pvForm);
         leftLayout.add(pvConfigCard);
 
@@ -475,7 +483,8 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
         slopeField.setLabel(getTranslation("pv.details.form.slope"));
         savePanelsBtn.setText(getTranslation("pv.details.form.save"));
         deletePanelsBtn.setText(getTranslation("pv.details.form.delete"));
-        selectLocationBtn.setText(getTranslation("pv.details.form.select_location", "Auswählen"));
+        selectLocationBtn.setText(getTranslation("pv.details.form.select_location"));
+        siteTimezoneSelector.setLabel(getTranslation("pv.details.form.timezone"));
 
         pvInvestmentTitle.setText(getTranslation("finance.title.pv_investment"));
         hardwareCostsTitle.setText(getTranslation("finance.title.hardware_costs"));
@@ -514,6 +523,11 @@ public class PVSiteDetailsSubPage extends VerticalLayout implements LocaleChange
         if (pvSiteEntity.getPvCost() != null) {
             Money convertedPvCost = globalConstantsService.convert(pvSiteEntity.getPvCost(), targetCurrency);
             pvCostField.setValue(convertedPvCost.getRawMoneyAmount());
+        }
+        if (pvSiteEntity.getTimezoneId() != null) {
+            siteTimezoneSelector.setValue(pvSiteEntity.getTimezoneId());
+        } else {
+            siteTimezoneSelector.setValue(ZoneId.systemDefault().getId());
         }
         setupDatePicker.setValue(pvSiteEntity.getSetupDate());
         minerGrid.setItems(pvSiteEntity.getMiners());

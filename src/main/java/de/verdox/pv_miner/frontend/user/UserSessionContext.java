@@ -79,18 +79,12 @@ public class UserSessionContext implements Serializable {
             });
         }
     }
-
-    /**
-     * Hilfsmethode, um einen Cookie für 1 Jahr im Browser des Nutzers zu speichern.
-     */
+    
     private void saveCookie(String name, String value) {
-        VaadinResponse response = VaadinService.getCurrentResponse();
-        if (response != null) {
-            Cookie cookie = new Cookie(name, value);
-            cookie.setMaxAge(60 * 60 * 24 * 365);
-            cookie.setPath("/");
-            response.addCookie(cookie);
-        }
+        UI.getCurrent().getPage().executeJs(
+                "document.cookie = $0 + '=' + encodeURIComponent($1) + ';path=/;max-age=31536000';",
+                name, value
+        );
     }
 
     private void notifyCurrencyComponents(Component component, CurrencyChangeEvent event) {

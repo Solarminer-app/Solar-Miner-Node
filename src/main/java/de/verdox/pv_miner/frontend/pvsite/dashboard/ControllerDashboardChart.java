@@ -57,13 +57,13 @@ public class ControllerDashboardChart extends Div {
         add(automationChart);
     }
 
-    public void update(UI ui, PVSiteEntity pvSiteEntity) {
-        List<String> clusters = clusterService.getAvailableClusterNames();
-        if (clusters.isEmpty()) return;
+    public void update(PVSiteEntity pvSiteEntity, String clusterName) {
+        if (clusterName == null || clusterName.isBlank()) return;
 
-        MinerClusterService.ClusterInstance cluster = clusterService.getCluster(pvSiteEntity, clusters.getFirst());
+        MinerClusterService.ClusterInstance cluster = clusterService.getCluster(pvSiteEntity.getId(), clusterName);
         if (cluster == null || !cluster.isRunning()) return;
 
+        // Hole die Daten vom Backend
         List<MinerClusterService.ClusterInstance.ClusterStateSnapshot> history = cluster.getHistory();
 
         List<DataSeriesItem> powerItems = new ArrayList<>();
@@ -100,11 +100,13 @@ public class ControllerDashboardChart extends Div {
             allocatedItems.add(currentAlloc);
         }
 
-        UI.getCurrent().access(() -> {
-            automationPowerSeries.setData(powerItems);
-            automationAllocatedSeries.setData(allocatedItems);
-            automationFlagsSeries.setData(flagItems);
-        });
+        automationPowerSeries.setData(powerItems);
+        automationAllocatedSeries.setData(allocatedItems);
+        automationFlagsSeries.setData(flagItems);
+
+        automationPowerSeries.updateSeries();
+        automationAllocatedSeries.updateSeries();
+        automationFlagsSeries.updateSeries();
     }
 
     private @NonNull FlagItem createFlagForSnapshot(MinerClusterService.ClusterInstance.ClusterStateSnapshot snapshot, long time) {

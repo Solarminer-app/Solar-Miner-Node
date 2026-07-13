@@ -128,7 +128,9 @@ public class LightningWalletView extends VerticalLayout implements HasDynamicTit
 
     private void updateData() {
         long balance = walletService.getBalanceSat();
-        mainAccountCard.setBalance(balance);
+        long feeCredit = walletService.getFreeCreditSat();
+
+        mainAccountCard.setBalance(balance, feeCredit);
         transactionHistoryGrid.setTransactions(walletService.getTransactions());
 
         PhoenixDTOs.NodeInfo nodeInfo = walletService.getNodeInfo();
@@ -239,7 +241,9 @@ public class LightningWalletView extends VerticalLayout implements HasDynamicTit
 
     private class MainAccountCard extends DashboardCard {
         private final Span balanceSpan = new Span();
+        private final Span feeCreditSpan = new Span(); // NEU
         private final Span addressLabel = new Span();
+        private final Span feeCreditWarningSpan = new Span();
         private final Span addressSpan = new Span();
 
         private final Button withdrawLightningBtn = new Button();
@@ -250,6 +254,21 @@ public class LightningWalletView extends VerticalLayout implements HasDynamicTit
             super("lightning.card.balance", VaadinIcon.WALLET);
 
             balanceSpan.addClassName("lightning-balance-value");
+
+            feeCreditSpan.getStyle().set("font-size", "var(--lumo-font-size-xs)")
+                    .set("color", "var(--lumo-success-text-color)")
+                    .set("margin-top", "-5px")
+                    .set("display", "block");
+
+            feeCreditWarningSpan.getStyle().set("font-size", "var(--lumo-font-size-xs)")
+                    .set("color", "var(--lumo-error-text-color)")
+                    .set("margin-top", "2px")
+                    .set("display", "block");
+            feeCreditWarningSpan.setVisible(false);
+
+            VerticalLayout balanceLayout = new VerticalLayout(balanceSpan, feeCreditSpan, feeCreditWarningSpan);
+            balanceLayout.setPadding(false);
+            balanceLayout.setSpacing(false);
 
             HorizontalLayout addressRow = new HorizontalLayout();
             addressRow.addClassName("lightning-address-compact-row");
@@ -282,45 +301,65 @@ public class LightningWalletView extends VerticalLayout implements HasDynamicTit
 
             withdrawLightningBtn.setIcon(VaadinIcon.BOLT.create());
             withdrawLightningBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-            withdrawLightningBtn.addClickListener(e -> openWithdrawDialog("Lightning"));
-            withdrawLightningBtn.setEnabled(false);
+            withdrawLightningBtn.addClickListener(e -> openLightningWithdrawDialog());
+            withdrawLightningBtn.setEnabled(true);
 
             withdrawOnChainBtn.setIcon(VaadinIcon.LINK.create());
             withdrawOnChainBtn.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
-            withdrawOnChainBtn.addClickListener(e -> openWithdrawDialog("On-Chain"));
-            withdrawOnChainBtn.setEnabled(false);
+            withdrawOnChainBtn.addClickListener(e -> openOnChainWithdrawDialog());
+            withdrawOnChainBtn.setEnabled(true);
 
             autoRuleBtn.setIcon(VaadinIcon.COGS.create());
             autoRuleBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
-            autoRuleBtn.addClickListener(e -> Notification.show("Auto-Regeln Setup folgt..."));
+            autoRuleBtn.addClickListener(e -> Notification.show("Not supported yet"));
             autoRuleBtn.setEnabled(false);
 
             buttonRow.add(withdrawLightningBtn, withdrawOnChainBtn, autoRuleBtn);
 
-            add(balanceSpan, addressRow, buttonRow);
+            add(balanceLayout, addressRow, buttonRow);
         }
 
-        public void setBalance(long sats) {
+        public void setBalance(long sats, long feeCreditSat) {
             balanceSpan.setText(convertSatsToUserCurrencyString(sats));
+
+            if(feeCreditSat > 0) {
+                feeCreditSpan.setText(getTranslation("lightning.label.fee_credit", "Inbound Fee Credit") + ": " + convertSatsToUserCurrencyString(feeCreditSat));
+                feeCreditSpan.setVisible(true);
+            } else {
+                feeCreditSpan.setVisible(false);
+            }
+
+            if (feeCreditSat >= 0 && feeCreditSat < 3000) {
+                feeCreditWarningSpan.setText(getTranslation("lightning.label.fee_credit_low"));
+                feeCreditWarningSpan.setVisible(true);
+            } else {
+                feeCreditWarningSpan.setVisible(false);
+            }
         }
 
-        private void openWithdrawDialog(String type) {
+
+        private void openLightningWithdrawDialog() {
             Dialog dialog = new Dialog();
-            dialog.setHeaderTitle(type + " " + getTranslation("lightning.dialog.title"));
+            dialog.setHeaderTitle("Lightning " + getTranslation("lightning.dialog.title"));
             dialog.setWidth("500px");
 
             VerticalLayout layout = new VerticalLayout();
             layout.setPadding(false);
 
             TextArea addressInput = new TextArea(getTranslation("lightning.dialog.address_label"));
-            addressInput.setPlaceholder(getTranslation("lightning.dialog.address_placeholder"));
+            addressInput.setPlaceholder("LN Address, BOLT11 Invoice oder BOLT12 Offer...");
             addressInput.setWidthFull();
             addressInput.setMinHeight("120px");
 
             Paragraph infoText = new Paragraph(getTranslation("lightning.dialog.info"));
             infoText.getStyle().set("font-size", "var(--lumo-font-size-xs)").set("color", "var(--lumo-secondary-text-color)");
 
-            layout.add(addressInput, infoText);
+            Paragraph feeHint = new Paragraph(getTranslation("lightning.dialog.lightning.fee_hint"));
+            feeHint.getStyle().set("font-size", "var(--lumo-font-size-xs)")
+                    .set("color", "var(--lumo-warning-text-color)")
+                    .set("margin-top", "0");
+
+            layout.add(addressInput, infoText, feeHint);
             dialog.add(layout);
 
             Button confirmBtn = new Button(getTranslation("lightning.dialog.button.confirm"), e -> {
@@ -332,6 +371,62 @@ public class LightningWalletView extends VerticalLayout implements HasDynamicTit
                 boolean success = walletService.sendPayment(target);
                 if (success) {
                     Notification.show(getTranslation("lightning.dialog.success")).addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                    dialog.close();
+                    updateData();
+                } else {
+                    Notification.show(getTranslation("lightning.dialog.error.failed")).addThemeVariants(NotificationVariant.LUMO_ERROR);
+                }
+            });
+            confirmBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_ERROR);
+
+            Button cancelBtn = new Button(getTranslation("lightning.dialog.button.cancel"), e -> dialog.close());
+            dialog.getFooter().add(cancelBtn, confirmBtn);
+            dialog.open();
+        }
+
+        private void openOnChainWithdrawDialog() {
+            Dialog dialog = new Dialog();
+            dialog.setHeaderTitle("On-Chain " + getTranslation("lightning.dialog.title"));
+            dialog.setWidth("500px");
+
+            VerticalLayout layout = new VerticalLayout();
+            layout.setPadding(false);
+
+            com.vaadin.flow.component.textfield.TextField addressInput = new com.vaadin.flow.component.textfield.TextField(getTranslation("lightning.dialog.onchain.address"));
+            addressInput.setPlaceholder(getTranslation("lightning.dialog.onchain.address.placeholder"));
+            addressInput.setWidthFull();
+
+            com.vaadin.flow.component.textfield.NumberField amountInput = new com.vaadin.flow.component.textfield.NumberField(getTranslation("lightning.dialog.onchain.amount"));
+            amountInput.setWidthFull();
+            amountInput.setMin(1000);
+
+            com.vaadin.flow.component.textfield.NumberField feeRateInput = new com.vaadin.flow.component.textfield.NumberField(getTranslation("lightning.dialog.onchain.feerate"));
+            feeRateInput.setValue(10.0);
+            feeRateInput.setWidthFull();
+
+            Paragraph infoText = new Paragraph(getTranslation("lightning.dialog.onchain.info"));
+            infoText.getStyle().set("font-size", "var(--lumo-font-size-xs)").set("color", "var(--lumo-warning-text-color)");
+
+            Paragraph feeHint = new Paragraph(getTranslation("lightning.dialog.onchain.fee_hint"));
+            feeHint.getStyle().set("font-size", "var(--lumo-font-size-xs)")
+                    .set("color", "var(--lumo-warning-text-color)");
+
+            layout.add(addressInput, amountInput, feeRateInput, infoText, feeHint);
+            dialog.add(layout);
+
+            Button confirmBtn = new Button(getTranslation("lightning.dialog.onchain.button.send"), e -> {
+                String target = addressInput.getValue();
+                Double amount = amountInput.getValue();
+                Double feeRate = feeRateInput.getValue();
+
+                if (target == null || target.isBlank() || amount == null || feeRate == null) {
+                    Notification.show(getTranslation("lightning.dialog.error.empty")).addThemeVariants(NotificationVariant.LUMO_ERROR);
+                    return;
+                }
+
+                String txId = walletService.sendOnChainPayment(amount.longValue(), target, feeRate.longValue());
+                if (txId != null) {
+                    Notification.show(getTranslation("lightning.dialog.onchain.success", txId)).addThemeVariants(NotificationVariant.LUMO_SUCCESS);
                     dialog.close();
                     updateData();
                 } else {

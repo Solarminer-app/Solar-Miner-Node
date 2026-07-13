@@ -2,8 +2,16 @@ package de.verdox.solarminer.rest;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.w3c.dom.Document;
+import org.xml.sax.InputSource;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathExpression;
+import javax.xml.xpath.XPathFactory;
 import java.io.IOException;
+import java.io.StringReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -24,13 +32,19 @@ public class RestPVClient implements AutoCloseable {
                 .build();
     }
 
-    public double read(RestPVConfig.Entry<?> entry) throws IOException, InterruptedException {
+    public double read(RestPVConfig.Entry<?> entry) throws Exception {
         String fullUrl = this.baseUrl + entry.urlExtension();
+
+        String acceptHeader = switch (entry.responseType()) {
+            case JSON -> "application/json";
+            case XML -> "application/xml";
+            case PLAIN_TEXT -> "text/plain";
+        };
 
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(fullUrl))
                 .header("Authorization", "Bearer " + apiToken)
-                .header("Accept", "application/json")
+                .header("Accept", acceptHeader)
                 .timeout(Duration.ofSeconds(5));
 
         if (entry.httpMethod() == RestHttpMethod.GET) {
@@ -44,31 +58,20 @@ public class RestPVClient implements AutoCloseable {
         if (response.statusCode() != 200) {
             throw new IOException("HTTP request failed with status code: " + response.statusCode() + " for URL: " + fullUrl);
         }
-        JsonNode currentNode = objectMapper.readTree(response.body());
 
-        String path = entry.jsonPath();
-        if (path.startsWith("$.")) {
-            path = path.substring(2);
-        } else if (path.startsWith("$")) {
-            path = path.substring(1);
+        String rawValueStr;
+
+        if (entry.responseType() == RestResponseType.JSON) {
+            rawValueStr = extractFromJson(response.body(), entry.dataPath(), fullUrl);
+        } else if (entry.responseType() == RestResponseType.XML) {
+            rawValueStr = extractFromXml(response.body(), entry.dataPath(), fullUrl);
+        } else {
+            rawValueStr = response.body().trim();
         }
 
-        if (!path.isBlank()) {
-            String[] keys = path.split("\\.");
-            for (String key : keys) {
-                if (currentNode == null) {
-                    break;
-                }
-                currentNode = currentNode.get(key);
-            }
-        }
-
-        if (currentNode == null || currentNode.isMissingNode() || currentNode.isNull()) {
-            throw new IOException("Could not find json path '" + entry.jsonPath() + "' in response from " + fullUrl);
-        }
-        Object rawValue = currentNode.asText();
-        Number parsedNumber = entry.restParameterType().parser().apply(rawValue);
+        Number parsedNumber = entry.restParameterType().parser().apply(rawValueStr);
         double finalValue = parsedNumber.doubleValue();
+
         finalValue = finalValue * entry.scaleFactor();
 
         return finalValue;
@@ -94,5 +97,39 @@ public class RestPVClient implements AutoCloseable {
 
     @Override
     public void close() {
+    }
+
+    private String extractFromJson(String body, String path, String url) throws IOException {
+        JsonNode currentNode = objectMapper.readTree(body);
+        String cleanPath = path.startsWith("$.") ? path.substring(2) : (path.startsWith("$") ? path.substring(1) : path);
+
+        if (!cleanPath.isBlank()) {
+            String[] keys = cleanPath.split("\\.");
+            for (String key : keys) {
+                if (currentNode == null) break;
+                currentNode = currentNode.get(key);
+            }
+        }
+
+        if (currentNode == null || currentNode.isMissingNode() || currentNode.isNull()) {
+            throw new IOException("Could not find json path '" + path + "' in response from " + url);
+        }
+        return currentNode.asText();
+    }
+
+    private String extractFromXml(String body, String xpathStr, String url) throws Exception {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        Document doc = builder.parse(new InputSource(new StringReader(body)));
+
+        XPathFactory xPathfactory = XPathFactory.newInstance();
+        XPath xpath = xPathfactory.newXPath();
+        XPathExpression expr = xpath.compile(xpathStr);
+
+        String result = expr.evaluate(doc);
+        if (result == null || result.isBlank()) {
+            throw new IOException("Could not find xpath '" + xpathStr + "' in xml response from " + url);
+        }
+        return result.trim();
     }
 }

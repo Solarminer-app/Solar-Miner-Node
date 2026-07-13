@@ -305,6 +305,18 @@ public class LightningWalletService {
         }
     }
 
+    public String sendOnChainPayment(long amountSat, String address, long feeRateSatByte) {
+        if (address == null || address.isBlank() || amountSat <= 0 || feeRateSatByte <= 0) {
+            return null;
+        }
+        try {
+            return phoenixClient.payOnChain(amountSat, address.trim(), feeRateSatByte);
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
     public boolean sendPayment(String target) {
         if (target == null || target.isBlank()) return false;
         try {
