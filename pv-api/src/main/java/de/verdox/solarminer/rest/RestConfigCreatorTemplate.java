@@ -35,7 +35,7 @@ public record RestConfigCreatorTemplate(String id, String name, List<RequiredFie
                     new RequiredField("grid_frequency", "hz"),
                     new RequiredField("total_energy_yield", "wh"),
                     new RequiredField("internal_temperature", "c"),
-                    new RequiredField("status_code", "raw")
+                    new RequiredField("status_code", "")
             ));
 
     public static final RestConfigCreatorTemplate BATTERY = new RestConfigCreatorTemplate(

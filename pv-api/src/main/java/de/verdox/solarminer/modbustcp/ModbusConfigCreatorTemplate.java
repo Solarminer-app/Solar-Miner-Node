@@ -31,7 +31,7 @@ public record ModbusConfigCreatorTemplate(String id, String name, List<RequiredF
                     new RequiredField("grid_frequency", "hz"),
                     new RequiredField("total_energy_yield", "wh"),
                     new RequiredField("internal_temperature", "c"),
-                    new RequiredField("status_code", "raw")
+                    new RequiredField("status_code", "")
             )
     );
 
