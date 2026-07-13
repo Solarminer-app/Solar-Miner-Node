@@ -17,6 +17,7 @@ import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolEntity;
 import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolInfluxStrategy;
 import de.verdox.pv_miner_extensions.pools.nicehash.NiceHashPoolEntity;
 import de.verdox.pv_miner_extensions.pools.nicehash.NiceHashPoolInfluxStrategy;
+import lombok.Getter;
 import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -34,15 +35,19 @@ import java.util.logging.Logger;
 public class InfluxService {
     private static final Logger LOGGER = Logger.getLogger(InfluxService.class.getSimpleName());
 
+    @Getter
     @Value("${influxdb.url}")
     private String influxUrl;
 
+    @Getter
     @Value("${influxdb.token}")
     private String influxToken;
 
+    @Getter
     @Value("${influxdb.org}")
     private String influxOrg;
 
+    @Getter
     @Value("${influxdb.bucket}")
     private String influxBucket;
 
@@ -233,22 +238,6 @@ public class InfluxService {
             LOGGER.log(Level.WARNING, "Could not check empty status for measurement " + measurementName + ".", e);
             return true;
         }
-    }
-
-    public String getInfluxUrl() {
-        return influxUrl;
-    }
-
-    public String getInfluxToken() {
-        return influxToken;
-    }
-
-    public String getInfluxOrg() {
-        return influxOrg;
-    }
-
-    public String getInfluxBucket() {
-        return influxBucket;
     }
 
     public String getDownSampledInfluxBucket() {
