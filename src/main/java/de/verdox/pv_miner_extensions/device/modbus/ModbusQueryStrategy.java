@@ -6,11 +6,11 @@ import de.verdox.pv_miner.influx.QueryResult;
 import de.verdox.solarminer.formula.FormulaEngine;
 import de.verdox.solarminer.formula.VariableProvider;
 import de.verdox.solarminer.modbustcp.ModbusConfig;
+import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
 import de.verdox.solarminer.modbustcp.TCPModbusClient;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.NoSuchElementException;
 
 public abstract class ModbusQueryStrategy<RESULT extends QueryResult, MODBUS_ENTITY extends ModbusEntity<RESULT>> implements EntityQueryService.Strategy<MODBUS_ENTITY, RESULT> {
     @Override
@@ -19,24 +19,23 @@ public abstract class ModbusQueryStrategy<RESULT extends QueryResult, MODBUS_ENT
 
         ModbusConfig.ConfigSection section = modbusConfig.getSection(entity.getSectionKey());
         if (section == null) {
-            return null;
+            throw new IllegalStateException("");
         }
 
-        ModbusClientManager clientManager = SpringContextHelper.getBean(ModbusClientManager.class);
-        TCPModbusClient client = clientManager.getClient(entity.getIpAddress(), entity.getPort(), entity.getSlaveId());
-
-        Map<String, Double> calculatedValues = new HashMap<>();
-        VariableProvider variableProvider = new VariableProvider() {
-            @Override
-            public double getValueFor(String variableName) {
-                try {
-                    return evaluateEntry(variableName, section, client, calculatedValues, this, modbusConfig.getAddressOffset());
-                } catch (Exception e) {
-                    return 0.0;
+        try (var client = new TCPModbusClient(entity.getIpAddress(), entity.getPort(), entity.getSlaveId())) {
+            Map<String, Double> calculatedValues = new HashMap<>();
+            VariableProvider variableProvider = new VariableProvider() {
+                @Override
+                public double getValueFor(String variableName) {
+                    try {
+                        return evaluateEntry(variableName, section, client, calculatedValues, this, modbusConfig.getAddressOffset());
+                    } catch (Exception e) {
+                        return 0.0;
+                    }
                 }
-            }
-        };
-        return createResult(section, client, calculatedValues, variableProvider, modbusConfig.getAddressOffset());
+            };
+            return createResult(section, client, calculatedValues, variableProvider, modbusConfig.getAddressOffset());
+        }
     }
 
     protected abstract RESULT createResult(ModbusConfig.ConfigSection section, TCPModbusClient client, Map<String, Double> calculatedValues, VariableProvider provider, int offset) throws Exception;
@@ -46,13 +45,7 @@ public abstract class ModbusQueryStrategy<RESULT extends QueryResult, MODBUS_ENT
             return calculatedValues.get(id);
         }
 
-        ModbusConfig.Entry<?> entry;
-        try {
-            entry = section.getEntryForId(id);
-        }
-        catch (NoSuchElementException e) {
-            return 0;
-        }
+        ModbusConfig.Entry<?> entry = section.getEntryForId(id);
         Object rawObj = client.read(offset, entry);
         double rawValue = 0.0;
         if (rawObj instanceof Number n) {
@@ -70,7 +63,7 @@ public abstract class ModbusQueryStrategy<RESULT extends QueryResult, MODBUS_ENT
 
     @Override
     public void ping(MODBUS_ENTITY entity) throws Throwable {
-        ModbusClientManager clientManager = SpringContextHelper.getBean(ModbusClientManager.class);
-        clientManager.getClient(entity.getIpAddress(), entity.getPort(), entity.getSlaveId());
+        try (var client = new TCPModbusClient(entity.getIpAddress(), entity.getPort(), entity.getSlaveId())) {
+        }
     }
 }
