@@ -36,7 +36,8 @@ public class SiteQueryStrategy implements EntityQueryService.Strategy<PVSiteEnti
             try {
                 var stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
                 cumulated += stats.approximatedPowerUsageWatts();
-            } catch (Throwable e) {}
+            } catch (Throwable e) {
+            }
         }
         return cumulated / 1000d;
     }
@@ -48,7 +49,14 @@ public class SiteQueryStrategy implements EntityQueryService.Strategy<PVSiteEnti
             double currentMinerPowerKw
     ) {
         double totalPvPowerW = inverters.stream()
-                .mapToDouble(InverterDataDTO::currentDcPowerW)
+                .mapToDouble(inverter -> {
+                    if (inverter.currentDcPowerW() > 0) {
+                        return inverter.currentDcPowerW();
+                    } else if (inverter.currentAcPowerW() > 0) {
+                        return inverter.currentAcPowerW();
+                    }
+                    return 0.0;
+                })
                 .sum();
 
         double totalGridPowerW = smartMeters.stream()
@@ -59,10 +67,18 @@ public class SiteQueryStrategy implements EntityQueryService.Strategy<PVSiteEnti
                 .mapToDouble(BatteryDataDTO::currentPowerW)
                 .sum();
 
-        double averageSoC = batteries.isEmpty() ? 0.0 : batteries.stream()
-                .mapToDouble(BatteryDataDTO::stateOfChargePct)
-                .average()
-                .orElse(0.0);
+        double averageSoC = batteries.isEmpty() ? 0.0 :
+                batteries.stream()
+                        .filter(batteryDataDTO ->
+                                batteryDataDTO.stateOfHealthPct() > 0 ||
+                                batteryDataDTO.temperatureC() > 0 ||
+                                batteryDataDTO.currentMaxChargePowerW() > 0 ||
+                                batteryDataDTO.currentMaxDischargePowerW() > 0 ||
+                                batteryDataDTO.stateOfChargePct() > 0
+                        )
+                        .mapToDouble(BatteryDataDTO::stateOfChargePct)
+                        .average()
+                        .orElse(0.0);
 
         return PVSiteDataDTO.builder()
                 .pvPower(totalPvPowerW / 1000.0)

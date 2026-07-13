@@ -387,7 +387,6 @@ public class ModbusConfigView extends VerticalLayout {
                     entries.put(row.getFieldName(), entry);
                 }
             }
-            // Wirft (templateId, name, entries) zurück - exakt wie im ModbusConfig-Konstruktor definiert
             return new ModbusConfig.ConfigSection(template.id(), this.sectionNameField.getValue(), entries);
         }
     }

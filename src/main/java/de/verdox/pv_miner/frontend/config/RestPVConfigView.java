@@ -9,7 +9,10 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.dialog.Dialog;
-import com.vaadin.flow.component.html.*;
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.H2;
+import com.vaadin.flow.component.html.H4;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.listbox.ListBox;
 import com.vaadin.flow.component.notification.Notification;
@@ -18,15 +21,12 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.data.value.ValueChangeMode;
-import com.vaadin.flow.i18n.LocaleChangeEvent;
-import com.vaadin.flow.i18n.LocaleChangeObserver;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
+import de.verdox.pv_miner.frontend.FrontendService;
 import de.verdox.pv_miner.frontend.user.UserSessionContext;
 import de.verdox.pv_miner.util.FormatUtil;
-import de.verdox.pv_miner.frontend.FrontendService;
 import de.verdox.pv_miner_extensions.device.rest.RestConfigStorage;
 import de.verdox.solarminer.RequiredField;
 import de.verdox.solarminer.formula.FormulaEngine;
@@ -254,15 +254,21 @@ public class RestPVConfigView extends VerticalLayout {
     }
 
     public double getLiveValueForField(String fieldName, Set<String> visited, SectionEditorBlock contextBlock) {
-        if (visited.contains(fieldName)) { return 0.0; }
+        if (visited.contains(fieldName)) {
+            return 0.0;
+        }
         visited.add(fieldName);
         return contextBlock.getFieldRows().stream().filter(row -> row.getFieldName().equals(fieldName)).findFirst().map(row -> {
             try {
                 var entry = row.buildEntry();
-                if (entry == null || testSection.getClient() == null) { return 0.0; }
+                if (entry == null || testSection.getClient() == null) {
+                    return 0.0;
+                }
                 double raw = testSection.getClient().read(entry);
                 return FormulaEngine.evaluate(raw, entry.formula(), name -> getLiveValueForField(name, visited, contextBlock));
-            } catch (Exception e) { return 0.0; }
+            } catch (Exception e) {
+                return 0.0;
+            }
         }).orElse(0.0);
     }
 
@@ -307,23 +313,36 @@ public class RestPVConfigView extends VerticalLayout {
             tableHeader.setWidthFull();
             tableHeader.getStyle().set("border-bottom", "2px solid var(--lumo-contrast-20pct)");
 
-            Span hName = new Span(getTranslation("config.table.field_name", "Feldname")); hName.setWidth("150px");
-            Span hMethod = new Span(getTranslation("config.table.method", "Methode")); hMethod.setWidth("90px");
-            Span hFormat = new Span(getTranslation("rest.header.format", "Format")); hFormat.setWidth("90px"); // NEUE SPALTE
-            Span hPath = new Span(getTranslation("config.table.path", "URL / Pfad")); hPath.setWidth("240px");
-            Span hDataPath = new Span(getTranslation("rest.header.datapath", "JSON/XPath")); hDataPath.setWidth("140px"); // UMBENANNT
-            Span hScale = new Span(getTranslation("config.table.scale", "Faktor")); hScale.setWidth("70px");
-            Span hFormula = new Span(getTranslation("config.table.formula", "Formel")); hFormula.setWidth("100px");
-            Span hType = new Span(getTranslation("config.table.type", "Typ")); hType.setWidth("90px");
-            Span hLive = new Span(getTranslation("config.table.live_value", "Live-Wert")); hLive.setWidth("120px");
+            Span hName = new Span(getTranslation("config.table.field_name", "Feldname"));
+            hName.setWidth("150px");
+            Span hMethod = new Span(getTranslation("config.table.method", "Methode"));
+            hMethod.setWidth("90px");
+            Span hFormat = new Span(getTranslation("rest.header.format", "Format"));
+            hFormat.setWidth("90px"); // NEUE SPALTE
+            Span hPath = new Span(getTranslation("config.table.path", "URL / Pfad"));
+            hPath.setWidth("240px");
+            Span hDataPath = new Span(getTranslation("rest.header.datapath", "JSON/XPath"));
+            hDataPath.setWidth("140px"); // UMBENANNT
+            Span hScale = new Span(getTranslation("config.table.scale", "Faktor"));
+            hScale.setWidth("70px");
+            Span hFormula = new Span(getTranslation("config.table.formula", "Formel"));
+            hFormula.setWidth("100px");
+            Span hType = new Span(getTranslation("config.table.type", "Typ"));
+            hType.setWidth("90px");
+            Span hLive = new Span(getTranslation("config.table.live_value", "Live-Wert"));
+            hLive.setWidth("120px");
 
-            for (Span span : List.of(hName, hMethod, hFormat, hPath, hDataPath, hScale, hFormula, hType, hLive)) span.getStyle().set("font-weight", "bold");
+            for (Span span : List.of(hName, hMethod, hFormat, hPath, hDataPath, hScale, hFormula, hType, hLive))
+                span.getStyle().set("font-weight", "bold");
             tableHeader.add(hName, hMethod, hFormat, hPath, hDataPath, hScale, hFormula, hType, hLive);
             contentLayout.add(tableHeader);
 
             for (RequiredField reqField : template.requiredFields()) {
                 RestPVConfig.Entry<?> existingEntry = null;
-                try { existingEntry = sectionData.getEntryForId(reqField.field()); } catch (NoSuchElementException ignored) {}
+                try {
+                    existingEntry = sectionData.getEntryForId(reqField.field());
+                } catch (NoSuchElementException ignored) {
+                }
                 CompactRestFieldRow row = new CompactRestFieldRow(reqField, existingEntry, this);
                 fieldRows.add(row);
                 contentLayout.add(row);
@@ -332,7 +351,9 @@ public class RestPVConfigView extends VerticalLayout {
             setOpened(true);
         }
 
-        public void disposeSubscriptions() { fieldRows.forEach(CompactRestFieldRow::disposeSubscription); }
+        public void disposeSubscriptions() {
+            fieldRows.forEach(CompactRestFieldRow::disposeSubscription);
+        }
 
         public RestPVConfig.ConfigSection buildConfigSection() {
             Map<String, RestPVConfig.Entry<?>> entries = new HashMap<>();
@@ -367,6 +388,7 @@ public class RestPVConfigView extends VerticalLayout {
             Span nameLabel = new Span(requiredField.field());
             nameLabel.setWidth("150px");
 
+            responseTypeField.setItems(RestResponseType.values());
             httpMethod.setItems(RestHttpMethod.values());
             httpMethod.setWidth("90px");
             urlExtensionField.setWidth("240px");
@@ -383,15 +405,15 @@ public class RestPVConfigView extends VerticalLayout {
 
             if (entry != null) {
                 httpMethod.setValue(entry.httpMethod());
-                responseTypeField.setValue(entry.responseType()); // WERT SETZEN
+                responseTypeField.setValue(entry.responseType());
                 urlExtensionField.setValue(entry.urlExtension());
-                dataPathField.setValue(entry.dataPath()); // WERT SETZEN
+                dataPathField.setValue(entry.dataPath());
                 scaleFactorField.setValue((double) entry.scaleFactor());
                 formulaField.setValue(entry.formula());
                 parameterTypeField.setValue(entry.restParameterType());
             } else {
                 httpMethod.setValue(RestHttpMethod.GET);
-                responseTypeField.setValue(RestResponseType.JSON); // DEFAULT WERT
+                responseTypeField.setValue(RestResponseType.JSON);
                 urlExtensionField.setValue("/api/states/sensor." + requiredField.field());
                 dataPathField.setValue("state");
                 scaleFactorField.setValue(1.0);
@@ -399,7 +421,8 @@ public class RestPVConfigView extends VerticalLayout {
                 parameterTypeField.setValue(RestParameterType.FLOAT);
             }
 
-            for (HasTheme comp : List.of(httpMethod, urlExtensionField, jsonPathField, scaleFactorField, formulaField, parameterTypeField, liveValueDisplay)) comp.addThemeName("small");
+            for (HasTheme comp : List.of(httpMethod, responseTypeField, urlExtensionField, dataPathField, scaleFactorField, formulaField, parameterTypeField, liveValueDisplay))
+                comp.addThemeName("small");
             add(nameLabel, httpMethod, responseTypeField, urlExtensionField, dataPathField, scaleFactorField, formulaField, parameterTypeField, liveValueDisplay);
         }
 
@@ -422,12 +445,20 @@ public class RestPVConfigView extends VerticalLayout {
             })).subscribeOn(Schedulers.boundedElastic()).repeat().delayElements(Duration.ofSeconds(2)).subscribe();
         }
 
-        public void disposeSubscription() { if (subscription != null && !subscription.isDisposed()) subscription.dispose(); }
-        public String getFieldName() { return requiredField.field(); }
+        public void disposeSubscription() {
+            if (subscription != null && !subscription.isDisposed()) subscription.dispose();
+        }
+
+        public String getFieldName() {
+            return requiredField.field();
+        }
+
         public RestPVConfig.Entry<?> buildEntry() {
             try {
-                return new RestPVConfig.Entry<>(urlExtensionField.getValue(), httpMethod.getValue(), jsonPathField.getValue(), scaleFactorField.getValue().floatValue(), formulaField.getValue(), parameterTypeField.getValue());
-            } catch (Exception e) { return null; }
+                return new RestPVConfig.Entry<>(urlExtensionField.getValue(), httpMethod.getValue(), responseTypeField.getValue(), dataPathField.getValue(), scaleFactorField.getValue().floatValue(), formulaField.getValue(), parameterTypeField.getValue());
+            } catch (Exception e) {
+                return null;
+            }
         }
     }
 
@@ -442,8 +473,10 @@ public class RestPVConfigView extends VerticalLayout {
             url = new TextField(getTranslation("config.field.base_url", "Base URL"), "http://192.168.178.50:8123", "");
             token = new TextField(getTranslation("config.field.api_token", "API Token"));
 
-            url.setWidth("280px"); token.setWidth("250px");
-            url.addThemeName("small"); token.addThemeName("small");
+            url.setWidth("280px");
+            token.setWidth("250px");
+            url.addThemeName("small");
+            token.addThemeName("small");
             connect.setText(getTranslation("btn.test_connection", "Test Connection"));
             connect.addThemeVariants(ButtonVariant.LUMO_SMALL);
             connect.setDisableOnClick(true);
@@ -464,13 +497,15 @@ public class RestPVConfigView extends VerticalLayout {
                         ui.access(() -> {
                             connect.setText(getTranslation("btn.connected", "Connected"));
                             connect.setIcon(VaadinIcon.CHECK.create());
-                            connect.addThemeVariants(ButtonVariant.LUMO_SUCCESS); connect.setEnabled(true);
+                            connect.addThemeVariants(ButtonVariant.LUMO_SUCCESS);
+                            connect.setEnabled(true);
                         });
                     } catch (Exception ex) {
                         ui.access(() -> {
                             connect.setText(getTranslation("btn.connection_failed", "Connection Failed"));
                             connect.setIcon(VaadinIcon.CLOSE.create());
-                            connect.addThemeVariants(ButtonVariant.LUMO_ERROR); connect.setEnabled(true);
+                            connect.addThemeVariants(ButtonVariant.LUMO_ERROR);
+                            connect.setEnabled(true);
                         });
                     }
                 });
@@ -480,7 +515,11 @@ public class RestPVConfigView extends VerticalLayout {
             layout.setAlignItems(Alignment.BASELINE);
             add(layout);
         }
+
         @Override
-        protected void onDetach(DetachEvent detachEvent) { super.onDetach(detachEvent); if (client != null) client.close(); }
+        protected void onDetach(DetachEvent detachEvent) {
+            super.onDetach(detachEvent);
+            if (client != null) client.close();
+        }
     }
 }

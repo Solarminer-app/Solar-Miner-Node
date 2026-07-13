@@ -12,7 +12,6 @@ import java.util.Map;
 public class RestInverterQueryStrategy extends RestQueryStrategy<InverterDataDTO, RestInverter> {
     @Override
     protected InverterDataDTO createResult(RestPVConfig.ConfigSection config, RestPVClient client, Map<String, Double> calculatedValues, VariableProvider provider) throws Exception {
-
         double currentDcPowerW = evaluateEntry("current_dc_power", config, client, calculatedValues, provider);
         double currentDcVoltageV = evaluateEntry("current_dc_voltage", config, client, calculatedValues, provider);
         double currentAcPowerW = evaluateEntry("current_ac_power", config, client, calculatedValues, provider);

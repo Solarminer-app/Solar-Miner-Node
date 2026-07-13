@@ -38,6 +38,7 @@ repositories {
 
 
 dependencies {
+    implementation("com.github.ben-manes.caffeine:caffeine:3.2.4")
     implementation("org.shredzone.commons:commons-suncalc:3.5")
     implementation("com.openhtmltopdf:openhtmltopdf-core:1.0.10")
     implementation("com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10")

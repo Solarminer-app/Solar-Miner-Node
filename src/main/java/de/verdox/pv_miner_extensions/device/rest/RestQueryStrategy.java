@@ -10,6 +10,7 @@ import de.verdox.solarminer.rest.RestPVClient;
 import de.verdox.solarminer.rest.RestPVConfig;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 public abstract class RestQueryStrategy<RESULT extends QueryResult, REST_ENTITY extends RestEntity<RESULT>> implements EntityQueryService.Strategy<REST_ENTITY, RESULT> {
     @Override
@@ -37,7 +38,13 @@ public abstract class RestQueryStrategy<RESULT extends QueryResult, REST_ENTITY 
 
     protected static double evaluateEntry(String id, RestPVConfig.ConfigSection section, RestPVClient client, Map<String, Double> calculatedValues, VariableProvider provider) throws Exception {
         if (calculatedValues.containsKey(id)) return calculatedValues.get(id);
-        RestPVConfig.Entry<?> entry = section.getEntryForId(id);
+        RestPVConfig.Entry<?> entry;
+        try {
+            entry = section.getEntryForId(id);
+        }
+        catch (NoSuchElementException e) {
+            return 0;
+        }
         double rawValue = client.read(entry);
         double evaluatedValue = FormulaEngine.evaluate(rawValue, entry.formula(), provider);
         double finalValue = evaluatedValue * entry.scaleFactor();

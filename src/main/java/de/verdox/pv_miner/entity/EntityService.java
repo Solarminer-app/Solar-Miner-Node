@@ -91,6 +91,16 @@ public class EntityService {
         LOGGER.info("Loading all pv sites");
         for (PVSiteEntity pvSiteEntity : pvSiteRepository.findAll()) {
             entityMonitoringService.attach(pvSiteEntity, PVSiteDataDTO.createDefault());
+            for (BatteryEntity battery : pvSiteEntity.getBatteries()) {
+                entityMonitoringService.attach(battery, BatteryDataDTO.DEFAULT);
+            }
+            for (InverterEntity inverter : pvSiteEntity.getInverters()) {
+                entityMonitoringService.attach(inverter, InverterDataDTO.DEFAULT);
+            }
+            for (SmartMeterEntity smartMeter : pvSiteEntity.getSmartMeters()) {
+                entityMonitoringService.attach(smartMeter, SmartMeterDataDTO.DEFAULT);
+            }
+
             LOGGER.info("Loaded: " + pvSiteEntity.getName());
             LOGGER.info("Loading miners for " + pvSiteEntity.getName());
             for (MinerEntity<?> miner : pvSiteEntity.getMiners()) {

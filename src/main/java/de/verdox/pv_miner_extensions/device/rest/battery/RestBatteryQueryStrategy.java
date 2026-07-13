@@ -3,7 +3,6 @@ package de.verdox.pv_miner_extensions.device.rest.battery;
 import de.verdox.pv_miner.pvsite.battery.BatteryDataDTO;
 import de.verdox.pv_miner_extensions.device.rest.RestQueryStrategy;
 import de.verdox.solarminer.formula.VariableProvider;
-import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
 import de.verdox.solarminer.rest.RestPVClient;
 import de.verdox.solarminer.rest.RestPVConfig;
 
