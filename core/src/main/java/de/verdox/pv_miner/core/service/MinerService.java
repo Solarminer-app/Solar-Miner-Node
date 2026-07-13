@@ -7,10 +7,11 @@ import de.verdox.pv_miner.core.miner.agent.MinerAgentController;
 import de.verdox.pv_miner.core.miner.antminer.AntminerBackend;
 import de.verdox.pv_miner.core.miner.antminer.AntminerDTOs;
 import de.verdox.pv_miner.core.miner.braiins.BraiinsController;
-import de.verdox.pv_miner.core.miner.braiins.MinerController;
+import de.verdox.pv_miner.core.miner.MinerController;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
+import de.verdox.pv_miner.core.miner.whatsminer.WhatsMinerController;
 import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.stereotype.Service;
 
@@ -60,6 +61,7 @@ public class MinerService {
 
     public MinerService(ProxyDiscoveryService proxyDiscoveryService, DevFeeService devFeeService, ObjectMapper objectMapper, MinerDataRegistry minerDataRegistry) {
         this.proxyDiscoveryService = proxyDiscoveryService;
+        this.minerDataRegistry = minerDataRegistry;
         this.devFeeService = devFeeService;
         this.agentController = new MinerAgentController();
         this.antminerBackend = new AntminerBackend(objectMapper);
@@ -68,7 +70,7 @@ public class MinerService {
         controllersByOS.put(MiningOS.AGENT, new MinerAgentController());
         controllersByOS.put(MiningOS.ANTMINER_STOCK_OS, new AntminerBackend(objectMapper));
         controllersByOS.put(MiningOS.BRAIINS, new BraiinsController(objectMapper));
-        this.minerDataRegistry = minerDataRegistry;
+        controllersByOS.put(MiningOS.WHATSMINER_STOCK_OS, new WhatsMinerController());
     }
 
     public boolean startMining(MiningOS miningOS, MinerDetails details) {

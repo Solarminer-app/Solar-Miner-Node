@@ -2,6 +2,7 @@ package de.verdox.pv_miner.core.miner.braiins;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.cgminerapi.CGMinerClient;
+import de.verdox.pv_miner.core.miner.MinerController;
 import de.verdox.pv_miner.core.miner.braiins.graphql.BosminerUnavailableException;
 import de.verdox.pv_miner.core.miner.braiins.graphql.BrainsOSGraphQLClient;
 import de.verdox.pv_miner.core.miner.braiins.grpc.BraiinsOSGRPCClient;

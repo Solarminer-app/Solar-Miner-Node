@@ -1,7 +1,7 @@
 package de.verdox.pv_miner.core.miner.agent;
 
 import de.verdox.pv_miner.core.miner.DevFeeConstants;
-import de.verdox.pv_miner.core.miner.braiins.MinerController;
+import de.verdox.pv_miner.core.miner.MinerController;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.service.DevFeeService;

@@ -1,7 +1,7 @@
 package de.verdox.pv_miner.core.miner.antminer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import de.verdox.pv_miner.core.miner.braiins.MinerController;
+import de.verdox.pv_miner.core.miner.MinerController;
 import de.verdox.pv_miner.core.miner.braiins.graphql.BosminerUnavailableException;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;

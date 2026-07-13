@@ -1,4 +1,4 @@
-package de.verdox.pv_miner.core.miner.braiins;
+package de.verdox.pv_miner.core.miner;
 
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
