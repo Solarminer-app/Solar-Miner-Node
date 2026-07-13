@@ -41,32 +41,38 @@ public class TCPModbusClient implements Closeable {
         tcpParameters.setKeepAlive(true);
 
         master = new ModbusMasterTCP(tcpParameters);
-        master.setResponseTimeout(1000);
+        master.setResponseTimeout(5000);
         master.connect();
+        //LOGGER.info("Created new modbus connection to "+ipAddress+":"+port+" ["+slaveId+"]");
     }
 
-    public Object read(int addressOffset, ModbusConfig.Entry<?> configEntry) throws ModbusProtocolException, ModbusNumberException, ModbusIOException {
-        byte[] registers = configEntry.readOperationType().getModbusReadOperation().readRegisters(master, slaveId, configEntry, addressOffset);
+    public synchronized Object read(int addressOffset, ModbusConfig.Entry<?> configEntry) throws ModbusProtocolException, ModbusNumberException, ModbusIOException {
+        try {
+            byte[] registers = configEntry.readOperationType().getModbusReadOperation().readRegisters(master, slaveId, configEntry, addressOffset);
 
-        Object readFromRegister = parseRegisterValues(registers, configEntry);
-        if (readFromRegister instanceof Number number) {
-            String formula = configEntry.formula();
-            if (formula == null || formula.equalsIgnoreCase("x") || formula.isBlank()) {
-                return number.doubleValue();
+            Object readFromRegister = parseRegisterValues(registers, configEntry);
+            if (readFromRegister instanceof Number number) {
+                String formula = configEntry.formula();
+                if (formula == null || formula.equalsIgnoreCase("x") || formula.isBlank()) {
+                    return number.doubleValue();
+                }
+
+                Matcher matcher = FORMULA_PATTERN.matcher(formula);
+                if (!matcher.matches()) {
+                    throw new IllegalArgumentException("The formula " + configEntry.formula() + " has invalid syntax");
+                }
+
+                String operator = matcher.group(1);
+                double scalar = Double.parseDouble(matcher.group(2));
+
+                return applyOperation(number.doubleValue(), scalar, operator);
             }
 
-            Matcher matcher = FORMULA_PATTERN.matcher(formula);
-            if (!matcher.matches()) {
-                throw new IllegalArgumentException("The formula " + configEntry.formula() + " has invalid syntax");
-            }
-
-            String operator = matcher.group(1);
-            double scalar = Double.parseDouble(matcher.group(2));
-
-            return applyOperation(number.doubleValue(), scalar, operator);
+            return readFromRegister;
         }
-
-        return readFromRegister;
+        catch (ModbusIOException e) {
+            return null;
+        }
     }
 
     public boolean verifyFingerprint(int addressOffset, ModbusConfig.Fingerprint fingerprint) {
@@ -107,7 +113,7 @@ public class TCPModbusClient implements Closeable {
         }
     }
 
-    public int findSunSpecBaseAddress() {
+    public synchronized int findSunSpecBaseAddress() {
         int[] commonAddresses = {40000, 39999, 50000, 49999};
 
         for (int baseAddress : commonAddresses) {
@@ -132,7 +138,7 @@ public class TCPModbusClient implements Closeable {
         return -1;
     }
 
-    public String readSunSpecString(int startAddress, int numRegisters) {
+    public synchronized String readSunSpecString(int startAddress, int numRegisters) {
         try {
             ReadHoldingRegistersRequest request = new ReadHoldingRegistersRequest();
             request.setServerAddress(slaveId);
@@ -148,7 +154,7 @@ public class TCPModbusClient implements Closeable {
         }
     }
 
-    public Map<Integer, Integer> scanSunSpecBlocks(int firstModelAddress) {
+    public synchronized Map<Integer, Integer> scanSunSpecBlocks(int firstModelAddress) {
         Map<Integer, Integer> blockAddresses = new HashMap<>();
         int currentAddress = firstModelAddress;
 
@@ -195,9 +201,10 @@ public class TCPModbusClient implements Closeable {
         };
     }
 
-    public void disconnect() throws ModbusIOException {
+    public synchronized void disconnect() throws ModbusIOException {
         if (master != null && master.isConnected()) {
             master.disconnect();
+            //LOGGER.info("Modbus connection closed from "+ipAddress+":"+port+" ["+slaveId+"]");
         }
     }
 
