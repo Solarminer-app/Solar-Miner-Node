@@ -312,7 +312,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         Tab liveTab = new Tab(new TranslatableSpan("dashboard.tab.live"));
         Tab historyTab = new Tab(new TranslatableSpan("dashboard.tab.history"));
         Tab automationTab = new Tab(new TranslatableSpan("dashboard.tab.automation"));
-        Tabs chartTabs = new Tabs(liveTab, historyTab, automationTab);
+        Tabs chartTabs = new Tabs(liveTab, /*historyTab, */automationTab);
 
         clusterSelector.setItems(clusterService.getAvailableClusterNames());
         clusterSelector.setValue(selectedClusterName);
@@ -343,10 +343,10 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
             if (event.getSelectedTab().equals(liveTab)) {
                 clusterSelector.setVisible(false);
                 chartContainer.add(liveChart);
-            } else if (event.getSelectedTab().equals(historyTab)) {
+            } /*else if (event.getSelectedTab().equals(historyTab)) {
                 clusterSelector.setVisible(false);
                 chartContainer.add(historyChart);
-            } else {
+            } */else {
                 clusterSelector.setVisible(true);
                 clusterSelector.setItems(clusterService.getAvailableClusterNames());
                 if(clusterSelector.getValue() == null && !clusterService.getAvailableClusterNames().isEmpty()) {
