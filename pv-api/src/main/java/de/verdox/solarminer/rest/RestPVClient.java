@@ -43,9 +43,12 @@ public class RestPVClient implements AutoCloseable {
 
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(fullUrl))
-                .header("Authorization", "Bearer " + apiToken)
                 .header("Accept", acceptHeader)
                 .timeout(Duration.ofSeconds(5));
+
+        if(apiToken != null && !apiToken.isBlank()) {
+            requestBuilder.header("Authorization", "Bearer " + apiToken);
+        }
 
         if (entry.httpMethod() == RestHttpMethod.GET) {
             requestBuilder.GET();
@@ -78,12 +81,16 @@ public class RestPVClient implements AutoCloseable {
     }
 
     public void ping() throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/api/config"))
-                .header("Authorization", "Bearer " + apiToken)
+        System.out.println(baseUrl);
+        var builder = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl))
                 .GET()
-                .timeout(Duration.ofSeconds(3))
-                .build();
+                .timeout(Duration.ofSeconds(3));
+        if(apiToken != null && !apiToken.isBlank()) {
+            builder.header("Authorization", "Bearer " + apiToken);
+        }
+
+        HttpRequest request = builder.build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
@@ -118,9 +125,26 @@ public class RestPVClient implements AutoCloseable {
     }
 
     private String extractFromXml(String body, String xpathStr, String url) throws Exception {
+        int startIndex = body.indexOf("<?xml");
+
+        if (startIndex == -1) {
+            startIndex = body.indexOf('<');
+        }
+
+        int endIndex = body.lastIndexOf('>');
+
+        if (startIndex != -1 && endIndex != -1 && startIndex < endIndex) {
+            body = body.substring(startIndex, endIndex + 1);
+        }
+
+
+
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
         DocumentBuilder builder = factory.newDocumentBuilder();
-        Document doc = builder.parse(new InputSource(new StringReader(body)));
+
+        InputSource is = new InputSource(new StringReader(body));
+        Document doc = builder.parse(is);
 
         XPathFactory xPathfactory = XPathFactory.newInstance();
         XPath xpath = xPathfactory.newXPath();
@@ -128,7 +152,7 @@ public class RestPVClient implements AutoCloseable {
 
         String result = expr.evaluate(doc);
         if (result == null || result.isBlank()) {
-            throw new IOException("Could not find xpath '" + xpathStr + "' in xml response from " + url);
+            return "";
         }
         return result.trim();
     }
