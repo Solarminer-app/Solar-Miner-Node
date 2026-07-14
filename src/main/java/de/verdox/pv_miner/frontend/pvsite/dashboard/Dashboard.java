@@ -65,7 +65,6 @@ import java.util.concurrent.CompletableFuture;
 @Route(value = "site/:siteId/dashboard", layout = AppMainLayout.class)
 @CssImport("./themes/solarminer/dashboard.css")
 public class Dashboard extends VerticalLayout implements BeforeEnterObserver, LocaleChangeObserver, HasDynamicTitle {
-    private final PVSiteRepository pVSiteRepository;
     private final LightningWalletService walletService;
     private final UserSessionContext sessionContext;
     private final MinerClusterService clusterService;
@@ -80,7 +79,6 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
     private Disposable liveDataSubscription;
     private PVSiteRef pvSiteReference;
 
-    // Cluster Auswahl Variablen
     private final Select<String> clusterSelector = new Select<>();
     private String selectedClusterName = "Standard";
 
@@ -99,8 +97,7 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
 
     @Autowired
-    public Dashboard(PVSiteRepository pVSiteRepository, LightningWalletService walletService, UserSessionContext sessionContext, MinerClusterService clusterService, EntityQueryService entityQueryService, GlobalConstantsService globalConstantsService, DashboardFacadeService dashboardFacadeService, EntityService entityService) {
-        this.pVSiteRepository = pVSiteRepository;
+    public Dashboard(LightningWalletService walletService, UserSessionContext sessionContext, MinerClusterService clusterService, EntityQueryService entityQueryService, GlobalConstantsService globalConstantsService, DashboardFacadeService dashboardFacadeService, EntityService entityService) {
         this.walletService = walletService;
         this.sessionContext = sessionContext;
         this.clusterService = clusterService;
@@ -148,7 +145,6 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
 
     private void setup(UI ui) {
         EntityMonitoringService monitoringService = SpringContextHelper.getBean(EntityMonitoringService.class);
-        EntityStatisticsService statisticsService = SpringContextHelper.getBean(EntityStatisticsService.class);
 
         PVSiteEntity pvSiteEntity = pvSiteReference.read();
         var zoneId = sessionContext.getZoneId();
@@ -158,38 +154,26 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         long endTodayMilli = LocalDate.now(zoneId).atTime(LocalTime.of(23, 59, 59, 999)).atZone(zoneId).toInstant().toEpochMilli();
 
         var pvSite = pvSiteReference.read();
-
-        var pvPowerFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_POWER_DAY_STATISTIC, pvSite, startTodayMilli, endTodayMilli, false));
-        var importFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_IMPORT, pvSite, startTodayMilli, endTodayMilli, false));
-        var exportFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_GRID_EXPORT, pvSite, startTodayMilli, endTodayMilli, false));
-        var consumptionFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.CONSUMPTION, pvSite, startTodayMilli, endTodayMilli, false));
-        var minerConsumptionFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.MINER_CONSUMPTION, pvSite, startTodayMilli, endTodayMilli, false));
-
-        var historyFuture = CompletableFuture.supplyAsync(() -> statisticsService.loadStatistic(statisticsService.PV_POWER_PER_HOUR_STATISTIC, pvSite, pvSiteStartMilli, endTodayMilli, false));
-
-        CompletableFuture.allOf(pvPowerFuture, importFuture, exportFuture, consumptionFuture, minerConsumptionFuture)
-                .thenAccept(v -> {
+        dashboardFacadeService.loadChartData(pvSite, startTodayMilli, endTodayMilli, pvSiteStartMilli)
+                .thenAccept(chartData -> {
                     ui.access(() -> {
                         if (liveChart.getConfiguration().getSeries().isEmpty()) {
-                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.pv_power"), pvPowerFuture.join());
-                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.import"), importFuture.join());
-                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.export"), exportFuture.join());
-                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.consumption"), consumptionFuture.join());
-                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.miner_consumption"), minerConsumptionFuture.join());
+                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.pv_power"), chartData.pvPower());
+                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.import"), chartData.importData());
+                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.export"), chartData.exportData());
+                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.consumption"), chartData.consumption());
+                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.miner_consumption"), chartData.minerConsumption());
                         }
                         liveChart.applyDarkTheme();
                         liveChart.setWidth("98.5%");
+
+                        historyChart.getConfiguration().setSeries(new ArrayList<>());
+                        historyChart.createStatisticSeries(getTranslation("dashboard.chart.pv_power_history"), chartData.history());
+                        historyChart.drawChart(true);
+                        historyChart.applyDarkTheme();
+                        historyChart.setWidth("98.5%");
                     });
                 });
-        historyFuture.thenAccept(pvPowerHistory -> {
-            ui.access(() -> {
-                historyChart.getConfiguration().setSeries(new ArrayList<>());
-                historyChart.createStatisticSeries(getTranslation("dashboard.chart.pv_power_history"), pvPowerHistory);
-                historyChart.drawChart(true);
-                historyChart.applyDarkTheme();
-                historyChart.setWidth("98.5%");
-            });
-        });
 
         if (liveDataSubscription != null) {
             liveDataSubscription.dispose();
@@ -231,26 +215,6 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
         updateMinerGridLive(pvSiteEntity);
         updatePoolGridLive(pvSiteEntity);
         controllerDashboardChart.update(pvSiteEntity, selectedClusterName);
-    }
-
-    private static @NonNull FlagItem createFlagForSnapshot(MinerClusterService.ClusterInstance.ClusterStateSnapshot snapshot, long time) {
-        FlagItem flag = new FlagItem(time, "!");
-        flag.setX(time);
-        String desc = snapshot.eventDescription().toLowerCase();
-
-        if (desc.contains("start")) {
-            flag.setTitle("▶ Start");
-            flag.setColor(new SolidColor("#2ecc71"));
-        } else if (desc.contains("stop") || desc.contains("drop")) {
-            flag.setTitle("⏸ Stop");
-            flag.setColor(new SolidColor("#e74c3c"));
-        } else {
-            flag.setTitle("ℹ️ Event");
-            flag.setColor(new SolidColor("rgba(52, 152, 219, 0.8)"));
-        }
-
-        flag.setText(snapshot.eventDescription() + " (Modus: " + snapshot.activeModeName() + ")");
-        return flag;
     }
 
     private void updateMinerGridLive(PVSiteEntity pvSite) {

@@ -2,10 +2,7 @@ package de.verdox.pv_miner.dashboard;
 
 import de.verdox.pv_miner.entity.EntityMonitoringService;
 import de.verdox.pv_miner.entity.EntityQueryService;
-import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.DailyFinancialStatsDto;
-import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.LiveDashboardUpdateDto;
-import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.LiveKpiDto;
-import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.MinerLockStatusDto;
+import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.*;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.lightning.LightningWalletService;
 import de.verdox.pv_miner.miner.data.MinerStats;
@@ -17,6 +14,7 @@ import de.verdox.pv_miner.pvsite.PVStatisticPerDay;
 import de.verdox.pv_miner.pvsite.PVStatisticsAccumulator;
 import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
 import de.verdox.pv_miner.frontend.user.UserSessionContext;
+import de.verdox.pv_miner.statistic.live.EntityStatisticsService;
 import de.verdox.pv_miner.util.FormatUtil;
 import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
@@ -27,6 +25,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 @Service
@@ -38,27 +38,54 @@ public class DashboardFacadeService {
     private final DailyStatisticService dailyStatisticService;
     private final EntityQueryService entityQueryService;
     private final GlobalConstantsService globalConstantsService;
+    private final EntityStatisticsService entityStatisticsService;
     private final LightningWalletService walletService;
     private final PVStatisticsAccumulator pvAccumulator = new PVStatisticsAccumulator();
     private final MinerClusterService minerClusterService;
+    private final Map<UUID, CompletableFuture<DashboardChartDataDto>> activeChartLoads = new ConcurrentHashMap<>();
 
     public DashboardFacadeService(PVSiteRepository pVSiteRepository,
                                   EntityMonitoringService monitoringService,
                                   DailyStatisticService dailyStatisticService,
                                   EntityQueryService entityQueryService,
                                   GlobalConstantsService globalConstantsService,
+                                  EntityStatisticsService entityStatisticsService,
                                   LightningWalletService walletService, MinerClusterService minerClusterService) {
         this.pVSiteRepository = pVSiteRepository;
         this.monitoringService = monitoringService;
         this.dailyStatisticService = dailyStatisticService;
         this.entityQueryService = entityQueryService;
         this.globalConstantsService = globalConstantsService;
+        this.entityStatisticsService = entityStatisticsService;
         this.walletService = walletService;
         this.minerClusterService = minerClusterService;
     }
 
     public PVSiteEntity getSiteEntity(UUID siteId) {
         return pVSiteRepository.findById(siteId).orElseThrow();
+    }
+
+    public CompletableFuture<DashboardChartDataDto> loadChartData(PVSiteEntity pvSite, long startTodayMilli, long endTodayMilli, long pvSiteStartMilli) {
+        return activeChartLoads.computeIfAbsent(pvSite.getId(), id -> {
+
+            var pvPowerFuture = CompletableFuture.supplyAsync(() -> entityStatisticsService.loadStatistic(entityStatisticsService.PV_POWER_DAY_STATISTIC, pvSite, startTodayMilli, endTodayMilli, false));
+            var importFuture = CompletableFuture.supplyAsync(() -> entityStatisticsService.loadStatistic(entityStatisticsService.PV_IMPORT, pvSite, startTodayMilli, endTodayMilli, false));
+            var exportFuture = CompletableFuture.supplyAsync(() -> entityStatisticsService.loadStatistic(entityStatisticsService.PV_GRID_EXPORT, pvSite, startTodayMilli, endTodayMilli, false));
+            var consumptionFuture = CompletableFuture.supplyAsync(() -> entityStatisticsService.loadStatistic(entityStatisticsService.CONSUMPTION, pvSite, startTodayMilli, endTodayMilli, false));
+            var minerConsumptionFuture = CompletableFuture.supplyAsync(() -> entityStatisticsService.loadStatistic(entityStatisticsService.MINER_CONSUMPTION, pvSite, startTodayMilli, endTodayMilli, false));
+            var historyFuture = CompletableFuture.supplyAsync(() -> entityStatisticsService.loadStatistic(entityStatisticsService.PV_POWER_PER_HOUR_STATISTIC, pvSite, pvSiteStartMilli, endTodayMilli, false));
+
+            return CompletableFuture.allOf(pvPowerFuture, importFuture, exportFuture, consumptionFuture, minerConsumptionFuture, historyFuture)
+                    .thenApply(v -> new DashboardChartDataDto(
+                            pvPowerFuture.join(),
+                            importFuture.join(),
+                            exportFuture.join(),
+                            consumptionFuture.join(),
+                            minerConsumptionFuture.join(),
+                            historyFuture.join()
+                    ))
+                    .whenComplete((res, ex) -> activeChartLoads.remove(id));
+        });
     }
 
     public Flux<LiveDashboardUpdateDto> subscribeToLiveUpdates(PVSiteEntity pvSiteEntity, UserSessionContext sessionContext) {

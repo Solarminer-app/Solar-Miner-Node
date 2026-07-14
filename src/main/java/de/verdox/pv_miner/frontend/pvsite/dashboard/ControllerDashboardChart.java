@@ -114,7 +114,6 @@ public class ControllerDashboardChart extends Div {
         flag.setX(time);
         String desc = snapshot.eventDescription().toLowerCase();
 
-        // Checkt nun exakt auf die Aktionen des ClusterControllers (Pause, Start, Regelung)
         if (desc.contains("▶ start") || desc.contains("resume")) {
             flag.setTitle("▶ Start");
             flag.setColor(new SolidColor("#2ecc71"));
