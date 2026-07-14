@@ -150,7 +150,7 @@ public class SolarMiningWebSocketClient extends TextWebSocketHandler {
         }
     }
 
-    private void disconnect() {
+    public void disconnect() {
         try {
             if (session != null && session.isOpen()) {
                 session.close(CloseStatus.NORMAL);
