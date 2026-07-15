@@ -63,6 +63,7 @@ public class InfluxUtil {
         private AggregateOperation aggregateOperation;
         private Duration aggregationInterval;
         private Duration aggregationOffset;
+        private boolean groupByTime = true;
 
         public InfluxQueryBuilder(String bucket) {
             this.bucket = bucket;
@@ -102,6 +103,11 @@ public class InfluxUtil {
             return this;
         }
 
+        public InfluxQueryBuilder setGroupByTime(boolean groupByTime) {
+            this.groupByTime = groupByTime;
+            return this;
+        }
+
         public String build() {
             StringBuilder sb = new StringBuilder();
             sb.append(String.format("from(bucket: \"%s\") |> range(start: %s, stop: %s)",
@@ -128,7 +134,9 @@ public class InfluxUtil {
                 }
             }
 
-            sb.append(" |> group(columns: [\"_time\"])");
+            if (groupByTime) {
+                sb.append(" |> group(columns: [\"_time\"])");
+            }
             return sb.toString();
         }
     }

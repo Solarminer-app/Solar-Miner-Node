@@ -88,6 +88,10 @@ public class MinerService {
     }
 
     public boolean setPoolTarget(MiningOS miningOS, MinerDetails details, String stratumUrl, String userName) {
+        return setPoolTarget(miningOS, details, stratumUrl, userName, null);
+    }
+
+    public boolean setPoolTarget(MiningOS miningOS, MinerDetails details, String stratumUrl, String userName, String referralCode) {
         String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
         String proxyStratumUrl = "stratum+tcp://" + proxyIp + ":3333";
         String cleanTargetUrl = stratumUrl.replace("stratum+tcp://", "");
@@ -95,7 +99,7 @@ public class MinerService {
 
         return switch (miningOS) {
             case AGENT -> agentController.setPoolTarget(details, proxyStratumUrl, proxyUserName);
-            case BRAIINS -> braiinsController.setPoolTargetNoProxy(details, stratumUrl, userName, devFeeService.fetchFeeTargets("bitcoin"));
+            case BRAIINS -> braiinsController.setPoolTargetNoProxy(details, stratumUrl, userName, devFeeService.resolveFeeTargets("bitcoin", referralCode));
             case ANTMINER_STOCK_OS -> antminerBackend.setPoolTarget(details, proxyStratumUrl, proxyUserName);
             case BIXBIT, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS -> false;
@@ -130,12 +134,16 @@ public class MinerService {
     }
 
     public MinerStats queryStats(MiningOS miningOS, String minerName, MinerDetails details) {
+        return queryStats(miningOS, minerName, details, null);
+    }
+
+    public MinerStats queryStats(MiningOS miningOS, String minerName, MinerDetails details, String referralCode) {
         return tryOrGet(miningOS, minerController -> {
             try {
                 var stats = minerController.queryStats(minerName, details);
                 if (stats != null) {
                     minerDataRegistry.record(details, stats);
-                    devFeeService.enforceDevFee(stats.minerIdentity(), this, miningOS, details);
+                    devFeeService.enforceDevFee(stats.minerIdentity(), this, miningOS, details, referralCode);
                 }
                 return stats;
             }
@@ -172,11 +180,11 @@ public class MinerService {
         tryOrDo(miningOS, minerController -> minerController.enforceProxyRouting(details, proxyIp, proxyPort));
     }
 
-    public boolean checkIfStandardCredentialsWork(MiningOS miningOS, String minerName, MinerDetails details) {
+    public boolean checkIfStandardCredentialsWork(MiningOS miningOS, MinerDetails details) {
         return tryOrGet(miningOS, minerController -> minerController.checkIfStandardCredentialsWork(details), false);
     }
 
-    public boolean checkIfCustomCredentialsWork(MiningOS miningOS, String minerName, MinerDetails details) {
+    public boolean checkIfCustomCredentialsWork(MiningOS miningOS, MinerDetails details) {
         return tryOrGet(miningOS, minerController -> minerController.checkIfCustomCredentialsWork(details), false);
     }
 

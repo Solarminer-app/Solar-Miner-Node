@@ -143,6 +143,16 @@ public class MinerClusterService {
         }
     }
 
+    public void saveConfig(String clusterName, MinerControllerConfig config) throws IOException {
+        configStorage.save(clusterName, config);
+        for (Map<String, ClusterInstance> siteMap : siteClusters.values()) {
+            ClusterInstance cluster = siteMap.get(clusterName);
+            if (cluster != null && cluster.activeController != null) {
+                cluster.activeController.updateConfig(config);
+            }
+        }
+    }
+
     public void deleteCluster(String clusterName) {
         for (Map<String, ClusterInstance> siteMap : siteClusters.values()) {
             ClusterInstance cluster = siteMap.get(clusterName);

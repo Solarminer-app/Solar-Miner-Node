@@ -4,8 +4,8 @@ plugins {
     java
     id("org.springframework.boot") version "3.4.3"
     id("io.spring.dependency-management") version "1.1.7"
-    id("com.vaadin") version "24.6.5"
     id("org.graalvm.buildtools.native") version "0.10.6"
+    id("com.github.node-gradle.node") version "7.1.0"
 }
 
 extra["vaadinVersion"] = "24.6.5"
@@ -42,6 +42,7 @@ dependencies {
     implementation("com.openhtmltopdf:openhtmltopdf-core:1.0.10")
     implementation("com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("io.projectreactor:reactor-core")
     implementation("com.google.code.gson:gson:2.12.1")
     implementation("com.vaadin:vaadin-charts-flow")
     implementation("org.commonmark:commonmark:0.21.0")
@@ -53,7 +54,11 @@ dependencies {
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework:spring-context")
-    implementation("com.vaadin:vaadin-spring-boot-starter")
+    implementation("com.vaadin:vaadin-spring-boot-starter") {
+        exclude(group = "com.vaadin", module = "hilla")
+        exclude(group = "com.vaadin", module = "hilla-dev")
+        exclude(group = "com.vaadin", module = "vaadin-dev")
+    }
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation("org.flywaydb:flyway-core")
@@ -85,13 +90,53 @@ dependencyManagement {
     }
 }
 
-vaadin {
-    optimizeBundle = true
-    productionMode = true
-}
-
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+val reactFrontendDirectory = layout.projectDirectory.dir("react-frontend")
+val reactFrontendOutput = layout.buildDirectory.dir("generated/react-frontend")
+
+node {
+    version.set("22.14.0")
+    download.set(true)
+    nodeProjectDir.set(reactFrontendDirectory.asFile)
+}
+
+val installReactFrontend by tasks.registering(com.github.gradle.node.npm.task.NpmTask::class) {
+    group = "frontend"
+    description = "Installs the locked React frontend dependencies."
+    args.set(listOf("ci", "--no-audit", "--no-fund"))
+    inputs.files(
+        reactFrontendDirectory.file("package.json"),
+        reactFrontendDirectory.file("package-lock.json")
+    )
+    outputs.file(reactFrontendDirectory.file("node_modules/.package-lock.json"))
+}
+
+val buildReactFrontend by tasks.registering(com.github.gradle.node.npm.task.NpmTask::class) {
+    group = "frontend"
+    description = "Builds the React SPA that Spring Boot serves on port 8080."
+    dependsOn(installReactFrontend)
+    args.set(listOf("run", "build"))
+    inputs.files(
+        reactFrontendDirectory.file("package.json"),
+        reactFrontendDirectory.file("package-lock.json"),
+        reactFrontendDirectory.file("index.html"),
+        reactFrontendDirectory.file("vite.config.ts"),
+        reactFrontendDirectory.file("postcss.config.mjs")
+    )
+    inputs.dir(reactFrontendDirectory.dir("app"))
+    inputs.dir(reactFrontendDirectory.dir("public"))
+    inputs.dir(reactFrontendDirectory.dir("spa"))
+    outputs.dir(reactFrontendOutput)
+}
+
+tasks.processResources {
+    dependsOn(buildReactFrontend)
+    from(reactFrontendOutput) {
+        into("static")
+    }
 }
 
 graalvmNative {

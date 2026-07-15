@@ -7,8 +7,10 @@ import org.apache.commons.compress.utils.FileNameUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -42,7 +44,18 @@ public abstract class AbstractConfigStorage<T extends SimpleConfig<?>> {
         saveFile.getParentFile().mkdirs();
         JsonSerializerContext jsonSerializerContext = new JsonSerializerContext();
         SerializationElement element = serializer.serialize(jsonSerializerContext, config);
-        jsonSerializerContext.writeToFile(element, saveFile);
+        Path target = saveFile.toPath();
+        Path temporaryFile = Files.createTempFile(target.getParent(), saveFile.getName() + ".", ".tmp");
+        try {
+            jsonSerializerContext.writeToFile(element, temporaryFile.toFile());
+            try {
+                Files.move(temporaryFile, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(temporaryFile, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temporaryFile);
+        }
         LOGGER.info("Saved config " + saveFile);
     }
 

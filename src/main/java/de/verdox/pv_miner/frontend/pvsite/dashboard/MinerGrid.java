@@ -9,7 +9,7 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
-import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.MinerDashboardItemDTO;
+import de.verdox.pv_miner.dto.MinerDashboardItemDTO;
 
 public class MinerGrid extends Grid<MinerDashboardItemDTO> {
 

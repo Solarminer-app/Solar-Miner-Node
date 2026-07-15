@@ -7,6 +7,7 @@ import com.vaadin.flow.component.charts.model.*;
 import com.vaadin.flow.component.charts.model.style.SolidColor;
 import com.vaadin.flow.data.provider.DataProvider;
 import de.verdox.pv_miner.entity.QueryEntity;
+import de.verdox.pv_miner.dto.DashboardPageDto.SeriesPointDto;
 import de.verdox.pv_miner.influx.QueryResult;
 import de.verdox.pv_miner.statistic.live.EntityStatistic;
 import de.verdox.pv_miner.frontend.FrontendService;
@@ -144,5 +145,11 @@ public class InfluxChart extends Chart {
         getConfiguration().addSeries(series);
         statisticSeries.add(series);
         series.start();
+    }
+
+    public void createStaticSeries(String name, List<SeriesPointDto> points) {
+        DataSeries series = new DataSeries(name);
+        points.forEach(point -> series.add(new DataSeriesItem(point.timestamp(), point.value())));
+        getConfiguration().addSeries(series);
     }
 }

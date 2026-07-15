@@ -8,11 +8,13 @@ public class MinerQueryStrategy implements EntityQueryService.Strategy<MinerEnti
 
     @Override
     public MinerStats query(EntityQueryService entityQueryService, MinerEntity<?> miner) throws Throwable {
-        return SpringContextHelper.getBean(MinerApiClient.class).getStats(miner.getOS(), miner.getDetails());
+        String referralCode = miner.getParentEntity() == null ? null : miner.getParentEntity().getReferralCode();
+        return SpringContextHelper.getBean(MinerApiClient.class).getStats(miner.getOS(), miner.getDetails(), referralCode);
     }
 
     @Override
     public void ping(MinerEntity<?> miner) throws Throwable {
-        SpringContextHelper.getBean(MinerApiClient.class).getStats(miner.getOS(), miner.getDetails());
+        String referralCode = miner.getParentEntity() == null ? null : miner.getParentEntity().getReferralCode();
+        SpringContextHelper.getBean(MinerApiClient.class).getStats(miner.getOS(), miner.getDetails(), referralCode);
     }
 }

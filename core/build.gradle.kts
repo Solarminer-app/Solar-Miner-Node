@@ -46,6 +46,9 @@ dependencies {
 
     implementation("io.grpc:grpc-stub:1.45.1")
     implementation("com.google.protobuf:protobuf-java:3.21.12")
+
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.withType<Test> {

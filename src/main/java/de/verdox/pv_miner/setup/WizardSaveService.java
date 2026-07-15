@@ -230,7 +230,14 @@ public class WizardSaveService {
                     var identity = entityQueryService.query(miner).minerIdentity();
                     String defaultWorkerName = entityQueryService.query(firstConnectedMiningPool).getDefaultWorkerName();
                     System.out.println("Setting mining pool to " + firstConnectedMiningPool.getStratumV1Url());
-                    minerApiClient.setMiningPoolTarget(minerInfo.os(), details, firstConnectedMiningPool.getStratumV1Url(), defaultWorkerName, identity);
+                    minerApiClient.setMiningPoolTarget(
+                            minerInfo.os(),
+                            details,
+                            firstConnectedMiningPool.getStratumV1Url(),
+                            defaultWorkerName,
+                            identity,
+                            site.getReferralCode()
+                    );
                     miner.setCurrentMiningPoolTarget(firstConnectedMiningPool.getUrlIdentifier());
                     entityService.save(miner, site);
                 } catch (Throwable e) {

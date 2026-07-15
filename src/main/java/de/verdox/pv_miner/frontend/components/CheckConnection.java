@@ -4,9 +4,9 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.progressbar.ProgressBarVariant;
-import com.vaadin.hilla.Nullable;
 import de.verdox.pv_miner.frontend.FrontendService;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.lang.Nullable;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;

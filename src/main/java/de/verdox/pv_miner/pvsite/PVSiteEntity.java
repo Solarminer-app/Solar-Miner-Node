@@ -43,6 +43,11 @@ public abstract class PVSiteEntity extends AbstractAuditableEntity implements Qu
 
     @Setter
     @Getter
+    @Column(name = "referral_code", length = 128)
+    private String referralCode;
+
+    @Setter
+    @Getter
     private int batteryCapacityWh;
 
     @Setter

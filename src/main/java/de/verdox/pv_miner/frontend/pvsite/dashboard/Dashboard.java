@@ -39,7 +39,7 @@ import de.verdox.pv_miner.frontend.components.InfluxChart;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableButton;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableH3;
 import de.verdox.pv_miner.frontend.components.translatable.TranslatableSpan;
-import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.MinerDashboardItemDTO;
+import de.verdox.pv_miner.dto.MinerDashboardItemDTO;
 import de.verdox.pv_miner.frontend.user.UserSessionContext;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.lightning.LightningWalletService;
@@ -158,17 +158,17 @@ public class Dashboard extends VerticalLayout implements BeforeEnterObserver, Lo
                 .thenAccept(chartData -> {
                     ui.access(() -> {
                         if (liveChart.getConfiguration().getSeries().isEmpty()) {
-                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.pv_power"), chartData.pvPower());
-                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.import"), chartData.importData());
-                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.export"), chartData.exportData());
-                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.consumption"), chartData.consumption());
-                            liveChart.createStatisticSeries(getTranslation("dashboard.chart.miner_consumption"), chartData.minerConsumption());
+                            liveChart.createStaticSeries(getTranslation("dashboard.chart.pv_power"), chartData.live().pvPower());
+                            liveChart.createStaticSeries(getTranslation("dashboard.chart.import"), chartData.live().gridImport());
+                            liveChart.createStaticSeries(getTranslation("dashboard.chart.export"), chartData.live().gridExport());
+                            liveChart.createStaticSeries(getTranslation("dashboard.chart.consumption"), chartData.live().consumption());
+                            liveChart.createStaticSeries(getTranslation("dashboard.chart.miner_consumption"), chartData.live().minerConsumption());
                         }
                         liveChart.applyDarkTheme();
                         liveChart.setWidth("98.5%");
 
                         historyChart.getConfiguration().setSeries(new ArrayList<>());
-                        historyChart.createStatisticSeries(getTranslation("dashboard.chart.pv_power_history"), chartData.history());
+                        historyChart.createStaticSeries(getTranslation("dashboard.chart.pv_power_history"), chartData.pvHistory());
                         historyChart.drawChart(true);
                         historyChart.applyDarkTheme();
                         historyChart.setWidth("98.5%");
