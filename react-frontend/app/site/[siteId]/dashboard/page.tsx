@@ -202,6 +202,7 @@ export default function DashboardPage() {
 
                 {error ? <div className="flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-sm text-red-200"><AlertTriangle size={16}/>{error}</div> : null}
                 {problems.length ? <section className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-3"><div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-200"><ShieldAlert size={16}/>{t['dashboard.attention.title']}<span className="rounded-full bg-amber-300/10 px-2 py-0.5 text-[10px]">{problems.length}</span></div><div className="grid gap-1.5 lg:grid-cols-2">{problems.map((problem) => <div className="flex items-start gap-2 rounded-lg bg-black/10 px-3 py-2 text-xs text-amber-100/80" key={problem}><TriangleAlert className="mt-0.5 shrink-0" size={13}/>{problem}</div>)}</div></section> : null}
+                {liveData.lockStatusDtos.length ? <section className="rounded-2xl border border-sky-400/15 bg-sky-400/[0.04] p-3"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-semibold text-sky-200"><Clock3 size={16}/>{t['dashboard.locks.title']}<span className="rounded-full bg-sky-300/10 px-2 py-0.5 text-[10px]">{liveData.lockStatusDtos.length}</span></div><span className="text-[10px] text-[#707a87]">{t['dashboard.locks.description']}</span></div><div className="grid gap-1.5 lg:grid-cols-2">{liveData.lockStatusDtos.map((lock) => <div className="flex flex-wrap items-center gap-2 rounded-lg bg-black/10 px-3 py-2 text-xs" key={`${lock.ipAddress}-${lock.minerName}`}><span className="min-w-0 flex-1"><strong className="block truncate text-sky-100">{lock.minerName}</strong><span className="text-[10px] text-[#6f7884]">{lock.ipAddress}</span></span>{lock.stateLockRemainingSeconds > 0 ? <span className="rounded-md bg-white/[0.05] px-2 py-1 text-[#aab5c2]">{t['dashboard.locks.state']} · {formatLockDuration(lock.stateLockRemainingSeconds)}</span> : null}{lock.powerLockRemainingSeconds > 0 ? <span className="rounded-md bg-white/[0.05] px-2 py-1 text-[#aab5c2]">{t['dashboard.locks.power']} · {formatLockDuration(lock.powerLockRemainingSeconds)}</span> : null}<span className="rounded-md bg-sky-400/10 px-2 py-1 font-semibold text-sky-200">{lock.expectedPowerWatts.toFixed(0)} W</span></div>)}</div></section> : null}
 
                 <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <MetricCard icon={<Sun size={18}/>} label={t['dashboard.today.production']} value={kwh(day.productionKwh)} detail={`${kwh(day.selfConsumedKwh)} ${t['dashboard.today.used_locally']}`} tone="yellow"/>
@@ -364,11 +365,15 @@ function freshnessLabel(ageSeconds: number, t: Record<string, string>) {
     return t['dashboard.freshness.minutes'].replace('{minutes}', String(Math.floor(ageSeconds / 60)));
 }
 
+function formatLockDuration(seconds: number) {
+    if (seconds < 60) return `${Math.max(0, Math.ceil(seconds))} s`;
+    return `${Math.ceil(seconds / 60)} min`;
+}
+
 function buildProblems(init: DashboardInitDto, live: LiveDashboardUpdateDto, t: Record<string, string>) {
     const problems: string[] = [];
     if (live.dataQuality.sourceStatus !== 'ONLINE') problems.push(t[`dashboard.problem.source_${live.dataQuality.sourceStatus.toLowerCase()}`]);
     init.miners.filter((miner) => ['ERROR', 'UNKNOWN'].includes(miner.status)).forEach((miner) => problems.push(t['dashboard.problem.miner'].replace('{miner}', miner.name)));
     init.pools.filter((pool) => ['OFFLINE', 'STALE'].includes(pool.status)).forEach((pool) => problems.push(t['dashboard.problem.pool'].replace('{pool}', pool.url)));
-    live.lockStatusDtos.forEach((lock) => problems.push(t['dashboard.problem.lock'].replace('{miner}', lock.minerName)));
     return problems;
 }

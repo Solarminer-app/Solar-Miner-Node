@@ -154,7 +154,7 @@ export function useSitePreferences(): SitePreferencesContextValue {
 
     if (!context) {
         throw new Error(
-            "useSitePreferences muss innerhalb des SitePreferencesProvider verwendet werden.",
+            "useSitePreferences must be used inside SitePreferencesProvider.",
         );
     }
 
