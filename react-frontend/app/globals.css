@@ -19,8 +19,196 @@
   }
 }
 
+html,
 body {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+body {
+  overflow-x: clip;
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.power-target-range {
+  appearance: none;
+  width: 100%;
+  height: 0.55rem;
+  border-radius: 9999px;
+  background: var(--power-range-background, #3f3f46);
+  outline: none;
+}
+
+.power-target-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: grab;
+  border: 3px solid #facc15;
+  border-radius: 9999px;
+  background: #111113;
+  box-shadow: 0 0 0 3px rgb(250 204 21 / 15%);
+}
+
+.power-target-range::-moz-range-thumb {
+  width: 1rem;
+  height: 1rem;
+  cursor: grab;
+  border: 3px solid #facc15;
+  border-radius: 9999px;
+  background: #111113;
+  box-shadow: 0 0 0 3px rgb(250 204 21 / 15%);
+}
+
+@keyframes battery-charge-flow {
+  from { background-position: 100% 50%; }
+  to { background-position: 0 50%; }
+}
+
+@keyframes battery-discharge-flow {
+  from { background-position: 0 50%; }
+  to { background-position: 100% 50%; }
+}
+
+@keyframes energy-flow-line {
+  from { background-position: 1rem 0; }
+  to { background-position: 0 0; }
+}
+
+@keyframes energy-icon-pulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.08); filter: brightness(1.25); }
+}
+
+.battery-level-track {
+  position: relative;
+}
+
+.battery-level-track--active {
+  box-shadow: 0 0 0.75rem rgb(52 211 153 / 12%);
+}
+
+.battery-level-fill {
+  min-width: 0.2rem;
+  transition: width 700ms ease;
+}
+
+.battery-level-fill--charging,
+.battery-level-fill--discharging {
+  background-size: 220% 100%;
+}
+
+.battery-level-fill--charging {
+  background-image: linear-gradient(90deg, #059669, #34d399, #67e8f9, #34d399, #059669);
+  animation: battery-charge-flow 1.8s linear infinite;
+}
+
+.battery-level-fill--discharging {
+  background-image: linear-gradient(90deg, #fb7185, #fb923c, #facc15, #fb923c, #fb7185);
+  animation: battery-discharge-flow 1.8s linear infinite;
+}
+
+.battery-status-icon {
+  animation: energy-icon-pulse 1.5s ease-in-out infinite;
+}
+
+.energy-flow-node {
+  position: relative;
+  transition: border-color 250ms ease, box-shadow 250ms ease;
+}
+
+.energy-flow-node::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  content: "";
+  opacity: 0;
+  background-image: linear-gradient(90deg, transparent 0 35%, var(--flow-color, #a78bfa) 50%, transparent 65% 100%);
+  background-size: 200% 100%;
+}
+
+.energy-flow-node--active {
+  border-color: color-mix(in srgb, var(--flow-color, #a78bfa) 30%, transparent);
+  box-shadow: inset 0 0 1.25rem color-mix(in srgb, var(--flow-color, #a78bfa) 5%, transparent);
+}
+
+.energy-flow-node--active::after {
+  opacity: 0.9;
+  animation: battery-charge-flow 1.9s linear infinite;
+}
+
+.energy-flow-node--active .energy-flow-node-icon {
+  animation: energy-icon-pulse 2s ease-in-out infinite;
+}
+
+.energy-flow-node--yellow { --flow-color: #fde047; }
+.energy-flow-node--red { --flow-color: #f87171; }
+.energy-flow-node--cyan { --flow-color: #67e8f9; }
+.energy-flow-node--violet { --flow-color: #c4b5fd; }
+.energy-flow-node--orange { --flow-color: #fdba74; }
+.energy-flow-node--green { --flow-color: #6ee7b7; }
+
+.energy-flow-connector {
+  position: relative;
+  justify-content: center;
+  color: #41414a;
+}
+
+.energy-flow-connector::before {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 2px;
+  border-radius: 9999px;
+  content: "";
+  background-image: repeating-linear-gradient(90deg, #34343d 0 0.35rem, transparent 0.35rem 0.7rem);
+}
+
+.energy-flow-connector svg {
+  position: relative;
+  z-index: 1;
+  border-radius: 9999px;
+  background: #131318;
+}
+
+.energy-flow-connector--active {
+  color: #c4b5fd;
+}
+
+.energy-flow-connector--active::before {
+  background-image: repeating-linear-gradient(90deg, #8b5cf6 0 0.35rem, transparent 0.35rem 0.7rem);
+  animation: energy-flow-line 650ms linear infinite;
+  box-shadow: 0 0 0.65rem rgb(139 92 246 / 30%);
+}
+
+.energy-flow-hub {
+  transition: border-color 250ms ease, box-shadow 250ms ease;
+}
+
+.energy-flow-hub--active {
+  border-color: rgb(167 139 250 / 40%);
+  box-shadow: inset 0 0 2rem rgb(139 92 246 / 8%), 0 0 1.25rem rgb(139 92 246 / 8%);
+}
+
+.energy-flow-hub--active > svg {
+  animation: energy-icon-pulse 1.7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .battery-level-fill,
+  .battery-status-icon,
+  .energy-flow-node,
+  .energy-flow-node::after,
+  .energy-flow-node-icon,
+  .energy-flow-connector::before,
+  .energy-flow-hub,
+  .energy-flow-hub > svg {
+    animation: none !important;
+    transition: none !important;
+  }
 }

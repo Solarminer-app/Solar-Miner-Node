@@ -4,7 +4,7 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import de.verdox.pv_miner.frontend.FrontendColor;
-import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.LiveKpiDto;
+import de.verdox.pv_miner.dto.LiveKpiDto;
 
 public class DashboardKpiHeader extends HorizontalLayout {
 

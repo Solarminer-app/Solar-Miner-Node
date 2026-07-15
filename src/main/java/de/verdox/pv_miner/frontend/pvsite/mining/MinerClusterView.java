@@ -680,7 +680,14 @@ public class MinerClusterView extends VerticalLayout implements BeforeEnterObser
                                 throw new NullPointerException("Miner did not respond lately: " + freshMiner.getName());
                             }
 
-                            minerApiClient.setMiningPoolTarget(controller.os(), controller.details(), selectedPool.getStratumV1Url(), poolData.getDefaultWorkerName(), minerData.minerIdentity());
+                            minerApiClient.setMiningPoolTarget(
+                                    controller.os(),
+                                    controller.details(),
+                                    selectedPool.getStratumV1Url(),
+                                    poolData.getDefaultWorkerName(),
+                                    minerData.minerIdentity(),
+                                    freshSite.getReferralCode()
+                            );
                             freshMiner.setCurrentMiningPoolTarget(selectedPool.getUrlIdentifier());
                             entityService.save(freshMiner, freshSite);
                             successCount++;

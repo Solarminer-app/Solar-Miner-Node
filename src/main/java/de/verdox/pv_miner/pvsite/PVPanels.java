@@ -106,4 +106,5 @@ public class PVPanels {
     public void setAmountOfPanels(int amountOfPanels) {
         this.amountOfPanels = amountOfPanels;
     }
+
 }

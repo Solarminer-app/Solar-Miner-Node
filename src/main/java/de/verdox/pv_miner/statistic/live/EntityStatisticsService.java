@@ -14,9 +14,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -34,7 +34,7 @@ public class EntityStatisticsService {
     @Autowired
     private InfluxService influxService;
 
-    private final Map<UUID, Map<EntityStatisticType<?, ?, ?>, EntityStatistic<?, ?, ?>>> statisticMap = new HashMap<>();
+    private final Map<UUID, Map<EntityStatisticType<?, ?, ?>, EntityStatistic<?, ?, ?>>> statisticMap = new ConcurrentHashMap<>();
 
     public final EntityStatisticType<PVSiteEntity, PVSiteDataDTO, Double> PV_POWER_DAY_STATISTIC = createStatisticType(TimeUnit.MINUTES, 60 * 24,
             PVSiteEntity.class,
@@ -98,19 +98,31 @@ public class EntityStatisticsService {
             throw new IllegalArgumentException("Cannot monitor the statistic type " + statisticType.getStatisticsId() + " for the provided entity. The provided " + entity.getClass().getSimpleName() + " " + entity.getId() + "is not an assignable from" + statisticType.getEntityType());
         }
 
-        EntityStatistic<E, Q, T> entityStatistic;
-        if (!statisticMap.computeIfAbsent(entity.getId(), queryEntity -> new HashMap<>()).containsKey(statisticType)) {
-            entityStatistic = (EntityStatistic<E, Q, T>) statisticMap.computeIfAbsent(entity.getId(), queryEntity -> new HashMap<>()).computeIfAbsent(statisticType, entityStatisticType -> new EntityStatistic<>(statisticType, entity));
-            entityStatistic.setLiveDataSubscription(entityMonitoringService.hookIntoLiveData(entity)
-                    .sampleFirst(Duration.of(1, statisticType.getAccuracy().toChronoUnit()))
-                    .subscribe(q -> {
-                        entityStatistic.getValues().addData(System.currentTimeMillis(), statisticType.getLiveData().apply(q));
-                        entityStatistic.triggerStatisticsUpdate();
-                    }));
-            LOGGER.log(Level.FINE, "Creating statistic " + statisticType.getStatisticsId() + " for " + entity.getClass().getSimpleName() + " " + entity.getId());
-        } else {
-            entityStatistic = (EntityStatistic<E, Q, T>) statisticMap.get(entity.getId()).get(statisticType);
-        }
+        Map<EntityStatisticType<?, ?, ?>, EntityStatistic<?, ?, ?>> statisticsByType = statisticMap.computeIfAbsent(
+                entity.getId(),
+                queryEntity -> new ConcurrentHashMap<>()
+        );
+        EntityStatistic<E, Q, T> entityStatistic = (EntityStatistic<E, Q, T>) statisticsByType.computeIfAbsent(
+                statisticType,
+                entityStatisticType -> {
+                    EntityStatistic<E, Q, T> newStatistic = new EntityStatistic<>(statisticType, entity);
+                    newStatistic.setLiveDataSubscription(entityMonitoringService.hookIntoLiveData(entity)
+                            .sampleFirst(Duration.of(1, statisticType.getAccuracy().toChronoUnit()))
+                            .subscribe(q -> {
+                                newStatistic.getValues().addData(
+                                        System.currentTimeMillis(),
+                                        statisticType.getLiveData().apply(q)
+                                );
+                                newStatistic.triggerStatisticsUpdate();
+                            }));
+                    LOGGER.log(
+                            Level.FINE,
+                            "Creating statistic " + statisticType.getStatisticsId() + " for "
+                                    + entity.getClass().getSimpleName() + " " + entity.getId()
+                    );
+                    return newStatistic;
+                }
+        );
 
         var hasDataForInterval = entityStatistic.hasDataForInterval(from, to);
 
@@ -143,11 +155,11 @@ public class EntityStatisticsService {
     }
 
     public void cleanUp(QueryEntity<?> queryEntity) {
-        if (!statisticMap.containsKey(queryEntity.getId())) {
+        Map<EntityStatisticType<?, ?, ?>, EntityStatistic<?, ?, ?>> removedStatistics = statisticMap.remove(queryEntity.getId());
+        if (removedStatistics == null) {
             return;
         }
-        statisticMap.get(queryEntity.getId()).forEach((entityStatisticType, entityStatistic) -> entityStatistic.close());
-        statisticMap.remove(queryEntity.getId());
+        removedStatistics.values().forEach(EntityStatistic::close);
     }
 
     private <E extends QueryEntity<Q>, Q extends QueryResult, T> EntityStatisticType<E, Q, T> createStatisticType(TimeUnit accuracy, int limit, Class<E> entityType, String name, Function<Q, T> liveData, Function<FluxRecord, T> fluxToValue, Consumer<InfluxUtil.InfluxQueryBuilder> influxQuery) {

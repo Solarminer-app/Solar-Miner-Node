@@ -3,6 +3,8 @@
 import Link from "next/link";
 import {useParams, usePathname} from "next/navigation";
 import {PropsWithChildren, ReactNode, useCallback, useEffect, useMemo, useState,} from "react";
+import {createPortal} from "react-dom";
+import AppLogo from "../../components/app-logo";
 import de from "../../locales/de.json";
 import en from "../../locales/en.json";
 import type {CurrencyCode, LocaleCode} from "./site-preferences-context";
@@ -229,7 +231,7 @@ function SiteLayoutContent({children}: PropsWithChildren) {
         return (<main className="invalid-site">
             <h1>{t("app.title")}</h1>
             <p>{t("error.invalidSite")}</p>
-            <style jsx>{`
+            <style>{`
                 .invalid-site {
                     min-height: 100vh;
                     display: grid;
@@ -256,7 +258,8 @@ function SiteLayoutContent({children}: PropsWithChildren) {
     return (<div className="app-shell">
         <header className="navbar">
             <Link className="brand" href={basePath + "/dashboard"}>
-                {t("app.title")}
+                <AppLogo priority/>
+                <span>{t("app.title")}</span>
             </Link>
 
             <nav aria-label={t("nav.main_label")} className="desktop-nav">
@@ -297,7 +300,7 @@ function SiteLayoutContent({children}: PropsWithChildren) {
 
         <main className="content">{children}</main>
 
-        {mobileMenuOpen && (<div
+        {mobileMenuOpen && createPortal(<div
             aria-label={t("nav.mobile_label")}
             aria-modal="true"
             className="mobile-dialog"
@@ -307,7 +310,7 @@ function SiteLayoutContent({children}: PropsWithChildren) {
                 <span className="mobile-dialog__title">{t("app.title")}</span>
                 <button
                     aria-label={t("nav.menu_close")}
-                    className="icon-button"
+                    className="icon-button mobile-dialog__close"
                     onClick={() => setMobileMenuOpen(false)}
                     type="button"
                 >
@@ -340,13 +343,13 @@ function SiteLayoutContent({children}: PropsWithChildren) {
                 timeZone={timeZone}
                 timeZones={timeZones}
             />
-        </div>)}
+        </div>, document.body)}
 
         {toast && (<div aria-live="polite" className="toast" role="status">
             {toast}
         </div>)}
 
-        <style jsx global>{`
+        <style>{`
             :root {
                 color-scheme: dark;
                 --app-bg: #0b0b0d;
@@ -383,7 +386,10 @@ function SiteLayoutContent({children}: PropsWithChildren) {
             }
 
             .app-shell {
+                width: 100%;
+                min-width: 0;
                 min-height: 100vh;
+                overflow-x: clip;
                 background: var(--app-bg);
             }
 
@@ -392,6 +398,8 @@ function SiteLayoutContent({children}: PropsWithChildren) {
                 z-index: 30;
                 top: 0;
                 display: grid;
+                width: 100%;
+                min-width: 0;
                 grid-template-columns: minmax(150px, auto) 1fr auto;
                 align-items: center;
                 min-height: var(--header-height);
@@ -402,6 +410,9 @@ function SiteLayoutContent({children}: PropsWithChildren) {
             }
 
             .brand {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
                 color: var(--text);
                 font-size: 1.15rem;
                 font-weight: 750;
@@ -504,6 +515,8 @@ function SiteLayoutContent({children}: PropsWithChildren) {
             }
 
             .content {
+                width: 100%;
+                max-width: 100%;
                 min-width: 0;
             }
 
@@ -531,19 +544,30 @@ function SiteLayoutContent({children}: PropsWithChildren) {
 
             .mobile-dialog {
                 position: fixed;
-                z-index: 100;
+                z-index: 10000;
                 inset: 0;
+                isolation: isolate;
                 overflow-y: auto;
-                padding: 18px;
+                padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
                 background: var(--surface);
                 animation: mobile-dialog-in 180ms ease-out;
             }
 
             .mobile-dialog__header {
+                position: sticky;
+                z-index: 2;
+                top: 0;
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
                 min-height: 52px;
+                background: var(--surface);
+            }
+
+            .mobile-dialog__close {
+                position: relative;
+                z-index: 3;
+                flex: 0 0 44px;
             }
 
             .mobile-dialog__title {

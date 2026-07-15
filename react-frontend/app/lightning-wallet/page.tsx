@@ -10,6 +10,7 @@ import {
 // Lokale Übersetzungen importieren (Pfade ggf. anpassen)
 import de from './../locales/de.json';
 import en from './../locales/en.json';
+import AppLogo from '../components/app-logo';
 
 const translations = { de, en };
 type Language = 'de' | 'en';
@@ -70,7 +71,7 @@ export default function LightningWalletView() {
     const fetchWallet = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await fetch(`http://localhost:8080/api/lightning-wallet?currency=${currency}&locale=${lang}`);
+            const response = await fetch(`/api/lightning-wallet?currency=${currency}&locale=${lang}`);
             if (response.ok) {
                 const result = await response.json();
                 setData(result);
@@ -90,7 +91,7 @@ export default function LightningWalletView() {
     // WebSocket Verbindung aktivieren/trennen
     const toggleConnection = async () => {
         try {
-            const response = await fetch('http://localhost:8080/api/lightning-wallet/connection/toggle', {
+            const response = await fetch('/api/lightning-wallet/connection/toggle', {
                 method: 'POST'
             });
             if (response.ok) {
@@ -110,7 +111,7 @@ export default function LightningWalletView() {
             setSending(true);
             const amountSat = payAmount ? parseInt(payAmount) : null;
 
-            const response = await fetch('http://localhost:8080/api/lightning-wallet/pay', {
+            const response = await fetch('/api/lightning-wallet/pay', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -142,7 +143,7 @@ export default function LightningWalletView() {
         if (!onChainAddress.trim() || !onChainAmount) return;
         try {
             setSending(true);
-            const response = await fetch('http://localhost:8080/api/lightning-wallet/withdraw/onchain', {
+            const response = await fetch('/api/lightning-wallet/withdraw/onchain', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -189,6 +190,7 @@ export default function LightningWalletView() {
                         >
                             <ArrowLeft size={24} />
                         </button>
+                        <AppLogo/>
                         <div>
                             <h1 className="text-2xl md:text-3xl font-bold">{t["lightning.header.title"]}</h1>
                             <p className="text-gray-400 text-sm md:text-base">{t["lightning.header.subtitle"]}</p>

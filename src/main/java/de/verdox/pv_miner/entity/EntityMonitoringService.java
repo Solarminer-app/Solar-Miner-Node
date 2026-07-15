@@ -3,16 +3,15 @@ package de.verdox.pv_miner.entity;
 import de.verdox.pv_miner.influx.InfluxService;
 import de.verdox.pv_miner.influx.QueryResult;
 import lombok.Getter;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -33,7 +32,7 @@ public class EntityMonitoringService {
         this.influxService = influxService;
     }
 
-    private final Map<UUID, MonitoringJob<?, ?>> monitoringJobs = new HashMap<>();
+    private final Map<UUID, MonitoringJob<?, ?>> monitoringJobs = new ConcurrentHashMap<>();
 
     public <E extends QueryEntity<? extends Q>, Q extends QueryResult> Flux<Q> hookIntoLiveData(E entity) {
         if (monitoringJobs.containsKey(entity.getId()) && !monitoringJobs.get(entity.getId()).isRunning) {
@@ -59,8 +58,9 @@ public class EntityMonitoringService {
     }
 
     public <E extends QueryEntity<Q>, Q extends QueryResult> void detach(E entity) {
-        if (monitoringJobs.containsKey(entity.getId())) {
-            monitoringJobs.get(entity.getId()).stop();
+        MonitoringJob<?, ?> monitoringJob = monitoringJobs.remove(entity.getId());
+        if (monitoringJob != null) {
+            monitoringJob.stop();
         }
         LOGGER.info("Detaching " + entity + " from entity monitoring");
     }
@@ -102,7 +102,8 @@ public class EntityMonitoringService {
             this.liveDataFlux = sink.asFlux().share();
 
             if (influxService.hasInfluxStrategy(entity)) {
-                monitoringJob = this.liveDataFlux.subscribe(q -> influxService.writeDataToApi(entity, q, Instant.now()));
+                monitoringJob = this.liveDataFlux
+                        .subscribe(q -> influxService.writeDataToApi(entity, q, Instant.now()));
             } else {
                 LOGGER.info("No influx strategy found for monitoring the entity " + entity);
             }

@@ -44,7 +44,9 @@ import type {
 import {useSitePreferences} from '../site-preferences-context';
 
 const translations = {de, en};
-const API_BASE_URL = 'http://localhost:8080/api/pv-site';
+const API_BASE_URL = '/api/pv-site';
+const CHART_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const LIVE_CHART_WINDOW_POINTS = 24 * 60;
 
 type ChartTab = 'live' | 'history' | 'controller';
 
@@ -77,6 +79,7 @@ export default function DashboardPage() {
         const data = await response.json() as LiveDashboardUpdateDto;
         if (!signal?.aborted) {
             setLiveData(data);
+            setCharts((current) => appendLiveEnergySample(current, data.energy));
             setError(null);
             setLoading(false);
         }
@@ -131,7 +134,7 @@ export default function DashboardPage() {
         const controller = new AbortController();
         const refresh = () => void loadCharts(controller.signal).catch(() => undefined);
         const timeout = window.setTimeout(refresh, 0);
-        const interval = window.setInterval(refresh, 10_000);
+        const interval = window.setInterval(refresh, CHART_REFRESH_INTERVAL_MS);
         return () => {
             window.clearTimeout(timeout);
             window.clearInterval(interval);
@@ -154,10 +157,10 @@ export default function DashboardPage() {
     }, [charts]);
 
     if (loading && (!initData || !liveData)) {
-        return <main className="grid min-h-[70vh] place-items-center text-[#a1a1aa]"><span className="flex items-center gap-3"><RefreshCw className="animate-spin text-yellow-300"/>{t['dashboard.loading']}</span></main>;
+        return <main className="grid min-h-[70vh] w-full min-w-0 place-items-center text-[#a1a1aa]"><span className="flex items-center gap-3"><RefreshCw className="animate-spin text-yellow-300"/>{t['dashboard.loading']}</span></main>;
     }
     if (!initData || !liveData) {
-        return <main className="grid min-h-[70vh] place-items-center text-red-300"><span className="flex items-center gap-3"><AlertTriangle/>{error ?? t['dashboard.error.missing']}</span></main>;
+        return <main className="grid min-h-[70vh] w-full min-w-0 place-items-center text-red-300"><span className="flex items-center gap-3"><AlertTriangle/>{error ?? t['dashboard.error.missing']}</span></main>;
     }
 
     const {energy, day, mining, dataQuality} = liveData;
@@ -169,6 +172,11 @@ export default function DashboardPage() {
     const sourceOnline = dataQuality.sourceStatus === 'ONLINE';
     const problems = buildProblems(initData, liveData, t);
     const batteryLevel = Math.max(0, Math.min(100, energy.batterySocPercent));
+    const batteryFlowState = energy.batteryPowerKw > 0.01
+        ? 'charging'
+        : energy.batteryPowerKw < -0.01
+            ? 'discharging'
+            : 'idle';
     const displayedChartData: Array<Record<string, string | number | null | undefined>> = chartTab === 'live'
         ? liveChartData
         : chartTab === 'history'
@@ -176,12 +184,13 @@ export default function DashboardPage() {
             : (charts?.controller.points ?? []).map((point) => ({...point}));
 
     return (
-        <main className="min-h-screen bg-[#0b0b0e] px-3 py-4 text-white sm:px-5 lg:px-7">
-            <div className="mx-auto max-w-[1700px] space-y-4">
+        <main className="min-h-screen w-full min-w-0 max-w-full overflow-x-clip bg-[#0b0b0e] px-3 py-4 text-white sm:px-5 lg:px-7">
+            <div className="mx-auto w-full min-w-0 max-w-[1700px] space-y-4">
                 <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/[0.07] bg-[#131318] px-4 py-3 sm:px-5">
                     <div>
-                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-300">{t['dashboard.eyebrow']}</p>
-                        <div className="mt-1 flex flex-wrap items-baseline gap-3"><h1 className="text-xl font-bold sm:text-2xl">{initData.siteName}</h1><span className="text-sm text-[#777781]">{t['dashboard.header.subtitle']}</span></div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-300">{t['dashboard.eyebrow']} · {initData.siteName}</p>
+                        <h1 className="mt-1 text-xl font-bold sm:text-2xl">{t['dashboard.header.title']}</h1>
+                        <p className="mt-1 text-sm text-[#777781]">{t['dashboard.header.subtitle']}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <span className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold ${sourceOnline ? 'bg-emerald-400/10 text-emerald-300' : ['STALE', 'WAITING'].includes(dataQuality.sourceStatus) ? 'bg-amber-400/10 text-amber-300' : 'bg-red-400/10 text-red-300'}`}>
@@ -205,8 +214,13 @@ export default function DashboardPage() {
                     <EnergyFlow energy={energy} kw={kw} t={t}/>
                     <div className="space-y-4 xl:col-span-4">
                         <article className="rounded-2xl border border-white/[0.07] bg-[#131318] p-4">
-                            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><BatteryCharging className="text-emerald-300" size={18}/><h2 className="text-sm font-semibold">{t['dashboard.battery.title']}</h2></div><span className="text-2xl font-bold">{percent(batteryLevel)}</span></div>
-                            <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06]"><div className={`h-full rounded-full ${batteryLevel < 20 ? 'bg-red-400' : batteryLevel < 40 ? 'bg-amber-300' : 'bg-emerald-400'}`} style={{width: `${batteryLevel}%`}}/></div>
+                            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><BatteryCharging className={`text-emerald-300 ${batteryFlowState !== 'idle' ? 'battery-status-icon' : ''}`} size={18}/><h2 className="text-sm font-semibold">{t['dashboard.battery.title']}</h2></div><span className="text-2xl font-bold">{percent(batteryLevel)}</span></div>
+                            <div className={`battery-level-track mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06] ${batteryFlowState !== 'idle' ? 'battery-level-track--active' : ''}`}>
+                                <div
+                                    className={`battery-level-fill h-full rounded-full ${batteryFlowState === 'charging' ? 'battery-level-fill--charging' : batteryFlowState === 'discharging' ? 'battery-level-fill--discharging' : batteryLevel < 20 ? 'bg-red-400' : batteryLevel < 40 ? 'bg-amber-300' : 'bg-emerald-400'}`}
+                                    style={{width: `${batteryLevel}%`}}
+                                />
+                            </div>
                             <div className="mt-4 grid grid-cols-2 gap-2 text-xs"><SmallStat label={t['dashboard.battery.state']} value={t[`dashboard.battery.${energy.batteryState.toLowerCase()}`]}/><SmallStat label={t['dashboard.battery.power']} value={kw(Math.abs(energy.batteryPowerKw))}/><SmallStat label={t['dashboard.battery.capacity']} value={energy.batteryCapacityKwh > 0 ? kwh(energy.batteryCapacityKwh) : '—'}/><SmallStat label={t['dashboard.battery.runtime']} value={energy.estimatedBatteryRuntimeHours == null ? '—' : `${format(energy.estimatedBatteryRuntimeHours, 1)} h`}/></div>
                         </article>
 
@@ -224,7 +238,7 @@ export default function DashboardPage() {
                 <article className="rounded-2xl border border-white/[0.07] bg-[#131318] p-4 sm:p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold">{t['dashboard.charts.title']}</h2><p className="mt-1 text-xs text-[#73737d]">{t['dashboard.charts.subtitle']}</p></div>{chartTab === 'controller' && charts?.clusterNames.length ? <select className="rounded-lg border border-white/10 bg-[#0d0d11] px-3 py-2 text-xs outline-none" onChange={(event) => setSelectedCluster(event.target.value)} value={selectedCluster}>{charts.clusterNames.map((name) => <option key={name}>{name}</option>)}</select> : null}</div>
                     <div className="mt-4 flex gap-1 rounded-lg bg-black/20 p-1">{(['live', 'history', 'controller'] as ChartTab[]).map((tab) => <button className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${chartTab === tab ? 'bg-white/[0.09] text-white' : 'text-[#73737d] hover:text-white'}`} key={tab} onClick={() => setChartTab(tab)}>{t[`dashboard.tab.${tab === 'controller' ? 'automation' : tab}`]}</button>)}</div>
-                    <div className="mt-4 h-[330px]">{displayedChartData.length ? <ResponsiveContainer height="100%" width="100%"><LineChart data={displayedChartData}><CartesianGrid stroke="#26262d" strokeDasharray="3 3"/><XAxis dataKey="timestamp" stroke="#696973" tickFormatter={(value) => new Date(value).toLocaleTimeString(numberLocale, {hour: '2-digit', minute: '2-digit'})}/><YAxis stroke="#696973"/><Tooltip contentStyle={{background: '#16161b', border: '1px solid #303038', borderRadius: 8}} labelFormatter={(value) => new Date(Number(value)).toLocaleString(numberLocale)}/><Legend/>{chartTab === 'live' ? <><Line dataKey="pvPower" dot={false} name={t['dashboard.chart.pv_power']} stroke="#facc15" strokeWidth={2}/><Line dataKey="consumption" dot={false} name={t['dashboard.chart.consumption']} stroke="#a78bfa"/><Line dataKey="minerConsumption" dot={false} name={t['dashboard.chart.miner_consumption']} stroke="#fb923c"/><Line dataKey="gridImport" dot={false} name={t['dashboard.chart.import']} stroke="#f87171"/><Line dataKey="gridExport" dot={false} name={t['dashboard.chart.export']} stroke="#34d399"/></> : chartTab === 'history' ? <Line dataKey="value" dot={false} name={t['dashboard.chart.pv_power_history']} stroke="#facc15" strokeWidth={2}/> : <><Line dataKey="targetPowerWatts" dot={false} name={t['dashboard.chart.target_power']} stroke="#60a5fa" strokeWidth={2}/><Line dataKey="allocatedPowerWatts" dot={false} name={t['dashboard.chart.allocated_power']} stroke="#c084fc" strokeWidth={2}/></>}</LineChart></ResponsiveContainer> : <div className="grid h-full place-items-center text-sm text-[#666670]">{t['dashboard.chart.no_data']}</div>}</div>
+                    <div className="mt-4 h-[330px] w-full min-w-0 overflow-hidden">{displayedChartData.length ? <ResponsiveContainer height="100%" width="100%"><LineChart data={displayedChartData}><CartesianGrid stroke="#26262d" strokeDasharray="3 3"/><XAxis dataKey="timestamp" stroke="#696973" tickFormatter={(value) => new Date(value).toLocaleTimeString(numberLocale, {hour: '2-digit', minute: '2-digit'})}/><YAxis stroke="#696973"/><Tooltip contentStyle={{background: '#16161b', border: '1px solid #303038', borderRadius: 8}} labelFormatter={(value) => new Date(Number(value)).toLocaleString(numberLocale)}/><Legend/>{chartTab === 'live' ? <><Line dataKey="pvPower" dot={false} name={t['dashboard.chart.pv_power']} stroke="#facc15" strokeWidth={2}/><Line dataKey="consumption" dot={false} name={t['dashboard.chart.consumption']} stroke="#a78bfa"/><Line dataKey="minerConsumption" dot={false} name={t['dashboard.chart.miner_consumption']} stroke="#fb923c"/><Line dataKey="gridImport" dot={false} name={t['dashboard.chart.import']} stroke="#f87171"/><Line dataKey="gridExport" dot={false} name={t['dashboard.chart.export']} stroke="#34d399"/></> : chartTab === 'history' ? <Line dataKey="value" dot={false} name={t['dashboard.chart.pv_power_history']} stroke="#facc15" strokeWidth={2}/> : <><Line dataKey="targetPowerWatts" dot={false} name={t['dashboard.chart.target_power']} stroke="#60a5fa" strokeWidth={2}/><Line dataKey="allocatedPowerWatts" dot={false} name={t['dashboard.chart.allocated_power']} stroke="#c084fc" strokeWidth={2}/></>}</LineChart></ResponsiveContainer> : <div className="grid h-full place-items-center text-sm text-[#666670]">{t['dashboard.chart.no_data']}</div>}</div>
                 </article>
 
                 <section className="grid gap-4 xl:grid-cols-2">
@@ -239,12 +253,41 @@ export default function DashboardPage() {
 function EnergyFlow({energy, kw, t}: {energy: LiveEnergyDto; kw: (value: number) => string; t: Record<string, string>}) {
     const batteryDischarge = Math.max(0, -energy.batteryPowerKw);
     const batteryCharge = Math.max(0, energy.batteryPowerKw);
-    return <article className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#131318] p-4 sm:p-5 xl:col-span-8"><div><h2 className="text-sm font-semibold">{t['dashboard.flow.title']}</h2><p className="mt-1 text-xs text-[#73737d]">{t['dashboard.flow.subtitle']}</p></div><div className="mt-5 grid items-stretch gap-3 lg:grid-cols-[1fr_auto_1.15fr_auto_1fr]"><div className="space-y-2"><FlowNode icon={<Sun/>} label={t['dashboard.flow.pv']} value={kw(energy.pvPowerKw)} tone="yellow"/><FlowNode icon={<ArrowDownToLine/>} label={t['dashboard.flow.grid_import']} value={kw(energy.gridImportKw)} tone="red"/><FlowNode icon={<BatteryCharging/>} label={t['dashboard.flow.battery_discharge']} value={kw(batteryDischarge)} tone="cyan"/></div><div className="hidden items-center text-[#41414a] lg:flex"><ArrowRight/></div><div className="grid place-items-center rounded-xl border border-violet-400/20 bg-gradient-to-br from-violet-400/10 to-transparent p-5 text-center"><Zap className="text-violet-300" size={28}/><p className="mt-2 text-xs text-[#8c8c96]">{t['dashboard.flow.distribution']}</p><strong className="mt-1 text-2xl">{kw(energy.totalLoadKw)}</strong></div><div className="hidden items-center text-[#41414a] lg:flex"><ArrowRight/></div><div className="space-y-2"><FlowNode icon={<Home/>} label={t['dashboard.flow.household']} value={kw(energy.householdPowerKw)} tone="violet"/><FlowNode icon={<Cpu/>} label={t['dashboard.flow.mining']} value={kw(energy.minerPowerKw)} tone="orange"/><FlowNode icon={<ArrowUpFromLine/>} label={t['dashboard.flow.grid_export']} value={kw(energy.gridExportKw)} tone="green"/><FlowNode icon={<BatteryCharging/>} label={t['dashboard.flow.battery_charge']} value={kw(batteryCharge)} tone="green"/></div></div></article>;
+    const hasIncomingEnergy = energy.pvPowerKw > 0.01 || energy.gridImportKw > 0.01 || batteryDischarge > 0.01;
+    const hasOutgoingEnergy = energy.householdPowerKw > 0.01 || energy.minerPowerKw > 0.01 || energy.gridExportKw > 0.01 || batteryCharge > 0.01;
+
+    return (
+        <article className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#131318] p-4 sm:p-5 xl:col-span-8">
+            <div><h2 className="text-sm font-semibold">{t['dashboard.flow.title']}</h2><p className="mt-1 text-xs text-[#73737d]">{t['dashboard.flow.subtitle']}</p></div>
+            <div className="mt-5 grid items-stretch gap-3 lg:grid-cols-[1fr_2.25rem_1.15fr_2.25rem_1fr]">
+                <div className="space-y-2">
+                    <FlowNode active={energy.pvPowerKw > 0.01} icon={<Sun/>} label={t['dashboard.flow.pv']} value={kw(energy.pvPowerKw)} tone="yellow"/>
+                    <FlowNode active={energy.gridImportKw > 0.01} icon={<ArrowDownToLine/>} label={t['dashboard.flow.grid_import']} value={kw(energy.gridImportKw)} tone="red"/>
+                    <FlowNode active={batteryDischarge > 0.01} icon={<BatteryCharging/>} label={t['dashboard.flow.battery_discharge']} value={kw(batteryDischarge)} tone="cyan"/>
+                </div>
+                <FlowConnector active={hasIncomingEnergy}/>
+                <div className={`energy-flow-hub grid place-items-center rounded-xl border border-violet-400/20 bg-gradient-to-br from-violet-400/10 to-transparent p-5 text-center ${hasIncomingEnergy || hasOutgoingEnergy ? 'energy-flow-hub--active' : ''}`}>
+                    <Zap className="text-violet-300" size={28}/><p className="mt-2 text-xs text-[#8c8c96]">{t['dashboard.flow.distribution']}</p><strong className="mt-1 text-2xl">{kw(energy.totalLoadKw)}</strong>
+                </div>
+                <FlowConnector active={hasOutgoingEnergy}/>
+                <div className="space-y-2">
+                    <FlowNode active={energy.householdPowerKw > 0.01} icon={<Home/>} label={t['dashboard.flow.household']} value={kw(energy.householdPowerKw)} tone="violet"/>
+                    <FlowNode active={energy.minerPowerKw > 0.01} icon={<Cpu/>} label={t['dashboard.flow.mining']} value={kw(energy.minerPowerKw)} tone="orange"/>
+                    <FlowNode active={energy.gridExportKw > 0.01} icon={<ArrowUpFromLine/>} label={t['dashboard.flow.grid_export']} value={kw(energy.gridExportKw)} tone="green"/>
+                    <FlowNode active={batteryCharge > 0.01} icon={<BatteryCharging/>} label={t['dashboard.flow.battery_charge']} value={kw(batteryCharge)} tone="green"/>
+                </div>
+            </div>
+        </article>
+    );
 }
 
-function FlowNode({icon, label, value, tone}: {icon: React.ReactNode; label: string; value: string; tone: string}) {
+function FlowConnector({active}: {active: boolean}) {
+    return <div aria-hidden="true" className={`energy-flow-connector hidden items-center lg:flex ${active ? 'energy-flow-connector--active' : ''}`}><ArrowRight size={18}/></div>;
+}
+
+function FlowNode({active, icon, label, value, tone}: {active: boolean; icon: React.ReactNode; label: string; value: string; tone: string}) {
     const colors: Record<string, string> = {yellow: 'text-yellow-300 bg-yellow-300/10', red: 'text-red-300 bg-red-300/10', cyan: 'text-cyan-300 bg-cyan-300/10', violet: 'text-violet-300 bg-violet-300/10', orange: 'text-orange-300 bg-orange-300/10', green: 'text-emerald-300 bg-emerald-300/10'};
-    return <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-[#0e0e12] p-3"><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg [&_svg]:h-4 [&_svg]:w-4 ${colors[tone]}`}>{icon}</span><span className="min-w-0 flex-1"><span className="block truncate text-[11px] text-[#777781]">{label}</span><strong className="text-sm">{value}</strong></span></div>;
+    return <div className={`energy-flow-node flex items-center gap-3 overflow-hidden rounded-xl border border-white/[0.06] bg-[#0e0e12] p-3 ${active ? `energy-flow-node--active energy-flow-node--${tone}` : ''}`}><span className={`energy-flow-node-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg [&_svg]:h-4 [&_svg]:w-4 ${colors[tone]}`}>{icon}</span><span className="min-w-0 flex-1"><span className="block truncate text-[11px] text-[#777781]">{label}</span><strong className="text-sm">{value}</strong></span></div>;
 }
 
 function MetricCard({icon, label, value, detail, tone}: {icon: React.ReactNode; label: string; value: string; detail: string; tone: string}) {
@@ -270,6 +313,29 @@ function MiningSourceCard({mining, format, t}: {mining: MiningOverviewDto; forma
     const total = mining.estimatedPvPowerWatts + mining.estimatedBatteryPowerWatts + mining.estimatedGridPowerWatts;
     const share = (value: number) => total > 0 ? value / total * 100 : 0;
     return <article className="rounded-2xl border border-white/[0.07] bg-[#131318] p-4 sm:p-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><div className="flex items-center gap-2"><PlugZap className="text-orange-300" size={18}/><h2 className="text-sm font-semibold">{t['dashboard.mining.source_title']}</h2></div><p className="mt-1 text-xs text-[#73737d]">{t['dashboard.mining.source_estimate']}</p></div><span className="text-xs text-[#8c8c96]">{mining.activeMiners} / {mining.totalMiners} {t['dashboard.mining.active']}</span></div><div className="mt-4 flex h-3 overflow-hidden rounded-full bg-white/[0.05]"><div className="bg-yellow-300" style={{width: `${share(mining.estimatedPvPowerWatts)}%`}}/><div className="bg-cyan-300" style={{width: `${share(mining.estimatedBatteryPowerWatts)}%`}}/><div className="bg-red-400" style={{width: `${share(mining.estimatedGridPowerWatts)}%`}}/></div><div className="mt-3 grid gap-2 sm:grid-cols-3"><SourceLegend color="bg-yellow-300" label={t['dashboard.mining.source_pv']} value={`${format(mining.estimatedPvPowerWatts, 0)} W`}/><SourceLegend color="bg-cyan-300" label={t['dashboard.mining.source_battery']} value={`${format(mining.estimatedBatteryPowerWatts, 0)} W`}/><SourceLegend color="bg-red-400" label={t['dashboard.mining.source_grid']} value={`${format(mining.estimatedGridPowerWatts, 0)} W`}/></div></article>;
+}
+
+function appendLiveEnergySample(charts: DashboardChartsDto | null, energy: LiveEnergyDto): DashboardChartsDto | null {
+    if (!charts) return null;
+
+    // The persisted chart uses one-minute mean windows. Replace the current minute
+    // locally so the chart remains live without issuing another expensive Influx query.
+    const timestamp = Math.floor(Date.now() / 60_000) * 60_000;
+    const upsert = (points: SeriesPointDto[], value: number) => [
+        ...points.filter((point) => point.timestamp !== timestamp),
+        {timestamp, value: Number.isFinite(value) ? value : 0},
+    ].sort((left, right) => left.timestamp - right.timestamp).slice(-LIVE_CHART_WINDOW_POINTS);
+
+    return {
+        ...charts,
+        live: {
+            pvPower: upsert(charts.live.pvPower, energy.pvPowerKw),
+            gridImport: upsert(charts.live.gridImport, energy.gridImportKw),
+            gridExport: upsert(charts.live.gridExport, energy.gridExportKw),
+            consumption: upsert(charts.live.consumption, energy.totalLoadKw),
+            minerConsumption: upsert(charts.live.minerConsumption, energy.minerPowerKw),
+        },
+    };
 }
 
 function SourceLegend({color, label, value}: {color: string; label: string; value: string}) {

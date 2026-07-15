@@ -1,0 +1,104 @@
+package de.verdox.pv_miner.pvconfig;
+
+import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
+import de.verdox.pv_miner.dto.PVConfigDtos.ModbusFieldDto;
+import de.verdox.pv_miner.dto.PVConfigDtos.ModbusProfileDto;
+import de.verdox.pv_miner.dto.PVConfigDtos.RestFieldDto;
+import de.verdox.pv_miner.dto.PVConfigDtos.RestProfileDto;
+import de.verdox.pv_miner.dto.PVConfigDtos.RestTestRequest;
+import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusConfigStorage;
+import de.verdox.pv_miner_extensions.inverter.rest.RestConfigStorage;
+import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
+import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+class PVConfigServiceTest {
+    private RestConfigStorage restStorage;
+    private ModbusConfigStorage modbusStorage;
+    private PVConfigService service;
+
+    @BeforeEach
+    void setUp() {
+        restStorage = mock(RestConfigStorage.class);
+        modbusStorage = mock(ModbusConfigStorage.class);
+        service = new PVConfigService(restStorage, modbusStorage, mock(ConfigFetcherService.class), false);
+    }
+
+    @Test
+    void rejectsPathTraversalProfileNamesBeforeStorageAccess() {
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.createRestProfile("../outside", RestConfigCreatorTemplate.HOME_ASSISTANT_PV.id()));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        verifyNoInteractions(restStorage);
+    }
+
+    @Test
+    void rejectsUnexpectedOrMissingTemplateFields() {
+        when(restStorage.doesConfigExistOnDisk(RestConfigCreatorTemplate.HOME_ASSISTANT_PV, "Profile")).thenReturn(true);
+        RestProfileDto profile = new RestProfileDto("Profile", RestConfigCreatorTemplate.HOME_ASSISTANT_PV.id(), List.of(
+                new RestFieldDto("pv_power", "kw", "/api/value", "GET", "JSON", "state", 1, "x", "float")
+        ));
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.saveRestProfile("Profile", profile));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+    }
+
+    @Test
+    void rejectsOversizedImports() {
+        String oversizedJson = "x".repeat(PVConfigService.MAX_IMPORT_CHARACTERS + 1);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.importRestProfile("Profile", RestConfigCreatorTemplate.HOME_ASSISTANT_PV.id(), oversizedJson));
+
+        assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, exception.getStatusCode());
+    }
+
+    @Test
+    void rejectsPublicTargetsForDeviceConnectionTests() {
+        RestTestRequest request = new RestTestRequest("http://8.8.8.8", "", validRestFields());
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.testRestConnection(request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+    }
+
+    @Test
+    void rejectsModbusRegistersOutsideTheProtocolRange() {
+        when(modbusStorage.doesConfigExistOnDisk(ModbusConfigCreatorTemplate.PV_SITE, "Profile")).thenReturn(true);
+        List<ModbusFieldDto> fields = validModbusFields();
+        fields.set(0, new ModbusFieldDto("pv_power", "kw", -1, 2, 1, "x", "int32", "READ_HOLDING_REGISTER", "BIG_ENDIAN"));
+        ModbusProfileDto profile = new ModbusProfileDto("Profile", ModbusConfigCreatorTemplate.PV_SITE.id(), null, fields);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.saveModbusProfile("Profile", profile));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+    }
+
+    private List<RestFieldDto> validRestFields() {
+        return RestConfigCreatorTemplate.HOME_ASSISTANT_PV.requiredFields().stream()
+                .map(field -> new RestFieldDto(field.field(), field.unit(), "/api/" + field.field(), "GET", "JSON", "state", 1, "x", "float"))
+                .toList();
+    }
+
+    private List<ModbusFieldDto> validModbusFields() {
+        return new java.util.ArrayList<>(ModbusConfigCreatorTemplate.PV_SITE.requiredFields().stream()
+                .map(field -> new ModbusFieldDto(field.field(), field.unit(), 40_000, 2, 1, "x", "int32", "READ_HOLDING_REGISTER", "BIG_ENDIAN"))
+                .toList());
+    }
+}

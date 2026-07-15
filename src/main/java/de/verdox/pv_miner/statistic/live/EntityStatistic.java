@@ -7,19 +7,19 @@ import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
 import reactor.core.publisher.Sinks;
 
-import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 public class EntityStatistic<E extends QueryEntity<Q>, Q extends QueryResult, T> {
     private final EntityStatisticType<E, Q, T> statisticType;
     private final E entity;
-    private Disposable liveDataSubscription;
+    private volatile Disposable liveDataSubscription;
     @Getter
     private final TimeSeries<T> values;
     private final Sinks.Many<Long> updateSink;
 
-    private final Set<Long> collectedErrorTimestamps = new HashSet<>();
+    private final Set<Long> collectedErrorTimestamps = ConcurrentHashMap.newKeySet();
 
     public EntityStatistic(EntityStatisticType<E, Q, T> statisticType, E entity) {
         this.values = new TimeSeries<>(statisticType.getAccuracy(), statisticType.getLimit());

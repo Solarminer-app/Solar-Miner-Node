@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sun, Plus, Zap, Settings, Activity } from 'lucide-react';
 import { StartViewData } from './types';
+import AppLogo from './components/app-logo';
 
 import de from './locales/de.json';
 import en from './locales/en.json';
@@ -29,7 +30,7 @@ export default function PVSiteSelectionView() {
     useEffect(() => {
         async function fetchData() {
             try {
-                const response = await fetch('http://localhost:8080/api/start-info');
+                const response = await fetch('/api/start-info');
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
                 const result = await response.json();
@@ -67,11 +68,11 @@ export default function PVSiteSelectionView() {
                 </div>
 
                 {/* Header Section */}
-                <div className="text-center mb-8 mt-4 flex flex-col items-center">
-                    <Sun size={48} className="text-yellow-500 mb-4" />
+                <header className="mb-8 mt-1 flex flex-col items-center text-center">
+                    <AppLogo className="-my-9" priority variant="full"/>
                     <h1 className="text-3xl font-bold mb-2">{t.title}</h1>
                     <p className="text-gray-400">{t.subtitle}</p>
-                </div>
+                </header>
 
                 {/* ComboBox: PVSite Selection */}
                 <div className="mb-6">

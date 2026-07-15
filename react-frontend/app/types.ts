@@ -313,9 +313,11 @@ export interface MinerDto {
     temperatureCelsius: number;
     pool: string | null;
     hardwareMinPowerWatts: number;
+    hardwareDefaultPowerWatts: number;
     hardwareMaxPowerWatts: number;
     configuredMinPowerWatts: number;
     configuredMaxPowerWatts: number;
+    supportsDynamicPowerScaling: boolean;
     powerStepWatts: number | null;
     minimumRunMinutes: number | null;
     minimumIdleMinutes: number | null;
@@ -351,6 +353,20 @@ export interface MiningPageDto {
     connectedMiners: MinerDto[];
     unassignedMiners: MinerDto[];
     connectedPools: MiningPoolDto[];
+    devFee: DevFeeOverviewDto;
+}
+
+export interface DevFeeOverviewDto {
+    backendAvailable: boolean;
+    userPercentage: number;
+    totalFeePercentage: number;
+    referralCode: string | null;
+    referralValid: boolean;
+    allocations: Array<{
+        beneficiaryType: 'SOLARMINER' | 'REFERRAL' | string;
+        beneficiaryName: string;
+        percentage: number;
+    }>;
 }
 
 export interface ClusterConditionDto {

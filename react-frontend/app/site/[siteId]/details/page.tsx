@@ -5,6 +5,8 @@ import dynamic from 'next/dynamic';
 import {useParams} from 'next/navigation';
 import {
     CalendarDays,
+    CheckCircle2,
+    CircleDashed,
     CircleDollarSign,
     Cpu,
     Edit3,
@@ -27,7 +29,7 @@ import type {MinerCostDto, PanelGroupDto, PriceDto, PVSiteDetailsDto} from '../.
 import {useSitePreferences} from '../site-preferences-context';
 
 const translations = {de, en};
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = '/api';
 const PanelLocationMap = dynamic(() => import('../../../components/panel-location-map'), {ssr: false});
 
 type PriceType = 'feed-in' | 'electricity';
@@ -417,6 +419,14 @@ export default function PVSiteDetailsPage() {
             accent: 'text-orange-400 bg-orange-400/10',
         },
     ];
+    const completenessChecks = [
+        {label: t['details.completeness.site'], complete: Boolean(details.setupDate && details.timeZone)},
+        {label: t['details.completeness.panels'], complete: details.panelGroups.length > 0},
+        {label: t['details.completeness.electricity'], complete: details.electricityPrices.length > 0},
+        {label: t['details.completeness.feed_in'], complete: details.feedInTariffs.length > 0},
+    ];
+    const completedChecks = completenessChecks.filter((check) => check.complete).length;
+    const completenessPercentage = Math.round((completedChecks / completenessChecks.length) * 100);
 
     return (
         <div className="min-h-[calc(100vh-72px)] bg-[#0b0b0d] px-4 py-7 text-white sm:px-6 lg:px-8">
@@ -427,20 +437,25 @@ export default function PVSiteDetailsPage() {
                         <div>
                             <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-yellow-400">
                                 <Zap size={14}/>
-                                {t['details.eyebrow']}
+                                {t['details.eyebrow']} · {details.name}
                             </div>
-                            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{details.name}</h1>
+                            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{t['details.title']}</h1>
                             <p className="mt-2 max-w-2xl text-sm leading-6 text-[#9999a3]">{t['details.subtitle']}</p>
                         </div>
-                        <button
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-medium transition hover:border-white/20 hover:bg-white/[0.09] disabled:opacity-50"
-                            disabled={loading}
-                            onClick={() => void loadDetails()}
-                            type="button"
-                        >
-                            <RefreshCw className={loading ? 'animate-spin' : ''} size={16}/>
-                            {t['details.action.refresh']}
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                            <button className="inline-flex items-center justify-center gap-2 rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-yellow-300" onClick={openSiteEditor} type="button">
+                                <Edit3 size={16}/>{t['details.action.edit']}
+                            </button>
+                            <button
+                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-medium transition hover:border-white/20 hover:bg-white/[0.09] disabled:opacity-50"
+                                disabled={loading}
+                                onClick={() => void loadDetails()}
+                                type="button"
+                            >
+                                <RefreshCw className={loading ? 'animate-spin' : ''} size={16}/>
+                                {t['details.action.refresh']}
+                            </button>
+                        </div>
                     </div>
                 </header>
 
@@ -467,8 +482,19 @@ export default function PVSiteDetailsPage() {
                     ))}
                 </section>
 
+                <nav aria-label={t['details.navigation.label']} className="sticky top-[72px] z-20 flex gap-1 overflow-x-auto rounded-2xl border border-white/[0.07] bg-[#111114]/95 p-1.5 shadow-xl shadow-black/10 backdrop-blur">
+                    {[
+                        ['#site-configuration', t['details.navigation.site']],
+                        ['#panel-groups', t['details.navigation.panels']],
+                        ['#mining-hardware', t['details.navigation.hardware']],
+                        ['#energy-prices', t['details.navigation.prices']],
+                    ].map(([href, label]) => (
+                        <a className="shrink-0 rounded-xl px-3.5 py-2 text-xs font-semibold text-[#aaaab4] transition hover:bg-white/[0.06] hover:text-white" href={href} key={href}>{label}</a>
+                    ))}
+                </nav>
+
                 <div className="grid gap-6 xl:grid-cols-12">
-                    <section className="rounded-2xl border border-white/[0.07] bg-[#151518] p-5 xl:col-span-4">
+                    <section className="scroll-mt-32 rounded-2xl border border-white/[0.07] bg-[#151518] p-5 xl:col-span-4" id="site-configuration">
                         <div className="mb-3 flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                                 <CalendarDays className="text-sky-400" size={20}/>
@@ -481,9 +507,19 @@ export default function PVSiteDetailsPage() {
                         <InfoRow label={t['details.config.setup_date']} value={formatDate(details.setupDate)}/>
                         <InfoRow label={t['details.config.time_zone']} value={details.timeZone}/>
                         <InfoRow label={t['details.config.pv_cost']} value={details.pvCost.formatted ?? `${numberFormatter.format(details.pvCost.amount)} ${details.pvCost.currency}`}/>
+                        <div className="mt-5 rounded-xl border border-white/[0.07] bg-black/20 p-4">
+                            <div className="flex items-end justify-between gap-3">
+                                <div><p className="text-xs font-semibold text-white">{t['details.completeness.title']}</p><p className="mt-1 text-[11px] leading-4 text-[#7f7f89]">{t['details.completeness.description']}</p></div>
+                                <strong className="text-xl text-yellow-300">{completenessPercentage}%</strong>
+                            </div>
+                            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-yellow-400 transition-all" style={{width: `${completenessPercentage}%`}}/></div>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                                {completenessChecks.map((check) => <div className={`flex items-center gap-2 text-xs ${check.complete ? 'text-emerald-300' : 'text-[#777781]'}`} key={check.label}>{check.complete ? <CheckCircle2 size={13}/> : <CircleDashed size={13}/>}<span>{check.label}</span></div>)}
+                            </div>
+                        </div>
                     </section>
 
-                    <section className="rounded-2xl border border-white/[0.07] bg-[#151518] p-5 xl:col-span-8">
+                    <section className="scroll-mt-32 rounded-2xl border border-white/[0.07] bg-[#151518] p-5 xl:col-span-8" id="panel-groups">
                         <div className="mb-4 flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                                 <Layers3 className="text-violet-400" size={20}/>
@@ -536,7 +572,7 @@ export default function PVSiteDetailsPage() {
                     </section>
                 </div>
 
-                <section className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#151518]">
+                <section className="scroll-mt-32 overflow-hidden rounded-2xl border border-white/[0.07] bg-[#151518]" id="mining-hardware">
                     <div className="flex items-center gap-3 border-b border-white/[0.07] px-5 py-4">
                         <Cpu className="text-orange-400" size={20}/>
                         <h2 className="text-lg font-semibold">{t['details.hardware.title']}</h2>
@@ -544,7 +580,8 @@ export default function PVSiteDetailsPage() {
                     {details.miners.length === 0 ? (
                         <p className="px-5 py-8 text-sm text-[#85858f]">{t['details.hardware.empty']}</p>
                     ) : (
-                        <div className="overflow-x-auto">
+                        <>
+                        <div className="hidden overflow-x-auto sm:block">
                             <table className="w-full min-w-[620px] text-left text-sm">
                                 <thead className="bg-white/[0.025] text-xs uppercase tracking-[0.12em] text-[#777781]">
                                 <tr>
@@ -568,10 +605,22 @@ export default function PVSiteDetailsPage() {
                                 </tbody>
                             </table>
                         </div>
+                        <div className="grid gap-3 p-4 sm:hidden">
+                            {details.miners.map((miner) => (
+                                <article className="rounded-xl border border-white/[0.07] bg-[#0f0f12] p-4" key={miner.id}>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0"><h3 className="truncate font-semibold">{miner.name}</h3><p className="mt-1 font-mono text-xs text-[#8f8f99]">{miner.ipAddress}</p></div>
+                                        <button aria-label={t['details.action.edit']} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-orange-400/10 text-orange-300" onClick={() => openMinerCostEditor(miner)} type="button"><Edit3 size={15}/></button>
+                                    </div>
+                                    <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-3 text-sm"><span className="text-[#85858f]">{t['details.hardware.cost']}</span><strong>{miner.cost.formatted}</strong></div>
+                                </article>
+                            ))}
+                        </div>
+                        </>
                     )}
                 </section>
 
-                <section>
+                <section className="scroll-mt-32" id="energy-prices">
                     <div className="mb-4 flex items-center gap-3">
                         <CircleDollarSign className="text-emerald-400" size={20}/>
                         <h2 className="text-lg font-semibold">{t['details.prices.title']}</h2>

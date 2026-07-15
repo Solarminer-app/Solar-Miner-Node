@@ -25,11 +25,12 @@ import {
 
 import de from '../locales/de.json';
 import en from '../locales/en.json';
+import AppLogo from '../components/app-logo';
 import {useSitePreferences} from '../site/[siteId]/site-preferences-context';
 
 const PanelLocationMap = dynamic(() => import('../components/panel-location-map'), {ssr: false});
 const translations = {de, en};
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = '/api';
 
 type SelectOption = {value: string; label: string};
 type SetupField = {
@@ -340,7 +341,8 @@ export default function SetupPage() {
                 <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         <button aria-label={t['setup.action.back_home']} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 text-[#aaaab4] transition hover:bg-white/[0.05] hover:text-white" onClick={() => router.push('/')}><ArrowLeft size={19}/></button>
-                        <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-400">SolarMiner</p><h1 className="mt-1 text-2xl font-bold">{t['setup.title']}</h1></div>
+                        <AppLogo/>
+                        <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-400">{t['setup.eyebrow']}</p><h1 className="mt-1 text-2xl font-bold">{t['setup.title']}</h1><p className="mt-1 text-sm text-[#8e8e98]">{t['setup.subtitle']}</p></div>
                     </div>
                     <div className="flex items-center gap-2">
                         <select className="rounded-lg border border-white/10 bg-[#151518] px-3 py-2 text-sm" onChange={(event) => setLocale(event.target.value as 'de' | 'en')} value={locale}><option value="de">Deutsch</option><option value="en">English</option></select>

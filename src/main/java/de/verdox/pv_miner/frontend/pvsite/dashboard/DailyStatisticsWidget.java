@@ -3,7 +3,7 @@ package de.verdox.pv_miner.frontend.pvsite.dashboard;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import de.verdox.pv_miner.frontend.FrontendColor;
-import de.verdox.pv_miner.frontend.pvsite.dashboard.dto.DailyFinancialStatsDto;
+import de.verdox.pv_miner.dto.DailyFinancialStatsDto;
 
 public class DailyStatisticsWidget extends VerticalLayout {
 

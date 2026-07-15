@@ -3,11 +3,11 @@
 import Link from 'next/link';
 import {useParams, useRouter} from 'next/navigation';
 import {useCallback, useEffect, useMemo, useState} from 'react';
-import {ArrowLeft, Beaker, Braces, CopyPlus, Play, Plus, Save, Settings2, Trash2} from 'lucide-react';
+import {ArrowLeft, Beaker, Braces, CopyPlus, Play, Plus, Save, Trash2} from 'lucide-react';
 import {CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
 
-import de from '../../../../../locales/de.json';
-import en from '../../../../../locales/en.json';
+import de from '../../../../../../locales/de.json';
+import en from '../../../../../../locales/en.json';
 import type {
     ClusterConditionDto,
     ClusterConfigDto,
@@ -15,11 +15,11 @@ import type {
     ClusterOperatingModeDto,
     ClusterSimulationDto,
     ClusterValueExpressionDto,
-} from '../../../../../types';
+} from '../../../../../../types';
 import {useSitePreferences} from '../../../../site-preferences-context';
 
 const translations = {de, en};
-const API_BASE_URL = 'http://localhost:8080/api/pv-site';
+const API_BASE_URL = '/api/pv-site';
 const inputClass = 'w-full rounded-lg border border-white/10 bg-[#101014] px-3 py-2 text-sm text-white outline-none focus:border-yellow-400/60';
 
 const predicate = (): ClusterConditionDto => ({
@@ -56,6 +56,9 @@ export default function ClusterConfigPage() {
     const [historicalDate, setHistoricalDate] = useState(() => {
         const date = new Date(); date.setDate(date.getDate() - 1); return date.toISOString().slice(0, 10);
     });
+    const [maximumHistoricalDate] = useState(() => {
+        const date = new Date(); date.setDate(date.getDate() - 1); return date.toISOString().slice(0, 10);
+    });
     const [simulation, setSimulation] = useState<ClusterSimulationDto | null>(null);
 
     const loadConfig = useCallback(async () => {
@@ -73,9 +76,21 @@ export default function ClusterConfigPage() {
         } finally { setLoading(false); }
     }, [requestedName, siteId, tr]);
 
-    useEffect(() => { if (isHydrated) void loadConfig(); }, [isHydrated, loadConfig]);
+    useEffect(() => {
+        if (!isHydrated) return;
+        const timeout = window.setTimeout(() => void loadConfig(), 0);
+        return () => window.clearTimeout(timeout);
+    }, [isHydrated, loadConfig]);
 
     const updateMode = (index: number, next: ClusterOperatingModeDto) => setConfig(current => current ? ({...current, modes: current.modes.map((entry, i) => i === index ? next : entry)}) : current);
+    const moveMode = (index: number, offset: number) => setConfig(current => {
+        if (!current) return current;
+        const target = index + offset;
+        if (target < 0 || target >= current.modes.length) return current;
+        const modes = [...current.modes];
+        [modes[index], modes[target]] = [modes[target], modes[index]];
+        return {...current, modes};
+    });
     const save = async () => {
         if (!config) return;
         setSaving(true); setError(null);
@@ -115,6 +130,7 @@ export default function ClusterConfigPage() {
         targetKw: point.targetPowerWatts / 1000,
         allocatedKw: point.allocatedPowerWatts / 1000,
     })) ?? [], [locale, simulation]);
+    const selectedPreset = config?.options.simulationPresets.find(item => item.id === preset);
 
     if (loading || !config) return <main className="grid min-h-[60vh] place-items-center text-[#9999a3]">{error ?? tr('cluster.config.loading', 'Konfiguration wird geladen...')}</main>;
 
@@ -136,16 +152,17 @@ export default function ClusterConfigPage() {
 
                 <div className="space-y-4">
                     <div className="flex items-center justify-between"><div><h2 className="text-lg font-semibold">{tr('cluster.config.modes', 'Betriebsmodi')}</h2><p className="text-sm text-[#8d8d97]">{tr('cluster.config.priority', 'Die Reihenfolge bestimmt die Priorität der Modi.')}</p></div><button className="inline-flex items-center gap-2 rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-300" onClick={() => setConfig({...config, modes: [...config.modes, mode(config.modes.length)]})} type="button"><Plus size={16}/>{tr('cluster.config.add_mode', 'Modus hinzufügen')}</button></div>
-                    {config.modes.map((entry, index) => <ModeEditor config={config} index={index} key={`${index}-${entry.name}`} mode={entry} onChange={next => updateMode(index, next)} onDelete={() => setConfig({...config, modes: config.modes.filter((_, i) => i !== index)})} tr={tr}/>) }
+                    {config.modes.map((entry, index) => <ModeEditor config={config} index={index} key={`${index}-${entry.name}`} mode={entry} onChange={next => updateMode(index, next)} onDelete={() => setConfig({...config, modes: config.modes.filter((_, i) => i !== index)})} onMoveDown={() => moveMode(index, 1)} onMoveUp={() => moveMode(index, -1)} tr={tr}/>) }
                 </div>
 
                 <section className="rounded-2xl border border-violet-400/20 bg-gradient-to-br from-violet-500/[0.08] to-[#141418] p-5">
                     <div className="flex items-start gap-3"><span className="rounded-xl bg-violet-400/10 p-2 text-violet-300"><Beaker size={20}/></span><div><h2 className="text-lg font-semibold">{tr('cluster.simulator.title', 'Controller-Simulator')}</h2><p className="mt-1 text-sm text-[#9c9ca7]">{tr('cluster.simulator.subtitle', 'Verwendet dieselbe ControllerDSL und dieselbe Decision Engine wie der laufende Cluster.')}</p></div></div>
                     <div className="mt-5 grid gap-4 lg:grid-cols-[180px_minmax(220px,1fr)_auto]">
                         <label className="text-sm text-[#b5b5be]">{tr('cluster.simulator.source', 'Datenquelle')}<select className={`${inputClass} mt-2`} onChange={event => setSourceType(event.target.value as 'PRESET' | 'HISTORICAL')} value={sourceType}><option value="PRESET">{tr('cluster.simulator.source.preset', 'Preset')}</option><option value="HISTORICAL">{tr('cluster.simulator.source.historical', 'Vergangener Tag')}</option></select></label>
-                        {sourceType === 'PRESET' ? <label className="text-sm text-[#b5b5be]">{tr('cluster.simulator.preset', 'Tagesprofil')}<select className={`${inputClass} mt-2`} onChange={event => setPreset(event.target.value)} value={preset}>{config.options.simulationPresets.map(item => <option key={item.id} value={item.id}>{tr(item.labelKey, item.id)}</option>)}</select></label> : <label className="text-sm text-[#b5b5be]">{tr('cluster.simulator.date', 'Historisches Datum')}<input className={`${inputClass} mt-2`} max={new Date(Date.now() - 86400000).toISOString().slice(0, 10)} onChange={event => setHistoricalDate(event.target.value)} type="date" value={historicalDate}/></label>}
+                        {sourceType === 'PRESET' ? <label className="text-sm text-[#b5b5be]">{tr('cluster.simulator.preset', 'Tagesprofil')}<select className={`${inputClass} mt-2`} onChange={event => setPreset(event.target.value)} value={preset}>{config.options.simulationPresets.map(item => <option key={item.id} value={item.id}>{tr(item.labelKey, item.id)}</option>)}</select></label> : <label className="text-sm text-[#b5b5be]">{tr('cluster.simulator.date', 'Historisches Datum')}<input className={`${inputClass} mt-2`} max={maximumHistoricalDate} onChange={event => setHistoricalDate(event.target.value)} type="date" value={historicalDate}/></label>}
                         <button className="mt-auto inline-flex h-[42px] items-center justify-center gap-2 rounded-lg bg-violet-500 px-5 text-sm font-semibold hover:bg-violet-400 disabled:opacity-50" disabled={simulating || config.modes.length === 0} onClick={() => void simulate()} type="button"><Play size={16}/>{simulating ? tr('cluster.simulator.running', 'Simuliert...') : tr('cluster.simulator.run', 'Simulation starten')}</button>
                     </div>
+                    {sourceType === 'PRESET' && selectedPreset && <p className="mt-3 text-xs text-[#92929d]">{tr(selectedPreset.descriptionKey, '')}</p>}
                     {simulation && <SimulationResult data={simulation} chartData={chartData} tr={tr}/>} 
                 </section>
             </div>
@@ -153,9 +170,9 @@ export default function ClusterConfigPage() {
     );
 }
 
-function ModeEditor({config, mode, index, onChange, onDelete, tr}: {config: ClusterConfigDto; mode: ClusterOperatingModeDto; index: number; onChange: (mode: ClusterOperatingModeDto) => void; onDelete: () => void; tr: (key: string, fallback: string) => string}) {
+function ModeEditor({config, mode, index, onChange, onDelete, onMoveUp, onMoveDown, tr}: {config: ClusterConfigDto; mode: ClusterOperatingModeDto; index: number; onChange: (mode: ClusterOperatingModeDto) => void; onDelete: () => void; onMoveUp: () => void; onMoveDown: () => void; tr: (key: string, fallback: string) => string}) {
     return <article className="rounded-2xl border border-white/[0.07] bg-[#141418] p-5">
-        <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-lg bg-yellow-400/10 font-mono text-sm text-yellow-300">{index + 1}</span><input className={`${inputClass} max-w-md font-semibold`} onChange={event => onChange({...mode, name: event.target.value})} value={mode.name}/><button aria-label={tr('common.delete', 'Löschen')} className="ml-auto rounded-lg p-2 text-red-300 hover:bg-red-500/10" onClick={onDelete} type="button"><Trash2 size={17}/></button></div>
+        <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-lg bg-yellow-400/10 font-mono text-sm text-yellow-300">{index + 1}</span><input className={`${inputClass} max-w-md font-semibold`} onChange={event => onChange({...mode, name: event.target.value})} value={mode.name}/><div className="ml-auto flex gap-1"><button className="rounded-lg border border-white/10 px-2 py-1 text-sm text-[#aaaab4] hover:text-white" onClick={onMoveUp} type="button">↑</button><button className="rounded-lg border border-white/10 px-2 py-1 text-sm text-[#aaaab4] hover:text-white" onClick={onMoveDown} type="button">↓</button><button aria-label={tr('common.delete', 'Löschen')} className="rounded-lg p-2 text-red-300 hover:bg-red-500/10" onClick={onDelete} type="button"><Trash2 size={17}/></button></div></div>
         <div className="mt-5 grid gap-4 xl:grid-cols-2"><ConditionEditor condition={mode.startCondition} label={tr('cluster.config.start_condition', 'Startbedingung')} onChange={startCondition => onChange({...mode, startCondition})} options={config.options} tr={tr}/><ConditionEditor condition={mode.stopCondition} label={tr('cluster.config.stop_condition', 'Stopbedingung')} onChange={stopCondition => onChange({...mode, stopCondition})} options={config.options} tr={tr}/></div>
         <div className="mt-4 rounded-xl border border-white/[0.06] bg-[#101014] p-4"><div className="mb-3 flex items-center justify-between"><h3 className="flex items-center gap-2 text-sm font-semibold"><Braces className="text-cyan-300" size={16}/>{tr('cluster.config.actions', 'Aktionen')}</h3><button className="inline-flex items-center gap-1 text-xs text-cyan-300" onClick={() => onChange({...mode, actions: [...mode.actions, action()]})} type="button"><Plus size={14}/>{tr('cluster.config.add_action', 'Aktion')}</button></div><div className="space-y-3">{mode.actions.map((entry, actionIndex) => <ActionEditor action={entry} key={actionIndex} onChange={next => onChange({...mode, actions: mode.actions.map((item, i) => i === actionIndex ? next : item)})} onDelete={() => onChange({...mode, actions: mode.actions.filter((_, i) => i !== actionIndex)})} options={config.options} tr={tr}/>)}</div></div>
         <div className="mt-4 grid gap-3 sm:grid-cols-3"><NumberField label={tr('cluster.config.min_run', 'Min. Laufzeit (min)')} onChange={value => onChange({...mode, minRunTimeMinutes: value})} value={mode.minRunTimeMinutes}/><NumberField label={tr('cluster.config.min_idle', 'Min. Pause (min)')} onChange={value => onChange({...mode, minIdleTimeMinutes: value})} value={mode.minIdleTimeMinutes}/><NumberField label={tr('cluster.config.power_lock', 'Leistungssperre (min)')} onChange={value => onChange({...mode, powerChangeLockTimeMinutes: value})} value={mode.powerChangeLockTimeMinutes}/></div>
@@ -168,7 +185,7 @@ function ConditionEditor({condition, label, options, onChange, tr}: {condition: 
 
 function ActionEditor({action: current, options, onChange, onDelete, tr}: {action: ClusterControllerActionDto; options: ClusterConfigDto['options']; onChange: (action: ClusterControllerActionDto) => void; onDelete: () => void; tr: (key: string, fallback: string) => string}) {
     const expr = current.valueExpression;
-    return <div className="grid gap-3 rounded-lg border border-white/[0.06] bg-[#17171c] p-3 lg:grid-cols-4"><SelectField label={tr('cluster.action.type', 'Aktion')} onChange={actionType => onChange({...current, actionType})} options={options.actionTypes} value={current.actionType}/><SelectField label={tr('cluster.action.target', 'Ziel')} onChange={targetType => onChange({...current, targetType})} options={options.targetTypes} value={current.targetType}/><SelectField label={tr('cluster.action.strategy', 'Verteilung')} onChange={strategy => onChange({...current, strategy})} options={options.distributionStrategies} value={current.strategy}/><SelectField label={tr('cluster.action.expression', 'Zielwert')} onChange={type => onChange({...current, valueExpression: {...expression(), type: type as ClusterValueExpressionDto['type']}})} options={options.expressionTypes} value={expr.type}/>{expr.type === 'DYNAMIC_VARIABLE' && <><SelectField label={tr('cluster.action.variable', 'Variable')} onChange={variable => onChange({...current, valueExpression: {...expr, variable}})} options={options.variables} value={expr.variable ?? ''}/><NumberField label={tr('cluster.action.multiplier', 'Multiplikator')} onChange={multiplier => onChange({...current, valueExpression: {...expr, multiplier}})} value={expr.multiplier ?? 1}/><NumberField label={tr('cluster.action.offset', 'Offset (W)')} onChange={offset => onChange({...current, valueExpression: {...expr, offset}})} value={expr.offset ?? 0}/></>}{expr.type === 'CONSTANT' && <NumberField label={tr('cluster.action.constant', 'Leistung (W)')} onChange={constantWatts => onChange({...current, valueExpression: {...expr, constantWatts}})} value={expr.constantWatts ?? 0}/>} {expr.type === 'CAPACITY_PERCENTAGE' && <NumberField label={tr('cluster.action.percentage', 'Kapazitätsanteil (0–1)')} onChange={percentage => onChange({...current, valueExpression: {...expr, percentage}})} value={expr.percentage ?? 0}/>}<NumberField label={tr('cluster.action.step', 'Schrittweite (W)')} onChange={stepSizeWatts => onChange({...current, stepSizeWatts})} value={current.stepSizeWatts}/><button className="self-end justify-self-end rounded-lg p-2 text-red-300 hover:bg-red-500/10" onClick={onDelete} type="button"><Trash2 size={16}/></button></div>;
+    return <div className="grid gap-3 rounded-lg border border-white/[0.06] bg-[#17171c] p-3 lg:grid-cols-4"><SelectField label={tr('cluster.action.type', 'Aktion')} onChange={actionType => onChange({...current, actionType})} options={options.actionTypes} value={current.actionType}/><SelectField label={tr('cluster.action.target', 'Ziel')} onChange={targetType => onChange({...current, targetType})} options={options.targetTypes} value={current.targetType}/><SelectField label={tr('cluster.action.strategy', 'Verteilung')} onChange={strategy => onChange({...current, strategy})} options={options.distributionStrategies} value={current.strategy}/><SelectField label={tr('cluster.action.expression', 'Zielwert')} onChange={type => onChange({...current, valueExpression: {...expression(), type: type as ClusterValueExpressionDto['type']}})} options={options.expressionTypes} value={expr.type}/>{expr.type === 'DYNAMIC_VARIABLE' && <><SelectField label={tr('cluster.action.variable', 'Variable')} onChange={variable => onChange({...current, valueExpression: {...expr, variable}})} options={options.variables} value={expr.variable ?? ''}/><SelectField label={tr('cluster.condition.aggregation', 'Aggregation')} onChange={aggregation => onChange({...current, valueExpression: {...expr, aggregation}})} options={options.aggregations} value={expr.aggregation ?? ''}/><NumberField label={tr('cluster.condition.window', 'Zeitfenster')} onChange={windowValue => onChange({...current, valueExpression: {...expr, windowValue}})} value={expr.windowValue ?? 1}/><SelectField label={tr('cluster.condition.unit', 'Einheit')} onChange={windowUnit => onChange({...current, valueExpression: {...expr, windowUnit}})} options={options.timeUnits} value={expr.windowUnit ?? ''}/><NumberField label={tr('cluster.action.multiplier', 'Multiplikator')} onChange={multiplier => onChange({...current, valueExpression: {...expr, multiplier}})} value={expr.multiplier ?? 1}/><NumberField label={tr('cluster.action.offset', 'Offset (W)')} onChange={offset => onChange({...current, valueExpression: {...expr, offset}})} value={expr.offset ?? 0}/></>}{expr.type === 'CONSTANT' && <NumberField label={tr('cluster.action.constant', 'Leistung (W)')} onChange={constantWatts => onChange({...current, valueExpression: {...expr, constantWatts}})} value={expr.constantWatts ?? 0}/>} {expr.type === 'CAPACITY_PERCENTAGE' && <NumberField label={tr('cluster.action.percentage', 'Kapazitätsanteil (0–1)')} onChange={percentage => onChange({...current, valueExpression: {...expr, percentage}})} value={expr.percentage ?? 0}/>}<NumberField label={tr('cluster.action.step', 'Schrittweite (W)')} onChange={stepSizeWatts => onChange({...current, stepSizeWatts})} value={current.stepSizeWatts}/><button className="self-end justify-self-end rounded-lg p-2 text-red-300 hover:bg-red-500/10" onClick={onDelete} type="button"><Trash2 size={16}/></button></div>;
 }
 
 function SelectField({label, value, options, onChange}: {label: string; value: string; options: string[]; onChange: (value: string) => void}) { return <label className="text-xs text-[#9c9ca6]">{label}<select className={`${inputClass} mt-1`} onChange={event => onChange(event.target.value)} value={value}>{options.map(option => <option key={option} value={option}>{option}</option>)}</select></label>; }
@@ -176,7 +193,8 @@ function NumberField({label, value, onChange}: {label: string; value: number; on
 
 function SimulationResult({data, chartData, tr}: {data: ClusterSimulationDto; chartData: Array<Record<string, string | number>>; tr: (key: string, fallback: string) => string}) {
     const summary = data.summary;
-    return <div className="mt-6 space-y-4"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">{[
+    return <div className="mt-6 space-y-4"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">{[
         [tr('cluster.simulator.energy', 'Mining-Energie'), `${summary.simulatedEnergyKwh.toFixed(1)} kWh`], [tr('cluster.simulator.pv_energy', 'davon PV'), `${summary.pvPoweredEnergyKwh.toFixed(1)} kWh`], [tr('cluster.simulator.grid_energy', 'geschätztes Netz'), `${summary.estimatedGridEnergyKwh.toFixed(1)} kWh`], [tr('cluster.simulator.peak', 'Spitzenziel'), `${Math.round(summary.peakTargetWatts)} W`], [tr('cluster.simulator.active', 'Aktiv'), `${summary.activeMinutes} min`], [tr('cluster.simulator.mode', 'Häufigster Modus'), summary.mostActiveMode],
+        [tr('cluster.simulator.mode_changes', 'Moduswechsel'), String(summary.modeChanges)],
     ].map(([label, value]) => <div className="rounded-xl border border-white/[0.06] bg-black/20 p-3" key={label}><span className="text-xs text-[#92929c]">{label}</span><strong className="mt-1 block text-sm">{value}</strong></div>)}</div><div className="h-[390px] rounded-xl border border-white/[0.06] bg-black/20 p-4"><ResponsiveContainer height="100%" width="100%"><LineChart data={chartData}><CartesianGrid stroke="#292932" strokeDasharray="3 3"/><XAxis dataKey="time" minTickGap={32} stroke="#777783" tick={{fontSize: 11}}/><YAxis stroke="#777783" tick={{fontSize: 11}} unit=" kW"/><Tooltip contentStyle={{background: '#18181d', border: '1px solid #34343d'}} labelStyle={{color: '#fff'}}/><Legend/><Line dataKey="pvPowerKw" dot={false} name={tr('cluster.simulator.chart.pv', 'PV')} stroke="#facc15" strokeWidth={2}/><Line dataKey="loadPowerKw" dot={false} name={tr('cluster.simulator.chart.load', 'Grundlast')} stroke="#60a5fa"/><Line dataKey="targetKw" dot={false} name={tr('cluster.simulator.chart.target', 'Controller-Ziel')} stroke="#c084fc" strokeWidth={2}/><Line dataKey="allocatedKw" dot={false} name={tr('cluster.simulator.chart.allocated', 'Zugewiesen')} stroke="#34d399"/></LineChart></ResponsiveContainer></div><p className="text-xs text-[#858590]">{tr('cluster.simulator.disclaimer', 'Dry-Run: Bedingungen, Moduswechsel und Leistungsziel laufen über dieselbe DSL-Engine. Hardwarebefehle werden nicht gesendet; Sperren und Zuweisung werden geschätzt.')}</p></div>;
 }

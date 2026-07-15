@@ -4,11 +4,16 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - mariadb-frontend
-      - influxdb-frontend
-      - currency-service
-      - core
-      - phoenixd
+      mariadb-frontend:
+        condition: service_started
+      influxdb-frontend:
+        condition: service_healthy
+      currency-service:
+        condition: service_started
+      core:
+        condition: service_started
+      phoenixd:
+        condition: service_started
     restart: unless-stopped
     env_file:
       - .env
@@ -34,6 +39,11 @@ services:
     volumes:
       - ./app/frontend/app:/app/storage
       - ./app/phoenixd:/app/phoenixd:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
 
   mariadb-frontend:
     image: mariadb:latest
@@ -54,6 +64,14 @@ services:
   influxdb-frontend:
     image: influxdb:2
     restart: always
+    mem_limit: 3g
+    cpus: 2.0
+    healthcheck:
+      test: ["CMD", "influx", "ping", "--host", "http://localhost:8086"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_ORG: SolarMiner
@@ -61,10 +79,18 @@ services:
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_ADMIN_TOKEN}
       DOCKER_INFLUXDB_INIT_USERNAME: ${DOCKER_INFLUXDB_INIT_USERNAME}
       DOCKER_INFLUXDB_INIT_PASSWORD: ${DOCKER_INFLUXDB_INIT_PASSWORD}
+      INFLUXD_QUERY_CONCURRENCY: 2
+      INFLUXD_QUERY_QUEUE_SIZE: 10
+      INFLUXD_QUERY_INITIAL_MEMORY_BYTES: 16777216
+      INFLUXD_QUERY_MEMORY_BYTES: 268435456
+      INFLUXD_QUERY_MAX_MEMORY_BYTES: 536870912
+      INFLUXD_STORAGE_CACHE_MAX_MEMORY_SIZE: 536870912
+      INFLUXD_STORAGE_MAX_CONCURRENT_COMPACTIONS: 1
     logging:
       driver: "json-file"
       options:
-        max-size: 50m
+        max-size: "50m"
+        max-file: "3"
     volumes:
       - ./app/frontend/influxdb/data:/var/lib/influxdb2
       - ./app/frontend/influxdb/config:/etc/influxdb2

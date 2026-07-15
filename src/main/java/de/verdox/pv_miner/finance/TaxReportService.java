@@ -1,8 +1,8 @@
 package de.verdox.pv_miner.finance;
 
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
-import de.verdox.pv_miner.finance.dto.FinanceKpiDto;
-import de.verdox.pv_miner.finance.dto.PVStatisticDto;
+import de.verdox.pv_miner.dto.FinanceKpiDto;
+import de.verdox.pv_miner.dto.PVStatisticDto;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.pvsite.BitcoinSale;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
@@ -16,17 +16,38 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class TaxReportService {
+
+    public record ReportContext(Locale locale, CustomCurrency currency, ZoneId zoneId) {
+        public Locale getLocale() {
+            return locale;
+        }
+
+        public CustomCurrency getCurrency() {
+            return currency;
+        }
+
+        public ZoneId getZoneId() {
+            return zoneId;
+        }
+
+        private static ReportContext from(UserSessionContext context) {
+            return new ReportContext(context.getLocale(), context.getCurrency(), context.getZoneId());
+        }
+    }
 
     private final PVFinanceService pvFinanceService;
     private final GlobalConstantsService globalConstantsService;
@@ -37,6 +58,10 @@ public class TaxReportService {
     }
 
     public InputStream generateMiningPdfReport(PVSiteEntity pvSite, LocalDate from, LocalDate to, UserSessionContext context) {
+        return generateMiningPdfReport(pvSite, from, to, ReportContext.from(context));
+    }
+
+    public InputStream generateMiningPdfReport(PVSiteEntity pvSite, LocalDate from, LocalDate to, ReportContext context) {
         try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
             List<PVStatisticDto> statistics = pvFinanceService.getFinanceData(pvSite, from, to, context.getZoneId(), context.getCurrency());
             FinanceKpiDto kpis = pvFinanceService.calculateKPIs(pvSite, statistics, context.getCurrency(), context.getZoneId());
@@ -54,6 +79,10 @@ public class TaxReportService {
     }
 
     public InputStream generatePvPdfReport(PVSiteEntity pvSite, LocalDate from, LocalDate to, UserSessionContext context) {
+        return generatePvPdfReport(pvSite, from, to, ReportContext.from(context));
+    }
+
+    public InputStream generatePvPdfReport(PVSiteEntity pvSite, LocalDate from, LocalDate to, ReportContext context) {
         try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
             List<PVStatisticDto> statistics = pvFinanceService.getFinanceData(pvSite, from, to, context.getZoneId(), context.getCurrency());
             FinanceKpiDto kpis = pvFinanceService.calculateKPIs(pvSite, statistics, context.getCurrency(), context.getZoneId());
@@ -71,6 +100,10 @@ public class TaxReportService {
     }
 
     public InputStream generateSalesPdfReport(PVSiteEntity pvSite, UserSessionContext context) {
+        return generateSalesPdfReport(pvSite, ReportContext.from(context));
+    }
+
+    public InputStream generateSalesPdfReport(PVSiteEntity pvSite, ReportContext context) {
         try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
             LocalDate setupDate = pvSite.getSetupDate() != null ? pvSite.getSetupDate() : LocalDate.now(context.getZoneId()).minusYears(10);
             List<PVStatisticDto> allTimeStats = pvFinanceService.getFinanceData(pvSite, setupDate, LocalDate.now(context.getZoneId()), context.getZoneId(), context.getCurrency());
@@ -93,6 +126,10 @@ public class TaxReportService {
     }
 
     public InputStream generateCsvReport(PVSiteEntity pvSite, LocalDate from, LocalDate to, UserSessionContext context) {
+        return generateCsvReport(pvSite, from, to, ReportContext.from(context));
+    }
+
+    public InputStream generateCsvReport(PVSiteEntity pvSite, LocalDate from, LocalDate to, ReportContext context) {
         try {
             List<PVStatisticDto> statistics = pvFinanceService.getFinanceData(pvSite, from, to, context.getZoneId(), context.getCurrency());
             StringBuilder sb = new StringBuilder();
@@ -115,9 +152,9 @@ public class TaxReportService {
                         .append(stat.miningCost().getRawMoneyAmount()).append(";")
                         .append(netProfit.getRawMoneyAmount()).append("\n");
             }
-            return new ByteArrayInputStream(sb.toString().getBytes());
+            return new ByteArrayInputStream(sb.toString().getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
-            return new ByteArrayInputStream(("Error in CSV Export: " + e.getMessage()).getBytes());
+            return new ByteArrayInputStream(("Error in CSV Export: " + e.getMessage()).getBytes(StandardCharsets.UTF_8));
         }
     }
 
@@ -195,7 +232,7 @@ public class TaxReportService {
         return processedSales;
     }
 
-    private String generateSalesHtml(List<SaleReportDto> processedSales, UserSessionContext context) {
+    private String generateSalesHtml(List<SaleReportDto> processedSales, ReportContext context) {
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy", context.getLocale());
         String generationDate = LocalDate.now(context.getZoneId()).format(dateFormatter);
 
@@ -276,7 +313,7 @@ public class TaxReportService {
         return html.toString();
     }
 
-    private String generateMiningHtml(List<PVStatisticDto> statistics, FinanceKpiDto kpis, UserSessionContext context) {
+    private String generateMiningHtml(List<PVStatisticDto> statistics, FinanceKpiDto kpis, ReportContext context) {
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy", context.getLocale());
         DateTimeFormatter monthFormatter = DateTimeFormatter.ofPattern("MMMM yyyy", context.getLocale());
         String generationDate = LocalDate.now(context.getZoneId()).format(dateFormatter);
@@ -380,7 +417,7 @@ public class TaxReportService {
         return html.toString();
     }
 
-    private String generatePvHtml(List<PVStatisticDto> statistics, FinanceKpiDto kpis, UserSessionContext context) {
+    private String generatePvHtml(List<PVStatisticDto> statistics, FinanceKpiDto kpis, ReportContext context) {
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy", context.getLocale());
         DateTimeFormatter monthFormatter = DateTimeFormatter.ofPattern("MMMM yyyy", context.getLocale());
         String generationDate = LocalDate.now(context.getZoneId()).format(dateFormatter);

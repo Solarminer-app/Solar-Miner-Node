@@ -1,7 +1,9 @@
 package de.verdox.pv_miner.finance;
 
-import de.verdox.pv_miner.finance.dto.FinanceKpiDto;
-import de.verdox.pv_miner.finance.dto.PVStatisticDto;
+import de.verdox.pv_miner.dto.FinanceKpiDto;
+import de.verdox.pv_miner.dto.FinanceInsightsDto;
+import de.verdox.pv_miner.dto.MoneyDto;
+import de.verdox.pv_miner.dto.PVStatisticDto;
 import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
@@ -13,12 +15,14 @@ import de.verdox.pv_miner.util.currency.CustomCurrency;
 import org.springframework.stereotype.Service;
 
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
 public class PVFinanceService {
+    private static final LocalDate MAX_WEB_DATE = LocalDate.of(9999, 12, 31);
 
     private final DailyStatisticService dailyStatisticService;
     private final GlobalConstantsService globalConstantsService;
@@ -150,10 +154,14 @@ public class PVFinanceService {
             totalExportKwh = siteDayStat.getExportKwh();
 
             double totalEigenverbrauch = Math.max(0, totalSiteConsumption - totalImportKwh);
+            totalPvProduction = siteDayStat.getProductionKwh() > 0
+                    ? siteDayStat.getProductionKwh()
+                    : totalEigenverbrauch + totalExportKwh;
 
-            totalPvProduction = totalEigenverbrauch + totalExportKwh;
-
-            miningPvUsage = Math.min(minerConsumption, totalEigenverbrauch);
+            double miningConsumptionShare = totalSiteConsumption > 0
+                    ? Math.max(0, Math.min(1, minerConsumption / totalSiteConsumption))
+                    : 0;
+            miningPvUsage = Math.min(minerConsumption, totalEigenverbrauch * miningConsumptionShare);
             miningGridUsage = Math.max(0, minerConsumption - miningPvUsage);
             householdEigenverbrauch = Math.max(0, totalEigenverbrauch - miningPvUsage);
         }
@@ -167,8 +175,12 @@ public class PVFinanceService {
         double gridRate = globalConstantsService.convertHistorical(histGridPrice.getRawMoneyAmount(), histGridPrice.getCurrency(), targetCurrency, currentDay);
         if (gridRate < 0) gridRate = globalConstantsService.convert(histGridPrice, targetCurrency).getRawMoneyAmount();
 
-        double dailyCostFiat = (miningPvUsage * feedInRate) + (miningGridUsage * gridRate);
+        double miningOpportunityCostFiat = miningPvUsage * feedInRate;
+        double miningGridCostFiat = miningGridUsage * gridRate;
+        double dailyCostFiat = miningOpportunityCostFiat + miningGridCostFiat;
         Money miningCost = new Money(dailyCostFiat, targetCurrency);
+        Money miningGridCost = new Money(miningGridCostFiat, targetCurrency);
+        Money miningOpportunityCost = new Money(miningOpportunityCostFiat, targetCurrency);
 
         double savingsFiat = householdEigenverbrauch * gridRate;
         double feedInFiat = totalExportKwh * feedInRate;
@@ -187,7 +199,112 @@ public class PVFinanceService {
 
 
 
-        return new PVStatisticDto(currentDay, totalPvProduction, minerConsumption, miningPvUsage, miningGridUsage, householdEigenverbrauch, totalExportKwh, btcAmount, miningCost, effectiveYield, btcLiveValue, btcHistoricValue, householdSavings, feedInRevenue, histFeedIn);
+        return new PVStatisticDto(
+                currentDay,
+                totalPvProduction,
+                minerConsumption,
+                miningPvUsage,
+                miningGridUsage,
+                householdEigenverbrauch,
+                totalExportKwh,
+                btcAmount,
+                MoneyDto.from(miningCost),
+                MoneyDto.from(miningGridCost),
+                MoneyDto.from(miningOpportunityCost),
+                MoneyDto.from(effectiveYield),
+                MoneyDto.from(btcLiveValue),
+                MoneyDto.from(btcHistoricValue),
+                MoneyDto.from(householdSavings),
+                MoneyDto.from(feedInRevenue),
+                MoneyDto.from(histFeedIn)
+        );
+    }
+
+    public FinanceInsightsDto calculateInsights(PVSiteEntity site,
+                                                List<PVStatisticDto> statistics,
+                                                FinanceKpiDto kpis,
+                                                CustomCurrency targetCurrency,
+                                                ZoneId zoneId) {
+        double miningRevenueHistoric = statistics.stream().mapToDouble(day -> day.btcHistoricValue().getRawMoneyAmount()).sum();
+        double miningRevenueLive = statistics.stream().mapToDouble(day -> day.btcLiveValue().getRawMoneyAmount()).sum();
+        double miningEnergyCost = statistics.stream().mapToDouble(day -> day.miningCost().getRawMoneyAmount()).sum();
+        double miningGridCost = statistics.stream().mapToDouble(day -> day.miningGridCost().getRawMoneyAmount()).sum();
+        double miningOpportunityCost = statistics.stream().mapToDouble(day -> day.miningOpportunityCost().getRawMoneyAmount()).sum();
+        double householdSavings = statistics.stream().mapToDouble(day -> day.householdSavings().getRawMoneyAmount()).sum();
+        double feedInRevenue = statistics.stream().mapToDouble(day -> day.feedInRevenue().getRawMoneyAmount()).sum();
+        double minedBtc = statistics.stream().mapToDouble(PVStatisticDto::minedBtc).sum();
+        double miningEnergyKwh = statistics.stream().mapToDouble(PVStatisticDto::minerConsumption).sum();
+        double miningGridKwh = statistics.stream().mapToDouble(PVStatisticDto::miningGridUsage).sum();
+
+        double miningNetHistoric = miningRevenueHistoric - miningEnergyCost;
+        double miningNetLive = miningRevenueLive - miningEnergyCost;
+        double totalValueCreated = miningRevenueHistoric + householdSavings + feedInRevenue;
+        double operatingResult = totalValueCreated - miningEnergyCost;
+        int daysWithData = statistics.size();
+        double averageDailyOperatingResult = daysWithData > 0 ? operatingResult / daysWithData : 0;
+        double costPerMinedBtc = minedBtc > 0 ? miningEnergyCost / minedBtc : 0;
+        double breakEvenBtcPrice = costPerMinedBtc;
+        double gridShare = miningEnergyKwh > 0 ? Math.max(0, Math.min(100, miningGridKwh / miningEnergyKwh * 100)) : 0;
+        int profitableMiningDays = (int) statistics.stream()
+                .filter(day -> day.btcHistoricValue().getRawMoneyAmount() >= day.miningCost().getRawMoneyAmount())
+                .count();
+
+        Comparator<PVStatisticDto> byOperatingResult = Comparator.comparingDouble(this::dailyOperatingResult);
+        PVStatisticDto bestDay = statistics.stream().max(byOperatingResult).orElse(null);
+        PVStatisticDto worstDay = statistics.stream().min(byOperatingResult).orElse(null);
+
+        double totalCapitalValue = kpis.realizedProfit().getRawMoneyAmount()
+                + kpis.unrealizedValue().getRawMoneyAmount()
+                + kpis.totalHouseholdSavings().getRawMoneyAmount()
+                + kpis.totalFeedInRevenue().getRawMoneyAmount();
+        double totalCapitalCost = kpis.totalInvestment().getRawMoneyAmount() + kpis.totalOpex().getRawMoneyAmount();
+        double netPosition = totalCapitalValue - totalCapitalCost;
+        double remainingToBreakEven = Math.max(0, totalCapitalCost - totalCapitalValue);
+        LocalDate setupDate = site.getSetupDate() == null ? LocalDate.now(zoneId) : site.getSetupDate();
+        long activeDays = Math.max(1, ChronoUnit.DAYS.between(setupDate, LocalDate.now(zoneId)) + 1);
+        double averageDailyCapitalValue = totalCapitalValue / activeDays;
+
+        return new FinanceInsightsDto(
+                money(miningRevenueHistoric, targetCurrency),
+                money(miningRevenueLive, targetCurrency),
+                money(miningEnergyCost, targetCurrency),
+                money(miningGridCost, targetCurrency),
+                money(miningOpportunityCost, targetCurrency),
+                money(miningNetHistoric, targetCurrency),
+                money(miningNetLive, targetCurrency),
+                money(householdSavings, targetCurrency),
+                money(feedInRevenue, targetCurrency),
+                money(totalValueCreated, targetCurrency),
+                money(operatingResult, targetCurrency),
+                money(averageDailyOperatingResult, targetCurrency),
+                money(costPerMinedBtc, targetCurrency),
+                money(breakEvenBtcPrice, targetCurrency),
+                money(totalCapitalValue, targetCurrency),
+                money(totalCapitalCost, targetCurrency),
+                money(netPosition, targetCurrency),
+                money(remainingToBreakEven, targetCurrency),
+                money(averageDailyCapitalValue, targetCurrency),
+                minedBtc,
+                miningEnergyKwh,
+                gridShare,
+                profitableMiningDays,
+                daysWithData,
+                bestDay == null ? null : bestDay.date(),
+                money(bestDay == null ? 0 : dailyOperatingResult(bestDay), targetCurrency),
+                worstDay == null ? null : worstDay.date(),
+                money(worstDay == null ? 0 : dailyOperatingResult(worstDay), targetCurrency)
+        );
+    }
+
+    private double dailyOperatingResult(PVStatisticDto day) {
+        return day.btcHistoricValue().getRawMoneyAmount()
+                + day.householdSavings().getRawMoneyAmount()
+                + day.feedInRevenue().getRawMoneyAmount()
+                - day.miningCost().getRawMoneyAmount();
+    }
+
+    private MoneyDto money(double amount, CustomCurrency currency) {
+        return MoneyDto.of(Double.isFinite(amount) ? amount : 0, currency);
     }
 
     public FinanceKpiDto calculateKPIs(PVSiteEntity pvSiteEntity, List<PVStatisticDto> currentStats, CustomCurrency targetCurrency, ZoneId zoneId) {
@@ -225,30 +342,41 @@ public class PVFinanceService {
         LocalDate today = LocalDate.now(zoneId);
         long daysActive = Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(setupDate, today));
 
-        double dailyAverageProfit = totalValue / daysActive;
-        LocalDate estimatedBreakEvenDate = null;
-
-        if (roiProgress < 100.0 && dailyAverageProfit > 0) {
-            double remainingCost = totalCosts - totalValue;
-            long daysToBreakEven = (long) (remainingCost / dailyAverageProfit);
-            estimatedBreakEvenDate = today.plusDays(daysToBreakEven);
-        } else if (roiProgress >= 100.0) {
-            estimatedBreakEvenDate = today;
-        }
+        double dailyAverageProfit = (totalValue - allTimeOpex) / daysActive;
+        LocalDate estimatedBreakEvenDate = estimateBreakEvenDate(today, totalCosts, totalValue, dailyAverageProfit);
 
         return new FinanceKpiDto(
-                new Money(totalInvestment, targetCurrency),
-                new Money(totalRealizedFiat, targetCurrency),
-                new Money(unrealizedFiat, targetCurrency),
+                MoneyDto.of(totalInvestment, targetCurrency),
+                MoneyDto.of(totalRealizedFiat, targetCurrency),
+                MoneyDto.of(unrealizedFiat, targetCurrency),
                 allTimeMinedBtc,
                 allTimeSoldBtc,
                 unsoldBtc,
                 roiProgress,
-                new Money(allTimeOpex, targetCurrency),
-                new Money(allTimeHouseholdSavings, targetCurrency),
-                new Money(allTimeFeedInRevenue, targetCurrency),
+                MoneyDto.of(allTimeOpex, targetCurrency),
+                MoneyDto.of(allTimeHouseholdSavings, targetCurrency),
+                MoneyDto.of(allTimeFeedInRevenue, targetCurrency),
                 estimatedBreakEvenDate
         );
+    }
+
+    static LocalDate estimateBreakEvenDate(LocalDate today, double totalCosts, double totalValue, double dailyAverageProfit) {
+        if (!Double.isFinite(totalCosts) || !Double.isFinite(totalValue)) {
+            return null;
+        }
+        if (totalValue >= totalCosts) {
+            return today;
+        }
+        if (!Double.isFinite(dailyAverageProfit) || dailyAverageProfit <= 0) {
+            return null;
+        }
+
+        double daysToBreakEven = (totalCosts - totalValue) / dailyAverageProfit;
+        long maximumSupportedDays = ChronoUnit.DAYS.between(today, MAX_WEB_DATE);
+        if (!Double.isFinite(daysToBreakEven) || daysToBreakEven > maximumSupportedDays) {
+            return null;
+        }
+        return today.plusDays((long) Math.ceil(daysToBreakEven));
     }
 
     public Money getPriceForDate(List<HistoricalPrice> history, LocalDate date) {

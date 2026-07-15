@@ -41,7 +41,7 @@ import type {BitcoinSaleDto, FinancePageDto, MoneyDto, PVStatisticDto} from '../
 import {useSitePreferences} from '../site-preferences-context';
 
 const translations = {de, en};
-const API_BASE_URL = 'http://localhost:8080/api/pv-site';
+const API_BASE_URL = '/api/pv-site';
 
 type ExportType = 'csv' | 'mining-pdf' | 'pv-pdf' | 'sales-pdf';
 type FinanceTab = 'overview' | 'history' | 'ledger';

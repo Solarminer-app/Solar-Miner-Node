@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import AppLogo from '../../components/app-logo';
 import {ChangeEvent, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
     ArrowLeft,
@@ -31,7 +32,7 @@ import en from '../../locales/en.json';
 import {useSitePreferences} from '../../site/[siteId]/site-preferences-context';
 
 const translations = {de, en};
-const API_BASE_URL = 'http://localhost:8080/api/config/pv';
+const API_BASE_URL = '/api/config/pv';
 const MAX_IMPORT_BYTES = 1_000_000;
 const AUTOSAVE_DELAY_MS = 650;
 const LIVE_APPLY_DELAY_MS = 850;
@@ -118,7 +119,13 @@ async function errorMessage(response: Response, fallback: string) {
     }
 }
 
-export default function ConfigEditor({protocol}: {protocol: Protocol}) {
+type ConfigEditorProps = {
+    protocol: Protocol;
+    headerTitleKey: 'config.title.rest' | 'config.title.modbus';
+    headerSubtitleKey: 'config.subtitle.rest' | 'config.subtitle.modbus';
+};
+
+export default function ConfigEditor({protocol, headerTitleKey, headerSubtitleKey}: ConfigEditorProps) {
     const {locale, setLocale} = useSitePreferences();
     const t = translations[locale] as Record<string, string>;
     const apiPath = `${API_BASE_URL}/${protocolPath(protocol)}`;
@@ -478,7 +485,8 @@ export default function ConfigEditor({protocol}: {protocol: Protocol}) {
                 <div className="mx-auto flex max-w-[1700px] flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <Link aria-label={t['config.back']} className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 text-[#aaaab4] transition hover:bg-white/[0.05] hover:text-white" href="/"><ArrowLeft size={18}/></Link>
-                        <div><p className="text-[11px] font-bold uppercase tracking-[0.2em] text-yellow-400">SolarMiner Config Lab</p><h1 className="mt-0.5 text-xl font-bold">{t[protocol === 'rest' ? 'config.title.rest' : 'config.title.modbus']}</h1></div>
+                        <AppLogo/>
+                        <div><p className="text-[11px] font-bold uppercase tracking-[0.2em] text-yellow-400">{t['config.eyebrow']}</p><h1 className="mt-0.5 text-xl font-bold">{t[headerTitleKey]}</h1><p className="mt-1 max-w-2xl text-xs text-[#85858f]">{t[headerSubtitleKey]}</p></div>
                     </div>
                     <div className="flex items-center gap-2">
                         <nav className="flex rounded-xl border border-white/10 bg-[#111115] p-1">
