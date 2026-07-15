@@ -37,6 +37,7 @@ public class DashboardChartQueryService {
 
     private final InfluxService influxService;
     private final Duration cacheDuration;
+    private final Duration historyWindow;
     private final ExecutorService queryExecutor = Executors.newSingleThreadExecutor(
             Thread.ofPlatform().name("dashboard-influx-query").daemon(true).factory()
     );
@@ -45,10 +46,12 @@ public class DashboardChartQueryService {
 
     public DashboardChartQueryService(
             InfluxService influxService,
-            @Value("${influxdb.dashboard-chart-cache-duration:5m}") Duration cacheDuration
+            @Value("${influxdb.dashboard-chart-cache-duration:5m}") Duration cacheDuration,
+            @Value("${influxdb.dashboard-history-window:7d}") Duration historyWindow
     ) {
         this.influxService = influxService;
         this.cacheDuration = cacheDuration.isNegative() || cacheDuration.isZero() ? Duration.ofMinutes(5) : cacheDuration;
+        this.historyWindow = historyWindow.isNegative() || historyWindow.isZero() ? Duration.ofDays(7) : historyWindow;
     }
 
     public CompletableFuture<DashboardChartDataDto> load(
@@ -102,13 +105,20 @@ public class DashboardChartQueryService {
                 }
         );
 
+        Instant historyEnd = Instant.ofEpochMilli(todayEndMillis);
+        Instant configuredSiteStart = Instant.ofEpochMilli(siteStartMillis);
+        Instant boundedHistoryStart = historyEnd.minus(historyWindow);
+        if (configuredSiteStart.isAfter(boundedHistoryStart)) {
+            boundedHistoryStart = configuredSiteStart;
+        }
+
         List<FluxRecord> historyRecords = influxService.queryDataFromApi(
                 site,
-                Instant.ofEpochMilli(siteStartMillis),
-                Instant.ofEpochMilli(todayEndMillis),
+                boundedHistoryStart,
+                historyEnd,
                 query -> query
                         .addField(PVSiteInfluxStrategy.PV_POWER_IN_KW)
-                        .setAggregation(InfluxUtil.AggregateOperation.MEDIAN, Duration.ofHours(1))
+                        .setAggregation(InfluxUtil.AggregateOperation.MEAN, Duration.ofHours(1))
                         .setGroupByTime(false)
         );
 

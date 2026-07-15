@@ -29,7 +29,11 @@ import static org.mockito.Mockito.when;
 
 class DashboardChartQueryServiceTest {
     private final InfluxService influxService = mock(InfluxService.class);
-    private final DashboardChartQueryService service = new DashboardChartQueryService(influxService, Duration.ofMinutes(5));
+    private final DashboardChartQueryService service = new DashboardChartQueryService(
+            influxService,
+            Duration.ofMinutes(5),
+            Duration.ofDays(7)
+    );
 
     @AfterEach
     void closeService() {
@@ -98,6 +102,9 @@ class DashboardChartQueryServiceTest {
         assertTrue(builtQueries.getFirst().contains(PVSiteInfluxStrategy.MINER_POWER_IN_KW));
         assertFalse(builtQueries.getFirst().contains("group(columns: [\"_time\"])"));
         assertFalse(builtQueries.getLast().contains("group(columns: [\"_time\"])"));
+        assertTrue(builtQueries.getLast().contains("fn: mean"));
+        assertTrue(builtQueries.getLast().contains(Instant.ofEpochMilli(todayEnd).minus(Duration.ofDays(7)).toString()));
+        assertFalse(builtQueries.getLast().contains(Instant.ofEpochMilli(siteStart).toString()));
         verify(influxService, times(2)).queryDataFromApi(
                 eq(site),
                 any(Instant.class),
