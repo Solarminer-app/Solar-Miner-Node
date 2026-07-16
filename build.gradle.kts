@@ -242,6 +242,13 @@ tasks.named<BootBuildImage>("bootBuildImage") {
         }
     )
 
+    docker {
+        publishRegistry {
+            username = System.getenv("DOCKER_USER")
+            password = System.getenv("DOCKER_PASS")
+        }
+    }
+
 /*    environment.put(
         "BP_NATIVE_IMAGE_BUILD_ARGUMENTS",
         "-J-Xmx6G " +
