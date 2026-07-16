@@ -3,14 +3,20 @@ import org.springframework.boot.gradle.tasks.bundling.BootBuildImage
 
 plugins {
     java
-    id("org.springframework.boot") version "3.4.3"
-    id("io.spring.dependency-management") version "1.1.7"
-    id("org.graalvm.buildtools.native") version "0.10.6"
+    id("org.springframework.boot")
+    id("io.spring.dependency-management")
+    id("org.graalvm.buildtools.native")
 }
 
-group = "de.verdox.currency-rates"
-version = "0.0.1-SNAPSHOT"
-description = "currency-rates"
+description = "SolarMiner Currency Rates Service"
+
+base {
+    archivesName.set("currency-rates")
+}
+
+springBoot {
+    buildInfo()
+}
 
 java {
     toolchain {
@@ -37,7 +43,17 @@ tasks.withType<Test> {
 }
 
 tasks.named<BootBuildImage>("bootBuildImage") {
+    val currencyRatesImage =
+        providers.gradleProperty("currencyRatesImage")
+
+    imageName.set(
+        currencyRatesImage.map { image ->
+            "$image:${project.version}"
+        }
+    )
+
     environment.put("BP_NATIVE_IMAGE", "true")
+    
     environment.put(
         "BP_NATIVE_IMAGE_BUILD_ARGUMENTS",
         "-march=compatibility --initialize-at-run-time=sun.security.util.Password,sun.security.util.Password\$ConsoleHolder"
