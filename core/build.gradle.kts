@@ -66,10 +66,4 @@ tasks.named<BootBuildImage>("bootBuildImage") {
     )
 
     environment.put("BP_NATIVE_IMAGE_BUILD_ARGUMENTS", "-march=compatibility")
-    docker {
-        publishRegistry {
-            username = System.getenv("DOCKER_USER")
-            password = System.getenv("DOCKER_PASS")
-        }
-    }
 }
