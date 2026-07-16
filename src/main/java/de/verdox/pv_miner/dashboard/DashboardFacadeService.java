@@ -292,7 +292,7 @@ public class DashboardFacadeService {
     @SuppressWarnings({"rawtypes", "unchecked"})
     private double safeMiningRewardToday(MiningPoolEntity<?> pool) {
         try {
-            MiningPoolData data = (MiningPoolData) entityQueryService.getLastResult((MiningPoolEntity) pool, MiningPoolData.DEFAULT);
+            MiningPoolData data = entityQueryService.getLastResult((MiningPoolEntity) pool, MiningPoolData.DEFAULT);
             return Math.max(0, data.calculateSatoshiRewardToday());
         } catch (Exception ignored) {
             return 0;
