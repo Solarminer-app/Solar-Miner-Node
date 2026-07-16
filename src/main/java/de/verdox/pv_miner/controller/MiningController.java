@@ -1,14 +1,10 @@
 package de.verdox.pv_miner.controller;
 
-import de.verdox.pv_miner.dto.MiningPageDto;
-import de.verdox.pv_miner.dto.MiningPageRequests.MinerConnectionRequest;
-import de.verdox.pv_miner.dto.MiningPageRequests.MinerPowerTargetRequest;
-import de.verdox.pv_miner.dto.MiningPageRequests.MinerSelectionRequest;
-import de.verdox.pv_miner.dto.MiningPageRequests.PoolConnectionRequest;
-import de.verdox.pv_miner.dto.MiningPageRequests.ReferralRequest;
 import de.verdox.pv_miner.discovery.DiscoveryService;
-import de.verdox.pv_miner.entity.EntityService;
+import de.verdox.pv_miner.dto.MiningPageDto;
+import de.verdox.pv_miner.dto.MiningPageRequests.*;
 import de.verdox.pv_miner.entity.EntityQueryService;
+import de.verdox.pv_miner.entity.EntityService;
 import de.verdox.pv_miner.miner.MinerApiClient;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.MiningOS;
@@ -18,30 +14,16 @@ import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVSiteRef;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.server.ResponseStatusException;
-
 import de.verdox.pv_miner_extensions.miner.AgentMinerEntity;
 import de.verdox.pv_miner_extensions.miner.AntminerEntity;
 import de.verdox.pv_miner_extensions.miner.BraiinsOSAsicMinerEntity;
 import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolEntity;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -59,12 +41,7 @@ public class MiningController {
     private final DiscoveryService discoveryService;
     private final MinerApiClient minerApiClient;
 
-    public MiningController(PVSiteRepository pvSiteRepository,
-                            MinerClusterService clusterService,
-                            EntityQueryService entityQueryService,
-                            EntityService entityService,
-                            DiscoveryService discoveryService,
-                            MinerApiClient minerApiClient) {
+    public MiningController(PVSiteRepository pvSiteRepository, MinerClusterService clusterService, EntityQueryService entityQueryService, EntityService entityService, DiscoveryService discoveryService, MinerApiClient minerApiClient) {
         this.pvSiteRepository = pvSiteRepository;
         this.clusterService = clusterService;
         this.entityQueryService = entityQueryService;
@@ -76,60 +53,25 @@ public class MiningController {
     @GetMapping
     public MiningPageDto getMiningPage(@PathVariable UUID siteId) {
         PVSiteEntity site = findSite(siteId);
-        List<MiningPageDto.ClusterDto> clusters = clusterService.getAvailableClusterNames().stream()
-                .sorted(String.CASE_INSENSITIVE_ORDER)
-                .map(name -> {
-                    MinerClusterService.ClusterInstance instance = clusterService.getCluster(siteId, name);
-                    List<MiningPageDto.MinerDto> miners = instance.getAssignedMiners().stream()
-                            .sorted(minerComparator())
-                            .map(this::toMinerDto)
-                            .toList();
-                    return new MiningPageDto.ClusterDto(name, instance.isRunning(), miners);
-                })
-                .toList();
+        List<MiningPageDto.ClusterDto> clusters = clusterService.getAvailableClusterNames().stream().sorted(String.CASE_INSENSITIVE_ORDER).map(name -> {
+            MinerClusterService.ClusterInstance instance = clusterService.getCluster(siteId, name);
+            List<MiningPageDto.MinerDto> miners = instance.getAssignedMiners().stream().sorted(minerComparator()).map(this::toMinerDto).toList();
+            return new MiningPageDto.ClusterDto(name, instance.isRunning(), miners);
+        }).toList();
 
-        List<MiningPageDto.MinerDto> unassigned = clusterService.getUnassignedMiners(site).stream()
-                .sorted(minerComparator())
-                .map(this::toMinerDto)
-                .toList();
+        List<MiningPageDto.MinerDto> unassigned = clusterService.getUnassignedMiners(site).stream().sorted(minerComparator()).map(this::toMinerDto).toList();
 
-        List<MiningPageDto.MinerDto> connectedMiners = site.getMiners().stream()
-                .sorted(minerComparator())
-                .map(this::toMinerDto)
-                .toList();
+        List<MiningPageDto.MinerDto> connectedMiners = site.getMiners().stream().sorted(minerComparator()).map(this::toMinerDto).toList();
 
-        List<MiningPageDto.PoolDto> connectedPools = site.getConnectedMiningPools().stream()
-                .sorted(Comparator.comparing(pool -> pool.getUrlIdentifier(), String.CASE_INSENSITIVE_ORDER))
-                .map(pool -> new MiningPageDto.PoolDto(
-                        pool.getId(),
-                        pool instanceof BraiinsPoolEntity ? "BRAIINS" : pool.getClass().getSimpleName(),
-                        pool.getUrlIdentifier(),
-                        pool.getStratumV1Url()
-                ))
-                .toList();
+        List<MiningPageDto.PoolDto> connectedPools = site.getConnectedMiningPools().stream().sorted(Comparator.comparing(pool -> pool.getUrlIdentifier(), String.CASE_INSENSITIVE_ORDER)).map(pool -> new MiningPageDto.PoolDto(pool.getId(), pool instanceof BraiinsPoolEntity ? "BRAIINS" : pool.getClass().getSimpleName(), pool.getUrlIdentifier(), pool.getStratumV1Url())).toList();
 
-        double totalHashrate = site.getMiners().stream()
-                .map(miner -> entityQueryService.getLastResult(miner, MinerStats.DEFAULT))
-                .mapToDouble(stats -> stats == null ? 0 : stats.terahashPerSecond())
-                .sum();
+        double totalHashrate = site.getMiners().stream().map(miner -> entityQueryService.getLastResult(miner, MinerStats.DEFAULT)).mapToDouble(stats -> stats == null ? 0 : stats.terahashPerSecond()).sum();
 
-        return new MiningPageDto(
-                site.getName(),
-                clusters.size(),
-                (int) clusters.stream().filter(MiningPageDto.ClusterDto::running).count(),
-                site.getMiners().size(),
-                totalHashrate,
-                clusters,
-                connectedMiners,
-                unassigned,
-                connectedPools,
-                minerApiClient.getDevFeeOverview(site.getReferralCode())
-        );
+        return new MiningPageDto(site.getName(), clusters.size(), (int) clusters.stream().filter(MiningPageDto.ClusterDto::running).count(), site.getMiners().size(), totalHashrate, clusters, connectedMiners, unassigned, connectedPools, minerApiClient.getDevFeeOverview(site.getReferralCode()));
     }
 
     @PostMapping("/referral")
-    public ResponseEntity<Void> saveReferral(@PathVariable UUID siteId,
-                                             @RequestBody ReferralRequest request) {
+    public ResponseEntity<Void> saveReferral(@PathVariable UUID siteId, @RequestBody ReferralRequest request) {
         PVSiteEntity site = findSite(siteId);
         String referralCode = requireText(request.referralCode(), "Referral code is required");
         if (referralCode.length() > 128 || !referralCode.matches("[A-Za-z0-9._-]+")) {
@@ -152,39 +94,23 @@ public class MiningController {
     }
 
     @GetMapping("/miners/discovery")
-    public CompletableFuture<List<MiningPageDto.DiscoveredMinerDto>> discoverMiners(
-            @PathVariable UUID siteId,
-            @RequestParam String subnet
-    ) {
+    public CompletableFuture<List<MiningPageDto.DiscoveredMinerDto>> discoverMiners(@PathVariable UUID siteId, @RequestParam String subnet) {
         PVSiteEntity site = findSite(siteId);
         String normalizedSubnet = normalizeSubnet(subnet);
-        Set<String> connectedIps = site.getMiners().stream()
-                .map(MinerEntity::getIP)
-                .collect(Collectors.toSet());
+        Set<String> connectedIps = site.getMiners().stream().map(MinerEntity::getIP).collect(Collectors.toSet());
         List<MiningPageDto.DiscoveredMinerDto> discovered = Collections.synchronizedList(new ArrayList<>());
         CompletableFuture<List<MiningPageDto.DiscoveredMinerDto>> result = new CompletableFuture<>();
 
-        discoveryService.discoverMiners(
-                normalizedSubnet,
-                miner -> {
-                    if (!connectedIps.contains(miner.ipAddress())) {
-                        discovered.add(new MiningPageDto.DiscoveredMinerDto(
-                                miner.model(),
-                                miner.ipAddress(),
-                                miner.os().name()
-                        ));
-                    }
-                },
-                () -> result.complete(discovered.stream()
-                        .sorted(Comparator.comparing(MiningPageDto.DiscoveredMinerDto::ipAddress))
-                        .toList())
-        );
+        discoveryService.discoverMiners(normalizedSubnet, miner -> {
+            if (!connectedIps.contains(miner.ipAddress())) {
+                discovered.add(new MiningPageDto.DiscoveredMinerDto(miner.model(), miner.ipAddress(), miner.os().name()));
+            }
+        }, () -> result.complete(discovered.stream().sorted(Comparator.comparing(MiningPageDto.DiscoveredMinerDto::ipAddress)).toList()));
         return result;
     }
 
     @PostMapping("/miners")
-    public ResponseEntity<Void> connectMiner(@PathVariable UUID siteId,
-                                             @RequestBody MinerConnectionRequest request) {
+    public ResponseEntity<Void> connectMiner(@PathVariable UUID siteId, @RequestBody MinerConnectionRequest request) {
         PVSiteEntity site = findSite(siteId);
         String ipAddress = requireText(request.ipAddress(), "IP address is required");
         if (site.getMiners().stream().anyMatch(miner -> ipAddress.equals(miner.getIP()))) {
@@ -204,10 +130,7 @@ public class MiningController {
         miner.setName(request.model() == null || request.model().isBlank() ? ipAddress : request.model().trim());
 
         if (operatingSystem != MiningOS.AGENT) {
-            boolean connectionWorks = minerApiClient.checkIfCustomCredentialsWork(
-                    operatingSystem,
-                    miner.getDetails()
-            );
+            boolean connectionWorks = minerApiClient.checkIfCustomCredentialsWork(operatingSystem, miner.getDetails());
             if (!connectionWorks) {
                 throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Miner credentials could not be verified");
             }
@@ -226,8 +149,7 @@ public class MiningController {
     }
 
     @PostMapping("/pools")
-    public ResponseEntity<Void> connectPool(@PathVariable UUID siteId,
-                                             @RequestBody PoolConnectionRequest request) {
+    public ResponseEntity<Void> connectPool(@PathVariable UUID siteId, @RequestBody PoolConnectionRequest request) {
         PVSiteEntity site = findSite(siteId);
         String type = requireText(request.type(), "Pool type is required");
         if (!"BRAIINS".equalsIgnoreCase(type)) {
@@ -248,34 +170,25 @@ public class MiningController {
     }
 
     @DeleteMapping("/miners/{minerId}")
-    public ResponseEntity<Void> deleteMiner(@PathVariable UUID siteId,
-                                            @PathVariable UUID minerId) {
+    public ResponseEntity<Void> deleteMiner(@PathVariable UUID siteId, @PathVariable UUID minerId) {
         PVSiteEntity site = findSite(siteId);
-        MinerEntity<?> miner = site.getMiners().stream()
-                .filter(candidate -> minerId.equals(candidate.getId()))
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Miner not found on this PV site"));
+        MinerEntity<?> miner = site.getMiners().stream().filter(candidate -> minerId.equals(candidate.getId())).findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Miner not found on this PV site"));
 
         entityService.delete(miner);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/pools/{poolId}")
-    public ResponseEntity<Void> deletePool(@PathVariable UUID siteId,
-                                           @PathVariable UUID poolId) {
+    public ResponseEntity<Void> deletePool(@PathVariable UUID siteId, @PathVariable UUID poolId) {
         PVSiteEntity site = findSite(siteId);
-        MiningPoolEntity<?> pool = site.getConnectedMiningPools().stream()
-                .filter(candidate -> poolId.equals(candidate.getId()))
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Mining pool not found on this PV site"));
+        MiningPoolEntity<?> pool = site.getConnectedMiningPools().stream().filter(candidate -> poolId.equals(candidate.getId())).findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Mining pool not found on this PV site"));
 
         entityService.delete(pool);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/clusters/{clusterName}/start")
-    public ResponseEntity<Void> startCluster(@PathVariable UUID siteId,
-                                             @PathVariable String clusterName) throws Exception {
+    public ResponseEntity<Void> startCluster(@PathVariable UUID siteId, @PathVariable String clusterName) throws Exception {
         PVSiteEntity site = findSite(siteId);
         MinerClusterService.ClusterInstance cluster = clusterService.getCluster(siteId, clusterName);
         if (cluster.getAssignedMiners().isEmpty()) {
@@ -287,23 +200,17 @@ public class MiningController {
     }
 
     @PostMapping("/clusters/{clusterName}/stop")
-    public ResponseEntity<Void> stopCluster(@PathVariable UUID siteId,
-                                            @PathVariable String clusterName) {
+    public ResponseEntity<Void> stopCluster(@PathVariable UUID siteId, @PathVariable String clusterName) {
         findSite(siteId);
         clusterService.stopCluster(siteId, clusterName);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/clusters/{clusterName}/miners")
-    public ResponseEntity<Void> assignMiners(@PathVariable UUID siteId,
-                                             @PathVariable String clusterName,
-                                             @RequestBody MinerSelectionRequest request) {
+    public ResponseEntity<Void> assignMiners(@PathVariable UUID siteId, @PathVariable String clusterName, @RequestBody MinerSelectionRequest request) {
         PVSiteEntity site = findSite(siteId);
         Set<UUID> requestedIds = Set.copyOf(request.minerIds());
-        Set<MinerEntity<?>> miners = site.getMiners().stream()
-                .filter(miner -> requestedIds.contains(miner.getId()))
-                .filter(miner -> miner.getClusterName() == null || miner.getClusterName().isBlank())
-                .collect(Collectors.toSet());
+        Set<MinerEntity<?>> miners = site.getMiners().stream().filter(miner -> requestedIds.contains(miner.getId())).filter(miner -> miner.getClusterName() == null || miner.getClusterName().isBlank()).collect(Collectors.toSet());
 
         if (miners.size() != requestedIds.size()) {
             return ResponseEntity.badRequest().build();
@@ -314,15 +221,11 @@ public class MiningController {
     }
 
     @PostMapping("/clusters/{clusterName}/miners/remove")
-    public ResponseEntity<Void> removeMiners(@PathVariable UUID siteId,
-                                             @PathVariable String clusterName,
-                                             @RequestBody MinerSelectionRequest request) {
+    public ResponseEntity<Void> removeMiners(@PathVariable UUID siteId, @PathVariable String clusterName, @RequestBody MinerSelectionRequest request) {
         findSite(siteId);
         Set<UUID> requestedIds = Set.copyOf(request.minerIds());
         MinerClusterService.ClusterInstance cluster = clusterService.getCluster(siteId, clusterName);
-        Set<MinerEntity<?>> miners = cluster.getAssignedMiners().stream()
-                .filter(miner -> requestedIds.contains(miner.getId()))
-                .collect(Collectors.toSet());
+        Set<MinerEntity<?>> miners = cluster.getAssignedMiners().stream().filter(miner -> requestedIds.contains(miner.getId())).collect(Collectors.toSet());
 
         if (miners.size() != requestedIds.size()) {
             return ResponseEntity.badRequest().build();
@@ -333,20 +236,13 @@ public class MiningController {
     }
 
     @PostMapping("/miners/{minerId}/power-targets")
-    public ResponseEntity<Void> updateMinerPowerTargets(
-            @PathVariable UUID siteId,
-            @PathVariable UUID minerId,
-            @RequestBody MinerPowerTargetRequest request
-    ) {
+    public ResponseEntity<Void> updateMinerPowerTargets(@PathVariable UUID siteId, @PathVariable UUID minerId, @RequestBody MinerPowerTargetRequest request) {
         PVSiteEntity site = findSite(siteId);
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Power target settings are required");
         }
 
-        MinerEntity<?> miner = site.getMiners().stream()
-                .filter(candidate -> minerId.equals(candidate.getId()))
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Miner not found on this PV site"));
+        MinerEntity<?> miner = site.getMiners().stream().filter(candidate -> minerId.equals(candidate.getId())).findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Miner not found on this PV site"));
 
         if (!miner.getOS().supportsDynamicPowerScaling()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Miner does not support dynamic power scaling");
@@ -362,8 +258,7 @@ public class MiningController {
         long minimum = request.minimumPowerWatts();
         long maximum = request.maximumPowerWatts();
 
-        if (minimum < hardwareMinimum || minimum > hardwareMaximum
-                || maximum < hardwareMinimum || maximum > hardwareMaximum) {
+        if (minimum < hardwareMinimum || minimum > hardwareMaximum || maximum < hardwareMinimum || maximum > hardwareMaximum) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Power targets must stay within the hardware limits");
         }
         if (minimum > maximum) {
@@ -383,14 +278,10 @@ public class MiningController {
     }
 
     private PVSiteEntity findSite(UUID siteId) {
-        return pvSiteRepository.findById(siteId)
-                .orElseThrow(() -> new IllegalArgumentException("PV-Site nicht gefunden"));
+        return pvSiteRepository.findById(siteId).orElseThrow(() -> new IllegalArgumentException("PV-Site nicht gefunden"));
     }
 
-    private MinerEntity<?> createMiner(MiningOS operatingSystem,
-                                       String ipAddress,
-                                       String username,
-                                       String password) {
+    private MinerEntity<?> createMiner(MiningOS operatingSystem, String ipAddress, String username, String password) {
         if (operatingSystem == MiningOS.BRAIINS) {
             BraiinsOSAsicMinerEntity miner = new BraiinsOSAsicMinerEntity();
             miner.setHost(ipAddress);
@@ -432,10 +323,7 @@ public class MiningController {
     }
 
     private Comparator<MinerEntity<?>> minerComparator() {
-        return Comparator.comparing(
-                miner -> miner.getName() == null ? miner.getIP() : miner.getName(),
-                Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)
-        );
+        return Comparator.comparing(miner -> miner.getName() == null ? miner.getIP() : miner.getName(), Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
     }
 
     private MiningPageDto.MinerDto toMinerDto(MinerEntity<?> miner) {
@@ -444,26 +332,6 @@ public class MiningController {
             stats = MinerStats.DEFAULT;
         }
 
-        return new MiningPageDto.MinerDto(
-                miner.getId(),
-                miner.getName(),
-                miner.getIP(),
-                stats.minerIdentity().minerModel(),
-                stats.miningStatus().name(),
-                stats.terahashPerSecond(),
-                stats.approximatedPowerUsageWatts(),
-                stats.temperatureCelsius(),
-                miner.getCurrentMiningPoolTarget(),
-                stats.minPowerTarget(),
-                stats.defaultPowerTarget() > 0 ? stats.defaultPowerTarget() : stats.maxPowerTarget(),
-                stats.maxPowerTarget(),
-                miner.getMinPowerTarget(),
-                miner.getMaxPowerTarget(),
-                miner.getOS().supportsDynamicPowerScaling(),
-                miner.getPowerStepSizeWatts(),
-                miner.getMinRunTimeMinutes(),
-                miner.getMinIdleTimeMinutes(),
-                miner.getPowerChangeLockTimeMinutes()
-        );
+        return new MiningPageDto.MinerDto(miner.getId(), miner.getName(), miner.getIP(), stats.minerIdentity().minerModel(), stats.miningStatus().name(), stats.terahashPerSecond(), stats.approximatedPowerUsageWatts(), stats.temperatureCelsius(), miner.getCurrentMiningPoolTarget(), stats.minPowerTarget(), stats.defaultPowerTarget() > 0 ? stats.defaultPowerTarget() : stats.maxPowerTarget(), stats.maxPowerTarget(), miner.getMinPowerTarget(), miner.getMaxPowerTarget(), miner.getOS().supportsDynamicPowerScaling(), miner.getPowerStepSizeWatts(), miner.getMinRunTimeMinutes(), miner.getMinIdleTimeMinutes(), miner.getPowerChangeLockTimeMinutes());
     }
 }
