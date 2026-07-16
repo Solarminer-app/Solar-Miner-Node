@@ -142,6 +142,8 @@ jobs:
         env:
           VERSION: ${{ needs.metadata.outputs.version }}
           IMAGE: ${{ needs.metadata.outputs.image }}
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           set -euo pipefail
 
