@@ -5,7 +5,7 @@ plugins {
     java
     id("org.springframework.boot") version "3.4.3"
     id("io.spring.dependency-management") version "1.1.7"
-    id("org.graalvm.buildtools.native") version "0.10.6"
+    id("org.graalvm.buildtools.native") version "0.10.6" apply false
     id("com.github.node-gradle.node") version "7.1.0"
 }
 
@@ -221,7 +221,7 @@ tasks.processResources {
     }
 }
 
-graalvmNative {
+/*graalvmNative {
     binaries {
         named("main") {
             buildArgs.add("-J-Xmx32G")
@@ -233,7 +233,7 @@ graalvmNative {
             )
         }
     }
-}
+}*/
 
 tasks.named<BootBuildImage>("bootBuildImage") {
     imageName.set(
@@ -242,7 +242,7 @@ tasks.named<BootBuildImage>("bootBuildImage") {
         }
     )
 
-    environment.put(
+/*    environment.put(
         "BP_NATIVE_IMAGE_BUILD_ARGUMENTS",
         "-J-Xmx6G " +
                 "-march=compatibility " +
@@ -253,7 +253,7 @@ tasks.named<BootBuildImage>("bootBuildImage") {
                 "--trace-class-initialization=" +
                 "io.grpc.netty.shaded.io.netty.buffer." +
                 "PooledByteBufAllocator"
-    )
+    )*/
 
     publish.set(false)
 }
