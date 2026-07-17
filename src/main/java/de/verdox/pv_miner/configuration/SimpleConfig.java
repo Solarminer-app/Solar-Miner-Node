@@ -34,8 +34,4 @@ public abstract class SimpleConfig<C> {
     public Map<String, C> getConfigEntries() {
         return configEntries;
     }
-
-    public <T extends C> T getEntryForId(String id) {
-        return (T) configEntries.getOrDefault(id, null);
-    }
 }

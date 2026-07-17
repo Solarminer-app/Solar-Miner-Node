@@ -27,7 +27,7 @@ import static de.verdox.pv_miner.dto.DashboardPageDto.*;
 
 @RestController
 @RequestMapping("/api/pv-site/{siteId}/dashboard")
-@CrossOrigin(origins = "http://localhost:3000") // Erlaubt den Zugriff von deinem lokalen Next.js Dev-Server
+@CrossOrigin(origins = "http://localhost:3000")
 public class DashboardController {
 
     private final PVSiteRepository pvSiteRepository;
@@ -47,9 +47,6 @@ public class DashboardController {
         this.dashboardChartQueryService = dashboardChartQueryService;
     }
 
-    /**
-     * INIT ENDPOINT: Langlebige Daten (Miner-Liste, Pools, Chart-Historie)
-     */
     @GetMapping("/init")
     public ResponseEntity<DashboardInitDto> getInitialData(@PathVariable UUID siteId) {
         PVSiteEntity pvSite = pvSiteRepository.findById(siteId).orElseThrow(() -> new IllegalArgumentException("PV-Site nicht gefunden"));
@@ -90,10 +87,6 @@ public class DashboardController {
         return ResponseEntity.ok(new DashboardInitDto(pvSite.getName(), miners, pools, List.of()));
     }
 
-    /**
-     * LIVE ENDPOINT: Wird alle 3 Sekunden vom React-Client gepollt.
-     * Nutzt den Facade Service, um den UI-Thread nicht zu blockieren.
-     */
     @GetMapping("/live")
     public ResponseEntity<LiveDashboardUpdateDto> getLiveUpdates(
             @PathVariable UUID siteId,
@@ -178,7 +171,7 @@ public class DashboardController {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private String getPoolWorker(MiningPoolEntity<?> pool) {
-        MiningPoolData data = (MiningPoolData) entityQueryService.getLastResult((MiningPoolEntity) pool, MiningPoolData.DEFAULT);
+        MiningPoolData data = entityQueryService.getLastResult((MiningPoolEntity) pool, MiningPoolData.DEFAULT);
         String worker = data.getDefaultWorkerName();
         return worker == null ? "" : worker;
     }

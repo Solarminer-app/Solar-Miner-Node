@@ -8,7 +8,6 @@ import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.miningpool.MiningPoolRepository;
 import de.verdox.pv_miner.pvsite.*;
 import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
-import de.verdox.pv_miner.statistic.live.EntityStatisticsService;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -31,17 +30,15 @@ public class EntityService {
     private final MinerRepository minerRepository;
     private final MiningPoolRepository miningPoolRepository;
     private final EntityMonitoringService entityMonitoringService;
-    private final EntityStatisticsService entityStatisticsService;
     private final PVPanelsRepository pVPanelsRepository;
     private final DailyStatisticService dailyStatisticService;
     private final MinerClusterService minerClusterService;
 
-    public EntityService(PVSiteRepository pvSiteRepository, MinerRepository minerRepository, MiningPoolRepository miningPoolRepository, EntityMonitoringService entityMonitoringService, EntityStatisticsService entityStatisticsService, PVPanelsRepository pVPanelsRepository, DailyStatisticService dailyStatisticService, MinerClusterService minerClusterService) {
+    public EntityService(PVSiteRepository pvSiteRepository, MinerRepository minerRepository, MiningPoolRepository miningPoolRepository, EntityMonitoringService entityMonitoringService, PVPanelsRepository pVPanelsRepository, DailyStatisticService dailyStatisticService, MinerClusterService minerClusterService) {
         this.pvSiteRepository = pvSiteRepository;
         this.minerRepository = minerRepository;
         this.miningPoolRepository = miningPoolRepository;
         this.entityMonitoringService = entityMonitoringService;
-        this.entityStatisticsService = entityStatisticsService;
         this.pVPanelsRepository = pVPanelsRepository;
         this.dailyStatisticService = dailyStatisticService;
         this.minerClusterService = minerClusterService;
@@ -179,7 +176,6 @@ public class EntityService {
         entityMonitoringService.detach(entity);
         dailyStatisticService.cleanUpEntity(entity.getId());
         pvSiteRepository.delete(entity);
-        entityStatisticsService.cleanUp(entity);
     }
 
     public void delete(PVPanels entity) {

@@ -2,6 +2,7 @@ package de.verdox.pv_miner.lightning;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
@@ -28,19 +29,17 @@ public class SolarMiningWebSocketClient extends TextWebSocketHandler {
     private final LightningWalletService walletService;
     private final List<Runnable> statusListeners = new CopyOnWriteArrayList<>();
     private final String backendWebSocketUrl;
-    private final String backendUrl;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private WebSocketSession session;
+    @Getter
     private boolean enabled = true;
 
     public SolarMiningWebSocketClient(Environment environment, LightningWalletService walletService,
-                                      @Value("${solarmining.backend.url.socket:wss://localhost:8080/lightning-tunnel}") String backendWebSocketUrl,
-                                      @Value("${solarmining.backend.url.rest:http://localhost:8080}") String backendUrl
+                                      @Value("${solarmining.backend.url.socket:wss://localhost:8080/lightning-tunnel}") String backendWebSocketUrl
     ) {
         this.environment = environment;
         this.walletService = walletService;
         this.backendWebSocketUrl = backendWebSocketUrl;
-        this.backendUrl = backendUrl;
         LOGGER.info("[SolarMiningWebSocketClient] Initializing WebSocket Client for backend url: " + this.backendWebSocketUrl);
     }
 
@@ -62,7 +61,6 @@ public class SolarMiningWebSocketClient extends TextWebSocketHandler {
 
             client.execute(this, backendWebSocketUrl).whenComplete((session, exception) -> {
                 if (exception != null) {
-                    // Verbindung fehlgeschlagen
                     exception.printStackTrace();
                     notifyStatusChange();
                     scheduleReconnect();
@@ -136,10 +134,6 @@ public class SolarMiningWebSocketClient extends TextWebSocketHandler {
         return session != null && session.isOpen();
     }
 
-    public boolean isEnabled() {
-        return enabled;
-    }
-
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
         if (enabled) {
@@ -161,14 +155,6 @@ public class SolarMiningWebSocketClient extends TextWebSocketHandler {
     }
 
     public record TunnelMessage(String action, String payload, long amountSat, String memo) {
-    }
-
-    public void addStatusListener(Runnable listener) {
-        statusListeners.add(listener);
-    }
-
-    public void removeStatusListener(Runnable listener) {
-        statusListeners.remove(listener);
     }
 
     private void notifyStatusChange() {

@@ -64,31 +64,4 @@ public class MinerControllerConfigStorage extends AbstractConfigStorage<MinerCon
     private File getFile(String name) {
         return new File(getStorageFolder() + "/" + name + ".json");
     }
-
-    public static final UIConfigStorageAccessor<MinerControllerConfig, MinerControllerConfigStorage> UI_STORAGE_ACCESSOR = new AbstractConfigStorage.UIConfigStorageAccessor<>() {
-        @Override
-        public Stream<String> loadAvailableConfigNames(MinerControllerConfigStorage storage) {
-            try {
-                return storage.getNameOfSavedConfigs().stream();
-            } catch (IOException e) {
-                LOGGER.log(Level.SEVERE, "There was an error while loading the config names from the miner controller config storage", e);
-                return Stream.empty();
-            }
-        }
-
-        @Override
-        public MinerControllerConfig loadFromStorage(MinerControllerConfigStorage storage, String name) throws IOException {
-            return storage.get(name);
-        }
-
-        @Override
-        public boolean delete(MinerControllerConfigStorage storage, String name) throws IOException {
-            return storage.delete(name);
-        }
-
-        @Override
-        public void save(MinerControllerConfigStorage storage, String name, MinerControllerConfig config) throws IOException {
-            storage.save(name, config);
-        }
-    };
 }

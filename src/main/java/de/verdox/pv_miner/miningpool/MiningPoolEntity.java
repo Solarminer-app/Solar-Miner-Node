@@ -4,6 +4,8 @@ import de.verdox.pv_miner.entity.AbstractAuditableEntity;
 import de.verdox.pv_miner.entity.QueryEntity;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.util.UUID;
@@ -15,17 +17,12 @@ import java.util.UUID;
 public abstract class MiningPoolEntity<T extends MiningPoolData> extends AbstractAuditableEntity implements QueryEntity<T> {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @Setter
+    @Getter
     private UUID id;
 
-    @Override
-    public UUID getId() {
-        return id;
-    }
-
-    public void setId(UUID id) {
-        this.id = id;
-    }
-
+    @Getter
+    @Setter
     public String userNameOfAccount;
 
     @Transient
@@ -34,23 +31,10 @@ public abstract class MiningPoolEntity<T extends MiningPoolData> extends Abstrac
     @Transient
     public abstract String getStratumV1Url();
 
+    @Getter
+    @Setter
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "parentEntity")
     private PVSiteEntity parentEntity;
 
-    public PVSiteEntity getParentEntity() {
-        return parentEntity;
-    }
-
-    public void setParentEntity(PVSiteEntity parentEntity) {
-        this.parentEntity = parentEntity;
-    }
-
-    public void setUserNameOfAccount(String userNameOfAccount) {
-        this.userNameOfAccount = userNameOfAccount;
-    }
-
-    public String getUserNameOfAccount() {
-        return userNameOfAccount;
-    }
 }

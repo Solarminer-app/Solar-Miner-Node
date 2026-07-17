@@ -4,6 +4,7 @@ import de.verdox.solarminer.modbustcp.ModbusConfig;
 import de.verdox.solarminer.rest.RestPVConfig;
 import de.verdox.vserializer.generic.SerializationElement;
 import de.verdox.vserializer.json.JsonSerializerContext;
+import lombok.Getter;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
@@ -29,6 +30,7 @@ public class ConfigFetcherService {
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
 
+    @Getter
     private volatile List<DeviceProfile> cachedProfiles = List.of();
     private volatile Map<String, ModbusConfig> cachedModbusConfigs = Map.of();
     private volatile Map<String, RestPVConfig> cachedRestPVConfigs = Map.of();
@@ -108,10 +110,6 @@ public class ConfigFetcherService {
         } else if (!existing.supportedProtocols().contains(protocol)) {
             existing.supportedProtocols().add(protocol);
         }
-    }
-
-    public List<DeviceProfile> getCachedProfiles() {
-        return cachedProfiles;
     }
 
     public Optional<ModbusConfig> getModbusConfig(String deviceName) {

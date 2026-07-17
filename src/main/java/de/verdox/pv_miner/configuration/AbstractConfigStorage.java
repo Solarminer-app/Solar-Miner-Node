@@ -3,6 +3,7 @@ package de.verdox.pv_miner.configuration;
 import de.verdox.vserializer.generic.SerializationElement;
 import de.verdox.vserializer.generic.Serializer;
 import de.verdox.vserializer.json.JsonSerializerContext;
+import lombok.Getter;
 import org.apache.commons.compress.utils.FileNameUtils;
 
 import java.io.File;
@@ -18,6 +19,7 @@ import java.util.stream.Stream;
 
 public abstract class AbstractConfigStorage<T extends SimpleConfig<?>> {
     protected static final Logger LOGGER = Logger.getLogger(AbstractConfigStorage.class.getSimpleName());
+    @Getter
     private final File storageFolder;
     private final Serializer<T> serializer;
 
@@ -25,10 +27,6 @@ public abstract class AbstractConfigStorage<T extends SimpleConfig<?>> {
         this.storageFolder = storageFolder;
         this.serializer = serializer;
         initStorage();
-    }
-
-    public File getStorageFolder() {
-        return storageFolder;
     }
 
     protected List<String> getNameOfSavedFiles(File folder) throws IOException {
@@ -91,21 +89,5 @@ public abstract class AbstractConfigStorage<T extends SimpleConfig<?>> {
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Could not initialize storage at " + storageFolder.getAbsolutePath(), e);
         }
-    }
-
-    /**
-     * Used in UI to access the repository
-     *
-     * @param <T> the config type
-     * @param <C> the config storage type
-     */
-    public interface UIConfigStorageAccessor<T extends SimpleConfig<?>, C extends AbstractConfigStorage<T>> {
-        Stream<String> loadAvailableConfigNames(C storage);
-
-        T loadFromStorage(C storage, String name) throws IOException;
-
-        boolean delete(C storage, String name) throws IOException;
-
-        void save(C storage, String name, T config) throws IOException;
     }
 }
