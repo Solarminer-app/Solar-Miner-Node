@@ -6,7 +6,6 @@ import de.verdox.pv_miner.dto.PVStatisticDto;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.pvsite.BitcoinSale;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
-import de.verdox.pv_miner.frontend.user.UserSessionContext;
 import de.verdox.pv_miner.util.FormatUtil;
 import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
@@ -43,10 +42,6 @@ public class TaxReportService {
         public ZoneId getZoneId() {
             return zoneId;
         }
-
-        private static ReportContext from(UserSessionContext context) {
-            return new ReportContext(context.getLocale(), context.getCurrency(), context.getZoneId());
-        }
     }
 
     private final PVFinanceService pvFinanceService;
@@ -55,10 +50,6 @@ public class TaxReportService {
     public TaxReportService(PVFinanceService pvFinanceService, GlobalConstantsService globalConstantsService) {
         this.pvFinanceService = pvFinanceService;
         this.globalConstantsService = globalConstantsService;
-    }
-
-    public InputStream generateMiningPdfReport(PVSiteEntity pvSite, LocalDate from, LocalDate to, UserSessionContext context) {
-        return generateMiningPdfReport(pvSite, from, to, ReportContext.from(context));
     }
 
     public InputStream generateMiningPdfReport(PVSiteEntity pvSite, LocalDate from, LocalDate to, ReportContext context) {
@@ -78,10 +69,6 @@ public class TaxReportService {
         }
     }
 
-    public InputStream generatePvPdfReport(PVSiteEntity pvSite, LocalDate from, LocalDate to, UserSessionContext context) {
-        return generatePvPdfReport(pvSite, from, to, ReportContext.from(context));
-    }
-
     public InputStream generatePvPdfReport(PVSiteEntity pvSite, LocalDate from, LocalDate to, ReportContext context) {
         try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
             List<PVStatisticDto> statistics = pvFinanceService.getFinanceData(pvSite, from, to, context.getZoneId(), context.getCurrency());
@@ -97,10 +84,6 @@ public class TaxReportService {
             e.printStackTrace();
             return generateErrorPdf(e);
         }
-    }
-
-    public InputStream generateSalesPdfReport(PVSiteEntity pvSite, UserSessionContext context) {
-        return generateSalesPdfReport(pvSite, ReportContext.from(context));
     }
 
     public InputStream generateSalesPdfReport(PVSiteEntity pvSite, ReportContext context) {
@@ -123,10 +106,6 @@ public class TaxReportService {
             e.printStackTrace();
             return generateErrorPdf(e);
         }
-    }
-
-    public InputStream generateCsvReport(PVSiteEntity pvSite, LocalDate from, LocalDate to, UserSessionContext context) {
-        return generateCsvReport(pvSite, from, to, ReportContext.from(context));
     }
 
     public InputStream generateCsvReport(PVSiteEntity pvSite, LocalDate from, LocalDate to, ReportContext context) {

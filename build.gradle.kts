@@ -47,7 +47,6 @@ springBoot {
     buildInfo()
 }
 
-extra["vaadinVersion"] = "24.6.5"
 
 java {
     toolchain {
@@ -59,7 +58,6 @@ java {
 repositories {
     mavenLocal()
     mavenCentral()
-    maven("https://maven.vaadin.com/vaadin-addons")
 
     maven {
         name = "verdoxRepositorySnapshots"
@@ -68,6 +66,8 @@ repositories {
 }
 
 dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-websocket")
+    implementation("org.apache.commons:commons-compress:1.28.0")
     implementation("org.shredzone.commons:commons-suncalc:3.5")
     implementation("com.openhtmltopdf:openhtmltopdf-core:1.0.10")
     implementation("com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10")
@@ -87,13 +87,6 @@ dependencies {
     implementation("com.google.code.gson:gson:2.12.1")
     implementation("org.commonmark:commonmark:0.21.0")
     implementation("org.mariadb.jdbc:mariadb-java-client:2.7.4")
-
-    implementation("com.vaadin:vaadin-charts-flow")
-    implementation("com.vaadin:vaadin-spring-boot-starter") {
-        exclude(group = "com.vaadin", module = "hilla")
-        exclude(group = "com.vaadin", module = "hilla-dev")
-        exclude(group = "com.vaadin", module = "vaadin-dev")
-    }
 
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-mysql")
@@ -128,14 +121,6 @@ dependencies {
     testRuntimeOnly(
         "org.junit.platform:junit-platform-launcher"
     )
-}
-
-dependencyManagement {
-    imports {
-        mavenBom(
-            "com.vaadin:vaadin-bom:${property("vaadinVersion")}"
-        )
-    }
 }
 
 tasks.withType<Test> {

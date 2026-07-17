@@ -12,13 +12,11 @@ import de.verdox.pv_miner.miningcontroller.MinerClusterService;
 import de.verdox.pv_miner.miningcontroller.MinerLock;
 import de.verdox.pv_miner.pvsite.*;
 import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
-import de.verdox.pv_miner.frontend.user.UserSessionContext;
 import de.verdox.pv_miner.util.FormatUtil;
 import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
-import org.jspecify.annotations.NonNull;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -26,7 +24,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
 @Service
@@ -58,20 +55,6 @@ public class DashboardFacadeService {
         this.dashboardChartQueryService = dashboardChartQueryService;
         this.walletService = walletService;
         this.minerClusterService = minerClusterService;
-    }
-
-    public PVSiteEntity getSiteEntity(UUID siteId) {
-        return pVSiteRepository.findById(siteId).orElseThrow();
-    }
-
-    public CompletableFuture<DashboardChartDataDto> loadChartData(PVSiteEntity pvSite, long startTodayMilli, long endTodayMilli, long pvSiteStartMilli) {
-        return dashboardChartQueryService.load(pvSite, startTodayMilli, endTodayMilli, pvSiteStartMilli);
-    }
-
-    public Flux<LiveDashboardUpdateDto> subscribeToLiveUpdates(PVSiteEntity pvSiteEntity, UserSessionContext sessionContext) {
-        return monitoringService.hookIntoLiveData(pvSiteEntity).map(pvSiteData -> {
-            return getLiveDashboardData(pvSiteEntity, sessionContext.getLocale(), sessionContext.getCurrency(), pvSiteData);
-        });
     }
 
     public @NonNull LiveDashboardUpdateDto getLiveDashboardData(PVSiteEntity pvSiteEntity, Locale locale, CustomCurrency userCurrency, PVSiteDataDTO pvSiteData) {
@@ -213,9 +196,7 @@ public class DashboardFacadeService {
                 ? clamp(pvSiteData.getTotalMinerPowerKw() / pvSiteData.getLoadPowerKw(), 0, 1)
                 : 0;
         double estimatedGridPowerWatts = Math.min(actualMinerPowerWatts, pvSiteData.getImportPowerKw() * 1000 * minerShare);
-        double estimatedBatteryPowerWatts = Math.min(
-                Math.max(0, actualMinerPowerWatts - estimatedGridPowerWatts),
-                Math.max(0, -batteryPower) * 1000 * minerShare
+        double estimatedBatteryPowerWatts = Math.clamp(actualMinerPowerWatts - estimatedGridPowerWatts, 0, Math.max(0, -batteryPower) * 1000 * minerShare
         );
         double estimatedPvPowerWatts = Math.max(0, actualMinerPowerWatts - estimatedGridPowerWatts - estimatedBatteryPowerWatts);
         MiningOverviewDto miningDto = new MiningOverviewDto(

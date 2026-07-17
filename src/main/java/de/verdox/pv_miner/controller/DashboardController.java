@@ -1,5 +1,6 @@
 package de.verdox.pv_miner.controller;
 
+import de.verdox.pv_miner.dashboard.DashboardChartQueryService;
 import de.verdox.pv_miner.dashboard.DashboardFacadeService;
 import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.dto.*;
@@ -33,15 +34,17 @@ public class DashboardController {
     private final MinerClusterService clusterService;
     private final DashboardFacadeService dashboardFacadeService;
     private final EntityQueryService entityQueryService;
+    private final DashboardChartQueryService dashboardChartQueryService;
 
     public DashboardController(PVSiteRepository pvSiteRepository,
                                MinerClusterService clusterService,
                                DashboardFacadeService dashboardFacadeService,
-                               EntityQueryService entityQueryService) {
+                               EntityQueryService entityQueryService, DashboardChartQueryService dashboardChartQueryService) {
         this.pvSiteRepository = pvSiteRepository;
         this.clusterService = clusterService;
         this.dashboardFacadeService = dashboardFacadeService;
         this.entityQueryService = entityQueryService;
+        this.dashboardChartQueryService = dashboardChartQueryService;
     }
 
     /**
@@ -127,9 +130,7 @@ public class DashboardController {
                 .toInstant()
                 .toEpochMilli();
 
-        DashboardChartDataDto statistics = dashboardFacadeService
-                .loadChartData(pvSite, todayStart, todayEnd, siteStart)
-                .join();
+        DashboardChartDataDto statistics = dashboardChartQueryService.load(pvSite, todayStart, todayEnd, siteStart).join();
 
         List<String> clusterNames = clusterService.getAvailableClusterNames().stream().sorted().toList();
         String selectedCluster = clusterNames.contains(clusterName)
