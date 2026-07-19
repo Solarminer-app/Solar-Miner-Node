@@ -273,7 +273,7 @@ export default function SetupPage() {
             return;
         }
         const rawValues = {...(providerValues[selectedSourceOption.id] ?? {})};
-        const values = {
+        const values: Record<string, string> = {
             ...rawValues,
             host: rawValues.host || endpointLabel(rawValues),
             port: rawValues.port || rawValues.baudRate || '',
