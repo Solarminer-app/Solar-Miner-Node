@@ -3,8 +3,19 @@ plugins {
     id("maven-publish")
 }
 
-group = "de.verdox.solarminer"
-version = "0.0.1-SNAPSHOT"
+description = "SolarMiner PV API"
+
+base {
+    archivesName.set("pv-api")
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+
+    withSourcesJar()
+}
 
 repositories {
     mavenCentral()
@@ -40,32 +51,101 @@ publishing {
         create<MavenPublication>("maven") {
             from(components["java"])
 
+            artifactId = "pv-api"
+
             pom {
-                url = "https://github.com/Solarminer-app/Solar-Miner-Node"
+                name.set("SolarMiner PV API")
+
+                description.set(
+                    "Shared API types for SolarMiner " +
+                            "photovoltaic integrations."
+                )
+
+                url.set(
+                    "https://github.com/" +
+                            "Solarminer-app/Solar-Miner-Node"
+                )
+
                 licenses {
                     license {
-                        name = "GNU AFFERO GENERAL PUBLIC LICENSE Version 3"
-                        url = "https://github.com/Solarminer-app/Solar-Miner-Node?tab=AGPL-3.0-1-ov-file"
+                        name.set(
+                            "GNU Affero General Public License v3.0"
+                        )
+
+                        url.set(
+                            "https://github.com/" +
+                                    "Solarminer-app/" +
+                                    "Solar-Miner-Node/blob/master/LICENSE"
+                        )
                     }
                 }
+
                 developers {
                     developer {
-                        id = "verdox"
-                        name = "Lukas Jonsson"
-                        email = "mail.ysp@web.de"
+                        id.set("verdox")
+                        name.set("Lukas Jonsson")
+                        email.set("mail.ysp@web.de")
                     }
+                }
+
+                scm {
+                    connection.set(
+                        "scm:git:git://github.com/" +
+                                "Solarminer-app/" +
+                                "Solar-Miner-Node.git"
+                    )
+
+                    developerConnection.set(
+                        "scm:git:ssh://github.com/" +
+                                "Solarminer-app/" +
+                                "Solar-Miner-Node.git"
+                    )
+
+                    url.set(
+                        "https://github.com/" +
+                                "Solarminer-app/Solar-Miner-Node"
+                    )
                 }
             }
         }
     }
-/*    repositories {
+
+    repositories {
         maven {
             name = "verdox"
-            url = uri("https://repo.verdox.de/snapshots")
+
+            val snapshotsRepository =
+                providers.gradleProperty(
+                    "pvApiSnapshotsRepository"
+                )
+
+            val releasesRepository =
+                providers.gradleProperty(
+                    "pvApiReleasesRepository"
+                )
+
+            val isSnapshot =
+                project.version
+                    .toString()
+                    .endsWith("-SNAPSHOT")
+
+            url = uri(
+                if (isSnapshot) {
+                    snapshotsRepository.get()
+                } else {
+                    releasesRepository.get()
+                }
+            )
+
             credentials {
-                username = (findProperty("reposilite.verdox.user") ?: System.getenv("REPO_USER")).toString()
-                password = (findProperty("reposilite.verdox.key") ?: System.getenv("REPO_PASSWORD")).toString()
+                username = providers
+                    .environmentVariable("REPO_USER")
+                    .orNull
+
+                password = providers
+                    .environmentVariable("REPO_PASSWORD")
+                    .orNull
             }
         }
-    }*/
+    }
 }

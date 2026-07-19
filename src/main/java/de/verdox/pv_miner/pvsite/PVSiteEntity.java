@@ -45,6 +45,11 @@ public class PVSiteEntity extends AbstractAuditableEntity implements QueryEntity
 
     @Setter
     @Getter
+    @Column(name = "referral_code", length = 128)
+    private String referralCode;
+
+    @Setter
+    @Getter
     private int batteryCapacityWh;
 
     @Setter
@@ -132,7 +137,7 @@ public class PVSiteEntity extends AbstractAuditableEntity implements QueryEntity
     }
 
     public double getKwp() {
-        return inverters.stream().flatMap(inverterEntity -> getPvPanels().stream()).mapToDouble(PVPanels::getMaxPowerInKw).sum();
+        return getPvPanels().stream().mapToDouble(PVPanels::getMaxPowerInKw).sum();
     }
 
     public Money getPvCost() {

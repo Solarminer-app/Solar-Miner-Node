@@ -15,8 +15,8 @@ public class RestBatteryQueryStrategy extends RestQueryStrategy<BatteryDataDTO, 
 
         double stateOfChargePct = evaluateEntry("state_of_charge", config, client, calculatedValues, provider);
         double currentPowerW = evaluateEntry("current_power", config, client, calculatedValues, provider);
-        double currentMaxChargePowerW = evaluateEntry("current_max_charge_power", config, client, calculatedValues, provider);
-        double currentMaxDischargePowerW = evaluateEntry("current_max_discharge_power", config, client, calculatedValues, provider);
+        double currentMaxChargePowerW = evaluateEntry("max_charge_power", config, client, calculatedValues, provider);
+        double currentMaxDischargePowerW = evaluateEntry("max_discharge_power", config, client, calculatedValues, provider);
         double stateOfHealthPct = evaluateEntry("state_of_health", config, client, calculatedValues, provider);
         double temperatureC = evaluateEntry("temperature", config, client, calculatedValues, provider);
 

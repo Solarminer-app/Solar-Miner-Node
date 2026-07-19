@@ -25,15 +25,14 @@ public class ClusterController {
     private final EntityService entityService;
     private final List<UUID> minerCluster;
     private final PVSiteRef pvSiteReference;
-    private final MinerControllerConfig config;
+    private volatile MinerControllerConfig config;
     private final Consumer<MinerClusterService.ClusterInstance.ClusterStateSnapshot> stateLogger;
     private String tickEventMessage = null;
 
     private final Map<UUID, MinerLock> activeLocks = new ConcurrentHashMap<>();
 
-    private ControllerDSL.OperatingMode activeMode = null;
-
     private final InfluxValueProvider influxValueProvider = new InfluxValueProvider();
+    private final ControllerDecisionEngine decisionEngine = new ControllerDecisionEngine();
 
     public ClusterController(String clusterName, EntityService entityService, List<UUID> minerCluster, PVSiteRef pvSiteReference, MinerControllerConfig config, Consumer<MinerClusterService.ClusterInstance.ClusterStateSnapshot> stateLogger) {
         this.clusterName = clusterName;
@@ -48,7 +47,12 @@ public class ClusterController {
         return java.util.Collections.unmodifiableMap(this.activeLocks);
     }
 
-    public void evaluate() {
+    public synchronized void updateConfig(MinerControllerConfig config) {
+        this.config = Objects.requireNonNull(config);
+        this.decisionEngine.reset();
+    }
+
+    public synchronized void evaluate() {
         if (minerCluster.isEmpty()) return;
         this.tickEventMessage = null;
         var pvSite = pvSiteReference.read();
@@ -58,35 +62,18 @@ public class ClusterController {
 
         try {
             double totalClusterCapacity = calculateTotalClusterCapacity(queryService);
-            double currentTickTargetPower = 0.0;
-            ControllerDSL.OperatingMode nextMode = null;
+            ControllerDecisionEngine.Decision decision = decisionEngine.evaluate(
+                    config,
+                    influxValueProvider,
+                    pvSite,
+                    totalClusterCapacity
+            );
+            ControllerDSL.OperatingMode activeMode = decision.activeMode();
 
-            for (Map.Entry<String, ControllerDSL.OperatingMode> entry : config.getConfigEntries().entrySet()) {
-                ControllerDSL.OperatingMode mode = entry.getValue();
-
-                if (activeMode != null && activeMode.modeName().equals(mode.modeName())) {
-                    if (!mode.stopCondition().evaluate(influxValueProvider, pvSite)) {
-                        nextMode = mode;
-                        break;
-                    } else {
-                        String msg = "Stop condition met for '" + mode.modeName() + "'";
-                        LOGGER.info("Cluster " + clusterName + " dropping mode: " + msg);
-                    }
-                }
-                else if (mode.startCondition().evaluate(influxValueProvider, pvSite)) {
-                    String msg = "Start condition met for '" + mode.modeName() + "'";
-                    LOGGER.info("Cluster " + clusterName + " starting mode: " + msg);
-                    nextMode = mode;
-                    break;
-                }
-            }
-
-            if (activeMode != nextMode) {
+            if (decision.modeChanged()) {
                 LOGGER.info("Cluster " + clusterName + " State Transition: " +
-                        (activeMode != null ? activeMode.modeName() : "NONE") + " -> " +
-                        (nextMode != null ? nextMode.modeName() : "NONE"));
-
-                activeMode = nextMode;
+                        (decision.previousMode() != null ? decision.previousMode().modeName() : "NONE") + " -> " +
+                        (activeMode != null ? activeMode.modeName() : "NONE"));
 
                 if (activeMode == null) {
                     pauseAllUnlockedMiners(controllerService, queryService);
@@ -98,21 +85,15 @@ public class ClusterController {
             }
 
             if (activeMode != null) {
-                for (ControllerDSL.ControllerAction action : activeMode.actions()) {
+                for (ControllerDSL.ControllerAction action : decision.actions()) {
                     if (action.controllerActionType() != ControllerDSL.ControllerActionType.SET_POWER_TARGET) {
                         executeDynamicDistribution(controllerService, queryService, action, 0.0, activeMode);
                     }
                 }
 
-                ControllerDSL.ControllerAction powerAction = activeMode.actions().stream()
-                        .filter(a -> a.controllerActionType() == ControllerDSL.ControllerActionType.SET_POWER_TARGET)
-                        .findFirst()
-                        .orElse(null);
-
+                ControllerDSL.ControllerAction powerAction = decision.powerAction();
                 if (powerAction != null) {
-                    double targetPowerWatts = powerAction.valueExpression().evaluate(influxValueProvider, pvSite, totalClusterCapacity);
-                    currentTickTargetPower = targetPowerWatts;
-                    executeDynamicDistribution(controllerService, queryService, powerAction, targetPowerWatts, activeMode);
+                    executeDynamicDistribution(controllerService, queryService, powerAction, decision.targetPowerWatts(), activeMode);
                 }
             }
 
@@ -122,7 +103,7 @@ public class ClusterController {
 
             stateLogger.accept(new MinerClusterService.ClusterInstance.ClusterStateSnapshot(
                     Instant.now(),
-                    currentTickTargetPower,
+                    decision.targetPowerWatts(),
                     totalAllocatedPower,
                     activeMode != null ? activeMode.modeName() : "Idle",
                     tickEventMessage

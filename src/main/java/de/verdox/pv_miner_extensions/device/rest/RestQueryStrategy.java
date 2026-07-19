@@ -45,7 +45,11 @@ public abstract class RestQueryStrategy<RESULT extends QueryResult, REST_ENTITY 
         catch (NoSuchElementException e) {
             return 0;
         }
-        double rawValue = client.read(entry);
+        RestPVConfig.Entry<?> rawEntry = new RestPVConfig.Entry<>(
+                entry.urlExtension(), entry.httpMethod(), entry.responseType(), entry.dataPath(),
+                1.0f, "x", entry.restParameterType()
+        );
+        double rawValue = client.read(rawEntry);
         double evaluatedValue = FormulaEngine.evaluate(rawValue, entry.formula(), provider);
         double finalValue = evaluatedValue * entry.scaleFactor();
         calculatedValues.put(id, finalValue);

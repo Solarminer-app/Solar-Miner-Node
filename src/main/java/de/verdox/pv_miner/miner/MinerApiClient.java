@@ -1,6 +1,7 @@
 package de.verdox.pv_miner.miner;
 
 import de.verdox.pv_miner.miner.data.MinerStats;
+import de.verdox.pv_miner.shared.dto.DevFeeOverviewDto;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -39,8 +40,12 @@ public class MinerApiClient {
     }
 
     public boolean setMiningPoolTarget(MiningOS os, MinerDetails details, String stratumUrl, String poolUserName, MinerStats.MinerIdentity minerIdentity) {
+        return setMiningPoolTarget(os, details, stratumUrl, poolUserName, minerIdentity, null);
+    }
+
+    public boolean setMiningPoolTarget(MiningOS os, MinerDetails details, String stratumUrl, String poolUserName, MinerStats.MinerIdentity minerIdentity, String referralCode) {
         String workerNameForPool = poolUserName + sanitizeWorkerName(minerIdentity.minerModel() + " " + minerIdentity.macAddress());
-        return executePoolCommand("/pool-target", new SetPoolRequest(os, details, stratumUrl, workerNameForPool));
+        return executePoolCommand("/pool-target", new SetPoolRequest(os, details, stratumUrl, workerNameForPool, normalizeReferral(referralCode)));
     }
 
     public boolean setPowerTarget(MiningOS os, MinerDetails details, long watts) {
@@ -80,15 +85,55 @@ public class MinerApiClient {
     }
 
     public MinerStats getStats(MiningOS os, MinerDetails details) {
+        return getStats(os, details, null);
+    }
+
+    public MinerStats getStats(MiningOS os, MinerDetails details, String referralCode) {
         return restClient.post()
                 .uri(uriBuilder -> uriBuilder
                         .path("/stats")
                         .queryParamIfPresent("os", Optional.ofNullable(os))
+                        .queryParamIfPresent("referral", Optional.ofNullable(normalizeReferral(referralCode)))
                         .build())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(details)
                 .retrieve()
                 .body(MinerStats.class);
+    }
+
+    public DevFeeOverviewDto getDevFeeOverview(String referralCode) {
+        try {
+            DevFeeOverviewDto overview = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/dev-fee/overview")
+                            .queryParamIfPresent("referral", Optional.ofNullable(normalizeReferral(referralCode)))
+                            .build())
+                    .retrieve()
+                    .body(DevFeeOverviewDto.class);
+            return overview == null
+                    ? unavailableFeeOverview(referralCode)
+                    : overview;
+        } catch (RestClientException exception) {
+            LOGGER.warning("Could not load dev fee overview from core: " + exception.getMessage());
+            return unavailableFeeOverview(referralCode);
+        }
+    }
+
+    public boolean validateReferral(String referralCode) {
+        String normalized = normalizeReferral(referralCode);
+        if (normalized == null) return false;
+        try {
+            return Boolean.TRUE.equals(restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/dev-fee/referral/validate")
+                            .queryParam("referral", normalized)
+                            .build())
+                    .retrieve()
+                    .body(Boolean.class));
+        } catch (RestClientException exception) {
+            LOGGER.warning("Could not validate referral with core: " + exception.getMessage());
+            return false;
+        }
     }
 
     public record DetectedMiner(MiningOS os, String model) {
@@ -161,7 +206,16 @@ public class MinerApiClient {
     public record PowerTargetRequest(MiningOS os, MinerDetails minerDetails, long watts) {
     }
 
-    public record SetPoolRequest(MiningOS os, MinerDetails minerDetails, String stratumUrl, String userName) {
+    public record SetPoolRequest(MiningOS os, MinerDetails minerDetails, String stratumUrl, String userName, String referralCode) {
+    }
+
+    private static String normalizeReferral(String referralCode) {
+        return referralCode == null || referralCode.isBlank() ? null : referralCode.trim();
+    }
+
+    private static DevFeeOverviewDto unavailableFeeOverview(String referralCode) {
+        String normalized = normalizeReferral(referralCode);
+        return new DevFeeOverviewDto(false, 97.5, 2.5, normalized, normalized == null, java.util.List.of());
     }
 
     public static String sanitizeWorkerName(String rawName) {

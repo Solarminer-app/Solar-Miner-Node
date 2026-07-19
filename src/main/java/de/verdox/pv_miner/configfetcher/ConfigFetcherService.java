@@ -1,6 +1,5 @@
 package de.verdox.pv_miner.configfetcher;
 
-import de.verdox.pv_miner.frontend.setup.DeviceProfile;
 import de.verdox.solarminer.modbustcp.ModbusConfig;
 import de.verdox.solarminer.rest.RestPVConfig;
 import de.verdox.vserializer.generic.SerializationElement;
@@ -119,5 +118,12 @@ public class ConfigFetcherService {
 
     public Optional<RestPVConfig> getRestPVConfig(String deviceName) {
         return Optional.ofNullable(cachedRestPVConfigs.get(deviceName));
+    }
+
+    public record DeviceProfile(String name, List<String> supportedProtocols) {
+        @Override
+        public String toString() {
+            return name + " (" + String.join("/", supportedProtocols) + ")";
+        }
     }
 }

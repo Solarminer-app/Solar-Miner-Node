@@ -91,6 +91,7 @@ public class XmrMinerService {
                 currentHashesPerSecond / Math.pow(10, 12),
                 readCPUTemperature(),
                 desiredPowerUsage,
+                desiredPowerUsage,
                 estimatedMaxCpuWattage,
                 estimatedMaxCpuWattage,
                 getWattage(),

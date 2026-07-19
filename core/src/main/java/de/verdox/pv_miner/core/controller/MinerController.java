@@ -5,6 +5,8 @@ import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.service.MinerDiscoveryService;
 import de.verdox.pv_miner.core.service.MinerService;
+import de.verdox.pv_miner.core.service.DevFeeService;
+import de.verdox.pv_miner.shared.dto.DevFeeOverviewDto;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -12,10 +14,12 @@ import org.springframework.web.bind.annotation.*;
 public class MinerController {
     private final MinerService minerService;
     private final MinerDiscoveryService minerDiscoveryService;
+    private final DevFeeService devFeeService;
 
-    public MinerController(MinerService minerService, MinerDiscoveryService minerDiscoveryService) {
+    public MinerController(MinerService minerService, MinerDiscoveryService minerDiscoveryService, DevFeeService devFeeService) {
         this.minerService = minerService;
         this.minerDiscoveryService = minerDiscoveryService;
+        this.devFeeService = devFeeService;
     }
 
     @PostMapping("/check-standard-credentials")
@@ -23,7 +27,7 @@ public class MinerController {
             @RequestBody MinerDetails details,
             @RequestParam(name = "os", required = false) MiningOS os
     ) {
-        return minerService.checkIfStandardCredentialsWork(os, details.id().toString(), details);
+        return minerService.checkIfStandardCredentialsWork(os, details);
     }
 
     @PostMapping("/check-custom-credentials")
@@ -31,7 +35,7 @@ public class MinerController {
             @RequestBody MinerDetails details,
             @RequestParam(name = "os", required = false) MiningOS os
     ) {
-        return minerService.checkIfCustomCredentialsWork(os, details.id().toString(), details);
+        return minerService.checkIfCustomCredentialsWork(os, details);
     }
 
     @PostMapping("/identify-os")
@@ -73,7 +77,7 @@ public class MinerController {
 
     @PostMapping("/pool-target")
     public boolean setPoolTarget(@RequestBody SetPoolRequest request) {
-        return minerService.setPoolTarget(request.os(), request.minerDetails(), request.stratumUrl(), request.userName());
+        return minerService.setPoolTarget(request.os(), request.minerDetails(), request.stratumUrl(), request.userName(), request.referralCode());
     }
 
     @PostMapping("/power-target")
@@ -94,14 +98,25 @@ public class MinerController {
     @PostMapping("/stats")
     public MinerStats getStats(
             @RequestBody MinerDetails details,
-            @RequestParam(name = "os", required = false) MiningOS os
+            @RequestParam(name = "os", required = false) MiningOS os,
+            @RequestParam(name = "referral", required = false) String referralCode
     ) {
-        return minerService.queryStats(os, details.id().toString(), details);
+        return minerService.queryStats(os, details.id().toString(), details, referralCode);
+    }
+
+    @GetMapping("/dev-fee/overview")
+    public DevFeeOverviewDto getDevFeeOverview(@RequestParam(name = "referral", required = false) String referralCode) {
+        return devFeeService.getOverview("bitcoin", referralCode);
+    }
+
+    @GetMapping("/dev-fee/referral/validate")
+    public boolean validateReferral(@RequestParam("referral") String referralCode) {
+        return devFeeService.validateReferral("bitcoin", referralCode);
     }
 
     public record PowerTargetRequest(MiningOS os, MinerDetails minerDetails, long watts) {
     }
 
-    public record SetPoolRequest(MiningOS os, MinerDetails minerDetails, String stratumUrl, String userName) {
+    public record SetPoolRequest(MiningOS os, MinerDetails minerDetails, String stratumUrl, String userName, String referralCode) {
     }
 }

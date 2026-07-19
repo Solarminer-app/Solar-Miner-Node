@@ -44,9 +44,6 @@ public class BraiinsPoolEntity extends MiningPoolEntity<BraiinsPoolEntity.Braiin
 
         @Override
         public double calculateSatoshiRewardToday(String workerName) {
-            if (estimatedReward != 0) {
-                return estimatedReward;
-            }
             GlobalConstantsService globalConstantsService = SpringContextHelper.getBean(GlobalConstantsService.class);
 
             double generatedShares = workerData().stream()
@@ -56,13 +53,14 @@ public class BraiinsPoolEntity extends MiningPoolEntity<BraiinsPoolEntity.Braiin
 
             float braiinsPoolFee = 0.02f;
 
-            return brainsPayoutEstimator.calculateRewardForDay(
+            var calculated = brainsPayoutEstimator.calculateRewardForDay(
                     globalConstantsService.getTodayMiningDifficulty(),
                     globalConstantsService.getTodayBlockSubsidy(),
                     globalConstantsService.getTodayAverageTxPrice24h(),
                     generatedShares,
                     braiinsPoolFee
             );
+            return Math.min(estimatedReward, calculated);
         }
 
         @Override

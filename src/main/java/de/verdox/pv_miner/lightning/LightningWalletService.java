@@ -317,6 +317,29 @@ public class LightningWalletService {
         }
     }
 
+    public boolean sendPayment(String target, long amount) {
+        if (target == null || target.isBlank()) return false;
+        try {
+            String cleanTarget = target.trim();
+            PhoenixDTOs.PayResponse response;
+
+            if (cleanTarget.startsWith("lnbc")) {
+                response = phoenixClient.payBolt11Invoice(cleanTarget, amount);
+            } else if (cleanTarget.toLowerCase().startsWith("lno")) {
+                response = phoenixClient.payBolt12Offer(cleanTarget, amount, "Paid via Miner WebUI");
+            } else if (cleanTarget.contains("@")) {
+                response = phoenixClient.payLightningAddress(cleanTarget, amount, "Paid via Miner WebUI");
+            } else {
+                return false;
+            }
+
+            return response != null && response.paymentId() != null;
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     public boolean sendPayment(String target) {
         if (target == null || target.isBlank()) return false;
         try {

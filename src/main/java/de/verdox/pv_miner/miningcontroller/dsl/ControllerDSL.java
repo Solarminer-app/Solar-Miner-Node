@@ -103,20 +103,20 @@ public class ControllerDSL {
         CURRENT_HOUR_OF_DAY("Current time as hour of day [0.0 ; 24.0)") {
             @Override
             public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                java.time.LocalTime now = java.time.LocalTime.now(pvSiteEntity.getZoneId());
+                java.time.LocalTime now = controllerValueProvider.getCurrentTime(pvSiteEntity).toLocalTime();
                 return now.getHour() + (now.getMinute() / 60.0);
             }
         },
         SUNRISE_HOUR("Time of sunrise as decimal hour [0.0 ; 24.0)") {
             @Override
             public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                return calculateSunEvent(pvSiteEntity, true);
+                return calculateSunEvent(controllerValueProvider, pvSiteEntity, true);
             }
         },
         SUNSET_HOUR("Time of sunset as decimal hour [0.0 ; 24.0)") {
             @Override
             public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {
-                return calculateSunEvent(pvSiteEntity, false);
+                return calculateSunEvent(controllerValueProvider, pvSiteEntity, false);
             }
         },
         IS_DAYLIGHT("1.0 if sun is up, 0.0 if sun is down") {
@@ -430,7 +430,7 @@ public class ControllerDSL {
         }
     }
 
-    private static double calculateSunEvent(PVSiteEntity pvSiteEntity, boolean isSunrise) {
+    private static double calculateSunEvent(ControllerValueProvider valueProvider, PVSiteEntity pvSiteEntity, boolean isSunrise) {
         Set<PVPanels> panels = pvSiteEntity.getPvPanels();
 
         if (panels == null || panels.isEmpty()) {
@@ -452,7 +452,7 @@ public class ControllerDSL {
         }
 
         org.shredzone.commons.suncalc.SunTimes times = org.shredzone.commons.suncalc.SunTimes.compute()
-                .on(java.time.ZonedDateTime.now(zoneId))
+                .on(valueProvider.getCurrentTime(pvSiteEntity).withZoneSameInstant(zoneId))
                 .at(centroidLat, centroidLon)
                 .execute();
 

@@ -2,18 +2,19 @@ import org.springframework.boot.gradle.tasks.bundling.BootBuildImage
 
 plugins {
     java
-    id("org.springframework.boot") version "3.4.3"
-    id("io.spring.dependency-management") version "1.1.7"
-    id("org.graalvm.buildtools.native") version "0.10.6"
+    id("org.springframework.boot")
+    id("io.spring.dependency-management")
+    id("org.graalvm.buildtools.native")
 }
 
-group = "de.verdox.pv_miner"
-version = "0.0.1-SNAPSHOT"
-description = "core"
+description = "SolarMiner Core"
 
-tasks.bootBuildImage {
-    imageName.set("verdox/solar-miner-core:${project.version}")
-    tags.add("verdox/solar-miner-core:latest")
+base {
+    archivesName.set("solar-miner-core")
+}
+
+springBoot {
+    buildInfo()
 }
 
 java {
@@ -46,6 +47,9 @@ dependencies {
 
     implementation("io.grpc:grpc-stub:1.45.1")
     implementation("com.google.protobuf:protobuf-java:3.21.12")
+
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.withType<Test> {
@@ -53,6 +57,14 @@ tasks.withType<Test> {
 }
 
 tasks.named<BootBuildImage>("bootBuildImage") {
+    val coreImage = providers.gradleProperty("coreImage")
+
+    imageName.set(
+        coreImage.map { image ->
+            "$image:${project.version}"
+        }
+    )
+
     environment.put("BP_NATIVE_IMAGE_BUILD_ARGUMENTS", "-march=compatibility")
     docker {
         publishRegistry {

@@ -23,6 +23,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -34,6 +35,11 @@ import java.util.logging.Logger;
 @Service
 public class InfluxService {
     private static final Logger LOGGER = Logger.getLogger(InfluxService.class.getSimpleName());
+    private static final int CONNECT_TIMEOUT_SECONDS = 5;
+    private static final int WRITE_TIMEOUT_SECONDS = 15;
+    private static final int READ_TIMEOUT_SECONDS = 30;
+    private static final int WRITE_BUFFER_LIMIT = 10_000;
+    private static final int WRITE_FLUSH_INTERVAL_MILLIS = 1_000;
 
     @Getter
     @Value("${influxdb.url}")
@@ -52,6 +58,7 @@ public class InfluxService {
     private String influxBucket;
 
     private InfluxDBClient influxDBClient;
+    private WriteApi writeApi;
     private final Map<Class<? extends QueryEntity>, InfluxEntityStrategy<?, ? extends QueryResult>> strategies = new HashMap<>();
 
     @PostConstruct
@@ -68,9 +75,10 @@ public class InfluxService {
                 .bucket(influxBucket)
                 .okHttpClient(
                         new OkHttpClient.Builder()
-                                .connectTimeout(30, TimeUnit.SECONDS)
-                                .writeTimeout(30, TimeUnit.MINUTES)
-                                .readTimeout(30, TimeUnit.MINUTES)
+                                .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                                .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                                .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                                .callTimeout(60, TimeUnit.SECONDS)
                 )
                 .build();
         this.influxDBClient = InfluxDBClientFactory.create(options);
@@ -80,9 +88,15 @@ public class InfluxService {
         if (this.influxDBClient.ping()) {
             LOGGER.info("Received answer from influx db with version: " + this.influxDBClient.version());
         } else {
-            LOGGER.log(Level.SEVERE, "Received no answer from influx db (url = " + influxUrl + ", token = " + influxToken + ", influxOrg = " + influxOrg + ", influxBucket = " + influxBucket + ")");
+            LOGGER.log(Level.SEVERE, "Received no answer from influx db (url = " + influxUrl + ", influxOrg = " + influxOrg + ", influxBucket = " + influxBucket + ")");
+            this.influxDBClient.close();
+            this.influxDBClient = null;
             throw new IllegalStateException("Influx not reachable on system start.");
         }
+
+        // WriteApi owns a background scheduler and is explicitly designed to be a singleton.
+        // Creating one per sample leaks a thread per write, especially while InfluxDB is offline.
+        this.writeApi = influxDBClient.makeWriteApi(createWriteOptions());
 
         strategies.put(PVSiteEntity.class, new PVSiteInfluxStrategy());
         strategies.put(MinerEntity.class, new MinerInfluxStrategy());
@@ -103,10 +117,36 @@ public class InfluxService {
         if (strategy == null) {
             throw new IllegalStateException("No influx strategy found for type " + entity.getClass().getName());
         }
-        try (WriteApi writeApi = influxDBClient.makeWriteApi()) {
+        try {
             strategy.writeToInflux(writeApi, influxBucket, influxOrg, entity, result, time);
-        } catch (Throwable e) {
+        } catch (RuntimeException e) {
             LOGGER.log(Level.SEVERE, "Error while trying to write to influx", e);
+        }
+    }
+
+    static WriteOptions createWriteOptions() {
+        return WriteOptions.builder()
+                .batchSize(500)
+                .flushInterval(WRITE_FLUSH_INTERVAL_MILLIS)
+                .retryInterval(2_000)
+                .maxRetries(5)
+                .maxRetryDelay(15_000)
+                .maxRetryTime(60_000)
+                .bufferLimit(WRITE_BUFFER_LIMIT)
+                .build();
+    }
+
+    @PreDestroy
+    void closeInfluxClient() {
+        if (writeApi != null) {
+            try {
+                writeApi.close();
+            } catch (RuntimeException exception) {
+                LOGGER.log(Level.WARNING, "Could not close the Influx write buffer cleanly", exception);
+            }
+        }
+        if (influxDBClient != null) {
+            influxDBClient.close();
         }
     }
 

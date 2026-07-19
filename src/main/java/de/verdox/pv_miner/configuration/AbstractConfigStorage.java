@@ -3,12 +3,15 @@ package de.verdox.pv_miner.configuration;
 import de.verdox.vserializer.generic.SerializationElement;
 import de.verdox.vserializer.generic.Serializer;
 import de.verdox.vserializer.json.JsonSerializerContext;
+import lombok.Getter;
 import org.apache.commons.compress.utils.FileNameUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -16,6 +19,7 @@ import java.util.stream.Stream;
 
 public abstract class AbstractConfigStorage<T extends SimpleConfig<?>> {
     protected static final Logger LOGGER = Logger.getLogger(AbstractConfigStorage.class.getSimpleName());
+    @Getter
     private final File storageFolder;
     private final Serializer<T> serializer;
 
@@ -23,10 +27,6 @@ public abstract class AbstractConfigStorage<T extends SimpleConfig<?>> {
         this.storageFolder = storageFolder;
         this.serializer = serializer;
         initStorage();
-    }
-
-    public File getStorageFolder() {
-        return storageFolder;
     }
 
     protected List<String> getNameOfSavedFiles(File folder) throws IOException {
@@ -42,7 +42,18 @@ public abstract class AbstractConfigStorage<T extends SimpleConfig<?>> {
         saveFile.getParentFile().mkdirs();
         JsonSerializerContext jsonSerializerContext = new JsonSerializerContext();
         SerializationElement element = serializer.serialize(jsonSerializerContext, config);
-        jsonSerializerContext.writeToFile(element, saveFile);
+        Path target = saveFile.toPath();
+        Path temporaryFile = Files.createTempFile(target.getParent(), saveFile.getName() + ".", ".tmp");
+        try {
+            jsonSerializerContext.writeToFile(element, temporaryFile.toFile());
+            try {
+                Files.move(temporaryFile, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(temporaryFile, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temporaryFile);
+        }
         LOGGER.info("Saved config " + saveFile);
     }
 
@@ -78,21 +89,5 @@ public abstract class AbstractConfigStorage<T extends SimpleConfig<?>> {
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Could not initialize storage at " + storageFolder.getAbsolutePath(), e);
         }
-    }
-
-    /**
-     * Used in UI to access the repository
-     *
-     * @param <T> the config type
-     * @param <C> the config storage type
-     */
-    public interface UIConfigStorageAccessor<T extends SimpleConfig<?>, C extends AbstractConfigStorage<T>> {
-        Stream<String> loadAvailableConfigNames(C storage);
-
-        T loadFromStorage(C storage, String name) throws IOException;
-
-        boolean delete(C storage, String name) throws IOException;
-
-        void save(C storage, String name, T config) throws IOException;
     }
 }

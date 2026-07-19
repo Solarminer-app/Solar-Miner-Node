@@ -46,7 +46,11 @@ public abstract class ModbusQueryStrategy<RESULT extends QueryResult, MODBUS_ENT
         }
 
         ModbusConfig.Entry<?> entry = section.getEntryForId(id);
-        Object rawObj = client.read(offset, entry);
+        ModbusConfig.Entry<?> rawEntry = new ModbusConfig.Entry<>(
+                entry.startAddress(), entry.size(), 1.0f, "x", entry.modbusParameterType(),
+                entry.readOperationType(), entry.byteOrder()
+        );
+        Object rawObj = client.read(offset, rawEntry);
         double rawValue = 0.0;
         if (rawObj instanceof Number n) {
             rawValue = n.doubleValue();

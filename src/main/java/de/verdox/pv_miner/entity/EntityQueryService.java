@@ -25,8 +25,10 @@ import de.verdox.pv_miner_extensions.pools.nicehash.NiceHashPoolEntity;
 import de.verdox.pv_miner_extensions.pools.nicehash.NicehashPoolQueryStrategy;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -35,7 +37,9 @@ import java.util.logging.Logger;
 public class EntityQueryService {
     private static final Logger LOGGER = Logger.getLogger(EntityQueryService.class.getSimpleName());
     private final Map<Class<? extends QueryEntity<?>>, Strategy<?, ? extends QueryResult>> strategies = new HashMap<>();
-    private final Map<UUID, QueryResult> cachedLastQueries = new WeakHashMap<>();
+    private final Map<UUID, QueryResult> cachedLastQueries = new ConcurrentHashMap<>();
+    private final Map<UUID, Instant> lastSuccessfulQueries = new ConcurrentHashMap<>();
+    private final Map<UUID, Instant> lastFailedQueries = new ConcurrentHashMap<>();
 
     public EntityQueryService() {
         MinerQueryStrategy minerQueryStrategy = new MinerQueryStrategy();
@@ -63,11 +67,18 @@ public class EntityQueryService {
         }
         Strategy<B, Q> strategy = (Strategy<B, Q>) strategies.get(entity.getClass());
         Objects.requireNonNull(strategy);
-        Q result = strategy.query(this, entity);
-        if (result != null) {
-            cachedLastQueries.put(entity.getId(), result);
+        try {
+            Q result = strategy.query(this, entity);
+            if (result != null) {
+                cachedLastQueries.put(entity.getId(), result);
+                lastSuccessfulQueries.put(entity.getId(), Instant.now());
+                lastFailedQueries.remove(entity.getId());
+            }
+            return result;
+        } catch (Throwable throwable) {
+            lastFailedQueries.put(entity.getId(), Instant.now());
+            throw throwable;
         }
-        return result;
     }
 
     public <B extends QueryEntity<Q>, Q extends QueryResult> CompletableFuture<Boolean> ping(B entity, long timeout, TimeUnit timeoutUnit) {
@@ -86,6 +97,22 @@ public class EntityQueryService {
 
     public <B extends QueryEntity<Q>, Q extends QueryResult> Q getLastResult(B entity, Q defaultValue) {
         return (Q) cachedLastQueries.getOrDefault(entity.getId(), defaultValue);
+    }
+
+    public boolean hasLastResult(QueryEntity<?> entity) {
+        return entity != null && entity.getId() != null && cachedLastQueries.containsKey(entity.getId());
+    }
+
+    public Optional<Instant> getLastSuccessfulQueryAt(QueryEntity<?> entity) {
+        return entity == null || entity.getId() == null
+                ? Optional.empty()
+                : Optional.ofNullable(lastSuccessfulQueries.get(entity.getId()));
+    }
+
+    public Optional<Instant> getLastFailedQueryAt(QueryEntity<?> entity) {
+        return entity == null || entity.getId() == null
+                ? Optional.empty()
+                : Optional.ofNullable(lastFailedQueries.get(entity.getId()));
     }
 
     /**
