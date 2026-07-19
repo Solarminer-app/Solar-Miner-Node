@@ -12,9 +12,10 @@ import java.util.Map;
 public class RestInverterQueryStrategy extends RestQueryStrategy<InverterDataDTO, RestInverter> {
     @Override
     protected InverterDataDTO createResult(RestPVConfig.ConfigSection config, RestPVClient client, Map<String, Double> calculatedValues, VariableProvider provider) throws Exception {
-        double currentDcPowerW = evaluateEntry("current_dc_power", config, client, calculatedValues, provider);
+        double legacyPvPowerW = hasEntry(config, "pv_power") ? evaluateEntry("pv_power", config, client, calculatedValues, provider) * 1000.0 : 0;
+        double currentDcPowerW = hasEntry(config, "current_dc_power") ? evaluateEntry("current_dc_power", config, client, calculatedValues, provider) : legacyPvPowerW;
         double currentDcVoltageV = evaluateEntry("current_dc_voltage", config, client, calculatedValues, provider);
-        double currentAcPowerW = evaluateEntry("current_ac_power", config, client, calculatedValues, provider);
+        double currentAcPowerW = hasEntry(config, "current_ac_power") ? evaluateEntry("current_ac_power", config, client, calculatedValues, provider) : legacyPvPowerW;
         double currentAcVoltageV = evaluateEntry("current_ac_voltage", config, client, calculatedValues, provider);
         double gridFrequencyHz = evaluateEntry("grid_frequency", config, client, calculatedValues, provider);
         double totalEnergyYieldWh = evaluateEntry("total_energy_yield", config, client, calculatedValues, provider);

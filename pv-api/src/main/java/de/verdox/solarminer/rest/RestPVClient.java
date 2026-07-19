@@ -2,6 +2,7 @@ package de.verdox.solarminer.rest;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import de.verdox.solarminer.formula.FormulaEngine;
 import org.w3c.dom.Document;
 import org.xml.sax.InputSource;
 
@@ -18,16 +19,28 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class RestPVClient implements AutoCloseable {
     private final String baseUrl;
     private final String apiToken;
+    private final RestAuthenticationType authenticationType;
     private final HttpClient httpClient;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final Pattern JSON_EXPRESSION_PATH = Pattern.compile(
+            "\\$(?:(?:\\.[A-Za-z_][A-Za-z0-9_-]*)|(?:\\[(?:\\d+|\"[^\"]+\"|'[^']+')]))+");
 
     public RestPVClient(String baseUrl, String apiToken) {
+        this(baseUrl, apiToken, RestAuthenticationType.BEARER);
+    }
+
+    public RestPVClient(String baseUrl, String apiToken, RestAuthenticationType authenticationType) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.apiToken = apiToken;
+        this.authenticationType = authenticationType == null ? RestAuthenticationType.BEARER : authenticationType;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
@@ -47,9 +60,7 @@ public class RestPVClient implements AutoCloseable {
                 .header("Accept", acceptHeader)
                 .timeout(Duration.ofSeconds(5));
 
-        if(apiToken != null && !apiToken.isBlank()) {
-            requestBuilder.header("Authorization", "Bearer " + apiToken);
-        }
+        applyAuthentication(requestBuilder);
 
         if (entry.httpMethod() == RestHttpMethod.GET) {
             requestBuilder.GET();
@@ -63,22 +74,25 @@ public class RestPVClient implements AutoCloseable {
             throw new IOException("HTTP request failed with status code: " + response.statusCode() + " for URL: " + fullUrl);
         }
 
+        return parsePayload(response.body(), entry, fullUrl);
+    }
+
+    /** Parses a JSON, XML or plain-text device message without performing an HTTP request. */
+    public static double parsePayload(String body, RestPVConfig.Entry<?> entry, String source) throws Exception {
         String rawValueStr;
-
         if (entry.responseType() == RestResponseType.JSON) {
-            rawValueStr = extractFromJson(response.body(), entry.dataPath(), fullUrl);
+            rawValueStr = extractFromJson(body, entry.dataPath(), source);
         } else if (entry.responseType() == RestResponseType.XML) {
-            rawValueStr = extractFromXml(response.body(), entry.dataPath(), fullUrl);
+            rawValueStr = extractFromXml(body, entry.dataPath(), source);
         } else {
-            rawValueStr = response.body().trim();
+            rawValueStr = body.trim();
+            if (entry.dataPath() != null && entry.dataPath().startsWith("regex:")) {
+                rawValueStr = extractWithRegex(rawValueStr, entry.dataPath().substring("regex:".length()), source);
+            }
         }
-
-        Number parsedNumber = entry.restParameterType().parser().apply(rawValueStr);
-        double finalValue = parsedNumber.doubleValue();
-
-        finalValue = finalValue * entry.scaleFactor();
-
-        return finalValue;
+        String normalizedValue = RestValueParser.normalizeNumber(rawValueStr);
+        Number parsedNumber = entry.restParameterType().parser().apply(normalizedValue);
+        return parsedNumber.doubleValue() * entry.scaleFactor();
     }
 
     public void ping() throws IOException, InterruptedException {
@@ -87,9 +101,7 @@ public class RestPVClient implements AutoCloseable {
                 .uri(URI.create(baseUrl))
                 .GET()
                 .timeout(Duration.ofSeconds(3));
-        if(apiToken != null && !apiToken.isBlank()) {
-            builder.header("Authorization", "Bearer " + apiToken);
-        }
+        applyAuthentication(builder);
 
         HttpRequest request = builder.build();
 
@@ -103,29 +115,103 @@ public class RestPVClient implements AutoCloseable {
         return value;
     }
 
+    private void applyAuthentication(HttpRequest.Builder builder) {
+        if (apiToken == null || apiToken.isBlank() || authenticationType == RestAuthenticationType.NONE) return;
+        if (authenticationType == RestAuthenticationType.BASIC) {
+            String encoded = Base64.getEncoder().encodeToString(apiToken.getBytes(StandardCharsets.UTF_8));
+            builder.header("Authorization", "Basic " + encoded);
+        } else {
+            builder.header("Authorization", "Bearer " + apiToken);
+        }
+    }
+
     @Override
     public void close() {
     }
 
-    private String extractFromJson(String body, String path, String url) throws IOException {
-        JsonNode currentNode = objectMapper.readTree(body);
-        String cleanPath = path.startsWith("$.") ? path.substring(2) : (path.startsWith("$") ? path.substring(1) : path);
-
-        if (!cleanPath.isBlank()) {
-            String[] keys = cleanPath.split("\\.");
-            for (String key : keys) {
-                if (currentNode == null) break;
-                currentNode = currentNode.get(key);
-            }
+    static String extractFromJson(String body, String path, String url) throws IOException {
+        JsonNode currentNode = OBJECT_MAPPER.readTree(body);
+        if (path.startsWith("expr:")) {
+            return evaluateJsonExpression(currentNode, path.substring("expr:".length()), url);
         }
-
+        currentNode = resolveJsonPath(currentNode, path);
         if (currentNode == null || currentNode.isMissingNode() || currentNode.isNull()) {
             throw new IOException("Could not find json path '" + path + "' in response from " + url);
         }
         return currentNode.asText();
     }
 
-    private String extractFromXml(String body, String xpathStr, String url) throws Exception {
+    private static JsonNode resolveJsonPath(JsonNode currentNode, String path) {
+        String cleanPath = path.startsWith("$.") ? path.substring(2) : (path.startsWith("$") ? path.substring(1) : path);
+
+        if (!cleanPath.isBlank()) {
+            for (String segment : cleanPath.split("\\.")) {
+                Matcher tokenMatcher = Pattern.compile("([^\\[\\]]+)|\\[(\\d+)]|\\[[\"']([^\"']+)[\"']]").matcher(segment);
+                int consumed = 0;
+                while (tokenMatcher.find()) {
+                    if (tokenMatcher.start() != consumed || currentNode == null) {
+                        currentNode = null;
+                        break;
+                    }
+                    if (tokenMatcher.group(1) != null) {
+                        currentNode = currentNode.get(tokenMatcher.group(1));
+                    } else if (tokenMatcher.group(2) != null) {
+                        currentNode = currentNode.isArray() ? currentNode.get(Integer.parseInt(tokenMatcher.group(2))) : null;
+                    } else {
+                        currentNode = currentNode.get(tokenMatcher.group(3));
+                    }
+                    consumed = tokenMatcher.end();
+                }
+                if (consumed != segment.length()) currentNode = null;
+                if (currentNode == null) break;
+            }
+        }
+
+        return currentNode;
+    }
+
+    static String evaluateJsonExpression(JsonNode root, String expression, String url) throws IOException {
+        Matcher matcher = JSON_EXPRESSION_PATH.matcher(expression);
+        StringBuilder formula = new StringBuilder();
+        java.util.Map<String, Double> values = new java.util.HashMap<>();
+        int index = 0;
+        while (matcher.find()) {
+            JsonNode node = resolveJsonPath(root, matcher.group());
+            if (node == null || !node.isNumber()) {
+                throw new IOException("JSON expression path '" + matcher.group() + "' is not numeric in response from " + url);
+            }
+            String variable = "v" + index++;
+            values.put(variable, node.doubleValue());
+            matcher.appendReplacement(formula, Matcher.quoteReplacement("$" + variable));
+        }
+        matcher.appendTail(formula);
+        if (values.isEmpty() || !formula.toString().matches("[0-9v$+\\-*/%().\\s]+")) {
+            throw new IOException("Unsupported JSON expression for " + url);
+        }
+        double result = FormulaEngine.evaluate(0, formula.toString(), variable -> {
+            Double value = values.get(variable);
+            if (value == null) throw new IllegalArgumentException("Unknown JSON expression variable " + variable);
+            return value;
+        });
+        if (!Double.isFinite(result)) throw new IOException("JSON expression returned a non-finite value for " + url);
+        return Double.toString(result);
+    }
+
+    static String extractWithRegex(String body, String regex, String url) throws IOException {
+        Pattern pattern;
+        try {
+            pattern = Pattern.compile(regex);
+        } catch (RuntimeException exception) {
+            throw new IOException("Invalid response regex for " + url, exception);
+        }
+        Matcher matcher = pattern.matcher(body);
+        if (!matcher.find()) {
+            throw new IOException("Response regex did not match response from " + url);
+        }
+        return matcher.groupCount() > 0 ? matcher.group(1) : matcher.group();
+    }
+
+    static String extractFromXml(String body, String xpathStr, String url) throws Exception {
         int startIndex = body.indexOf("<?xml");
 
         if (startIndex == -1) {
@@ -141,6 +227,7 @@ public class RestPVClient implements AutoCloseable {
 
 
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
         factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
         factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
         factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
@@ -156,12 +243,34 @@ public class RestPVClient implements AutoCloseable {
 
         XPathFactory xPathfactory = XPathFactory.newInstance();
         XPath xpath = xPathfactory.newXPath();
-        XPathExpression expr = xpath.compile(xpathStr);
-
-        String result = expr.evaluate(doc);
+        String result = "";
+        try {
+            XPathExpression expr = xpath.compile(xpathStr);
+            result = expr.evaluate(doc);
+        } catch (javax.xml.xpath.XPathExpressionException ignored) {
+            // Prefixes used by a device are not necessarily known to the profile. The fallback below uses local names.
+        }
         if (result == null || result.isBlank()) {
-            return "";
+            String namespaceAgnosticPath = toNamespaceAgnosticXPath(xpathStr);
+            if (!namespaceAgnosticPath.equals(xpathStr)) {
+                result = xpath.compile(namespaceAgnosticPath).evaluate(doc);
+            }
+        }
+        if (result == null || result.isBlank()) {
+            throw new IOException("Could not find XML path '" + xpathStr + "' in response from " + url);
         }
         return result.trim();
+    }
+
+    static String toNamespaceAgnosticXPath(String xpath) {
+        Pattern element = Pattern.compile("(^|/)(?![/*.@])(?:[A-Za-z_][\\w.-]*:)?([A-Za-z_][\\w.-]*)(?=(?:/|\\[|$))");
+        Matcher matcher = element.matcher(xpath);
+        StringBuilder result = new StringBuilder();
+        while (matcher.find()) {
+            matcher.appendReplacement(result, Matcher.quoteReplacement(
+                    matcher.group(1) + "*[local-name()='" + matcher.group(2) + "']"));
+        }
+        matcher.appendTail(result);
+        return result.toString();
     }
 }

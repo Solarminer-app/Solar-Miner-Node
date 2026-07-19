@@ -32,16 +32,58 @@ public class RestPVConfig {
                     ConfigSection::new
             ).build();
 
-    public static final Serializer<RestPVConfig> SERIALIZER = SerializerBuilder.create("rest_config", RestPVConfig.class)
+    /** Reads component profiles written before request authentication became profile metadata. */
+    public static final Serializer<RestPVConfig> V1_SERIALIZER = SerializerBuilder.create("rest_config_v1", RestPVConfig.class)
             .constructor(
                     new SerializableField<>("sections", Serializer.Map.create(Serializer.Primitive.STRING, SECTION_SERIALIZER, HashMap::new), RestPVConfig::getSections),
                     RestPVConfig::new
             ).build();
 
+    public static final Serializer<RestPVConfig> SERIALIZER = SerializerBuilder.create("rest_config", RestPVConfig.class)
+            .constructor(
+                    new SerializableField<>("authenticationType", RestAuthenticationType.SERIALIZER, RestPVConfig::getAuthenticationType),
+                    new SerializableField<>("sections", Serializer.Map.create(Serializer.Primitive.STRING, SECTION_SERIALIZER, HashMap::new), RestPVConfig::getSections),
+                    RestPVConfig::new
+            ).build();
 
+    private record LegacyEntry<T extends Number>(String urlExtension, RestHttpMethod httpMethod, String jsonPath,
+                                                  float scaleFactor, String formula, RestParameterType<T> parameterType) {
+    }
+
+    private static final Serializer<LegacyEntry<?>> LEGACY_ENTRY_SERIALIZER = SerializerBuilder.create("legacy_rest_config_entry", new TypeToken<LegacyEntry<?>>() {})
+            .constructor(
+                    new SerializableField<>("urlExtension", Serializer.Primitive.STRING, LegacyEntry::urlExtension),
+                    new SerializableField<>("httpMethod", RestHttpMethod.SERIALIZER, LegacyEntry::httpMethod),
+                    new SerializableField<>("jsonPath", Serializer.Primitive.STRING, LegacyEntry::jsonPath),
+                    new SerializableField<>("scaleFactor", Serializer.Primitive.FLOAT, LegacyEntry::scaleFactor),
+                    new SerializableField<>("formula", Serializer.Primitive.STRING, LegacyEntry::formula),
+                    new SerializableField<>("parameterType", RestParameterType.SERIALIZER, LegacyEntry::parameterType),
+                    LegacyEntry::new
+            ).build();
+
+    public static final Serializer<RestPVConfig> LEGACY_SERIALIZER = SerializerBuilder.create("legacy_rest_config", RestPVConfig.class)
+            .constructor(
+                    new SerializableField<>("entries", Serializer.Map.create(Serializer.Primitive.STRING, LEGACY_ENTRY_SERIALIZER, HashMap::new),
+                            ignored -> Map.of()),
+                    entries -> {
+                        Map<String, Entry<?>> converted = new HashMap<>();
+                        entries.forEach((key, value) -> converted.put(key, new Entry<>(value.urlExtension(), value.httpMethod(),
+                                RestResponseType.JSON, value.jsonPath(), value.scaleFactor(), value.formula(), value.parameterType())));
+                        return new RestPVConfig(Map.of(RestConfigCreatorTemplate.HOME_ASSISTANT_PV.id(),
+                                new ConfigSection(RestConfigCreatorTemplate.HOME_ASSISTANT_PV.id(), "Migrated PV site", converted)));
+                    }
+            ).build();
+
+
+    private final RestAuthenticationType authenticationType;
     private final Map<String, ConfigSection> sections;
 
     public RestPVConfig(Map<String, ConfigSection> sections) {
+        this(RestAuthenticationType.BEARER, sections);
+    }
+
+    public RestPVConfig(RestAuthenticationType authenticationType, Map<String, ConfigSection> sections) {
+        this.authenticationType = authenticationType == null ? RestAuthenticationType.BEARER : authenticationType;
         this.sections = sections != null ? sections : new HashMap<>();
     }
 

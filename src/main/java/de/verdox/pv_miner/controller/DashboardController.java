@@ -1,5 +1,7 @@
 package de.verdox.pv_miner.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import de.verdox.pv_miner.dashboard.DashboardChartQueryService;
 import de.verdox.pv_miner.dashboard.DashboardFacadeService;
 import de.verdox.pv_miner.entity.EntityQueryService;
@@ -28,6 +30,7 @@ import static de.verdox.pv_miner.dto.DashboardPageDto.*;
 @RestController
 @RequestMapping("/api/pv-site/{siteId}/dashboard")
 @CrossOrigin(origins = "http://localhost:3000")
+@Tag(name = "Dashboard")
 public class DashboardController {
 
     private final PVSiteRepository pvSiteRepository;

@@ -14,6 +14,7 @@ public record PVSiteDetailsDto(
         int totalPanels,
         int totalGroups,
         List<PanelGroupDto> panelGroups,
+        List<PvDeviceDto> pvDevices,
         List<MinerCostDto> miners,
         List<PriceDto> feedInTariffs,
         List<PriceDto> electricityPrices
@@ -32,6 +33,19 @@ public record PVSiteDetailsDto(
     }
 
     public record MinerCostDto(UUID id, String name, String ipAddress, MoneyDto cost) {
+    }
+
+    public record PvDeviceDto(
+            UUID id,
+            String deviceType,
+            String name,
+            String providerId,
+            String host,
+            int port,
+            int slaveId,
+            String profileName,
+            String sectionKey
+    ) {
     }
 
     public record PriceDto(LocalDate validFrom, MoneyDto price) {

@@ -13,7 +13,7 @@ public class RestSmartMeterQueryStrategy extends RestQueryStrategy<SmartMeterDat
     @Override
     protected SmartMeterDataDTO createResult(RestPVConfig.ConfigSection config, RestPVClient client, Map<String, Double> calculatedValues, VariableProvider provider) throws Exception {
 
-        double totalActivePowerW = evaluateEntry("total_active_power", config, client, calculatedValues, provider);
+        double totalActivePowerW = hasEntry(config, "total_active_power") ? evaluateEntry("total_active_power", config, client, calculatedValues, provider) : evaluateEntry("grid_power", config, client, calculatedValues, provider) * 1000.0;
         double totalImportedWh = evaluateEntry("total_imported", config, client, calculatedValues, provider);
         double totalExportedWh = evaluateEntry("total_exported", config, client, calculatedValues, provider);
 

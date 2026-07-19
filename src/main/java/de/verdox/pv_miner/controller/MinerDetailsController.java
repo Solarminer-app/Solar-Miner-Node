@@ -1,5 +1,7 @@
 package de.verdox.pv_miner.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import de.verdox.pv_miner.dto.MinerDetailsPageDto;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.MinerRepository;
@@ -16,6 +18,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/pv-site/{siteId}/mining/miners/{minerId}")
+@Tag(name = "Miner analytics")
 public class MinerDetailsController {
     private final MinerRepository minerRepository;
     private final MinerAnalyticsService analyticsService;

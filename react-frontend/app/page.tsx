@@ -138,7 +138,7 @@ export default function PVSiteSelectionView() {
                         {t.linkLightning}
                     </a>
 
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-gray-500">
                         <a href="/config/pv/rest" target="_blank" rel="noopener noreferrer" className="hover:text-gray-300 transition-colors flex items-center gap-1">
                             <Activity size={14} /> {t.linkRest}
                         </a>
@@ -146,6 +146,12 @@ export default function PVSiteSelectionView() {
                         <a href="/config/pv/modbus/tcp" target="_blank" rel="noopener noreferrer" className="hover:text-gray-300 transition-colors flex items-center gap-1">
                             <Settings size={14} /> {t.linkModbus}
                         </a>
+                        <span>•</span>
+                        <a href="/config/pv/modbus/rtu" target="_blank" rel="noopener noreferrer" className="hover:text-gray-300 transition-colors">{t.linkModbusRtu}</a>
+                        <span>•</span>
+                        <a href="/config/pv/mqtt" target="_blank" rel="noopener noreferrer" className="hover:text-gray-300 transition-colors">{t.linkMqtt}</a>
+                        <span>•</span>
+                        <a href="/config/pv/websocket" target="_blank" rel="noopener noreferrer" className="hover:text-gray-300 transition-colors">{t.linkWebSocket}</a>
                     </div>
                 </div>
 

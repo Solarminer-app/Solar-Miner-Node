@@ -18,6 +18,7 @@ import de.verdox.pv_miner.dto.PVConfigDtos.RestTestRequest;
 import de.verdox.pv_miner.dto.PVConfigDtos.TemplateDto;
 import de.verdox.pv_miner_extensions.device.modbus.ModbusConfigStorage;
 import de.verdox.pv_miner_extensions.device.rest.RestConfigStorage;
+import de.verdox.pv_miner_extensions.device.message.MessageConfigStorage;
 import de.verdox.solarminer.RequiredField;
 import de.verdox.solarminer.formula.FormulaEngine;
 import de.verdox.solarminer.modbustcp.ModbusConfig;
@@ -33,6 +34,7 @@ import de.verdox.solarminer.rest.RestParameterType;
 import de.verdox.solarminer.rest.RestResponseType;
 import de.verdox.vserializer.json.JsonSerializerContext;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -71,18 +73,28 @@ public class PVConfigService {
 
     private final RestConfigStorage restStorage;
     private final ModbusConfigStorage modbusStorage;
+    private final MessageConfigStorage messageStorage;
     private final ConfigFetcherService configFetcherService;
     private final boolean allowPublicDeviceHosts;
     private final Semaphore connectionTestSlots = new Semaphore(4, true);
 
+    @Autowired
     public PVConfigService(RestConfigStorage restStorage,
                            ModbusConfigStorage modbusStorage,
+                           MessageConfigStorage messageStorage,
                            ConfigFetcherService configFetcherService,
                            @Value("${solarminer.config.allow-public-device-hosts:false}") boolean allowPublicDeviceHosts) {
         this.restStorage = restStorage;
         this.modbusStorage = modbusStorage;
+        this.messageStorage = messageStorage;
         this.configFetcherService = configFetcherService;
         this.allowPublicDeviceHosts = allowPublicDeviceHosts;
+    }
+
+    /** Keeps embedders and older tests source-compatible while message profiles remain optional. */
+    public PVConfigService(RestConfigStorage restStorage, ModbusConfigStorage modbusStorage,
+                           ConfigFetcherService configFetcherService, boolean allowPublicDeviceHosts) {
+        this(restStorage, modbusStorage, new MessageConfigStorage(), configFetcherService, allowPublicDeviceHosts);
     }
 
     public RestCatalogDto getRestCatalog() {
@@ -479,6 +491,114 @@ public class PVConfigService {
         return new RestPVConfig(Map.of(template.id(), section));
     }
 
+    private RestPVConfig buildMessageConfig(RestConfigCreatorTemplate template, List<RestFieldDto> fields) {
+        Map<String, RestFieldDto> byName = indexFields(fields, RestFieldDto::field);
+        requireExactFields(template.requiredFields(), byName.keySet());
+        Set<String> allowedReferences = requiredFieldNames(template.requiredFields());
+        Map<String, RestPVConfig.Entry<?>> entries = new LinkedHashMap<>();
+        for (RequiredField required : template.requiredFields()) {
+            RestFieldDto field = byName.get(required.field());
+            String source = requiredText(field.urlExtension(), "Topic/message source", 512);
+            if (hasControlCharacters(source)) throw badRequest("Topic/message source contains control characters");
+            String dataPath = optionalText(field.dataPath(), 256);
+            RestResponseType responseType = enumValue(RestResponseType.class, field.responseType(), "response type");
+            if (responseType != RestResponseType.PLAIN_TEXT && dataPath.isBlank()) throw badRequest("A data path is required for JSON and XML messages");
+            entries.put(required.field(), new RestPVConfig.Entry<>(source, RestHttpMethod.GET, responseType, dataPath,
+                    scaleFactor(field.scaleFactor()), formula(field.formula(), allowedReferences), restParameterType(field.parameterType())));
+        }
+        return new RestPVConfig(Map.of(template.id(), new RestPVConfig.ConfigSection(template.id(), template.name(), entries)));
+    }
+
+    public RestCatalogDto getMessageCatalog(String protocol) {
+        return new RestCatalogDto(
+                RestConfigCreatorTemplate.getAll().stream()
+                        .map(template -> toTemplate(template.id(), template.name(), template.requiredFields())).toList(),
+                loadNames(() -> messageStorage.getSavedConfigs(messageProtocol(protocol))),
+                communityNames(profileProtocol(protocol)),
+                List.of(RestHttpMethod.GET.name()),
+                Arrays.stream(RestResponseType.values()).map(Enum::name).toList(),
+                List.of("int", "long", "float", "double")
+        );
+    }
+
+    public synchronized RestProfileDto createMessageProfile(String protocol, String rawName, String templateId) {
+        String transport = messageProtocol(protocol);
+        String name = profileName(rawName);
+        RestConfigCreatorTemplate template = restTemplate(templateId);
+        try {
+            RestPVConfig existing = messageStorage.exists(transport, name) ? messageStorage.loadConfig(transport, name) : new RestPVConfig(Map.of());
+            if (findRestSection(existing, template.id()) != null) throw conflict("This profile already contains the selected device type");
+            RestPVConfig config = mergeRestSection(existing, buildMessageConfig(template, emptyMessageFields(template, transport)), template);
+            messageStorage.save(transport, name, config);
+            return toRestProfile(name, template, config);
+        } catch (IOException exception) { throw storageFailure("Could not create message profile", exception); }
+    }
+
+    public RestProfileDto loadMessageProfile(String protocol, String rawName, String templateId) {
+        String name = profileName(rawName);
+        RestConfigCreatorTemplate template = restTemplate(templateId);
+        try { return toRestProfile(name, template, messageStorage.loadConfig(messageProtocol(protocol), name)); }
+        catch (NoSuchElementException exception) { throw notFound("Message profile not found"); }
+        catch (IOException exception) { throw storageFailure("Could not load message profile", exception); }
+    }
+
+    public synchronized RestProfileDto saveMessageProfile(String protocol, String rawName, RestProfileDto profile) {
+        String transport = messageProtocol(protocol);
+        String name = profileName(rawName);
+        requireMatchingName(name, profile == null ? null : profile.name());
+        RestConfigCreatorTemplate template = restTemplate(profile == null ? null : profile.templateId());
+        RestPVConfig replacement = buildMessageConfig(template, profile.fields());
+        try {
+            if (!messageStorage.exists(transport, name)) throw notFound("Message profile not found");
+            RestPVConfig existing = messageStorage.loadConfig(transport, name);
+            if (findRestSection(existing, template.id()) == null) throw notFound("Message profile section not found");
+            RestPVConfig config = mergeRestSection(existing, replacement, template);
+            messageStorage.save(transport, name, config);
+            return toRestProfile(name, template, config);
+        } catch (IOException exception) { throw storageFailure("Could not save message profile", exception); }
+    }
+
+    public synchronized void deleteMessageProfile(String protocol, String rawName, String templateId) {
+        String transport = messageProtocol(protocol);
+        String name = profileName(rawName);
+        RestConfigCreatorTemplate template = restTemplate(templateId);
+        try {
+            RestPVConfig existing = messageStorage.loadConfig(transport, name);
+            Map<String, RestPVConfig.ConfigSection> sections = new LinkedHashMap<>(existing.getSections());
+            if (!sections.entrySet().removeIf(entry -> template.id().equals(entry.getValue().getTemplateId()))) throw notFound("Message profile section not found");
+            if (sections.isEmpty()) messageStorage.delete(transport, name); else messageStorage.save(transport, name, new RestPVConfig(sections));
+        } catch (IOException exception) { throw storageFailure("Could not delete message profile", exception); }
+    }
+
+    public String exportMessageProfile(String protocol, String rawName) {
+        try {
+            RestPVConfig config = messageStorage.loadConfig(messageProtocol(protocol), profileName(rawName));
+            JsonSerializerContext context = new JsonSerializerContext();
+            return context.toJsonString(RestPVConfig.SERIALIZER.serialize(context, config));
+        } catch (IOException exception) { throw storageFailure("Could not export message profile", exception); }
+    }
+
+    public synchronized RestProfileDto importMessageProfile(String protocol, String rawName, String templateId, String json) {
+        String name = profileName(rawName);
+        RestConfigCreatorTemplate template = restTemplate(templateId);
+        RestPVConfig imported = deserializeRest(json);
+        buildMessageConfig(template, toRestProfile(name, template, imported).fields());
+        try { messageStorage.save(messageProtocol(protocol), name, imported); return toRestProfile(name, template, imported); }
+        catch (IOException exception) { throw storageFailure("Could not import message profile", exception); }
+    }
+
+    public synchronized RestProfileDto downloadMessageCommunityProfile(String protocol, String rawName, String templateId) {
+        String name = profileName(rawName);
+        RestConfigCreatorTemplate template = restTemplate(templateId);
+        RestPVConfig community = configFetcherService.getRestPVConfig(name)
+                .orElseThrow(() -> notFound("Community message profile not found"));
+        buildMessageConfig(template, toRestProfile(name, template, community).fields());
+        try {
+            messageStorage.save(messageProtocol(protocol), name, community);
+            return toRestProfile(name, template, community);
+        } catch (IOException exception) { throw storageFailure("Could not save community message profile", exception); }
+    }
+
     private ModbusConfig buildModbusConfig(ModbusConfigCreatorTemplate template, List<ModbusFieldDto> fields,
                                             ModbusFingerprintDto fingerprintDto, int addressOffset) {
         Map<String, ModbusFieldDto> byName = indexFields(fields, ModbusFieldDto::field);
@@ -798,6 +918,25 @@ public class PVConfigService {
                         RestResponseType.PLAIN_TEXT.name(), "", 1.0, "x", RestParameterType.DOUBLE.identifier()
                 ))
                 .toList();
+    }
+
+    private List<RestFieldDto> emptyMessageFields(RestConfigCreatorTemplate template, String protocol) {
+        String source = MessageConfigStorage.MQTT.equals(protocol) ? "solarminer/device/telemetry" : "message";
+        return template.requiredFields().stream().map(field -> new RestFieldDto(
+                field.field(), field.unit(), source, RestHttpMethod.GET.name(), RestResponseType.JSON.name(),
+                "$." + field.field(), 1.0, "x", RestParameterType.DOUBLE.identifier())).toList();
+    }
+
+    private String messageProtocol(String protocol) {
+        return switch (protocol == null ? "" : protocol.toLowerCase(Locale.ROOT)) {
+            case "mqtt" -> MessageConfigStorage.MQTT;
+            case "websocket" -> MessageConfigStorage.WEBSOCKET;
+            default -> throw badRequest("Unsupported message protocol");
+        };
+    }
+
+    private String profileProtocol(String protocol) {
+        return MessageConfigStorage.MQTT.equals(messageProtocol(protocol)) ? "MQTT" : "WebSocket";
     }
 
     private List<ModbusFieldDto> emptyModbusFields(ModbusConfigCreatorTemplate template) {

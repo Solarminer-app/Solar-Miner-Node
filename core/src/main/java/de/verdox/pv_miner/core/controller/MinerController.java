@@ -1,5 +1,7 @@
 package de.verdox.pv_miner.core.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import de.verdox.pv_miner.core.miner.MiningOS;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/miners")
+@Tag(name = "Miner control")
 public class MinerController {
     private final MinerService minerService;
     private final MinerDiscoveryService minerDiscoveryService;
@@ -105,11 +108,13 @@ public class MinerController {
     }
 
     @GetMapping("/dev-fee/overview")
+    @Tag(name = "Developer fee")
     public DevFeeOverviewDto getDevFeeOverview(@RequestParam(name = "referral", required = false) String referralCode) {
         return devFeeService.getOverview("bitcoin", referralCode);
     }
 
     @GetMapping("/dev-fee/referral/validate")
+    @Tag(name = "Developer fee")
     public boolean validateReferral(@RequestParam("referral") String referralCode) {
         return devFeeService.validateReferral("bitcoin", referralCode);
     }

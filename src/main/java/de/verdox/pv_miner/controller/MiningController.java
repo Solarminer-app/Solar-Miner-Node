@@ -1,5 +1,7 @@
 package de.verdox.pv_miner.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import de.verdox.pv_miner.discovery.DiscoveryService;
 import de.verdox.pv_miner.dto.MiningPageDto;
 import de.verdox.pv_miner.dto.MiningPageRequests.*;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/pv-site/{siteId}/mining")
 @CrossOrigin(origins = "http://localhost:3000")
+@Tag(name = "Mining")
 public class MiningController {
     private static final long ELECTRICAL_RISK_THRESHOLD_WATTS = 3_200;
 

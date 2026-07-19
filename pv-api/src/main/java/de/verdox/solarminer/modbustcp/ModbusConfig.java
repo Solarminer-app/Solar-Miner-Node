@@ -61,6 +61,19 @@ public class ModbusConfig {
                     ModbusConfig::new
             ).build();
 
+    /** Reads the single-section format used before component based PV sites. */
+    public static final Serializer<ModbusConfig> LEGACY_SERIALIZER = SerializerBuilder.create("legacy_modbus_config", ModbusConfig.class)
+            .constructor(
+                    new SerializableField<>("fingerprint", FINGERPRINT_SERIALIZER, ModbusConfig::getFingerprint),
+                    new SerializableField<>("entries", Serializer.Map.create(Serializer.Primitive.STRING, ENTRY_SERIALIZER, HashMap::new),
+                            config -> config.getSections().getOrDefault(ModbusConfigCreatorTemplate.PV_SITE.id(),
+                                    new ConfigSection(ModbusConfigCreatorTemplate.PV_SITE.id(), "Migrated PV site", Map.of())).getEntries()),
+                    (fingerprint, entries) -> new ModbusConfig(fingerprint, Map.of(
+                            ModbusConfigCreatorTemplate.PV_SITE.id(),
+                            new ConfigSection(ModbusConfigCreatorTemplate.PV_SITE.id(), "Migrated PV site", entries)
+                    ), 0)
+            ).build();
+
 
     // --- Datenstruktur ---
     private final Fingerprint fingerprint;

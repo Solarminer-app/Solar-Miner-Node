@@ -22,7 +22,7 @@ public abstract class RestQueryStrategy<RESULT extends QueryResult, REST_ENTITY 
             throw new IllegalStateException("");
         }
 
-        try (var client = new RestPVClient(entity.getHostName() + ":" + entity.getPort(), entity.getApiToken())) {
+        try (var client = new RestPVClient(entity.getHostName() + ":" + entity.getPort(), entity.getApiToken(), restConfig.getAuthenticationType())) {
             Map<String, Double> calculatedValues = new HashMap<>();
             VariableProvider variableProvider = new VariableProvider() {
                 @Override
@@ -54,6 +54,10 @@ public abstract class RestQueryStrategy<RESULT extends QueryResult, REST_ENTITY 
         double finalValue = evaluatedValue * entry.scaleFactor();
         calculatedValues.put(id, finalValue);
         return finalValue;
+    }
+
+    protected static boolean hasEntry(RestPVConfig.ConfigSection section, String id) {
+        return section.getEntries().containsKey(id);
     }
 
     @Override

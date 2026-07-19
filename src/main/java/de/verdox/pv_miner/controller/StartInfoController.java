@@ -1,5 +1,7 @@
 package de.verdox.pv_miner.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import de.verdox.pv_miner.entity.EntityService;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
 import org.springframework.data.domain.PageRequest;
@@ -12,6 +14,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/start-info")
+@Tag(name = "Sites")
 public class StartInfoController {
 
     private final PVSiteRepository pvSiteRepository;

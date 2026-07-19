@@ -8,6 +8,7 @@ import com.intelligt.modbus.jlibmodbus.master.ModbusMasterTCP;
 import com.intelligt.modbus.jlibmodbus.msg.request.ReadHoldingRegistersRequest;
 import com.intelligt.modbus.jlibmodbus.msg.response.ReadHoldingRegistersResponse;
 import com.intelligt.modbus.jlibmodbus.tcp.TcpParameters;
+import de.verdox.solarminer.modbus.ModbusRegisterClient;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -21,7 +22,7 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class TCPModbusClient implements Closeable {
+public class TCPModbusClient implements Closeable, ModbusRegisterClient {
     private static final Logger LOGGER = Logger.getLogger(TCPModbusClient.class.getName());
     private final String ipAddress;
     private final int port;

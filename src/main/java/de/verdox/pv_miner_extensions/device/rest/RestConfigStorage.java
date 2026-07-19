@@ -43,9 +43,17 @@ public class RestConfigStorage {
         if (!storageFolder.isDirectory() || !storageFolder.exists()) {
             return List.of("");
         }
+        java.util.Set<String> names = new java.util.LinkedHashSet<>();
         try (Stream<Path> pathStream = Files.walk(storageFolder.toPath(), 1)) {
-            return pathStream.map(FileNameUtils::getBaseName).skip(1).toList();
+            pathStream.filter(Files::isRegularFile).map(FileNameUtils::getBaseName).forEach(names::add);
         }
+        Path legacyFolder = storageFolder.toPath().resolve("pvsite");
+        if (Files.isDirectory(legacyFolder)) {
+            try (Stream<Path> pathStream = Files.walk(legacyFolder, 1)) {
+                pathStream.filter(Files::isRegularFile).map(FileNameUtils::getBaseName).forEach(names::add);
+            }
+        }
+        return List.copyOf(names);
     }
 
     public void save(String nameOfConfig, RestPVConfig restConfig) throws IOException {
@@ -74,19 +82,30 @@ public class RestConfigStorage {
         }
 
         File saveFile = new File(storageFolder + "/" + name + ".json");
+        if (!saveFile.isFile()) saveFile = new File(storageFolder + "/pvsite/" + name + ".json");
         if (!storageFolder.exists() || !storageFolder.isDirectory() || !saveFile.exists() || !saveFile.isFile()) {
             throw new NoSuchElementException("The rest config "+name+" does not exist!");
         }
         LOGGER.info("Loading REST config " + saveFile);
         JsonSerializerContext jsonSerializerContext = new JsonSerializerContext();
         SerializationElement element = jsonSerializerContext.readFromFile(saveFile);
-        RestPVConfig loaded = RestPVConfig.SERIALIZER.deserialize(element);
+        String json = Files.readString(saveFile.toPath());
+        RestPVConfig loaded;
+        if (json.contains("\"entries\"") && !json.contains("\"sections\"")) {
+            loaded = RestPVConfig.LEGACY_SERIALIZER.deserialize(element);
+        } else if (json.contains("\"authenticationType\"")) {
+            loaded = RestPVConfig.SERIALIZER.deserialize(element);
+        } else {
+            loaded = RestPVConfig.V1_SERIALIZER.deserialize(element);
+        }
         cache.put(name, loaded);
         return loaded;
     }
 
     public boolean doesConfigExistOnDisk(String selectedConfigName) {
         File saveFile = new File(storageFolder + "/" + selectedConfigName + ".json");
-        return storageFolder.exists() && storageFolder.isDirectory() && saveFile.exists() && saveFile.isFile();
+        File legacyFile = new File(storageFolder + "/pvsite/" + selectedConfigName + ".json");
+        return storageFolder.exists() && storageFolder.isDirectory()
+                && ((saveFile.exists() && saveFile.isFile()) || (legacyFile.exists() && legacyFile.isFile()));
     }
 }

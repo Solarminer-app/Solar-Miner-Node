@@ -9,10 +9,35 @@ public final class SetupRequests {
     private SetupRequests() {
     }
 
-    public record ProviderSelection(String providerId, Map<String, String> values) {
+    public record ProviderSelection(String providerId, Map<String, String> values, List<String> selectedSectionKeys) {
         public ProviderSelection {
             values = values == null ? Map.of() : Map.copyOf(values);
+            selectedSectionKeys = selectedSectionKeys == null ? List.of() : List.copyOf(selectedSectionKeys);
         }
+
+        public ProviderSelection(String providerId, Map<String, String> values) {
+            this(providerId, values, List.of());
+        }
+    }
+
+    public record PvDeviceSectionDto(String sectionKey, String templateId, String name, String deviceType) {
+    }
+
+    public record PvDeviceProfileDto(String providerId, String profileName, List<PvDeviceSectionDto> sections) {
+    }
+
+    public record PvDiscoveryRequest(String providerId, String subnetPrefix, Integer port, Integer slaveId) {
+    }
+
+    public record DiscoveredPvDeviceDto(
+            String providerId,
+            String host,
+            int port,
+            int slaveId,
+            String profileName,
+            boolean requiresAuth,
+            List<PvDeviceSectionDto> sections
+    ) {
     }
 
     public record ProviderValidationRequest(Map<String, String> values) {

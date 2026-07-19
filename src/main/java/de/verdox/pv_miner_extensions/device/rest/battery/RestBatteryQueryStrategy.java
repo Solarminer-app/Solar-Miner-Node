@@ -13,8 +13,8 @@ public class RestBatteryQueryStrategy extends RestQueryStrategy<BatteryDataDTO, 
     @Override
     protected BatteryDataDTO createResult(RestPVConfig.ConfigSection config, RestPVClient client, Map<String, Double> calculatedValues, VariableProvider provider) throws Exception {
 
-        double stateOfChargePct = evaluateEntry("state_of_charge", config, client, calculatedValues, provider);
-        double currentPowerW = evaluateEntry("current_power", config, client, calculatedValues, provider);
+        double stateOfChargePct = hasEntry(config, "state_of_charge") ? evaluateEntry("state_of_charge", config, client, calculatedValues, provider) : evaluateEntry("battery_soc", config, client, calculatedValues, provider);
+        double currentPowerW = hasEntry(config, "current_power") ? evaluateEntry("current_power", config, client, calculatedValues, provider) : evaluateEntry("battery_power", config, client, calculatedValues, provider) * 1000.0;
         double currentMaxChargePowerW = evaluateEntry("max_charge_power", config, client, calculatedValues, provider);
         double currentMaxDischargePowerW = evaluateEntry("max_discharge_power", config, client, calculatedValues, provider);
         double stateOfHealthPct = evaluateEntry("state_of_health", config, client, calculatedValues, provider);

@@ -8,7 +8,10 @@ import de.verdox.pv_miner.pvsite.SunspecConfigService;
 import de.verdox.pv_miner_extensions.device.modbus.ModbusConfigStorage;
 import de.verdox.pv_miner_extensions.device.rest.RestConfigStorage;
 import de.verdox.solarminer.modbustcp.ModbusConfig;
+import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
 import de.verdox.solarminer.modbustcp.TCPModbusClient;
+import de.verdox.solarminer.rest.RestPVClient;
+import de.verdox.solarminer.rest.RestPVConfig;
 import org.springframework.stereotype.Service;
 
 import java.net.*;
@@ -23,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 
@@ -87,9 +91,7 @@ public class DiscoveryService {
                     if (firstSection.getEntries().isEmpty()) continue;
 
                     var testEntry = firstSection.getEntries().values().iterator().next();
-                    String probeUrl = baseUrl + testEntry.urlExtension();
-
-                    if (executeRestProbe(probeUrl, ip, port, name, onDeviceFound)) return;
+                    if (executeRestProbe(baseUrl, testEntry, ip, port, name, onDeviceFound)) return;
                 } catch (Exception ignored) {}
             }
         } catch (Exception e) {
@@ -105,18 +107,21 @@ public class DiscoveryService {
             if (firstSection.getEntries().isEmpty()) continue;
 
             var testEntry = firstSection.getEntries().values().iterator().next();
-            String probeUrl = baseUrl + testEntry.urlExtension();
-
-            if (executeRestProbe(probeUrl, ip, port, profile.name(), onDeviceFound)) return;
+            if (executeRestProbe(baseUrl, testEntry, ip, port, profile.name(), onDeviceFound)) return;
         }
     }
 
-    private boolean executeRestProbe(String probeUrl, String ip, int port, String profileName, Consumer<DiscoveredRestDevice> onDeviceFound) {
+    private boolean executeRestProbe(String baseUrl, RestPVConfig.Entry<?> testEntry, String ip, int port,
+                                     String profileName, Consumer<DiscoveredRestDevice> onDeviceFound) {
+        String probeUrl = baseUrl + testEntry.urlExtension();
         try {
             HttpRequest request = HttpRequest.newBuilder().uri(URI.create(probeUrl)).timeout(Duration.ofMillis(800)).GET().build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             int status = response.statusCode();
             if (status == 200 || status == 201) {
+                try (RestPVClient client = new RestPVClient(baseUrl, "")) {
+                    client.read(testEntry);
+                }
                 onDeviceFound.accept(new DiscoveredRestDevice(ip, port, profileName, false));
                 return true;
             } else if (status == 401 || status == 403) {
@@ -173,18 +178,10 @@ public class DiscoveryService {
             for (String name : localModbusNames) {
                 try {
                     var config = modbusStorage.loadConfig(name);
-                    if (config == null) continue;
+                    if (config == null || config.getFingerprint() == null) continue;
 
                     try (TCPModbusClient modbusClient = new TCPModbusClient(ip, port, 1)) {
-                        if (config.getFingerprint() != null) {
-                            if (modbusClient.verifyFingerprint(0, config.getFingerprint())) return name;
-                        } else if (!config.getSections().isEmpty()) {
-                            var firstSection = config.getSections().values().iterator().next();
-                            if (!firstSection.getEntries().isEmpty()) {
-                                modbusClient.read(0, firstSection.getEntries().values().iterator().next());
-                                return name;
-                            }
-                        }
+                        if (modbusClient.verifyFingerprint(config.getAddressOffset(), config.getFingerprint())) return name;
                     } catch (Exception ignored) {}
                 } catch (Exception ignored) {}
             }
@@ -198,18 +195,11 @@ public class DiscoveryService {
             if (configOpt.isEmpty()) continue;
 
             var config = configOpt.get();
-            try (TCPModbusClient modbusClient = new TCPModbusClient(ip, 502, 1)) {
-                if (config.getFingerprint() != null) {
-                    if (modbusClient.verifyFingerprint(0, config.getFingerprint())) return profile.name();
-                    continue;
-                }
-                if (!config.getSections().isEmpty()) {
-                    var firstSection = config.getSections().values().iterator().next();
-                    if (!firstSection.getEntries().isEmpty()) {
-                        modbusClient.read(0, firstSection.getEntries().values().iterator().next());
-                        return profile.name();
-                    }
-                }
+            // A readable measurement register is not a device identity. Profiles without a verified
+            // expected value remain available for manual selection but must never win auto-discovery.
+            if (config.getFingerprint() == null) continue;
+            try (TCPModbusClient modbusClient = new TCPModbusClient(ip, port, 1)) {
+                if (modbusClient.verifyFingerprint(config.getAddressOffset(), config.getFingerprint())) return profile.name();
             } catch (Exception e) {}
         }
         return null;
@@ -222,11 +212,18 @@ public class DiscoveryService {
             int model1Address = baseAddress + 2;
             String manufacturer = client.readSunSpecString(model1Address + 2, 16).replaceAll("[^a-zA-Z0-9_]", "").trim();
             String model = client.readSunSpecString(model1Address + 18, 16).replaceAll("[^a-zA-Z0-9_]", "").trim();
-            String profileName = "SunSpec_" + manufacturer + "_" + model;
+            String identity = (manufacturer + "_" + model).replaceAll("^_+|_+$", "");
+            String profileName = "SunSpec_" + (identity.isBlank() ? ip.replace('.', '_') : identity);
 
             ModbusConfigStorage modbusStorage = SpringContextHelper.getBean(ModbusConfigStorage.class);
-            if (modbusStorage.doesConfigExistOnDisk(profileName)) return profileName;
-
+            if (modbusStorage.doesConfigExistOnDisk(profileName)) {
+                ModbusConfig existing = modbusStorage.loadConfig(profileName);
+                boolean componentProfile = existing.getSections().values().stream().anyMatch(section ->
+                        ModbusConfigCreatorTemplate.INVERTER.id().equals(section.getTemplateId())
+                                || ModbusConfigCreatorTemplate.BATTERY.id().equals(section.getTemplateId())
+                                || ModbusConfigCreatorTemplate.SMART_METER.id().equals(section.getTemplateId()));
+                if (componentProfile) return profileName;
+            }
             Map<Integer, Integer> blockAddresses = client.scanSunSpecBlocks(model1Address);
             SunspecConfigService sunspecService = SpringContextHelper.getBean(SunspecConfigService.class);
             ModbusConfig generatedConfig = sunspecService.createConfigFromSunSpec(blockAddresses, client);
@@ -240,6 +237,20 @@ public class DiscoveryService {
             LOGGER.warning("Error while scanning SunSpec for " + ip + ": " + e.getMessage());
         }
         return null;
+    }
+
+    /** Inspects one endpoint. SunSpec profiles are generated and persisted as part of this call. */
+    public DiscoveredModbusDevice inspectModbusDevice(String host, int port) {
+        if (!isPortOpen(host, port, 800)) return null;
+        String profile = tryMatchModbusProfiles(host, port);
+        return profile == null ? null : new DiscoveredModbusDevice(host, profile);
+    }
+
+    public DiscoveredRestDevice inspectRestDevice(String host, int port) {
+        if (!isPortOpen(host, port, 800)) return null;
+        AtomicReference<DiscoveredRestDevice> result = new AtomicReference<>();
+        probeRestProfiles(host, port, device -> result.compareAndSet(null, device));
+        return result.get();
     }
 
     public static String getLocalSubnetPrefix() {

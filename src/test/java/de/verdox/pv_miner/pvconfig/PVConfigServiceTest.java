@@ -7,6 +7,7 @@ import de.verdox.pv_miner.dto.PVConfigDtos.RestFieldDto;
 import de.verdox.pv_miner.dto.PVConfigDtos.RestProfileDto;
 import de.verdox.pv_miner.dto.PVConfigDtos.RestTestRequest;
 import de.verdox.pv_miner_extensions.device.modbus.ModbusConfigStorage;
+import de.verdox.pv_miner_extensions.device.message.MessageConfigStorage;
 import de.verdox.pv_miner_extensions.device.rest.RestConfigStorage;
 import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
 import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
@@ -25,13 +26,15 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class PVConfigServiceTest {
     private RestConfigStorage restStorage;
     private ModbusConfigStorage modbusStorage;
+    private MessageConfigStorage messageStorage;
     private PVConfigService service;
 
     @BeforeEach
     void setUp() {
         restStorage = mock(RestConfigStorage.class);
         modbusStorage = mock(ModbusConfigStorage.class);
-        service = new PVConfigService(restStorage, modbusStorage, mock(ConfigFetcherService.class), false);
+        messageStorage = mock(MessageConfigStorage.class);
+        service = new PVConfigService(restStorage, modbusStorage, messageStorage, mock(ConfigFetcherService.class), false);
     }
 
     @Test
@@ -85,6 +88,16 @@ class PVConfigServiceTest {
                 () -> service.saveModbusProfile("Profile", profile));
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+    }
+
+    @Test
+    void createsMqttProfilesWithSharedMessageFields() {
+        RestProfileDto profile = service.createMessageProfile(
+                "mqtt", "Local meter", RestConfigCreatorTemplate.SMART_METER.id());
+
+        assertEquals(RestConfigCreatorTemplate.SMART_METER.requiredFields().size(), profile.fields().size());
+        assertEquals("solarminer/device/telemetry", profile.fields().getFirst().urlExtension());
+        assertEquals("JSON", profile.fields().getFirst().responseType());
     }
 
     private List<RestFieldDto> validRestFields() {

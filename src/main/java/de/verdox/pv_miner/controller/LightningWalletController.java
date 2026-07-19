@@ -1,5 +1,7 @@
 package de.verdox.pv_miner.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import de.verdox.phoenixdjava.PhoenixDTOs;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.lightning.LightningTransaction;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/lightning-wallet")
+@Tag(name = "Lightning wallet")
 public class LightningWalletController {
 
     private final LightningWalletService walletService;

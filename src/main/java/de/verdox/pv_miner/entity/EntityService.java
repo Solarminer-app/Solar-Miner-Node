@@ -228,4 +228,31 @@ public class EntityService {
         pvSiteRepository.save(parent);
         pVPanelsRepository.delete(entity);
     }
+
+    public void delete(InverterEntity entity) {
+        PVSiteEntity parent = entity.getParentSite();
+        if (parent != null) parent.getInverters().remove(entity);
+        entityMonitoringService.detach(entity);
+        dailyStatisticService.cleanUpEntity(entity.getId());
+        inverterEntityRepository.delete(entity);
+        if (parent != null) pvSiteRepository.save(parent);
+    }
+
+    public void delete(BatteryEntity entity) {
+        PVSiteEntity parent = entity.getParentSite();
+        if (parent != null) parent.getBatteries().remove(entity);
+        entityMonitoringService.detach(entity);
+        dailyStatisticService.cleanUpEntity(entity.getId());
+        batteryEntityRepository.delete(entity);
+        if (parent != null) pvSiteRepository.save(parent);
+    }
+
+    public void delete(SmartMeterEntity entity) {
+        PVSiteEntity parent = entity.getParentSite();
+        if (parent != null) parent.getSmartMeters().remove(entity);
+        entityMonitoringService.detach(entity);
+        dailyStatisticService.cleanUpEntity(entity.getId());
+        smartMeterRepository.delete(entity);
+        if (parent != null) pvSiteRepository.save(parent);
+    }
 }

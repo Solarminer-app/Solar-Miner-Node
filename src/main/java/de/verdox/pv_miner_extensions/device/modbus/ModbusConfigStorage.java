@@ -44,9 +44,17 @@ public class ModbusConfigStorage {
         if (!storageFolder.isDirectory() || !storageFolder.exists()) {
             return List.of("");
         }
+        java.util.Set<String> names = new java.util.LinkedHashSet<>();
         try (Stream<Path> pathStream = Files.walk(storageFolder.toPath(), 1)) {
-            return pathStream.map(FileNameUtils::getBaseName).skip(1).toList();
+            pathStream.filter(Files::isRegularFile).map(FileNameUtils::getBaseName).forEach(names::add);
         }
+        Path legacyFolder = storageFolder.toPath().resolve("pvsite");
+        if (Files.isDirectory(legacyFolder)) {
+            try (Stream<Path> pathStream = Files.walk(legacyFolder, 1)) {
+                pathStream.filter(Files::isRegularFile).map(FileNameUtils::getBaseName).forEach(names::add);
+            }
+        }
+        return List.copyOf(names);
     }
 
     public void save(String nameOfConfig, ModbusConfig modbusConfig) throws IOException {
@@ -71,7 +79,9 @@ public class ModbusConfigStorage {
 
     public boolean doesConfigExistOnDisk(String name) {
         File saveFile = new File(storageFolder + "/" + name + ".json");
-        return storageFolder.exists() && storageFolder.isDirectory() && saveFile.exists() && saveFile.isFile();
+        File legacyFile = new File(storageFolder + "/pvsite/" + name + ".json");
+        return storageFolder.exists() && storageFolder.isDirectory()
+                && ((saveFile.exists() && saveFile.isFile()) || (legacyFile.exists() && legacyFile.isFile()));
     }
 
     public ModbusConfig loadConfig(String name) throws IOException {
@@ -80,13 +90,16 @@ public class ModbusConfigStorage {
         }
 
         File saveFile = new File(storageFolder + "/" + name + ".json");
+        if (!saveFile.isFile()) saveFile = new File(storageFolder + "/pvsite/" + name + ".json");
         if (!storageFolder.exists() || !storageFolder.isDirectory() || !saveFile.exists() || !saveFile.isFile()) {
             throw new NoSuchElementException("The modbus config "+name+" does not exist!");
         }
         LOGGER.info("Loading modbus config " + saveFile);
         JsonSerializerContext jsonSerializerContext = new JsonSerializerContext();
         SerializationElement element = jsonSerializerContext.readFromFile(saveFile);
-        ModbusConfig loaded = ModbusConfig.SERIALIZER.deserialize(element);
+        boolean legacy = Files.readString(saveFile.toPath()).contains("\"entries\"")
+                && !Files.readString(saveFile.toPath()).contains("\"sections\"");
+        ModbusConfig loaded = (legacy ? ModbusConfig.LEGACY_SERIALIZER : ModbusConfig.SERIALIZER).deserialize(element);
         cache.put(name, loaded);
         return loaded;
     }

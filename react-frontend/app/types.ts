@@ -214,9 +214,22 @@ export interface PVSiteDetailsDto {
     totalPanels: number;
     totalGroups: number;
     panelGroups: PanelGroupDto[];
+    pvDevices: PvDeviceDto[];
     miners: MinerCostDto[];
     feedInTariffs: PriceDto[];
     electricityPrices: PriceDto[];
+}
+
+export interface PvDeviceDto {
+    id: string;
+    deviceType: 'INVERTER' | 'BATTERY' | 'SMART_METER';
+    name: string;
+    providerId: string;
+    host: string;
+    port: number;
+    slaveId: number;
+    profileName: string;
+    sectionKey: string;
 }
 
 export interface FinanceKpiDto {

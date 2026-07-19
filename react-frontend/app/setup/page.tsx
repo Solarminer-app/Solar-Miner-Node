@@ -66,7 +66,11 @@ type ConfiguredPvDevice = {
     providerId: string;
     label: string;
     values: Record<string, string>;
+    selectedSectionKeys: string[];
 };
+type PvDeviceSection = {sectionKey: string; templateId: string; name: string; deviceType: 'INVERTER' | 'BATTERY' | 'SMART_METER'};
+type PvDeviceProfile = {providerId: string; profileName: string; sections: PvDeviceSection[]};
+type DiscoveredPvDevice = PvDeviceProfile & {host: string; port: number; slaveId: number; requiresAuth: boolean};
 
 type PanelGroup = {
     id: string;
@@ -81,6 +85,11 @@ type PanelGroup = {
 
 const steps = ['basics', 'source', 'panels', 'pools', 'summary'] as const;
 const inputClass = 'mt-1.5 w-full rounded-xl border border-white/10 bg-[#101014] px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-[#5f5f68] focus:border-yellow-400/60 focus:ring-2 focus:ring-yellow-400/10 disabled:cursor-not-allowed disabled:opacity-60';
+
+function endpointLabel(values: Record<string, string>) {
+    if (values.host) return values.port ? `${values.host}:${values.port}` : values.host;
+    return values.serialPort || values.brokerUri || values.url || '—';
+}
 
 function ProviderFields({option, values, onChange}: {
     option: SetupOption;
@@ -138,6 +147,11 @@ export default function SetupPage() {
     const [testingProvider, setTestingProvider] = useState<string | null>(null);
     const [selectedSource, setSelectedSource] = useState('');
     const [pvDevices, setPvDevices] = useState<ConfiguredPvDevice[]>([]);
+    const [profileSearch, setProfileSearch] = useState('');
+    const [profiles, setProfiles] = useState<PvDeviceProfile[]>([]);
+    const [selectedSectionKeys, setSelectedSectionKeys] = useState<string[]>([]);
+    const [discoveredDevices, setDiscoveredDevices] = useState<DiscoveredPvDevice[]>([]);
+    const [discovering, setDiscovering] = useState(false);
     const [selectedPools, setSelectedPools] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [createdSiteId, setCreatedSiteId] = useState<string | null>(null);
@@ -207,7 +221,25 @@ export default function SetupPage() {
     }, []);
 
     const selectedSourceOption = catalog?.pvSources.find((option) => option.id === selectedSource);
+    const selectedProfile = profiles.find((profile) => profile.providerId === selectedSource && profile.profileName === providerValues[selectedSource]?.profile);
     const selectedPoolOptions = catalog?.miningPools.filter((option) => selectedPools.includes(option.id)) ?? [];
+
+    useEffect(() => {
+        if (!selectedSource) return;
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => {
+            const query = new URLSearchParams({providerId: selectedSource, query: profileSearch});
+            fetch(`${API_BASE_URL}/setup/pv-devices/profiles?${query}`, {signal: controller.signal})
+                .then((response) => response.ok ? response.json() as Promise<PvDeviceProfile[]> : Promise.reject())
+                .then(setProfiles)
+                .catch(() => undefined);
+        }, 180);
+        return () => {window.clearTimeout(timeout); controller.abort();};
+    }, [profileSearch, selectedSource]);
+
+    useEffect(() => {
+        if (selectedProfile) setSelectedSectionKeys(selectedProfile.sections.map((section) => section.sectionKey));
+    }, [selectedProfile?.profileName]);
 
     const updateProviderValue = (providerId: string, key: string, value: string) => {
         setProviderValues((current) => ({...current, [providerId]: {...(current[providerId] ?? {}), [key]: value}}));
@@ -236,25 +268,61 @@ export default function SetupPage() {
     };
 
     const addPvDevice = () => {
-        if (!selectedSourceOption || !providerFieldsComplete(selectedSourceOption) || !verification[selectedSourceOption.id]?.valid) {
+        if (!selectedSourceOption || !providerFieldsComplete(selectedSourceOption) || !verification[selectedSourceOption.id]?.valid || selectedSectionKeys.length === 0) {
             setError(t['setup.error.step']);
             return;
         }
-        const values = {...(providerValues[selectedSourceOption.id] ?? {})};
+        const rawValues = {...(providerValues[selectedSourceOption.id] ?? {})};
+        const values = {
+            ...rawValues,
+            host: rawValues.host || endpointLabel(rawValues),
+            port: rawValues.port || rawValues.baudRate || '',
+        };
         const duplicate = pvDevices.some((device) => device.providerId === selectedSourceOption.id
-            && device.values.host === values.host
-            && device.values.port === values.port
-            && device.values.profile === values.profile);
+            && endpointLabel(device.values) === endpointLabel(values)
+            && device.values.profile === values.profile
+            && device.selectedSectionKeys.join('|') === selectedSectionKeys.join('|'));
         if (!duplicate) {
             setPvDevices((current) => [...current, {
                 id: crypto.randomUUID(),
                 providerId: selectedSourceOption.id,
                 label: selectedSourceOption.label,
                 values,
+                selectedSectionKeys,
             }]);
         }
         setVerification((current) => ({...current, [selectedSourceOption.id]: undefined}));
         setError(null);
+    };
+
+    const discoverPvDevices = async () => {
+        if (!selectedSourceOption) return;
+        if (!['MODBUS_TCP', 'REST_API'].includes(selectedSourceOption.id)) return;
+        setDiscovering(true);
+        setError(null);
+        try {
+            const values = providerValues[selectedSourceOption.id] ?? {};
+            const response = await fetch(`${API_BASE_URL}/setup/pv-devices/discover`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({providerId: selectedSourceOption.id, port: Number(values.port || (selectedSourceOption.id === 'MODBUS_TCP' ? 502 : 80)), slaveId: Number(values.slaveId || 1)}),
+            });
+            if (!response.ok) throw new Error();
+            setDiscoveredDevices(await response.json() as DiscoveredPvDevice[]);
+        } catch {
+            setError(t['setup.source.discovery_error']);
+        } finally {
+            setDiscovering(false);
+        }
+    };
+
+    const useDiscoveredDevice = (device: DiscoveredPvDevice) => {
+        setSelectedSource(device.providerId);
+        setProviderValues((current) => ({...current, [device.providerId]: {
+            ...(current[device.providerId] ?? {}), host: device.host, port: String(device.port), slaveId: String(device.slaveId), profile: device.profileName,
+        }}));
+        setProfiles((current) => current.some((profile) => profile.providerId === device.providerId && profile.profileName === device.profileName) ? current : [...current, device]);
+        setSelectedSectionKeys(device.sections.map((section) => section.sectionKey));
+        setVerification((current) => ({...current, [device.providerId]: undefined}));
     };
 
     const refreshProfiles = async () => {
@@ -311,7 +379,7 @@ export default function SetupPage() {
                     timeZone: basics.timeZone || timeZone,
                     currency,
                     pvSource: {providerId: pvDevices[0].providerId, values: pvDevices[0].values},
-                    pvDevices: pvDevices.map((device) => ({providerId: device.providerId, values: device.values})),
+                    pvDevices: pvDevices.map((device) => ({providerId: device.providerId, values: device.values, selectedSectionKeys: device.selectedSectionKeys})),
                     panelGroups: panels.map((panel) => ({
                         name: panel.name,
                         latitude: panel.latitude,
@@ -412,10 +480,11 @@ export default function SetupPage() {
 
                         {step === 1 ? (
                             <div>
-                                <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-[#8e8e98]">{t['setup.source.backend_hint']}</p><button className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-[#b9b9c2] transition hover:bg-white/[0.05]" disabled={refreshing} onClick={() => void refreshProfiles()}><RefreshCw className={refreshing ? 'animate-spin' : ''} size={15}/>{t['setup.source.refresh']}</button></div>
-                                {pvDevices.length ? <div className="mb-5 space-y-2"><p className="text-xs font-semibold uppercase tracking-wider text-[#777781]">{t['setup.source.configured']}</p>{pvDevices.map((device) => <div className="flex items-center gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.05] px-4 py-3" key={device.id}><CheckCircle2 className="shrink-0 text-emerald-300" size={17}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{device.label} · {device.values.profile}</p><p className="truncate text-xs text-[#85858f]">{device.values.host}:{device.values.port}</p></div><button aria-label={t['setup.source.remove']} className="grid h-8 w-8 place-items-center rounded-lg text-[#777781] transition hover:bg-red-400/10 hover:text-red-300" onClick={() => setPvDevices((current) => current.filter((entry) => entry.id !== device.id))}><Trash2 size={15}/></button></div>)}</div> : null}
+                                <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-[#8e8e98]">{t['setup.source.backend_hint']}</p><div className="flex flex-wrap gap-2"><button className="inline-flex items-center gap-2 rounded-xl bg-yellow-400/10 px-3 py-2 text-sm font-semibold text-yellow-200 transition hover:bg-yellow-400/20 disabled:opacity-50" disabled={discovering} onClick={() => void discoverPvDevices()}><DatabaseZap className={discovering ? 'animate-pulse' : ''} size={15}/>{discovering ? t['setup.source.discovering'] : t['setup.source.discover']}</button><button className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-[#b9b9c2] transition hover:bg-white/[0.05]" disabled={refreshing} onClick={() => void refreshProfiles()}><RefreshCw className={refreshing ? 'animate-spin' : ''} size={15}/>{t['setup.source.refresh']}</button></div></div>
+                                {pvDevices.length ? <div className="mb-5 space-y-2"><p className="text-xs font-semibold uppercase tracking-wider text-[#777781]">{t['setup.source.configured']}</p>{pvDevices.map((device) => <div className="flex items-center gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.05] px-4 py-3" key={device.id}><CheckCircle2 className="shrink-0 text-emerald-300" size={17}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{device.label} · {device.values.profile}</p><p className="truncate text-xs text-[#85858f]">{device.values.host}:{device.values.port} · {device.selectedSectionKeys.length} {t['setup.source.components']}</p></div><button aria-label={t['setup.source.remove']} className="grid h-8 w-8 place-items-center rounded-lg text-[#777781] transition hover:bg-red-400/10 hover:text-red-300" onClick={() => setPvDevices((current) => current.filter((entry) => entry.id !== device.id))}><Trash2 size={15}/></button></div>)}</div> : null}
+                                {discoveredDevices.length ? <div className="mb-5 rounded-2xl border border-yellow-400/15 bg-yellow-400/[0.04] p-4"><p className="mb-3 text-xs font-semibold uppercase tracking-wider text-yellow-200">{t['setup.source.discovered']}</p><div className="grid gap-2 md:grid-cols-2">{discoveredDevices.map((device) => <button className="rounded-xl border border-white/[0.08] bg-[#101014] p-3 text-left transition hover:border-yellow-400/40" key={`${device.providerId}-${device.host}-${device.port}-${device.profileName}`} onClick={() => useDiscoveredDevice(device)}><p className="text-sm font-semibold">{device.profileName}</p><p className="mt-1 text-xs text-[#85858f]">{device.host}:{device.port} · {device.sections.length} {t['setup.source.components']}</p></button>)}</div></div> : null}
                                 <div className="grid gap-3 md:grid-cols-2">{catalog.pvSources.map((option) => <button className={`rounded-2xl border p-4 text-left transition ${selectedSource === option.id ? 'border-yellow-400/50 bg-yellow-400/[0.06]' : 'border-white/[0.08] bg-[#101014] hover:border-white/20'}`} key={option.id} onClick={() => {setSelectedSource(option.id); setError(null);}}><div className="flex items-start justify-between gap-3"><Server className={selectedSource === option.id ? 'text-yellow-300' : 'text-[#777781]'} size={22}/>{option.recommended ? <span className="rounded-full bg-yellow-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-yellow-300">{t['setup.recommended']}</span> : null}</div><h3 className="mt-4 font-semibold">{option.label}</h3><p className="mt-1.5 text-sm leading-5 text-[#85858f]">{option.description}</p></button>)}</div>
-                                {selectedSourceOption ? <div className="mt-5 rounded-2xl border border-white/[0.08] bg-[#101014] p-5"><ProviderFields onChange={(key, value) => updateProviderValue(selectedSourceOption.id, key, value)} option={selectedSourceOption} values={providerValues[selectedSourceOption.id] ?? {}}/><div className="mt-5 flex flex-wrap gap-2"><button className="inline-flex items-center gap-2 rounded-xl bg-violet-400/10 px-4 py-2.5 text-sm font-semibold text-violet-200 transition hover:bg-violet-400/20 disabled:opacity-50" disabled={!providerFieldsComplete(selectedSourceOption) || testingProvider === selectedSourceOption.id} onClick={() => void testProvider(selectedSourceOption)}>{testingProvider === selectedSourceOption.id ? <LoaderCircle className="animate-spin" size={16}/> : <DatabaseZap size={16}/>} {t['setup.connection.test']}</button><button className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-300 disabled:opacity-40" disabled={!verification[selectedSourceOption.id]?.valid} onClick={addPvDevice}><Plus size={16}/>{t['setup.source.add']}</button></div><Verification state={verification[selectedSourceOption.id]}/></div> : null}
+                                {selectedSourceOption ? <div className="mt-5 rounded-2xl border border-white/[0.08] bg-[#101014] p-5"><label className="mb-4 block text-sm text-[#c3c3cb]">{t['setup.source.profile_search']}<input className={inputClass} onChange={(event) => setProfileSearch(event.target.value)} placeholder={t['setup.source.profile_search_placeholder']} value={profileSearch}/></label>{profileSearch && profiles.length ? <div className="mb-4 flex flex-wrap gap-2">{profiles.slice(0, 8).map((profile) => <button className={`rounded-lg border px-3 py-2 text-xs ${selectedProfile?.profileName === profile.profileName ? 'border-yellow-400/50 bg-yellow-400/10 text-yellow-200' : 'border-white/10 text-[#aaaab4]'}`} key={profile.profileName} onClick={() => updateProviderValue(selectedSourceOption.id, 'profile', profile.profileName)}>{profile.profileName}</button>)}</div> : null}<ProviderFields onChange={(key, value) => updateProviderValue(selectedSourceOption.id, key, value)} option={selectedSourceOption} values={providerValues[selectedSourceOption.id] ?? {}}/>{selectedProfile ? <div className="mt-5"><p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#777781]">{t['setup.source.select_components']}</p><div className="grid gap-2 sm:grid-cols-2">{selectedProfile.sections.map((section) => {const checked = selectedSectionKeys.includes(section.sectionKey); return <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${checked ? 'border-emerald-400/30 bg-emerald-400/[0.06]' : 'border-white/[0.08]'}`} key={section.sectionKey}><input checked={checked} className="mt-1 accent-emerald-400" onChange={() => setSelectedSectionKeys((current) => checked ? current.filter((key) => key !== section.sectionKey) : [...current, section.sectionKey])} type="checkbox"/><span><strong className="block text-sm">{section.name}</strong><span className="text-xs text-[#777781]">{t[`setup.source.type.${section.deviceType.toLowerCase()}`]}</span></span></label>;})}</div></div> : null}<div className="mt-5 flex flex-wrap gap-2"><button className="inline-flex items-center gap-2 rounded-xl bg-violet-400/10 px-4 py-2.5 text-sm font-semibold text-violet-200 transition hover:bg-violet-400/20 disabled:opacity-50" disabled={!providerFieldsComplete(selectedSourceOption) || testingProvider === selectedSourceOption.id} onClick={() => void testProvider(selectedSourceOption)}>{testingProvider === selectedSourceOption.id ? <LoaderCircle className="animate-spin" size={16}/> : <DatabaseZap size={16}/>} {t['setup.connection.test']}</button><button className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-300 disabled:opacity-40" disabled={!verification[selectedSourceOption.id]?.valid || selectedSectionKeys.length === 0} onClick={addPvDevice}><Plus size={16}/>{t['setup.source.add']}</button></div><Verification state={verification[selectedSourceOption.id]}/></div> : null}
                             </div>
                         ) : null}
 
