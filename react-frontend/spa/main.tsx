@@ -14,6 +14,7 @@ import FinancePage from '../app/site/[siteId]/finance/page';
 import MiningPage from '../app/site/[siteId]/mining/page';
 import ClusterConfigPage from '../app/site/[siteId]/mining/clusters/[clusterName]/config/page';
 import MinerDetailsPage from '../app/site/[siteId]/mining/miners/[minerId]/page';
+import {SitePreferencesProvider} from '../app/site/[siteId]/site-preferences-context';
 
 function SiteShell() {
     return <SiteLayout><Outlet/></SiteLayout>;
@@ -21,25 +22,27 @@ function SiteShell() {
 
 function Application() {
     return (
-        <BrowserRouter>
-            <Routes>
-                <Route element={<HomePage/>} path="/"/>
-                <Route element={<SetupPage/>} path="/setup"/>
-                <Route element={<LightningWalletPage/>} path="/lightning-wallet"/>
-                <Route element={<RestConfigPage/>} path="/config/pv/rest"/>
-                <Route element={<ModbusConfigPage/>} path="/config/pv/modbus/tcp"/>
-                <Route element={<SiteShell/>} path="/site/:siteId">
-                    <Route element={<Navigate replace to="dashboard"/>} index/>
-                    <Route element={<DashboardPage/>} path="dashboard"/>
-                    <Route element={<DetailsPage/>} path="details"/>
-                    <Route element={<FinancePage/>} path="finance"/>
-                    <Route element={<MiningPage/>} path="mining"/>
-                    <Route element={<ClusterConfigPage/>} path="mining/clusters/:clusterName/config"/>
-                    <Route element={<MinerDetailsPage/>} path="mining/miners/:minerId"/>
-                </Route>
-                <Route element={<Navigate replace to="/"/>} path="*"/>
-            </Routes>
-        </BrowserRouter>
+        <SitePreferencesProvider>
+            <BrowserRouter>
+                <Routes>
+                    <Route element={<HomePage/>} path="/"/>
+                    <Route element={<SetupPage/>} path="/setup"/>
+                    <Route element={<LightningWalletPage/>} path="/lightning-wallet"/>
+                    <Route element={<RestConfigPage/>} path="/config/pv/rest"/>
+                    <Route element={<ModbusConfigPage/>} path="/config/pv/modbus/tcp"/>
+                    <Route element={<SiteShell/>} path="/site/:siteId">
+                        <Route element={<Navigate replace to="dashboard"/>} index/>
+                        <Route element={<DashboardPage/>} path="dashboard"/>
+                        <Route element={<DetailsPage/>} path="details"/>
+                        <Route element={<FinancePage/>} path="finance"/>
+                        <Route element={<MiningPage/>} path="mining"/>
+                        <Route element={<ClusterConfigPage/>} path="mining/clusters/:clusterName/config"/>
+                        <Route element={<MinerDetailsPage/>} path="mining/miners/:minerId"/>
+                    </Route>
+                    <Route element={<Navigate replace to="/"/>} path="*"/>
+                </Routes>
+            </BrowserRouter>
+        </SitePreferencesProvider>
     );
 }
 

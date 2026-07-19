@@ -8,7 +8,7 @@ import AppLogo from "../../components/app-logo";
 import de from "../../locales/de.json";
 import en from "../../locales/en.json";
 import type {CurrencyCode, LocaleCode} from "./site-preferences-context";
-import {SitePreferencesProvider, useSitePreferences,} from "./site-preferences-context";
+import {useSitePreferences} from "./site-preferences-context";
 
 const SITE_ROUTE_PREFIX = "/site";
 
@@ -149,9 +149,7 @@ function Settings({
 }
 
 export default function SiteLayout({children}: PropsWithChildren) {
-    return (<SitePreferencesProvider>
-            <SiteLayoutContent>{children}</SiteLayoutContent>
-        </SitePreferencesProvider>);
+    return <SiteLayoutContent>{children}</SiteLayoutContent>;
 }
 
 function SiteLayoutContent({children}: PropsWithChildren) {
