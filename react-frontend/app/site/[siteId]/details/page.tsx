@@ -45,10 +45,76 @@ type DialogState =
 
 type PvDeviceSection = {sectionKey: string; templateId: string; name: string; deviceType: 'INVERTER' | 'BATTERY' | 'SMART_METER'};
 type PvDeviceProfile = {providerId: string; profileName: string; sections: PvDeviceSection[]};
+type SetupField = {
+    key: string;
+    label: string;
+    helpText: string;
+    type: 'TEXT' | 'NUMBER' | 'PASSWORD' | 'SELECT';
+    required: boolean;
+    defaultValue: string;
+    minimum: number | null;
+    maximum: number | null;
+    options: {value: string; label: string}[];
+};
+type PvSourceOption = {
+    id: string;
+    label: string;
+    description: string;
+    fields: SetupField[];
+};
+type PvDeviceDraft = {
+    providerId: string;
+    values: Record<string, string>;
+    selectedSectionKeys: string[];
+};
 
 type PanelGroupDraft = Omit<PanelGroupDto, 'id' | 'peakPowerKw'>;
 
 const inputClassName = 'mt-1.5 w-full rounded-xl border border-white/10 bg-[#0e0e11] px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-[#5f5f68] focus:border-yellow-400/60 focus:ring-2 focus:ring-yellow-400/10';
+
+function defaultProviderValues(option: PvSourceOption | undefined) {
+    return Object.fromEntries((option?.fields ?? []).map((field) => [field.key, field.defaultValue ?? '']));
+}
+
+function valuesForExistingDevice(device: PvDeviceDto, option: PvSourceOption | undefined) {
+    const values = {...defaultProviderValues(option), profile: device.profileName};
+    if (device.providerId === 'MODBUS_TCP') {
+        return {...values, host: device.host, port: String(device.port), slaveId: String(device.slaveId)};
+    }
+    if (device.providerId === 'REST_API') {
+        return {...values, host: device.host, port: String(device.port)};
+    }
+    if (device.providerId === 'MODBUS_RTU') {
+        return {...values, serialPort: device.host, baudRate: String(device.port), slaveId: String(device.slaveId)};
+    }
+    if (device.providerId === 'MQTT') {
+        return {...values, brokerUri: device.host};
+    }
+    if (device.providerId === 'WEBSOCKET') {
+        return {...values, url: device.host};
+    }
+    return values;
+}
+
+function isSameConnection(device: PvDeviceDto, providerId: string, values: Record<string, string>) {
+    if (device.providerId !== providerId) return false;
+    if (providerId === 'MODBUS_TCP' || providerId === 'REST_API') {
+        return device.host === values.host && device.port === Number(values.port);
+    }
+    if (providerId === 'MODBUS_RTU') {
+        return device.host === values.serialPort
+            && device.port === Number(values.baudRate)
+            && device.slaveId === Number(values.slaveId);
+    }
+    if (providerId === 'MQTT') return device.host === values.brokerUri;
+    if (providerId === 'WEBSOCKET') return device.host === values.url;
+    return false;
+}
+
+const providerIdentityFields = new Set([
+    'host', 'port', 'slaveId', 'serialPort', 'baudRate', 'dataBits', 'stopBits',
+    'parity', 'brokerUri', 'url', 'clientId',
+]);
 
 function Modal({
     title,
@@ -194,8 +260,13 @@ export default function PVSiteDetailsPage() {
     });
     const [priceDraft, setPriceDraft] = useState({validFrom: '', amount: 0});
     const [minerCostDraft, setMinerCostDraft] = useState(0);
+    const [pvSourceOptions, setPvSourceOptions] = useState<PvSourceOption[]>([]);
     const [deviceProfiles, setDeviceProfiles] = useState<PvDeviceProfile[]>([]);
-    const [deviceDraft, setDeviceDraft] = useState({providerId: 'MODBUS_TCP', host: '', port: 502, slaveId: 1, profile: '', apiToken: '', selectedSectionKeys: [] as string[]});
+    const [deviceDraft, setDeviceDraft] = useState<PvDeviceDraft>({
+        providerId: 'MODBUS_TCP',
+        values: {host: '', port: '502', slaveId: '1', profile: ''},
+        selectedSectionKeys: [],
+    });
 
     const numberLocale = locale === 'de' ? 'de-DE' : 'en-US';
     const numberFormatter = useMemo(
@@ -331,16 +402,30 @@ export default function PVSiteDetailsPage() {
 
     const openPvDeviceEditor = async (baseDevice: PvDeviceDto | null) => {
         setMutationError(null);
-        const providerId = baseDevice?.providerId === 'REST_API' ? 'REST_API' : 'MODBUS_TCP';
-        const response = await fetch(`${API_BASE_URL}/setup/pv-devices/profiles?providerId=${providerId}`);
-        const profiles = response.ok ? await response.json() as PvDeviceProfile[] : [];
+        const providerId = baseDevice?.providerId ?? 'MODBUS_TCP';
+        const [catalogResponse, profilesResponse] = await Promise.all([
+            fetch(`${API_BASE_URL}/setup/catalog?locale=${locale}`),
+            fetch(`${API_BASE_URL}/setup/pv-devices/profiles?providerId=${providerId}`),
+        ]);
+        if (!catalogResponse.ok) {
+            setMutationError(t['setup.error.catalog']);
+            return;
+        }
+        const catalog = await catalogResponse.json() as {pvSources: PvSourceOption[]};
+        const options = catalog.pvSources ?? [];
+        const option = options.find((entry) => entry.id === providerId);
+        const profiles = profilesResponse.ok ? await profilesResponse.json() as PvDeviceProfile[] : [];
+        setPvSourceOptions(options);
         setDeviceProfiles(profiles);
         const profile = baseDevice?.profileName ?? profiles[0]?.profileName ?? '';
+        const values = baseDevice
+            ? valuesForExistingDevice(baseDevice, option)
+            : {...defaultProviderValues(option), profile};
         const alreadyConfigured = new Set((details?.pvDevices ?? [])
-            .filter((device) => device.providerId === providerId && device.host === baseDevice?.host && device.port === baseDevice?.port && device.profileName === profile)
+            .filter((device) => isSameConnection(device, providerId, values) && device.profileName === profile)
             .map((device) => device.sectionKey));
         const available = profiles.find((entry) => entry.profileName === profile)?.sections.filter((section) => !alreadyConfigured.has(section.sectionKey)).map((section) => section.sectionKey) ?? [];
-        setDeviceDraft({providerId, host: baseDevice?.host ?? '', port: baseDevice?.port ?? (providerId === 'MODBUS_TCP' ? 502 : 80), slaveId: baseDevice?.slaveId ?? 1, profile, apiToken: '', selectedSectionKeys: available});
+        setDeviceDraft({providerId, values, selectedSectionKeys: available});
         setDialog({kind: 'pv-device', baseDevice});
     };
 
@@ -349,7 +434,12 @@ export default function PVSiteDetailsPage() {
         const profiles = response.ok ? await response.json() as PvDeviceProfile[] : [];
         setDeviceProfiles(profiles);
         const profile = profiles[0];
-        setDeviceDraft((draft) => ({...draft, providerId, port: providerId === 'MODBUS_TCP' ? 502 : 80, profile: profile?.profileName ?? '', selectedSectionKeys: profile?.sections.map((section) => section.sectionKey) ?? []}));
+        const option = pvSourceOptions.find((entry) => entry.id === providerId);
+        setDeviceDraft({
+            providerId,
+            values: {...defaultProviderValues(option), profile: profile?.profileName ?? ''},
+            selectedSectionKeys: profile?.sections.map((section) => section.sectionKey) ?? [],
+        });
     };
 
     const submitDialog = (event: FormEvent<HTMLFormElement>) => {
@@ -382,7 +472,7 @@ export default function PVSiteDetailsPage() {
         } else {
             void mutateDetails('/pv-devices', {
                 method: 'POST',
-                body: JSON.stringify({providerId: deviceDraft.providerId, values: {host: deviceDraft.host, port: String(deviceDraft.port), slaveId: String(deviceDraft.slaveId), profile: deviceDraft.profile, apiToken: deviceDraft.apiToken}, selectedSectionKeys: deviceDraft.selectedSectionKeys}),
+                body: JSON.stringify(deviceDraft),
             });
         }
     };
@@ -467,6 +557,8 @@ export default function PVSiteDetailsPage() {
     ];
     const completedChecks = completenessChecks.filter((check) => check.complete).length;
     const completenessPercentage = Math.round((completedChecks / completenessChecks.length) * 100);
+    const selectedPvSourceOption = pvSourceOptions.find((option) => option.id === deviceDraft.providerId);
+    const selectedDeviceProfile = deviceProfiles.find((profile) => profile.profileName === deviceDraft.values.profile);
 
     return (
         <div className="min-h-[calc(100vh-72px)] bg-[#0b0b0d] px-4 py-7 text-white sm:px-6 lg:px-8">
@@ -844,12 +936,72 @@ export default function PVSiteDetailsPage() {
                     title={dialog.baseDevice ? t['details.pv_devices.extend_title'] : t['details.pv_devices.create_title']}
                 >
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <label className="text-sm text-[#b7b7c0]">{t['details.pv_devices.protocol']}<select className={inputClassName} disabled={Boolean(dialog.baseDevice)} onChange={(event) => void loadDeviceProfiles(event.target.value)} value={deviceDraft.providerId}><option value="MODBUS_TCP">Modbus TCP</option><option value="REST_API">REST API</option></select></label>
-                        <label className="text-sm text-[#b7b7c0]">{t['details.pv_devices.profile']}<select className={inputClassName} onChange={(event) => {const profile = deviceProfiles.find((entry) => entry.profileName === event.target.value); setDeviceDraft((draft) => ({...draft, profile: event.target.value, selectedSectionKeys: profile?.sections.map((section) => section.sectionKey) ?? []}));}} required value={deviceDraft.profile}><option value="">—</option>{deviceProfiles.map((profile) => <option key={profile.profileName} value={profile.profileName}>{profile.profileName}</option>)}</select></label>
-                        <label className="text-sm text-[#b7b7c0] sm:col-span-2">{t['details.pv_devices.host']}<input className={inputClassName} disabled={Boolean(dialog.baseDevice)} onChange={(event) => setDeviceDraft((draft) => ({...draft, host: event.target.value}))} required value={deviceDraft.host}/></label>
-                        <label className="text-sm text-[#b7b7c0]">{t['details.pv_devices.port']}<input className={inputClassName} disabled={Boolean(dialog.baseDevice)} min="1" max="65535" onChange={(event) => setDeviceDraft((draft) => ({...draft, port: Number(event.target.value)}))} required type="number" value={deviceDraft.port}/></label>
-                        {deviceDraft.providerId === 'MODBUS_TCP' ? <label className="text-sm text-[#b7b7c0]">Slave ID<input className={inputClassName} disabled={Boolean(dialog.baseDevice)} min="1" max="255" onChange={(event) => setDeviceDraft((draft) => ({...draft, slaveId: Number(event.target.value)}))} required type="number" value={deviceDraft.slaveId}/></label> : <label className="text-sm text-[#b7b7c0]">API Token<input className={inputClassName} onChange={(event) => setDeviceDraft((draft) => ({...draft, apiToken: event.target.value}))} type="password" value={deviceDraft.apiToken}/></label>}
-                        <div className="sm:col-span-2"><p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#777781]">{t['details.pv_devices.available_components']}</p><div className="grid gap-2 sm:grid-cols-2">{(deviceProfiles.find((profile) => profile.profileName === deviceDraft.profile)?.sections ?? []).map((section) => {const unavailable = details.pvDevices.some((device) => device.providerId === deviceDraft.providerId && device.host === deviceDraft.host && device.port === deviceDraft.port && device.profileName === deviceDraft.profile && device.sectionKey === section.sectionKey); const checked = deviceDraft.selectedSectionKeys.includes(section.sectionKey); return <label className={`flex gap-3 rounded-xl border p-3 ${unavailable ? 'cursor-not-allowed border-white/5 opacity-40' : checked ? 'border-emerald-400/30 bg-emerald-400/[0.06]' : 'cursor-pointer border-white/[0.08]'}`} key={section.sectionKey}><input checked={checked && !unavailable} className="mt-1 accent-emerald-400" disabled={unavailable} onChange={() => setDeviceDraft((draft) => ({...draft, selectedSectionKeys: checked ? draft.selectedSectionKeys.filter((key) => key !== section.sectionKey) : [...draft.selectedSectionKeys, section.sectionKey]}))} type="checkbox"/><span><strong className="block text-sm">{section.name}</strong><span className="text-xs text-[#777781]">{t[`setup.source.type.${section.deviceType.toLowerCase()}`]}</span></span></label>;})}</div></div>
+                        <label className="text-sm text-[#b7b7c0]">
+                            {t['details.pv_devices.protocol']}
+                            <select className={inputClassName} disabled={Boolean(dialog.baseDevice)} onChange={(event) => void loadDeviceProfiles(event.target.value)} value={deviceDraft.providerId}>
+                                {pvSourceOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                            </select>
+                            {selectedPvSourceOption?.description ? <span className="mt-1.5 block text-xs leading-5 text-[#777781]">{selectedPvSourceOption.description}</span> : null}
+                        </label>
+                        <label className="text-sm text-[#b7b7c0]">
+                            {t['details.pv_devices.profile']}
+                            <select className={inputClassName} onChange={(event) => {
+                                const profile = deviceProfiles.find((entry) => entry.profileName === event.target.value);
+                                setDeviceDraft((draft) => ({
+                                    ...draft,
+                                    values: {...draft.values, profile: event.target.value},
+                                    selectedSectionKeys: profile?.sections.map((section) => section.sectionKey) ?? [],
+                                }));
+                            }} required value={deviceDraft.values.profile ?? ''}>
+                                <option value="">—</option>
+                                {deviceProfiles.map((profile) => <option key={profile.profileName} value={profile.profileName}>{profile.profileName}</option>)}
+                            </select>
+                        </label>
+                        {selectedPvSourceOption?.fields.filter((field) => field.key !== 'profile').map((field) => (
+                            <label className={`text-sm text-[#b7b7c0] ${field.type === 'TEXT' || field.type === 'PASSWORD' ? 'sm:col-span-2' : ''}`} key={field.key}>
+                                {field.label}{field.required ? <span className="ml-1 text-yellow-400">*</span> : null}
+                                {field.type === 'SELECT' ? (
+                                    <select
+                                        className={inputClassName}
+                                        disabled={Boolean(dialog.baseDevice) && providerIdentityFields.has(field.key)}
+                                        onChange={(event) => setDeviceDraft((draft) => ({...draft, values: {...draft.values, [field.key]: event.target.value}}))}
+                                        required={field.required}
+                                        value={deviceDraft.values[field.key] ?? ''}
+                                    >
+                                        <option value="">—</option>
+                                        {field.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                    </select>
+                                ) : (
+                                    <input
+                                        autoComplete={field.type === 'PASSWORD' ? 'new-password' : undefined}
+                                        className={inputClassName}
+                                        disabled={Boolean(dialog.baseDevice) && providerIdentityFields.has(field.key)}
+                                        max={field.maximum ?? undefined}
+                                        min={field.minimum ?? undefined}
+                                        onChange={(event) => setDeviceDraft((draft) => ({...draft, values: {...draft.values, [field.key]: event.target.value}}))}
+                                        required={field.required}
+                                        type={field.type === 'PASSWORD' ? 'password' : field.type === 'NUMBER' ? 'number' : 'text'}
+                                        value={deviceDraft.values[field.key] ?? ''}
+                                    />
+                                )}
+                                {field.helpText ? <span className="mt-1.5 block text-xs leading-5 text-[#777781]">{field.helpText}</span> : null}
+                            </label>
+                        ))}
+                        <div className="sm:col-span-2">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#777781]">{t['details.pv_devices.available_components']}</p>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                {(selectedDeviceProfile?.sections ?? []).map((section) => {
+                                    const unavailable = details.pvDevices.some((device) => isSameConnection(device, deviceDraft.providerId, deviceDraft.values)
+                                        && device.profileName === deviceDraft.values.profile
+                                        && device.sectionKey === section.sectionKey);
+                                    const checked = deviceDraft.selectedSectionKeys.includes(section.sectionKey);
+                                    return <label className={`flex gap-3 rounded-xl border p-3 ${unavailable ? 'cursor-not-allowed border-white/5 opacity-40' : checked ? 'border-emerald-400/30 bg-emerald-400/[0.06]' : 'cursor-pointer border-white/[0.08]'}`} key={section.sectionKey}>
+                                        <input checked={checked && !unavailable} className="mt-1 accent-emerald-400" disabled={unavailable} onChange={() => setDeviceDraft((draft) => ({...draft, selectedSectionKeys: checked ? draft.selectedSectionKeys.filter((key) => key !== section.sectionKey) : [...draft.selectedSectionKeys, section.sectionKey]}))} type="checkbox"/>
+                                        <span><strong className="block text-sm">{section.name}</strong><span className="text-xs text-[#777781]">{t[`setup.source.type.${section.deviceType.toLowerCase()}`]}</span></span>
+                                    </label>;
+                                })}
+                            </div>
+                        </div>
                     </div>
                 </Modal>
             )}
