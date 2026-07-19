@@ -1,0 +1,111 @@
+{
+  "fingerprint": null,
+  "sections": {
+    "smart_meter": {
+      "templateId": "smart_meter",
+      "name": "Solax Hybrid X1/X3 G3/G4 – smart meter",
+      "entries": {
+        "total_active_power": {
+          "startAddress": 70,
+          "size": 2,
+          "scaleFactor": -1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32s"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_imported": {
+          "startAddress": 74,
+          "size": 2,
+          "scaleFactor": 10,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "uint32s"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_exported": {
+          "startAddress": 70,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32s"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l1": {
+          "startAddress": 70,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32s"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l2": {
+          "startAddress": 70,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32s"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l3": {
+          "startAddress": 70,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32s"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l1": {
+          "startAddress": 202,
+          "size": 1,
+          "scaleFactor": 0.1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "uint16"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l2": {
+          "startAddress": 203,
+          "size": 1,
+          "scaleFactor": 0.1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "uint16"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l3": {
+          "startAddress": 204,
+          "size": 1,
+          "scaleFactor": 0.1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "uint16"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    }
+  },
+  "addressOffset": 0
+}

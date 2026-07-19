@@ -1,0 +1,5123 @@
+{
+  "source": {
+    "project": "evcc",
+    "repository": "https://github.com/evcc-io/evcc",
+    "input": "Templates taken from evcc/definition/meter",
+    "license": "MIT; sponsorship-required templates excluded"
+  },
+  "policy": {
+    "supportedUsages": [
+      "grid",
+      "pv",
+      "battery"
+    ],
+    "supportedProtocols": [
+      "MODBUS_TCP",
+      "MODBUS_RTU",
+      "REST_API",
+      "MQTT",
+      "WEBSOCKET"
+    ],
+    "fingerprints": "Never fabricated; see detection per profile.",
+    "placeholderFields": "Unsupported SolarMiner fields reuse a readable source with formula 0 and are listed as syntheticZeroFields."
+  },
+  "summary": {
+    "inputTemplates": 231,
+    "generatedTemplates": 91,
+    "generatedConfigurations": 116,
+    "generatedProfiles": 116,
+    "generatedByProtocol": {
+      "MODBUS_RTU": 36,
+      "MODBUS_TCP": 48,
+      "MQTT": 1,
+      "REST_API": 31
+    },
+    "skippedTemplates": 140
+  },
+  "profiles": [
+    {
+      "profile": "acrel-adw300",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/acrel-adw300.yaml",
+      "output": "modbus/acrel-adw300.json",
+      "products": [
+        "Acrel ADW300"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 36,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "acrel-adw300",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/acrel-adw300.yaml",
+      "output": "modbus-rtu/acrel-adw300.json",
+      "products": [
+        "Acrel ADW300"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 1200,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 36,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "afore-hybrid",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/afore-hybrid.yaml",
+      "output": "modbus/afore-hybrid.json",
+      "products": [
+        "Afore Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 2002,
+          "size": 1,
+          "parameterType": "uint16",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "alpha-ess-smile",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/alpha-ess-smile.yaml",
+      "output": "modbus/alpha-ess-smile.json",
+      "products": [
+        "Alpha ESS Storion SMILE"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 85
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 33,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "alpha-ess-smile",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/alpha-ess-smile.yaml",
+      "output": "modbus-rtu/alpha-ess-smile.json",
+      "products": [
+        "Alpha ESS Storion SMILE"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 85
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 33,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "anker-solix-solarbank-max-ac",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/anker-solix-solarbank-max-ac.yaml",
+      "output": "modbus/anker-solix-solarbank-max-ac.json",
+      "products": [
+        "Anker SOLIX Solarbank Max AC"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 10012,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "anker-solix-x1",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/anker-solix-x1.yaml",
+      "output": "modbus/anker-solix-x1.json",
+      "products": [
+        "Anker SOLIX X1 Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 10644,
+          "size": 2,
+          "parameterType": "int32s",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "apsystems-ez1",
+      "protocol": "REST_API",
+      "source": "definition/meter/apsystems-ez1.yaml",
+      "output": "rest/apsystems-ez1.json",
+      "products": [
+        "APsystems EZ1"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/getOutputData",
+        "dataPath": "expr:$.data.p1+$.data.p2"
+      }
+    },
+    {
+      "profile": "atmoce",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/atmoce.yaml",
+      "output": "modbus/atmoce.json",
+      "products": [
+        "Atmoce MG100 M-gateway"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "power_l1",
+            "power_l2",
+            "power_l3"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 60073,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "batterX",
+      "protocol": "REST_API",
+      "source": "definition/meter/batterx.yaml",
+      "output": "rest/batterx.json",
+      "products": [
+        "batterX Home"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/api.php?get=currentstate",
+        "dataPath": "$[\"2913\"][\"0\"]"
+      }
+    },
+    {
+      "profile": "bgetech-ds100",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/bgetech-ds100.yaml",
+      "output": "modbus-rtu/bgetech-ds100.json",
+      "products": [
+        "B+GE-TECH DS100"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 1200,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 1056,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "bgetech-ws100",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/bgetech-ws100.yaml",
+      "output": "modbus-rtu/bgetech-ws100.json",
+      "products": [
+        "B+GE-TECH WS100"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 1200,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 260,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "cg-emt1xx",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/cg-emt1xx.yaml",
+      "output": "modbus-rtu/cg-emt1xx.json",
+      "products": [
+        "Carlo Gavazzi EM110/111/112",
+        "Carlo Gavazzi ET112"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 4,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "cozify",
+      "protocol": "REST_API",
+      "source": "definition/meter/cozify.yaml",
+      "output": "rest/cozify.json",
+      "products": [
+        "Cozify HAN Cozify HAN"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/meter/data",
+        "dataPath": "expr:($.pi[0] - $.pe[0])"
+      }
+    },
+    {
+      "profile": "deye-mi",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/deye-mi.yaml",
+      "output": "modbus/deye-mi.json",
+      "products": [
+        "Deye Micro inverter",
+        "Bosswerk Micro inverter",
+        "Anker Micro inverter",
+        "Sunsynk Micro inverter"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 86,
+          "size": 2,
+          "parameterType": "uint32s",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "deye-mi",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/deye-mi.yaml",
+      "output": "modbus-rtu/deye-mi.json",
+      "products": [
+        "Deye Micro inverter",
+        "Bosswerk Micro inverter",
+        "Anker Micro inverter",
+        "Sunsynk Micro inverter"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 86,
+          "size": 2,
+          "parameterType": "uint32s",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "deye-storage",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/deye-storage.yaml",
+      "output": "modbus/deye-storage.json",
+      "products": [
+        "Deye Storage (hybrid) inverter",
+        "Sunsynk Storage (hybrid) inverter"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        },
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 184,
+          "size": 1,
+          "parameterType": "uint16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "deye-storage",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/deye-storage.yaml",
+      "output": "modbus-rtu/deye-storage.json",
+      "products": [
+        "Deye Storage (hybrid) inverter",
+        "Sunsynk Storage (hybrid) inverter"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        },
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 184,
+          "size": 1,
+          "parameterType": "uint16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "deye-string",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/deye-string.yaml",
+      "output": "modbus/deye-string.json",
+      "products": [
+        "Deye String inverter",
+        "Sunsynk String inverter"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 86,
+          "size": 2,
+          "parameterType": "uint32s",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "deye-string",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/deye-string.yaml",
+      "output": "modbus-rtu/deye-string.json",
+      "products": [
+        "Deye String inverter",
+        "Sunsynk String inverter"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 86,
+          "size": 2,
+          "parameterType": "uint32s",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "eastron-sdm120",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/eastron-sdm120.yaml",
+      "output": "modbus-rtu/eastron-sdm120.json",
+      "products": [
+        "Eastron SDM120-Modbus"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 12,
+          "size": 2,
+          "parameterType": "float32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "everhome-ecotracker",
+      "protocol": "REST_API",
+      "source": "definition/meter/everhome-ecotracker.yaml",
+      "output": "rest/everhome-ecotracker.json",
+      "products": [
+        "Everhome Ecotracker"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/v1/json",
+        "dataPath": "$.power"
+      }
+    },
+    {
+      "profile": "fox-ess-avocado",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/fox-ess-avocado.yaml",
+      "output": "modbus/fox-ess-avocado.json",
+      "products": [
+        "FoxESS Avocado",
+        "FoxESS MQ2200",
+        "Solakon ONE",
+        "Tepto Avocado Pro"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 39168,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "fox-ess-avocado",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/fox-ess-avocado.yaml",
+      "output": "modbus-rtu/fox-ess-avocado.json",
+      "products": [
+        "FoxESS Avocado",
+        "FoxESS MQ2200",
+        "Solakon ONE",
+        "Tepto Avocado Pro"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 39168,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "fox-ess-h3-smart",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/fox-ess-h3-smart.yaml",
+      "output": "modbus/fox-ess-h3-smart.json",
+      "products": [
+        "FoxESS H3-Pro/Smart Series Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 247
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 37612,
+          "size": 1,
+          "parameterType": "int16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "fox-ess-h3-smart",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/fox-ess-h3-smart.yaml",
+      "output": "modbus-rtu/fox-ess-h3-smart.json",
+      "products": [
+        "FoxESS H3-Pro/Smart Series Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 247
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 37612,
+          "size": 1,
+          "parameterType": "int16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "fox-ess-h3",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/fox-ess-h3.yaml",
+      "output": "modbus/fox-ess-h3.json",
+      "products": [
+        "FoxESS H3 Series Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 247
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 31038,
+          "size": 1,
+          "parameterType": "int16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "fox-ess-h3",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/fox-ess-h3.yaml",
+      "output": "modbus-rtu/fox-ess-h3.json",
+      "products": [
+        "FoxESS H3 Series Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 247
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 31038,
+          "size": 1,
+          "parameterType": "int16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "fronius-solarapi-v1",
+      "protocol": "REST_API",
+      "source": "definition/meter/fronius-solarapi-v1.yaml",
+      "output": "rest/fronius-solarapi-v1.json",
+      "products": [
+        "Fronius Solar API V1"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+        "dataPath": ""
+      }
+    },
+    {
+      "profile": "go-e-controller",
+      "protocol": "REST_API",
+      "source": "definition/meter/go-e-controller.yaml",
+      "output": "rest/go-e-controller.json",
+      "products": [
+        "go-e Controller"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/api/status?filter=ccp",
+        "dataPath": "$.ccp[1]"
+      }
+    },
+    {
+      "profile": "goodwe-dt",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/goodwe-dt.yaml",
+      "output": "modbus/goodwe-dt.json",
+      "products": [
+        "GoodWe SDT/DT Inverter"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 247
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 781,
+          "size": 1,
+          "parameterType": "uint16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "goodwe-dt",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/goodwe-dt.yaml",
+      "output": "modbus-rtu/goodwe-dt.json",
+      "products": [
+        "GoodWe SDT/DT Inverter"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 247
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 781,
+          "size": 1,
+          "parameterType": "uint16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "goodwe-hybrid",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/goodwe-hybrid.yaml",
+      "output": "modbus/goodwe-hybrid.json",
+      "products": [
+        "GoodWe ET/EH/BH/BT Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 247
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 36025,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "goodwe-hybrid",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/goodwe-hybrid.yaml",
+      "output": "modbus-rtu/goodwe-hybrid.json",
+      "products": [
+        "GoodWe ET/EH/BH/BT Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 247
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 36025,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "growatt-hybrid",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/growatt-hybrid.yaml",
+      "output": "modbus/growatt-hybrid.json",
+      "products": [
+        "Growatt Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 1,
+          "size": 2,
+          "parameterType": "uint32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "growatt-hybrid",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/growatt-hybrid.yaml",
+      "output": "modbus-rtu/growatt-hybrid.json",
+      "products": [
+        "Growatt Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 1,
+          "size": 2,
+          "parameterType": "uint32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "hoymiles-dtugateway",
+      "protocol": "REST_API",
+      "source": "definition/meter/hoymiles-dtugateway.yaml",
+      "output": "rest/hoymiles-dtugateway.json",
+      "products": [
+        "Hoymiles"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/api/data.json",
+        "dataPath": "$.grid.p"
+      }
+    },
+    {
+      "profile": "hoymiles-opendtu",
+      "protocol": "REST_API",
+      "source": "definition/meter/hoymiles-opendtu.yaml",
+      "output": "rest/hoymiles-opendtu.json",
+      "products": [
+        "Hoymiles HM & HMS Series (via OpenDTU)"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/api/livedata/status",
+        "dataPath": "$.total.Power.v"
+      }
+    },
+    {
+      "profile": "huawei-emma",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/huawei-emma.yaml",
+      "output": "modbus/huawei-emma.json",
+      "products": [
+        "Huawei EMMA"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 31657,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "huawei-smartlogger",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/huawei-smartlogger.yaml",
+      "output": "modbus/huawei-smartlogger.json",
+      "products": [
+        "Huawei SmartLogger"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 32278,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "huawei-sun2000-hybrid",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/huawei-sun2000-hybrid.yaml",
+      "output": "modbus/huawei-sun2000-hybrid.json",
+      "products": [
+        "Huawei"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": []
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 37113,
+          "size": 2,
+          "parameterType": "int32nan",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "huawei-sun2000-hybrid",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/huawei-sun2000-hybrid.yaml",
+      "output": "modbus-rtu/huawei-sun2000-hybrid.json",
+      "products": [
+        "Huawei"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": []
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 37113,
+          "size": 2,
+          "parameterType": "int32nan",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "huawei-sun2000-inverter",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/huawei-sun2000-inverter.yaml",
+      "output": "modbus/huawei-sun2000-inverter.json",
+      "products": [
+        "Huawei"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 32080,
+          "size": 2,
+          "parameterType": "int32nan",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "huawei-sun2000-inverter",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/huawei-sun2000-inverter.yaml",
+      "output": "modbus-rtu/huawei-sun2000-inverter.json",
+      "products": [
+        "Huawei"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 32080,
+          "size": 2,
+          "parameterType": "int32nan",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "iammeter-1p",
+      "protocol": "REST_API",
+      "source": "definition/meter/iammeter-1p.yaml",
+      "output": "rest/iammeter-1p.json",
+      "products": [
+        "IAMMETER WEM3080",
+        "IAMMETER WEM2067",
+        "IAMMETER WEM3080T (1p)",
+        "IAMMETER WEM3046T (1p)",
+        "IAMMETER WEM3050T (1p)"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/api/monitorjson",
+        "dataPath": ""
+      }
+    },
+    {
+      "profile": "iammeter-3p",
+      "protocol": "REST_API",
+      "source": "definition/meter/iammeter-3p.yaml",
+      "output": "rest/iammeter-3p.json",
+      "products": [
+        "IAMMETER WEM3080T",
+        "IAMMETER WEM3046T",
+        "IAMMETER WEM3050T"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": []
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/api/monitorjson",
+        "dataPath": "$.Datas[3][2]"
+      }
+    },
+    {
+      "profile": "iammeter",
+      "protocol": "REST_API",
+      "source": "definition/meter/iammeter.yaml",
+      "output": "rest/iammeter.json",
+      "products": [
+        "IAMMETER WEM3080T/WEM3046T/WEM3050T",
+        "IAMMETER WEM3080"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/api/monitorjson",
+        "dataPath": ""
+      }
+    },
+    {
+      "profile": "ibc-homeone",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/ibc-homeone.yaml",
+      "output": "modbus/ibc-homeone.json",
+      "products": [
+        "IBC Solar HomeOne Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 3
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 1600,
+          "size": 2,
+          "parameterType": "uint32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "ibc-homeone",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/ibc-homeone.yaml",
+      "output": "modbus-rtu/ibc-homeone.json",
+      "products": [
+        "IBC Solar HomeOne Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 3
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 1600,
+          "size": 2,
+          "parameterType": "uint32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "intilion-scalebloc",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/intilion-scalebloc.yaml",
+      "output": "modbus/intilion-scalebloc.json",
+      "products": [
+        "INTILION scalebloc energy"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 5002,
+          "size": 1,
+          "parameterType": "uint16",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "iometer",
+      "protocol": "REST_API",
+      "source": "definition/meter/iometer.yaml",
+      "output": "rest/iometer.json",
+      "products": [
+        "IOmeter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/v1/reading",
+        "dataPath": ""
+      }
+    },
+    {
+      "profile": "kostal-ksem-inverter",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/kostal-ksem-inverter.yaml",
+      "output": "modbus/kostal-ksem-inverter.json",
+      "products": [
+        "Kostal"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 1502,
+        "slaveId": 71
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 252,
+          "size": 2,
+          "parameterType": "float32s",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "kostal-piko-hybrid",
+      "protocol": "REST_API",
+      "source": "definition/meter/kostal-piko-hybrid.yaml",
+      "output": "rest/kostal-piko-hybrid.json",
+      "products": [
+        "Kostal Piko Hybrid"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "max_charge_power",
+            "max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/api/dxs.json?dxsEntries=83886336&dxsEntries=83886848&dxsEntries=83886592&dxsEntries=67109120 # Home PV Power + Home Grid Power + Home Bat Power - PV/Bat Inverter Power",
+        "dataPath": ""
+      }
+    },
+    {
+      "profile": "kostal-piko-legacy",
+      "protocol": "REST_API",
+      "source": "definition/meter/kostal-piko-legacy.yaml",
+      "output": "rest/kostal-piko-legacy.json",
+      "products": [
+        "Kostal Piko (legacy)"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "BASIC",
+      "credentials": "Enter username:password in the device credentials field.",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/",
+        "dataPath": "regex:(?s)aktuell</td>\\s+<td[^>]+>\\s+(\\d+)</td>"
+      }
+    },
+    {
+      "profile": "kostal-piko-mp-plus",
+      "protocol": "REST_API",
+      "source": "definition/meter/kostal-piko-mp-plus.yaml",
+      "output": "rest/kostal-piko-mp-plus.json",
+      "products": [
+        "Kostal Piko MP Plus",
+        "Steca coolcept fleX"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/measurements.xml",
+        "dataPath": ""
+      }
+    },
+    {
+      "profile": "kostal-piko-pv",
+      "protocol": "REST_API",
+      "source": "definition/meter/kostal-piko-pv.yaml",
+      "output": "rest/kostal-piko-pv.json",
+      "products": [
+        "Kostal Piko",
+        "Kostal Piko BA"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/api/dxs.json?dxsEntries=83886336&dxsEntries=83886848&dxsEntries=83886592&dxsEntries=67109120 # Home PV Power + Home Grid Power + Home Bat Power - PV/Bat Inverter Power",
+        "dataPath": ""
+      }
+    },
+    {
+      "profile": "marstek-venus-a",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/marstek-venus-a.yaml",
+      "output": "modbus/marstek-venus-a.json",
+      "products": [
+        "Marstek Venus A",
+        "Marstek Venus D"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 32104,
+          "size": 1,
+          "parameterType": "uint16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "marstek-venus-a",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/marstek-venus-a.yaml",
+      "output": "modbus-rtu/marstek-venus-a.json",
+      "products": [
+        "Marstek Venus A",
+        "Marstek Venus D"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 115200,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 32104,
+          "size": 1,
+          "parameterType": "uint16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "mtec-eb-gen2",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/mtec-eb-gen2.yaml",
+      "output": "modbus-rtu/mtec-eb-gen2.json",
+      "products": [
+        "M-TEC Energy Butler GEN2"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 247
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 11000,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "mtec-eb-gen3",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/mtec-eb-gen3.yaml",
+      "output": "modbus/mtec-eb-gen3.json",
+      "products": [
+        "M-TEC Energy Butler GEN3"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 255
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 11000,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "mtec-eb-gen3",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/mtec-eb-gen3.yaml",
+      "output": "modbus-rtu/mtec-eb-gen3.json",
+      "products": [
+        "M-TEC Energy Butler GEN3"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 255
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 11000,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "mypv-wifi-meter",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/mypv-wifi-meter.yaml",
+      "output": "modbus/mypv-wifi-meter.json",
+      "products": [
+        "my-PV WiFi Meter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 32,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "openems",
+      "protocol": "REST_API",
+      "source": "definition/meter/openems.yaml",
+      "output": "rest/openems.json",
+      "products": [
+        "OpenEMS REST-API",
+        "FENECON REST-API"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "BASIC",
+      "credentials": "Enter username:password in the device credentials field.",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/rest/channel/_sum/GridActivePower",
+        "dataPath": ""
+      }
+    },
+    {
+      "profile": "plexlog",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/plexlog.yaml",
+      "output": "modbus/plexlog.json",
+      "products": [
+        "Plexlog"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 503,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 0,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "powerdog",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/powerdog.yaml",
+      "output": "modbus/powerdog.json",
+      "products": [
+        "Powerdog"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 40002,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "pstryk",
+      "protocol": "REST_API",
+      "source": "definition/meter/pstryk.yaml",
+      "output": "rest/pstryk.json",
+      "products": [
+        "Pstryk.pl 3-phase meter via local HTTP"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/state",
+        "dataPath": ""
+      }
+    },
+    {
+      "profile": "saj-h1",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/saj-h1.yaml",
+      "output": "modbus/saj-h1.json",
+      "products": [
+        "SAJ H1 Series Hybrid Solar Inverter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 16545,
+          "size": 1,
+          "parameterType": "int16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "saj-h2",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/saj-h2.yaml",
+      "output": "modbus/saj-h2.json",
+      "products": [
+        "SAJ H2 Series Hybrid Solar Inverter",
+        "Ampere Ampere.StoragePro"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 16557,
+          "size": 1,
+          "parameterType": "int16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "saj-h2",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/saj-h2.yaml",
+      "output": "modbus-rtu/saj-h2.json",
+      "products": [
+        "SAJ H2 Series Hybrid Solar Inverter",
+        "Ampere Ampere.StoragePro"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 115200,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 16557,
+          "size": 1,
+          "parameterType": "int16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "saj-r5",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/saj-r5.yaml",
+      "output": "modbus-rtu/saj-r5.json",
+      "products": [
+        "SAJ R5 Series Solar Inverter"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 275,
+          "size": 1,
+          "parameterType": "uint16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "senergy-hybrid",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/senergy-hybrid.yaml",
+      "output": "modbus-rtu/senergy-hybrid.json",
+      "products": [
+        "Senergy Hybrid Inverter",
+        "Strong Energy Alfred 10"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 4168,
+          "size": 2,
+          "parameterType": "uint32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "senergy",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/senergy.yaml",
+      "output": "modbus/senergy.json",
+      "products": [
+        "Senergy SE 4/5/6KTL-S1/G2 Inverter",
+        "SolarMax SP Series Inverter"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 4151,
+          "size": 2,
+          "parameterType": "uint32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sermatec-hybrid",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/sermatec-hybrid.yaml",
+      "output": "modbus-rtu/sermatec-hybrid.json",
+      "products": [
+        "Sermatec SMT-5K-TL-LV Hybrid Inverter",
+        "Sermatec SMT-10K-TL-LV Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 16407,
+          "size": 1,
+          "parameterType": "int16",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sessy-p1",
+      "protocol": "REST_API",
+      "source": "definition/meter/sessy-p1.yaml",
+      "output": "rest/sessy-p1.json",
+      "products": [
+        "Sessy Sessy P1"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/api/v2/p1/details",
+        "dataPath": "$.power_total"
+      }
+    },
+    {
+      "profile": "sessy-smart-battery",
+      "protocol": "REST_API",
+      "source": "definition/meter/sessy-smart-battery.yaml",
+      "output": "rest/sessy-smart-battery.json",
+      "products": [
+        "Sessy Sessy Smart Battery"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "max_charge_power",
+            "max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "authenticationType": "BASIC",
+      "credentials": "Enter username:password in the device credentials field.",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/api/v1/power/status",
+        "dataPath": "$.sessy.state_of_charge"
+      }
+    },
+    {
+      "profile": "siemens-7kt1665",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/siemens-7kt1665.yaml",
+      "output": "modbus/siemens-7kt1665.json",
+      "products": [
+        "Siemens 7KT1665",
+        "Siemens 7KT1666 (MID)"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 57,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "siemens-7kt1665",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/siemens-7kt1665.yaml",
+      "output": "modbus-rtu/siemens-7kt1665.json",
+      "products": [
+        "Siemens 7KT1665",
+        "Siemens 7KT1666 (MID)"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 57,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "siemens-junelight",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/siemens-junelight.yaml",
+      "output": "modbus/siemens-junelight.json",
+      "products": [
+        "Siemens Junelight Smart Battery"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 14,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sma-data-manager",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/sma-datamanager.yaml",
+      "output": "modbus/sma-data-manager.json",
+      "products": [
+        "SMA Data Manager"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 2
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 31249,
+          "size": 2,
+          "parameterType": "int32nan",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sma-inverter-modbus",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/sma-inverter-modbus.yaml",
+      "output": "modbus/sma-inverter-modbus.json",
+      "products": [
+        "SMA Wechselrichter (Modbus)"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 3
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 30775,
+          "size": 2,
+          "parameterType": "int32nan",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sma-sbs-15-25-modbus",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/sma-sbs-15-25-modbus.yaml",
+      "output": "modbus/sma-sbs-15-25-modbus.json",
+      "products": [
+        "SMA Sunny Boy Storage 1.5/2.0/2.5 (Modbus)"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 3
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 30845,
+          "size": 2,
+          "parameterType": "uint32nan",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sma-sbs-modbus",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/sma-sbs-modbus.yaml",
+      "output": "modbus/sma-sbs-modbus.json",
+      "products": [
+        "SMA Sunny Boy Storage 3.7/5.0/6.0 (Modbus)"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 3
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 30845,
+          "size": 2,
+          "parameterType": "uint32nan",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sma-si-modbus",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/sma-si-modbus.yaml",
+      "output": "modbus/sma-si-modbus.json",
+      "products": [
+        "SMA Sunny Island (Modbus)"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 3
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 30845,
+          "size": 2,
+          "parameterType": "uint32nan",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sma-webbox",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/sma-webbox.yaml",
+      "output": "modbus/sma-webbox.json",
+      "products": [
+        "SMA WebBox"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 2
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 30775,
+          "size": 2,
+          "parameterType": "int32nan",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "smartfox",
+      "protocol": "REST_API",
+      "source": "definition/meter/smartfox.yaml",
+      "output": "rest/smartfox.json",
+      "products": [
+        "Smartfox Box",
+        "Smartfox Reg",
+        "Smartfox Reg extended"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/all",
+        "dataPath": "$.power_io"
+      }
+    },
+    {
+      "profile": "sofarsolar",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/sofarsolar.yaml",
+      "output": "modbus/sofarsolar.json",
+      "products": [
+        "SofarSolar Inverter",
+        "SofarSolar Hybrid Inverter",
+        "ZCS Azzurro Inverter",
+        "ZCS Azzurro Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 530,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sofarsolar",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/sofarsolar.yaml",
+      "output": "modbus-rtu/sofarsolar.json",
+      "products": [
+        "SofarSolar Inverter",
+        "SofarSolar Hybrid Inverter",
+        "ZCS Azzurro Inverter",
+        "ZCS Azzurro Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 530,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "solaranzeige",
+      "protocol": "MQTT",
+      "source": "definition/meter/solaranzeige-mqtt.yaml",
+      "output": "mqtt/solaranzeige.json",
+      "products": [
+        "Solaranzeige Solaranzeige"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "topicPrefix": "solaranzeige/box1"
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "Broker and topic prefix are installation-specific."
+      }
+    },
+    {
+      "profile": "solaredge-hybrid",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/solaredge-hybrid.yaml",
+      "output": "modbus/solaredge-hybrid.json",
+      "products": [
+        "SolarEdge Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 1502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 57732,
+          "size": 2,
+          "parameterType": "float32nans",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "solaredge-hybrid",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/solaredge-hybrid.yaml",
+      "output": "modbus-rtu/solaredge-hybrid.json",
+      "products": [
+        "SolarEdge Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 57732,
+          "size": 2,
+          "parameterType": "float32nans",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "solarman",
+      "protocol": "REST_API",
+      "source": "definition/meter/solarman.yaml",
+      "output": "rest/solarman.json",
+      "products": [
+        "IGEN Tech Solarman Logger"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "BASIC",
+      "credentials": "Enter username:password in the device credentials field.",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/status.html",
+        "dataPath": "regex:webdata_now_p\\s*=\\s*\\\"(\\d+)\\\""
+      }
+    },
+    {
+      "profile": "solarmax-smt",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/solarmax-inverter-smt.yaml",
+      "output": "modbus/solarmax-smt.json",
+      "products": [
+        "SolarMax SolarMax SMT"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 4151,
+          "size": 2,
+          "parameterType": "uint32",
+          "operationType": "READ_HOLDING_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "solarmax-maxstorage",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/solarmax-maxstorage.yaml",
+      "output": "modbus/solarmax-maxstorage.json",
+      "products": [
+        "SolarMax MAX.STORAGE / MAX.STORAGE Ultimate"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 118,
+          "size": 2,
+          "parameterType": "int32s",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "solarwatt-myreserve-matrix",
+      "protocol": "REST_API",
+      "source": "definition/meter/solarwatt-myreserve-matrix.yaml",
+      "output": "rest/solarwatt-myreserve-matrix.json",
+      "products": [
+        "Solarwatt MyReserve Matrix (LAN oder PowerGateway)"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "max_charge_power",
+            "max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/",
+        "dataPath": "$.FData.PGrid"
+      }
+    },
+    {
+      "profile": "solarwatt",
+      "protocol": "REST_API",
+      "source": "definition/meter/solarwatt.yaml",
+      "output": "rest/solarwatt.json",
+      "products": [
+        "Solarwatt MyReserve",
+        "Solarwatt EnergyManager",
+        "Solarwatt EnergyManager Pro"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "max_charge_power",
+            "max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/rest/kiwigrid/wizard/devices # EnergyManager",
+        "dataPath": ""
+      }
+    },
+    {
+      "profile": "solax-g2",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/solax-g2.yaml",
+      "output": "modbus/solax-g2.json",
+      "products": [
+        "Solax X3-MIC G2",
+        "Solax X3-PRO G2",
+        "Qcells Q.VOLT P5T-X",
+        "Qcells Q.VOLT P17T-X"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 1083,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "solax-g2",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/solax-g2.yaml",
+      "output": "modbus-rtu/solax-g2.json",
+      "products": [
+        "Solax X3-MIC G2",
+        "Solax X3-PRO G2",
+        "Qcells Q.VOLT P5T-X",
+        "Qcells Q.VOLT P17T-X"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 1083,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "solax",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/solax.yaml",
+      "output": "modbus/solax.json",
+      "products": [
+        "Solax Hybrid X1/X3 G3/G4",
+        "Qcells Q.HOME ESS HYB-G3"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 70,
+          "size": 2,
+          "parameterType": "int32s",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "solax",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/solax.yaml",
+      "output": "modbus-rtu/solax.json",
+      "products": [
+        "Solax Hybrid X1/X3 G3/G4",
+        "Qcells Q.HOME ESS HYB-G3"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 19200,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 70,
+          "size": 2,
+          "parameterType": "int32s",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "solis-hybrid-s",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/solis-hybrid-s.yaml",
+      "output": "modbus-rtu/solis-hybrid-s.json",
+      "products": [
+        "Ginlong Solis Hybrid Inverter (S Series)",
+        "Ginlong Solis Storage Inverter (S Series)",
+        "Axitec AXIhycon 12-15H"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 33263,
+          "size": 2,
+          "parameterType": "int32nan",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "solis-hybrid",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/solis-hybrid.yaml",
+      "output": "modbus-rtu/solis-hybrid.json",
+      "products": [
+        "Ginlong Solis Hybrid Inverter (RHI series)"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 33263,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "solis",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/solis.yaml",
+      "output": "modbus-rtu/solis.json",
+      "products": [
+        "Ginlong Solis Inverter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 3262,
+          "size": 2,
+          "parameterType": "int32",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sonnenbatterie",
+      "protocol": "REST_API",
+      "source": "definition/meter/sonnenbatterie.yaml",
+      "output": "rest/sonnenbatterie.json",
+      "products": [
+        "Sonnen sonnenBatterie"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/api/v1/status",
+        "dataPath": "$.GridFeedIn_W"
+      }
+    },
+    {
+      "profile": "sonnenbatterie-eco56",
+      "protocol": "REST_API",
+      "source": "definition/meter/sonnenbatterie_eco56.yaml",
+      "output": "rest/sonnenbatterie-eco56.json",
+      "products": [
+        "Sonnen comfort",
+        "Sonnen eco 5",
+        "Sonnen eco 6",
+        "Sonnen oem 6.5"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "max_charge_power",
+            "max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/rest/devices/battery",
+        "dataPath": "expr:$.M39 - $.M38"
+      }
+    },
+    {
+      "profile": "storaxe",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/storaxe.yaml",
+      "output": "modbus/storaxe.json",
+      "products": [
+        "Ads-tec StoraXe"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 2
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 125,
+          "size": 1,
+          "parameterType": "int16",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "stromleser",
+      "protocol": "REST_API",
+      "source": "definition/meter/stromleser.yaml",
+      "output": "rest/stromleser.json",
+      "products": [
+        "stromleser.one IR Reader"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/v1/data",
+        "dataPath": ""
+      }
+    },
+    {
+      "profile": "sungrow-hybrid",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/sungrow-hybrid.yaml",
+      "output": "modbus/sungrow-hybrid.json",
+      "products": [
+        "Sungrow SH Series Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 13009,
+          "size": 2,
+          "parameterType": "int32s",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sungrow-hybrid",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/sungrow-hybrid.yaml",
+      "output": "modbus-rtu/sungrow-hybrid.json",
+      "products": [
+        "Sungrow SH Series Hybrid Inverter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 13009,
+          "size": 2,
+          "parameterType": "int32s",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sungrow-ihm",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/sungrow-ihm.yaml",
+      "output": "modbus/sungrow-ihm.json",
+      "products": [
+        "Sungrow iHomeManager (iHM)"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": []
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 247
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 8156,
+          "size": 2,
+          "parameterType": "int32s",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sungrow-ihm",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/sungrow-ihm.yaml",
+      "output": "modbus-rtu/sungrow-ihm.json",
+      "products": [
+        "Sungrow iHomeManager (iHM)"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": []
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "current_max_charge_power",
+            "current_max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 247
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 8156,
+          "size": 2,
+          "parameterType": "int32s",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sungrow-inverter",
+      "protocol": "MODBUS_TCP",
+      "source": "definition/meter/sungrow-inverter.yaml",
+      "output": "modbus/sungrow-inverter.json",
+      "products": [
+        "Sungrow SG Series Inverter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "EVCC provides no stable expected identity value.",
+        "probeCandidate": {
+          "address": 5082,
+          "size": 2,
+          "parameterType": "int32s",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "sungrow-inverter",
+      "protocol": "MODBUS_RTU",
+      "source": "definition/meter/sungrow-inverter.yaml",
+      "output": "modbus-rtu/sungrow-inverter.json",
+      "products": [
+        "Sungrow SG Series Inverter"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "defaults": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "parity": "NONE",
+        "stopBits": 1,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "RTU discovery cannot safely probe an unknown shared bus.",
+        "probeCandidate": {
+          "address": 5082,
+          "size": 2,
+          "parameterType": "int32s",
+          "operationType": "READ_INPUT_REGISTER"
+        }
+      }
+    },
+    {
+      "profile": "youless",
+      "protocol": "REST_API",
+      "source": "definition/meter/youless.yaml",
+      "output": "rest/youless.json",
+      "products": [
+        "Youless Energy Monitor"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_exported",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        },
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "internal_temperature",
+            "status_code"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/e",
+        "dataPath": ""
+      }
+    },
+    {
+      "profile": "zendure-3ct",
+      "protocol": "REST_API",
+      "source": "definition/meter/zendure-3ct.yaml",
+      "output": "rest/zendure-3ct.json",
+      "products": [
+        "Zendure 3CT"
+      ],
+      "sections": [
+        {
+          "key": "smart_meter",
+          "type": "smart_meter",
+          "syntheticZeroFields": [
+            "total_imported",
+            "total_exported",
+            "power_l1",
+            "power_l2",
+            "power_l3",
+            "voltage_l1",
+            "voltage_l2",
+            "voltage_l3"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/properties/report",
+        "dataPath": "$.total_power"
+      }
+    },
+    {
+      "profile": "zendure-solarflow-ac",
+      "protocol": "REST_API",
+      "source": "definition/meter/zendure-solarflow-ac.yaml",
+      "output": "rest/zendure-solarflow-ac.json",
+      "products": [
+        "Zendure Solarflow AC"
+      ],
+      "sections": [
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "max_charge_power",
+            "max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/properties/report",
+        "dataPath": "$.properties.electricLevel"
+      }
+    },
+    {
+      "profile": "zendure-solarflow-pro",
+      "protocol": "REST_API",
+      "source": "definition/meter/zendure-solarflow-pro.yaml",
+      "output": "rest/zendure-solarflow-pro.json",
+      "products": [
+        "Zendure Solarflow 800 Pro"
+      ],
+      "sections": [
+        {
+          "key": "inverter",
+          "type": "inverter",
+          "syntheticZeroFields": [
+            "current_dc_power",
+            "current_dc_voltage",
+            "current_ac_voltage",
+            "grid_frequency",
+            "total_energy_yield",
+            "internal_temperature",
+            "status_code"
+          ]
+        },
+        {
+          "key": "battery",
+          "type": "battery",
+          "syntheticZeroFields": [
+            "max_charge_power",
+            "max_discharge_power",
+            "state_of_health",
+            "temperature"
+          ]
+        }
+      ],
+      "authenticationType": "NONE",
+      "credentials": "None",
+      "detection": {
+        "status": "SEMANTIC_HTTP_PROBE",
+        "urlExtension": "/properties/report",
+        "dataPath": "$.properties.solarInputPower"
+      }
+    }
+  ]
+}

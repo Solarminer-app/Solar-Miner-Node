@@ -1,0 +1,110 @@
+{
+  "authenticationType": "NONE",
+  "sections": {
+    "smart_meter": {
+      "templateId": "rest_smart_meter",
+      "name": "batterX Home – smart meter",
+      "entries": {
+        "total_active_power": {
+          "urlExtension": "/api.php?get=currentstate",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$[\"2913\"][\"0\"]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_imported": {
+          "urlExtension": "/api.php?get=currentstate",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$[\"2913\"][\"0\"]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_exported": {
+          "urlExtension": "/api.php?get=currentstate",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$[\"2913\"][\"0\"]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l1": {
+          "urlExtension": "/api.php?get=currentstate",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$[\"2913\"][\"0\"]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l2": {
+          "urlExtension": "/api.php?get=currentstate",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$[\"2913\"][\"0\"]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l3": {
+          "urlExtension": "/api.php?get=currentstate",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$[\"2913\"][\"0\"]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l1": {
+          "urlExtension": "/api.php?get=currentstate",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$[\"2913\"][\"0\"]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l2": {
+          "urlExtension": "/api.php?get=currentstate",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$[\"2913\"][\"0\"]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l3": {
+          "urlExtension": "/api.php?get=currentstate",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$[\"2913\"][\"0\"]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    }
+  }
+}

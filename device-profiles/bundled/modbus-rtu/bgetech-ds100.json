@@ -1,0 +1,205 @@
+{
+  "fingerprint": null,
+  "sections": {
+    "smart_meter": {
+      "templateId": "smart_meter",
+      "name": "B+GE-TECH DS100 – smart meter",
+      "entries": {
+        "total_active_power": {
+          "startAddress": 1056,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_imported": {
+          "startAddress": 270,
+          "size": 2,
+          "scaleFactor": 10,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_exported": {
+          "startAddress": 1056,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l1": {
+          "startAddress": 1050,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l2": {
+          "startAddress": 1052,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l3": {
+          "startAddress": 1054,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l1": {
+          "startAddress": 1024,
+          "size": 2,
+          "scaleFactor": 0.001,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l2": {
+          "startAddress": 1026,
+          "size": 2,
+          "scaleFactor": 0.001,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l3": {
+          "startAddress": 1028,
+          "size": 2,
+          "scaleFactor": 0.001,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    },
+    "inverter": {
+      "templateId": "inverter",
+      "name": "B+GE-TECH DS100 – inverter",
+      "entries": {
+        "current_dc_power": {
+          "startAddress": 1056,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_dc_voltage": {
+          "startAddress": 1056,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_ac_power": {
+          "startAddress": 1056,
+          "size": 2,
+          "scaleFactor": -1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_ac_voltage": {
+          "startAddress": 1024,
+          "size": 2,
+          "scaleFactor": 0.001,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "grid_frequency": {
+          "startAddress": 1056,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_energy_yield": {
+          "startAddress": 280,
+          "size": 2,
+          "scaleFactor": 10,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "internal_temperature": {
+          "startAddress": 1056,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "status_code": {
+          "startAddress": 1056,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    }
+  },
+  "addressOffset": 0
+}

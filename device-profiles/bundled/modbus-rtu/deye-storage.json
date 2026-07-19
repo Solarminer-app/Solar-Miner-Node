@@ -1,0 +1,183 @@
+{
+  "fingerprint": null,
+  "sections": {
+    "battery": {
+      "templateId": "battery",
+      "name": "Deye Storage (hybrid) inverter – battery",
+      "entries": {
+        "state_of_charge": {
+          "startAddress": 184,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "uint16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_power": {
+          "startAddress": 190,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_max_charge_power": {
+          "startAddress": 190,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_max_discharge_power": {
+          "startAddress": 190,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "state_of_health": {
+          "startAddress": 190,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "temperature": {
+          "startAddress": 190,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    },
+    "smart_meter": {
+      "templateId": "smart_meter",
+      "name": "Deye Storage (hybrid) inverter – smart meter",
+      "entries": {
+        "total_active_power": {
+          "startAddress": 169,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_imported": {
+          "startAddress": 169,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_exported": {
+          "startAddress": 81,
+          "size": 2,
+          "scaleFactor": 100,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "uint32s"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l1": {
+          "startAddress": 169,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l2": {
+          "startAddress": 169,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l3": {
+          "startAddress": 169,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l1": {
+          "startAddress": 169,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l2": {
+          "startAddress": 169,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l3": {
+          "startAddress": 169,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    }
+  },
+  "addressOffset": 0
+}

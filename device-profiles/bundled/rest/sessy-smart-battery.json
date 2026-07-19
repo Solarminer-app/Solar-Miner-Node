@@ -1,0 +1,77 @@
+{
+  "authenticationType": "BASIC",
+  "sections": {
+    "battery": {
+      "templateId": "rest_battery",
+      "name": "Sessy Sessy Smart Battery – battery",
+      "entries": {
+        "state_of_charge": {
+          "urlExtension": "/api/v1/power/status",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.sessy.state_of_charge",
+          "scaleFactor": 100,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_power": {
+          "urlExtension": "/api/v1/power/status",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.sessy.power",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "max_charge_power": {
+          "urlExtension": "/api/v1/power/status",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.sessy.power",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "max_discharge_power": {
+          "urlExtension": "/api/v1/power/status",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.sessy.power",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "state_of_health": {
+          "urlExtension": "/api/v1/power/status",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.sessy.power",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "temperature": {
+          "urlExtension": "/api/v1/power/status",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.sessy.power",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    }
+  }
+}

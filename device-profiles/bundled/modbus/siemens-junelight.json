@@ -1,0 +1,277 @@
+{
+  "fingerprint": null,
+  "sections": {
+    "smart_meter": {
+      "templateId": "smart_meter",
+      "name": "Siemens Junelight Smart Battery – smart meter",
+      "entries": {
+        "total_active_power": {
+          "startAddress": 14,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_imported": {
+          "startAddress": 14,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_exported": {
+          "startAddress": 14,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l1": {
+          "startAddress": 14,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l2": {
+          "startAddress": 14,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l3": {
+          "startAddress": 14,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l1": {
+          "startAddress": 14,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l2": {
+          "startAddress": 14,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l3": {
+          "startAddress": 14,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    },
+    "inverter": {
+      "templateId": "inverter",
+      "name": "Siemens Junelight Smart Battery – inverter",
+      "entries": {
+        "current_dc_power": {
+          "startAddress": 16,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_dc_voltage": {
+          "startAddress": 16,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_ac_power": {
+          "startAddress": 16,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_ac_voltage": {
+          "startAddress": 16,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "grid_frequency": {
+          "startAddress": 16,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_energy_yield": {
+          "startAddress": 16,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "internal_temperature": {
+          "startAddress": 16,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "status_code": {
+          "startAddress": 16,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    },
+    "battery": {
+      "templateId": "battery",
+      "name": "Siemens Junelight Smart Battery – battery",
+      "entries": {
+        "state_of_charge": {
+          "startAddress": 8,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_power": {
+          "startAddress": 6,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_max_charge_power": {
+          "startAddress": 6,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_max_discharge_power": {
+          "startAddress": 6,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "state_of_health": {
+          "startAddress": 6,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "temperature": {
+          "startAddress": 6,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    }
+  },
+  "addressOffset": 0
+}

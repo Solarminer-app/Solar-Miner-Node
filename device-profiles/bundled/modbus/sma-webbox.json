@@ -1,0 +1,100 @@
+{
+  "fingerprint": null,
+  "sections": {
+    "inverter": {
+      "templateId": "inverter",
+      "name": "SMA WebBox – inverter",
+      "entries": {
+        "current_dc_power": {
+          "startAddress": 30775,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_dc_voltage": {
+          "startAddress": 30775,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_ac_power": {
+          "startAddress": 30775,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_ac_voltage": {
+          "startAddress": 30775,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "grid_frequency": {
+          "startAddress": 30775,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_energy_yield": {
+          "startAddress": 30513,
+          "size": 4,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "uint64nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "internal_temperature": {
+          "startAddress": 30775,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "status_code": {
+          "startAddress": 30775,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    }
+  },
+  "addressOffset": 0
+}

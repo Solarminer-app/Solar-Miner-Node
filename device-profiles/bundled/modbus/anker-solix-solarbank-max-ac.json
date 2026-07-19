@@ -1,0 +1,183 @@
+{
+  "fingerprint": null,
+  "sections": {
+    "smart_meter": {
+      "templateId": "smart_meter",
+      "name": "Anker SOLIX Solarbank Max AC – smart meter",
+      "entries": {
+        "total_active_power": {
+          "startAddress": 10012,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_imported": {
+          "startAddress": 10012,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_exported": {
+          "startAddress": 10012,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l1": {
+          "startAddress": 10012,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l2": {
+          "startAddress": 10012,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l3": {
+          "startAddress": 10012,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l1": {
+          "startAddress": 10012,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l2": {
+          "startAddress": 10012,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l3": {
+          "startAddress": 10012,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    },
+    "battery": {
+      "templateId": "battery",
+      "name": "Anker SOLIX Solarbank Max AC – battery",
+      "entries": {
+        "state_of_charge": {
+          "startAddress": 10014,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "uint16"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_power": {
+          "startAddress": 10008,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_max_charge_power": {
+          "startAddress": 10008,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_max_discharge_power": {
+          "startAddress": 10008,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "state_of_health": {
+          "startAddress": 10008,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "temperature": {
+          "startAddress": 10008,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    }
+  },
+  "addressOffset": 0
+}

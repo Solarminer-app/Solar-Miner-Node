@@ -1,0 +1,204 @@
+{
+  "authenticationType": "NONE",
+  "sections": {
+    "smart_meter": {
+      "templateId": "rest_smart_meter",
+      "name": "Fronius Solar API V1 – smart meter",
+      "entries": {
+        "total_active_power": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_imported": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_exported": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l1": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l2": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l3": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l1": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l2": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l3": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    },
+    "inverter": {
+      "templateId": "rest_inverter",
+      "name": "Fronius Solar API V1 – inverter",
+      "entries": {
+        "current_dc_power": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_dc_voltage": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_ac_power": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_ac_voltage": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "grid_frequency": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_energy_yield": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "internal_temperature": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "status_code": {
+          "urlExtension": "/solar_api/v1/GetPowerFlowRealtimeData.fcgi",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    }
+  }
+}

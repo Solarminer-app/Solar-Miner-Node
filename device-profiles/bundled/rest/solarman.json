@@ -1,0 +1,99 @@
+{
+  "authenticationType": "BASIC",
+  "sections": {
+    "inverter": {
+      "templateId": "rest_inverter",
+      "name": "IGEN Tech Solarman Logger – inverter",
+      "entries": {
+        "current_dc_power": {
+          "urlExtension": "/status.html",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "regex:webdata_now_p\\s*=\\s*\\\"(\\d+)\\\"",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_dc_voltage": {
+          "urlExtension": "/status.html",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "regex:webdata_now_p\\s*=\\s*\\\"(\\d+)\\\"",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_ac_power": {
+          "urlExtension": "/status.html",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "regex:webdata_now_p\\s*=\\s*\\\"(\\d+)\\\"",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_ac_voltage": {
+          "urlExtension": "/status.html",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "regex:webdata_now_p\\s*=\\s*\\\"(\\d+)\\\"",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "grid_frequency": {
+          "urlExtension": "/status.html",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "regex:webdata_now_p\\s*=\\s*\\\"(\\d+)\\\"",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_energy_yield": {
+          "urlExtension": "/status.html",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "regex:webdata_total_e\\s*=\\s*\\\"(\\d+[.]\\d+)\\\"",
+          "scaleFactor": 1000,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "internal_temperature": {
+          "urlExtension": "/status.html",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "regex:webdata_now_p\\s*=\\s*\\\"(\\d+)\\\"",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "status_code": {
+          "urlExtension": "/status.html",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "regex:webdata_now_p\\s*=\\s*\\\"(\\d+)\\\"",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    }
+  }
+}

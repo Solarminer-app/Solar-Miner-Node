@@ -1,0 +1,204 @@
+{
+  "authenticationType": "NONE",
+  "sections": {
+    "smart_meter": {
+      "templateId": "rest_smart_meter",
+      "name": "IAMMETER WEM3080T – smart meter",
+      "entries": {
+        "total_active_power": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[3][2]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_imported": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[3][3]",
+          "scaleFactor": 1000,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_exported": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[3][4]",
+          "scaleFactor": 1000,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l1": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[0][2]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l2": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[1][2]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l3": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[2][2]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l1": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[0][0]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l2": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[1][0]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l3": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[2][0]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    },
+    "inverter": {
+      "templateId": "rest_inverter",
+      "name": "IAMMETER WEM3080T – inverter",
+      "entries": {
+        "current_dc_power": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[3][2]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_dc_voltage": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[3][2]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_ac_power": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[3][2]",
+          "scaleFactor": -1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_ac_voltage": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[0][0]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "grid_frequency": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[3][2]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_energy_yield": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[3][4]",
+          "scaleFactor": 1000,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "internal_temperature": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[3][2]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "status_code": {
+          "urlExtension": "/api/monitorjson",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.Datas[3][2]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    }
+  }
+}

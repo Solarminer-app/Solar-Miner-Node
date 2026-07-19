@@ -1,0 +1,78 @@
+{
+  "fingerprint": null,
+  "sections": {
+    "battery": {
+      "templateId": "battery",
+      "name": "FoxESS H3-Pro/Smart Series Hybrid Inverter – battery",
+      "entries": {
+        "state_of_charge": {
+          "startAddress": 37612,
+          "size": 1,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int16"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_power": {
+          "startAddress": 39237,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_max_charge_power": {
+          "startAddress": 39237,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_max_discharge_power": {
+          "startAddress": 39237,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "state_of_health": {
+          "startAddress": 39237,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "temperature": {
+          "startAddress": 39237,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    }
+  },
+  "addressOffset": 0
+}

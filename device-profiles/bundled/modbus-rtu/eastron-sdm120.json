@@ -1,0 +1,205 @@
+{
+  "fingerprint": null,
+  "sections": {
+    "smart_meter": {
+      "templateId": "smart_meter",
+      "name": "Eastron SDM120-Modbus – smart meter",
+      "entries": {
+        "total_active_power": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_imported": {
+          "startAddress": 72,
+          "size": 2,
+          "scaleFactor": 1000,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_exported": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l1": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l2": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "power_l3": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l1": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l2": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "voltage_l3": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    },
+    "inverter": {
+      "templateId": "inverter",
+      "name": "Eastron SDM120-Modbus – inverter",
+      "entries": {
+        "current_dc_power": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_dc_voltage": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_ac_power": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": -1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_ac_voltage": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "grid_frequency": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_energy_yield": {
+          "startAddress": 74,
+          "size": 2,
+          "scaleFactor": 1000,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "internal_temperature": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "status_code": {
+          "startAddress": 12,
+          "size": 2,
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "float32"
+          },
+          "operationType": "READ_INPUT_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    }
+  },
+  "addressOffset": 0
+}

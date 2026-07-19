@@ -1,0 +1,110 @@
+{
+  "authenticationType": "NONE",
+  "sections": {
+    "smart_meter": {
+      "templateId": "rest_smart_meter",
+      "name": "Pstryk.pl 3-phase meter via local HTTP – smart meter",
+      "entries": {
+        "total_active_power": {
+          "urlExtension": "/state",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_imported": {
+          "urlExtension": "/state",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1000,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_exported": {
+          "urlExtension": "/state",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l1": {
+          "urlExtension": "/state",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l2": {
+          "urlExtension": "/state",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l3": {
+          "urlExtension": "/state",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l1": {
+          "urlExtension": "/state",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l2": {
+          "urlExtension": "/state",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l3": {
+          "urlExtension": "/state",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    }
+  }
+}

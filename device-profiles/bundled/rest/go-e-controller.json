@@ -1,0 +1,204 @@
+{
+  "authenticationType": "NONE",
+  "sections": {
+    "smart_meter": {
+      "templateId": "rest_smart_meter",
+      "name": "go-e Controller – smart meter",
+      "entries": {
+        "total_active_power": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[1]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_imported": {
+          "urlExtension": "/api/status?filter=cec",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.cec[1][0]/1000",
+          "scaleFactor": 1000,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_exported": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[1]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l1": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[1]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l2": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[1]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l3": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[1]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l1": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[1]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l2": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[1]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l3": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[1]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    },
+    "inverter": {
+      "templateId": "rest_inverter",
+      "name": "go-e Controller – inverter",
+      "entries": {
+        "current_dc_power": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[4]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_dc_voltage": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[4]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_ac_power": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[4]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_ac_voltage": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[4]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "grid_frequency": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[4]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_energy_yield": {
+          "urlExtension": "/api/status?filter=cec",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.cec[4][0]/1000",
+          "scaleFactor": 1000,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "internal_temperature": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[4]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "status_code": {
+          "urlExtension": "/api/status?filter=ccp",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.ccp[4]",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    }
+  }
+}
