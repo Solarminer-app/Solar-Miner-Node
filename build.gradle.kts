@@ -87,7 +87,9 @@ dependencies {
     implementation(
         "org.springframework.boot:spring-boot-starter-web"
     )
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
+    // 2.8.17 is built against Spring Boot 3.5 / Spring Framework 6.2.17 and
+    // registers resource patterns that Spring Boot 3.4.3 cannot parse.
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5")
     implementation("org.springframework:spring-context")
 
     implementation("io.projectreactor:reactor-core")
