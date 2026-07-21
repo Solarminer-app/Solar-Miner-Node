@@ -112,15 +112,27 @@ public class DashboardChartQueryService {
             boundedHistoryStart = configuredSiteStart;
         }
 
-        List<FluxRecord> historyRecords = influxService.queryDataFromApi(
+        List<FluxRecord> historyRecords = influxService.queryMeasurementData(
+                influxService.getDownSampledInfluxBucket(),
+                PVSiteInfluxStrategy.HOURLY_MEASUREMENT_KEY,
                 site,
                 boundedHistoryStart,
                 historyEnd,
-                query -> query
-                        .addField(PVSiteInfluxStrategy.PV_POWER_IN_KW)
-                        .setAggregation(InfluxUtil.AggregateOperation.MEAN, Duration.ofHours(1))
-                        .setGroupByTime(false)
+                List.of(PVSiteInfluxStrategy.PV_POWER_IN_KW)
         );
+        // During the first startup after an upgrade, the hourly backfill may still be running.
+        // Preserve the previous behavior until the precomputed series becomes available.
+        if (historyRecords.isEmpty()) {
+            historyRecords = influxService.queryDataFromApi(
+                    site,
+                    boundedHistoryStart,
+                    historyEnd,
+                    query -> query
+                            .addField(PVSiteInfluxStrategy.PV_POWER_IN_KW)
+                            .setAggregation(InfluxUtil.AggregateOperation.MEAN, Duration.ofHours(1))
+                            .setGroupByTime(false)
+            );
+        }
 
         Map<String, TreeMap<Long, Double>> liveSeries = new ConcurrentHashMap<>();
         LIVE_FIELDS.forEach(field -> liveSeries.put(field, new TreeMap<>()));
