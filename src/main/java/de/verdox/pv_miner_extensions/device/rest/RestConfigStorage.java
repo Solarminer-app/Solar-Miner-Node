@@ -1,6 +1,7 @@
 package de.verdox.pv_miner_extensions.device.rest;
 
 import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
+import de.verdox.pv_miner.configuration.StoragePaths;
 import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
 import de.verdox.solarminer.rest.RestPVConfig;
 import de.verdox.vserializer.generic.SerializationElement;
@@ -25,7 +26,7 @@ import java.util.stream.Stream;
 @Service
 public class RestConfigStorage {
     private static final Logger LOGGER = Logger.getLogger(RestConfigStorage.class.getSimpleName());
-    private final File storageFolder = new File("./storage/rest/");
+    private final File storageFolder = StoragePaths.directory("rest");
     private final Map<String, RestPVConfig> cache = new HashMap<>();
     private final ConfigFetcherService configFetcherService;
 

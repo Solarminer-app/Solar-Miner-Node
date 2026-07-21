@@ -1,6 +1,7 @@
 package de.verdox.pv_miner_extensions.device.message;
 
 import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
+import de.verdox.pv_miner.configuration.StoragePaths;
 import de.verdox.solarminer.rest.RestPVConfig;
 import de.verdox.vserializer.generic.SerializationElement;
 import de.verdox.vserializer.json.JsonSerializerContext;
@@ -89,7 +90,7 @@ public class MessageConfigStorage {
 
     private File folder(String protocol) {
         if (!MQTT.equals(protocol) && !WEBSOCKET.equals(protocol)) throw new IllegalArgumentException("Unsupported message protocol");
-        return new File("./storage/" + protocol + "/");
+        return StoragePaths.directory(protocol);
     }
 
     private void validateName(String name) {

@@ -13,7 +13,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
@@ -31,7 +30,7 @@ public abstract class AbstractConfigStorage<T extends SimpleConfig<?>> {
 
     protected List<String> getNameOfSavedFiles(File folder) throws IOException {
         if (!folder.isDirectory() || !folder.exists()) {
-            return List.of("");
+            return List.of();
         }
         try (Stream<Path> pathStream = Files.walk(folder.toPath(), 1)) {
             return pathStream.map(FileNameUtils::getBaseName).skip(1).toList();
@@ -39,11 +38,15 @@ public abstract class AbstractConfigStorage<T extends SimpleConfig<?>> {
     }
 
     protected void save(File saveFile, T config) throws IOException {
-        saveFile.getParentFile().mkdirs();
+        Path target = saveFile.toPath().toAbsolutePath().normalize();
+        Path parent = target.getParent();
+        if (parent == null) {
+            throw new IOException("Config file has no parent directory: " + target);
+        }
+        Files.createDirectories(parent);
         JsonSerializerContext jsonSerializerContext = new JsonSerializerContext();
         SerializationElement element = serializer.serialize(jsonSerializerContext, config);
-        Path target = saveFile.toPath();
-        Path temporaryFile = Files.createTempFile(target.getParent(), saveFile.getName() + ".", ".tmp");
+        Path temporaryFile = Files.createTempFile(parent, saveFile.getName() + ".", ".tmp");
         try {
             jsonSerializerContext.writeToFile(element, temporaryFile.toFile());
             try {
@@ -80,14 +83,13 @@ public abstract class AbstractConfigStorage<T extends SimpleConfig<?>> {
     private void initStorage() {
         LOGGER.info("Initialize storage at " + storageFolder.getAbsolutePath());
         try {
-            if (!storageFolder.mkdirs() && !storageFolder.isDirectory()) {
-                LOGGER.warning("Could not initialize storage at " + storageFolder.getAbsolutePath()+". Maybe the folder already exists? Well then everything is ok :)");
+            Files.createDirectories(storageFolder.toPath());
+            if (!Files.isDirectory(storageFolder.toPath()) || !Files.isWritable(storageFolder.toPath())) {
+                throw new IOException("Storage path is not a writable directory: " + storageFolder.getAbsolutePath());
             }
-            else {
-                LOGGER.warning("Initialized storage at " + storageFolder.getAbsolutePath());
-            }
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Could not initialize storage at " + storageFolder.getAbsolutePath(), e);
+            LOGGER.info("Initialized storage at " + storageFolder.getAbsolutePath());
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not initialize writable storage at " + storageFolder.getAbsolutePath(), e);
         }
     }
 }

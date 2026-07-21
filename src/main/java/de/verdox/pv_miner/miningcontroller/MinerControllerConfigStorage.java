@@ -1,6 +1,7 @@
 package de.verdox.pv_miner.miningcontroller;
 
 import de.verdox.pv_miner.configuration.AbstractConfigStorage;
+import de.verdox.pv_miner.configuration.StoragePaths;
 import de.verdox.pv_miner.miningcontroller.dsl.DefaultCluster;
 import org.springframework.stereotype.Service;
 
@@ -9,8 +10,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.stream.Stream;
 
 @Service
 public class MinerControllerConfigStorage extends AbstractConfigStorage<MinerControllerConfig> {
@@ -18,9 +17,13 @@ public class MinerControllerConfigStorage extends AbstractConfigStorage<MinerCon
     private final Map<String, MinerControllerConfig> configs = new HashMap<>();
 
     public MinerControllerConfigStorage() {
-        super(new File("./storage/miner/"), MinerControllerConfig.SERIALIZER);
+        this(StoragePaths.directory("miner"));
+    }
 
-        if(configs.isEmpty()) {
+    MinerControllerConfigStorage(File storageFolder) {
+        super(storageFolder, MinerControllerConfig.SERIALIZER);
+
+        if (!getFile(STANDARD_CLUSTER_NAME).isFile()) {
             try {
                 save(STANDARD_CLUSTER_NAME, DefaultCluster.DEFAULT);
             } catch (IOException e) {
@@ -62,6 +65,6 @@ public class MinerControllerConfigStorage extends AbstractConfigStorage<MinerCon
     }
 
     private File getFile(String name) {
-        return new File(getStorageFolder() + "/" + name + ".json");
+        return new File(getStorageFolder(), name + ".json");
     }
 }

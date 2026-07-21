@@ -1,6 +1,7 @@
 package de.verdox.pv_miner_extensions.device.modbus;
 
 import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
+import de.verdox.pv_miner.configuration.StoragePaths;
 import de.verdox.solarminer.modbustcp.ModbusConfig;
 import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
 import de.verdox.vserializer.generic.SerializationElement;
@@ -23,7 +24,7 @@ import java.util.stream.Stream;
 @Service
 public class ModbusConfigStorage {
     private static final Logger LOGGER = Logger.getLogger(ModbusConfigStorage.class.getSimpleName());
-    private final File storageFolder = new File("./storage/modbus/");
+    private final File storageFolder = StoragePaths.directory("modbus");
     private final Map<String, ModbusConfig> cache = new HashMap<>();
     private final ConfigFetcherService configFetcherService;
 
