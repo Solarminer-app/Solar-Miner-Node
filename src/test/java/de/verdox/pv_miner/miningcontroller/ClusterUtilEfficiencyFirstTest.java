@@ -58,7 +58,7 @@ class ClusterUtilEfficiencyFirstTest {
     @Test
     void treatsTheHighestReachableStepAsFullPower() {
         var allocation = ClusterUtil.allocateEfficiencyFirst(List.of(
-                new ClusterUtil.EfficiencyCandidate(EFFICIENT, 20, 800, 3_100, 250, 0, false),
+                new ClusterUtil.EfficiencyCandidate(EFFICIENT, 20, 800, 3_100, 250, 0, false, null),
                 candidate(SECOND, 30, 0, false)
         ), 4_000);
 
@@ -77,7 +77,18 @@ class ClusterUtilEfficiencyFirstTest {
         assertEquals(1_000, allocation.get(SECOND), 0.001);
     }
 
+    @Test
+    void manualPriorityOverridesMeasuredEfficiency() {
+        var allocation = ClusterUtil.allocateEfficiencyFirst(List.of(
+                new ClusterUtil.EfficiencyCandidate(EFFICIENT, 20, 800, 3_000, 250, 0, false, null),
+                new ClusterUtil.EfficiencyCandidate(SECOND, 30, 800, 3_000, 250, 0, false, 1)
+        ), 3_000);
+
+        assertEquals(3_000, allocation.get(SECOND), 0.001);
+        assertEquals(0, allocation.get(EFFICIENT), 0.001);
+    }
+
     private ClusterUtil.EfficiencyCandidate candidate(UUID id, double efficiency, double current, boolean locked) {
-        return new ClusterUtil.EfficiencyCandidate(id, efficiency, 800, 3_000, 250, current, locked);
+        return new ClusterUtil.EfficiencyCandidate(id, efficiency, 800, 3_000, 250, current, locked, null);
     }
 }

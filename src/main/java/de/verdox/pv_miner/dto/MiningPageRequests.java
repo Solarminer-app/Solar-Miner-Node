@@ -35,6 +35,12 @@ public final class MiningPageRequests {
     ) {
     }
 
+    public record MinerEfficiencySettingsRequest(
+            Integer dispatchPriority,
+            Double nominalEfficiencyJTh
+    ) {
+    }
+
     public record ReferralRequest(String referralCode) {
     }
 }

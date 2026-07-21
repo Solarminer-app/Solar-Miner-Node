@@ -67,7 +67,12 @@ public class ClusterUtil {
     public static Map<UUID, Double> allocateEfficiencyFirst(List<EfficiencyCandidate> candidates,
                                                              double targetPowerWatts) {
         List<EfficiencyCandidate> ordered = new ArrayList<>(candidates);
-        ordered.sort(Comparator.comparingDouble(EfficiencyCandidate::efficiencyWattsPerTerahash)
+        ordered.sort(Comparator
+                .comparingInt((EfficiencyCandidate candidate) -> candidate.dispatchPriority() == null ? 1 : 0)
+                .thenComparingInt(candidate -> candidate.dispatchPriority() == null
+                        ? Integer.MAX_VALUE
+                        : candidate.dispatchPriority())
+                .thenComparingDouble(EfficiencyCandidate::efficiencyWattsPerTerahash)
                 .thenComparing(candidate -> candidate.minerId().toString()));
 
         double lockedPower = ordered.stream()
@@ -121,7 +126,8 @@ public class ClusterUtil {
             double maxPowerWatts,
             int stepSizeWatts,
             double currentPowerWatts,
-            boolean powerLocked
+            boolean powerLocked,
+            Integer dispatchPriority
     ) {
     }
 }

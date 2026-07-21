@@ -17,6 +17,7 @@ public record MinerDetailsPageDto(
         String configuredPool,
         LiveMinerStatsDto live,
         MinerHardwareDto hardware,
+        MinerEfficiencyStrategyDto efficiencyStrategy,
         List<MinerPoolDto> pools,
         List<MinerWorkerDto> workers,
         MinerHistorySummaryDto historySummary,
@@ -41,6 +42,27 @@ public record MinerDetailsPageDto(
             Integer minimumRunMinutes,
             Integer minimumIdleMinutes,
             Integer powerChangeLockMinutes
+    ) {
+    }
+
+    public record MinerEfficiencyStrategyDto(
+            Integer dispatchPriority,
+            Double nominalEfficiencyJTh,
+            Double effectiveEfficiencyJTh,
+            String effectiveSource,
+            Integer effectivePowerTargetBucketWatts,
+            long effectiveSampleCount,
+            List<MinerEfficiencyProfileDto> learnedProfiles
+    ) {
+    }
+
+    public record MinerEfficiencyProfileDto(
+            int powerTargetBucketWatts,
+            double learnedEfficiencyJTh,
+            long sampleCount,
+            Double averageTemperatureCelsius,
+            Instant lastObservedAt,
+            boolean controllerReady
     ) {
     }
 

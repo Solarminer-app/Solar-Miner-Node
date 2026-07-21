@@ -509,6 +509,22 @@ export interface MinerDetailsPageDto {
         minimumIdleMinutes: number | null;
         powerChangeLockMinutes: number | null;
     };
+    efficiencyStrategy: {
+        dispatchPriority: number | null;
+        nominalEfficiencyJTh: number | null;
+        effectiveEfficiencyJTh: number | null;
+        effectiveSource: 'LEARNED' | 'NOMINAL' | 'LIVE';
+        effectivePowerTargetBucketWatts: number | null;
+        effectiveSampleCount: number;
+        learnedProfiles: Array<{
+            powerTargetBucketWatts: number;
+            learnedEfficiencyJTh: number;
+            sampleCount: number;
+            averageTemperatureCelsius: number | null;
+            lastObservedAt: string;
+            controllerReady: boolean;
+        }>;
+    };
     pools: Array<{url: string; username: string}>;
     workers: Array<{
         name: string;

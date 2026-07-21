@@ -31,6 +31,7 @@ public class ClusterController {
 
     private final Map<UUID, MinerLock> activeLocks = new ConcurrentHashMap<>();
     private final Map<UUID, Double> lastKnownEfficiencies = new ConcurrentHashMap<>();
+    private final Map<UUID, Double> stabilizedEfficiencyScores = new ConcurrentHashMap<>();
 
     private final InfluxValueProvider influxValueProvider = new InfluxValueProvider();
     private final ControllerDecisionEngine decisionEngine = new ControllerDecisionEngine();
@@ -247,6 +248,7 @@ public class ClusterController {
                                            double targetPowerWatts,
                                            ControllerDSL.OperatingMode mode) {
         List<MinerEntity<?>> miners = getFreshMiners();
+        MinerEfficiencyLearningService learningService = SpringContextHelper.getBean(MinerEfficiencyLearningService.class);
         List<ClusterUtil.EfficiencyCandidate> candidates = miners.stream().map(miner -> {
             MinerStats stats = queryService.getLastResult(miner, MinerStats.DEFAULT);
             if (stats != null && stats.terahashPerSecond() > 0 && stats.approximatedPowerUsageWatts() > 0) {
@@ -255,16 +257,20 @@ public class ClusterController {
                     lastKnownEfficiencies.put(miner.getId(), measuredEfficiency);
                 }
             }
-            double efficiency = lastKnownEfficiencies.getOrDefault(miner.getId(), Double.MAX_VALUE);
             boolean supportsScaling = miner.getOS().supportsDynamicPowerScaling();
             double maxPower = ClusterUtil.getMaxPowerForMiner(miner);
             double minPower = supportsScaling ? ClusterUtil.getMinPowerTargetForMiner(miner) : maxPower;
+            MinerEfficiencyLearningService.EfficiencyEstimate estimate = learningService.estimate(miner, (long) maxPower);
+            double rawEfficiency = estimate.efficiencyJTh() != null
+                    ? estimate.efficiencyJTh()
+                    : lastKnownEfficiencies.getOrDefault(miner.getId(), Double.MAX_VALUE);
+            double efficiency = stabilizeEfficiencyScore(miner.getId(), rawEfficiency);
             MinerLock lock = activeLocks.get(miner.getId());
             return new ClusterUtil.EfficiencyCandidate(
                     miner.getId(), efficiency, minPower, maxPower,
                     ClusterUtil.getEffectiveStepSize(miner, action, supportsScaling),
                     lock != null ? lock.expectedPowerWatts() : 0.0,
-                    isMinerPowerLocked(miner)
+                    isMinerPowerLocked(miner), miner.getEfficiencyDispatchPriority()
             );
         }).toList();
         Map<UUID, Double> allocations = ClusterUtil.allocateEfficiencyFirst(candidates, targetPowerWatts);
@@ -286,6 +292,19 @@ public class ClusterController {
                 handleMinerShutdownOrUndervolt(miner, controller, mode, minPower, isCurrentlyMining, supportsScaling);
             }
         }
+    }
+
+    private double stabilizeEfficiencyScore(UUID minerId, double rawEfficiency) {
+        if (!Double.isFinite(rawEfficiency) || rawEfficiency <= 0) {
+            return stabilizedEfficiencyScores.getOrDefault(minerId, Double.MAX_VALUE);
+        }
+        return stabilizedEfficiencyScores.compute(minerId, (ignored, previous) -> {
+            if (previous == null || !Double.isFinite(previous) || previous <= 0) {
+                return rawEfficiency;
+            }
+            double relativeDifference = Math.abs(rawEfficiency - previous) / previous;
+            return relativeDifference >= 0.10 ? rawEfficiency : previous;
+        });
     }
 
     private void shutdownOrUndervoltCluster(EntityControllerService controllerService, ControllerDSL.OperatingMode mode, List<MinerEntity<?>> adjustableMiners) {

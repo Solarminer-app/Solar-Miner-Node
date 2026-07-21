@@ -868,5 +868,16 @@
   "details.pv_devices.profile": "Device profile",
   "details.pv_devices.host": "IP address or hostname",
   "details.pv_devices.port": "Port",
-  "details.pv_devices.available_components": "Available components"
+  "details.pv_devices.available_components": "Available components",
+  "miner.details.strategy.title": "Efficiency-first strategy",
+  "miner.details.strategy.description": "Optionally prioritize this miner or set a manufacturer value as a starting point. Empty fields keep using automatic logic.",
+  "miner.details.strategy.priority": "Manual priority",
+  "miner.details.strategy.priority_hint": "1 receives power first. Manually ranked miners precede automatic miners.",
+  "miner.details.strategy.nominal": "Manufacturer efficiency",
+  "miner.details.strategy.nominal_hint": "Used only as a starting value until enough learned data is available.",
+  "miner.details.strategy.automatic": "Automatic",
+  "miner.details.strategy.save": "Save",
+  "miner.details.strategy.saving": "Saving…",
+  "miner.details.strategy.saved": "Settings saved.",
+  "miner.details.strategy.save_error": "Settings could not be saved."
 }
