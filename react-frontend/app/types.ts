@@ -369,6 +369,18 @@ export interface MiningPageDto {
     devFee: DevFeeOverviewDto;
 }
 
+export interface MiningLiveSnapshotDto {
+    updatedAt: string;
+    totalHashrateThs: number;
+    miners: Array<{
+        id: string;
+        status: string;
+        hashrateThs: number;
+        powerWatts: number;
+        temperatureCelsius: number;
+    }>;
+}
+
 export interface DevFeeOverviewDto {
     backendAvailable: boolean;
     userPercentage: number;

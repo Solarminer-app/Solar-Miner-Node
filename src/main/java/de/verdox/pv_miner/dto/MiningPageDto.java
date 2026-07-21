@@ -1,6 +1,7 @@
 package de.verdox.pv_miner.dto;
 
 import de.verdox.pv_miner.shared.dto.DevFeeOverviewDto;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -58,6 +59,22 @@ public record MiningPageDto(
             String model,
             String ipAddress,
             String operatingSystem
+    ) {
+    }
+
+    public record LiveSnapshotDto(
+            Instant updatedAt,
+            double totalHashrateThs,
+            List<MinerLiveDto> miners
+    ) {
+    }
+
+    public record MinerLiveDto(
+            UUID id,
+            String status,
+            double hashrateThs,
+            long powerWatts,
+            double temperatureCelsius
     ) {
     }
 }

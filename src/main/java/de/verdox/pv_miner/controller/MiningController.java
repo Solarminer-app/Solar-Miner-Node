@@ -21,11 +21,13 @@ import de.verdox.pv_miner_extensions.miner.AntminerEntity;
 import de.verdox.pv_miner_extensions.miner.BraiinsOSAsicMinerEntity;
 import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolEntity;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
+import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -71,6 +73,25 @@ public class MiningController {
         double totalHashrate = site.getMiners().stream().map(miner -> entityQueryService.getLastResult(miner, MinerStats.DEFAULT)).mapToDouble(stats -> stats == null ? 0 : stats.terahashPerSecond()).sum();
 
         return new MiningPageDto(site.getName(), clusters.size(), (int) clusters.stream().filter(MiningPageDto.ClusterDto::running).count(), site.getMiners().size(), totalHashrate, clusters, connectedMiners, unassigned, connectedPools, minerApiClient.getDevFeeOverview(site.getReferralCode()));
+    }
+
+    @GetMapping("/live")
+    public ResponseEntity<MiningPageDto.LiveSnapshotDto> getMiningLiveSnapshot(@PathVariable UUID siteId) {
+        PVSiteEntity site = findSite(siteId);
+        List<MiningPageDto.MinerLiveDto> miners = site.getMiners().stream()
+                .map(miner -> {
+                    MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
+                    if (stats == null) stats = MinerStats.DEFAULT;
+                    return new MiningPageDto.MinerLiveDto(
+                            miner.getId(), stats.miningStatus().name(), stats.terahashPerSecond(),
+                            stats.approximatedPowerUsageWatts(), stats.temperatureCelsius()
+                    );
+                })
+                .toList();
+        double totalHashrate = miners.stream().mapToDouble(MiningPageDto.MinerLiveDto::hashrateThs).sum();
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(new MiningPageDto.LiveSnapshotDto(Instant.now(), totalHashrate, miners));
     }
 
     @PostMapping("/referral")
