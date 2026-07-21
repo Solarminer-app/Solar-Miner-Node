@@ -1,46 +1,46 @@
-# Modbus RTU mit SolarMiner in Docker
+# Modbus RTU with SolarMiner in Docker
 
-Diese Anleitung beschreibt den empfohlenen Produktionsaufbau auf einem Linux-Mini-PC. SolarMiner spricht Modbus RTU über eine serielle Schnittstelle an; bei RS485 ist das in der Regel ein galvanisch getrennter USB-RS485-Adapter.
+This guide describes the recommended production setup on a Linux mini PC. SolarMiner communicates with Modbus RTU devices through a serial interface; for RS485, this is typically a galvanically isolated USB-to-RS485 adapter.
 
-## 1. Gerät und Bus vorbereiten
+## 1. Prepare the device and bus
 
-1. Im Handbuch von Wechselrichter, Batterie oder Smart Meter die Schnittstelle, Pinbelegung und seriellen Parameter nachschlagen.
-2. RS485 `A/B` beziehungsweise `D0/D1` entsprechend dem Gerätehandbuch verbinden. Hersteller verwenden die Bezeichnungen `A` und `B` leider nicht immer gleich.
-3. Wenn vom Hersteller vorgesehen, auch `Common/GND` anschließen. Ein galvanisch getrennter Adapter reduziert das Risiko von Masseschleifen.
-4. Geräte als Bus beziehungsweise Daisy-Chain verdrahten, nicht sternförmig. Es darf nur einen Modbus-Master auf dem Bus geben.
-5. Abschlusswiderstände nur an den beiden physischen Busenden aktivieren. Keine zusätzlichen Abschlüsse an Abzweigungen setzen.
-6. Jedem Slave auf demselben Bus eine eindeutige ID geben. Alle Teilnehmer eines Busses verwenden dieselbe Baudrate, Parität sowie Anzahl Daten- und Stoppbits.
+1. Consult the inverter, battery, or smart meter manual for the interface, pin assignment, and serial parameters.
+2. Connect RS485 `A/B` or `D0/D1` according to the device manual. Unfortunately, manufacturers do not always use the `A` and `B` designations consistently.
+3. Connect `Common/GND` as well if required by the manufacturer. A galvanically isolated adapter reduces the risk of ground loops.
+4. Wire devices as a bus or daisy chain, not in a star topology. There must be only one Modbus master on the bus.
+5. Enable termination resistors only at the two physical ends of the bus. Do not add termination at branches.
+6. Assign a unique ID to every slave on the same bus. All participants on a bus must use the same baud rate, parity, data bits, and stop bits.
 
-Die Modbus-Organisation beschreibt für RS485 einen Stamm-Bus mit kurzen Abzweigungen und Abschluss an genau beiden Enden. Maßgeblich bleiben dennoch immer die Vorgaben des Geräteherstellers: [Modbus Serial Line Protocol and Implementation Guide](https://www.modbus.org/docs/Modbus_over_serial_line_V1_02.pdf).
+The Modbus Organization specifies an RS485 trunk bus with short branches and termination at exactly both ends. However, the device manufacturer's requirements always take precedence: [Modbus Serial Line Protocol and Implementation Guide](https://www.modbus.org/docs/Modbus_over_serial_line_V1_02.pdf).
 
-## 2. Stabilen Linux-Gerätenamen ermitteln
+## 2. Determine a stable Linux device name
 
-Adapter einstecken und auf dem Host ausführen:
+Connect the adapter and run the following command on the host:
 
 ```bash
 ls -l /dev/serial/by-id/
 ```
 
-Beispiel:
+Example:
 
 ```text
 /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A10ABC-if00-port0 -> ../../ttyUSB0
 ```
 
-Für Docker sollte der Pfad unter `/dev/serial/by-id/` verwendet werden. `/dev/ttyUSB0` kann sich nach einem Neustart oder beim Einstecken eines weiteren USB-Geräts ändern.
+Use the path under `/dev/serial/by-id/` for Docker. `/dev/ttyUSB0` may change after a restart or when another USB device is connected.
 
-Falls kein `by-id`-Eintrag existiert:
+If no `by-id` entry exists, run:
 
 ```bash
 dmesg --follow
 udevadm info --query=all --name=/dev/ttyUSB0
 ```
 
-Bei mehreren baugleichen Adaptern ohne eindeutige Seriennummer sollte auf dem Host eine eigene udev-Regel erstellt werden. Der Docker-Container soll trotzdem immer einen eindeutigen Alias wie `/dev/solarminer-rs485-inverter` erhalten.
+When using multiple identical adapters without unique serial numbers, create a custom udev rule on the host. The Docker container should still receive a unique alias such as `/dev/solarminer-rs485-inverter`.
 
-## 3. Adapter an den SolarMiner-Container durchreichen
+## 3. Pass the adapter through to the SolarMiner container
 
-Im Service `frontend` der `compose.yml` ergänzen:
+Add the following configuration to the `frontend` service in `compose.yml`:
 
 ```yaml
 services:
@@ -51,55 +51,55 @@ services:
       - "${DIALOUT_GID:-20}"
 ```
 
-Den linken Pfad durch den tatsächlich gefundenen Host-Pfad ersetzen. Rechts bleibt der stabile Name innerhalb des Containers. Docker Compose unterstützt diese Zuordnung offiziell als `HOST_PATH:CONTAINER_PATH[:CGROUP_PERMISSIONS]`: [Docker-Compose-Referenz](https://docs.docker.com/reference/compose-file/services/#devices).
+Replace the path on the left with the actual host path. The path on the right remains the stable device name inside the container. Docker Compose officially supports this mapping as `HOST_PATH:CONTAINER_PATH[:CGROUP_PERMISSIONS]`: [Docker Compose reference](https://docs.docker.com/reference/compose-file/services/#devices).
 
-Die Gruppen-ID auf dem Host bestimmen:
+Determine the group ID on the host:
 
 ```bash
 getent group dialout
 ```
 
-Zum Beispiel `dialout:x:20:`. Falls die ID nicht `20` ist, in `.env` eintragen:
+For example, `dialout:x:20:`. If the ID is not `20`, add it to `.env`:
 
 ```dotenv
 DIALOUT_GID=20
 ```
 
-`group_add` wird erst relevant, wenn das Container-Image nicht als root läuft, und erlaubt dann den Zugriff über die Geräte-Gruppe. `privileged: true` ist dafür nicht nötig und sollte nicht verwendet werden.
+`group_add` becomes relevant when the container image does not run as root. It grants access through the device group. `privileged: true` is neither required nor recommended.
 
-Container anschließend neu erstellen:
+Recreate the container afterward:
 
 ```bash
 docker compose up -d --force-recreate frontend
 ```
 
-Nach einem physischen Abziehen und erneuten Einstecken des USB-Adapters den Container ebenfalls neu starten. Docker bindet beim Erstellen das zu diesem Zeitpunkt aufgelöste Gerät ein.
+Also recreate or restart the container after physically disconnecting and reconnecting the USB adapter. Docker binds the device that was resolved when the container was created.
 
-## 4. Zugriff im Container prüfen
+## 4. Verify access inside the container
 
 ```bash
 docker compose exec frontend sh -c 'id; ls -l /dev/solarminer-rs485; test -r /dev/solarminer-rs485 && test -w /dev/solarminer-rs485'
 ```
 
-Der Befehl muss mit Exit-Code `0` enden. Bei `Permission denied` zuerst Gerätebesitzer und Gruppen-ID auf dem Host prüfen und danach den Container neu erstellen.
+The command must finish with exit code `0`. If it reports `Permission denied`, first check the device owner and group ID on the host, then recreate the container.
 
-## 5. SolarMiner einrichten
+## 5. Configure SolarMiner
 
-Im Setup `Modbus RTU` wählen und eintragen:
+Select `Modbus RTU` during setup and enter the following values:
 
-- Serielle Schnittstelle: `/dev/solarminer-rs485`
-- Geräteprofil: passend zum Hersteller und Modell
-- Baudrate: laut Gerätehandbuch, häufig `9600` oder `19200`
-- Datenbits, Parität, Stoppbits: laut Gerätehandbuch, häufig `8/NONE/1` oder `8/EVEN/1`
-- Slave ID: Adresse des Geräts auf dem Bus
+- Serial interface: `/dev/solarminer-rs485`
+- Device profile: the profile matching the manufacturer and model
+- Baud rate: as specified in the device manual, commonly `9600` or `19200`
+- Data bits, parity, and stop bits: as specified in the device manual, commonly `8/NONE/1` or `8/EVEN/1`
+- Slave ID: the device address on the bus
 
-Danach den Verbindungstest ausführen und nur die Profilabschnitte auswählen, die am Gerät tatsächlich vorhanden sind. Ein kombiniertes Gerät kann beispielsweise Wechselrichter, Batterie und Smart Meter über dieselbe serielle Schnittstelle bereitstellen. SolarMiner serialisiert die Zugriffe auf denselben Port, damit diese Komponenten den Adapter nicht gleichzeitig öffnen.
+Run the connection test afterward and select only the profile sections that are actually available on the device. A combined device may expose an inverter, battery, and smart meter through the same serial interface. SolarMiner serializes access to the same port so these components do not attempt to open the adapter simultaneously.
 
-Die importierten Profile enthalten, soweit EVCC die Werte vorgibt, empfohlene serielle Standardparameter im `manifest.json`. Bei Abweichungen hat immer die lokale Gerätekonfiguration Vorrang.
+Where EVCC provides these values, imported profiles include recommended default serial parameters in `manifest.json`. The local device configuration always takes precedence if the values differ.
 
-## 6. Mehrere Geräte und Adapter
+## 6. Multiple devices and adapters
 
-Mehrere Slaves dürfen denselben RS485-Bus und denselben Container-Pfad verwenden, sofern sie unterschiedliche Slave IDs besitzen. Für mehrere USB-Adapter jeweils einen eigenen Alias vergeben:
+Multiple slaves may share the same RS485 bus and container path as long as they use different slave IDs. Assign a separate alias to each USB adapter when using multiple adapters:
 
 ```yaml
 devices:
@@ -107,27 +107,27 @@ devices:
   - "/dev/serial/by-id/usb-Adapter_B:/dev/solarminer-rs485-meter:rwm"
 ```
 
-## Fehlerdiagnose
+## Troubleshooting
 
-### Verbindungstest meldet Timeout
+### The connection test times out
 
-- Baudrate, Parität, Datenbits, Stoppbits und Slave ID prüfen.
-- A/B testweise tauschen, aber nur wenn das Gerätehandbuch die Bezeichnung nicht eindeutig auflöst.
-- Prüfen, ob ein anderes Programm oder ein zweiter Modbus-Master den Bus benutzt.
-- Abschluss, Polarisation, Leitungslänge und Schirmung nach Herstellerangaben prüfen.
-- Mit einer niedrigen Baudrate testen, wenn die Leitung lang oder störanfällig ist.
+- Verify the baud rate, parity, data bits, stop bits, and slave ID.
+- Try swapping A and B, but only if the device manual does not clearly define the labels.
+- Check whether another application or a second Modbus master is using the bus.
+- Verify termination, biasing, cable length, and shielding according to the manufacturer's specifications.
+- Try a lower baud rate if the cable is long or susceptible to interference.
 
-### Schnittstelle ist belegt
+### The serial interface is busy
 
-Auf dem Host prüfen:
+Check on the host:
 
 ```bash
 sudo fuser -v /dev/ttyUSB0
 ```
 
-SolarMiner koordiniert eigene Abfragen pro Port. Ein externer Dienst wie Home Assistant, evcc, mbpoll oder Modbus-Proxy darf denselben Adapter nicht gleichzeitig exklusiv öffnen.
+SolarMiner coordinates its own requests per port. An external service such as Home Assistant, evcc, mbpoll, or a Modbus proxy must not open the same adapter exclusively at the same time.
 
-### Adapter ist nach Neustart nicht vorhanden
+### The adapter is missing after a restart
 
 ```bash
 ls -l /dev/serial/by-id/
@@ -135,9 +135,8 @@ docker compose config
 docker compose up -d --force-recreate frontend
 ```
 
-Wenn sich der `by-id`-Name geändert hat, wurde meist ein anderer Adapter verwendet oder das Gerät besitzt keine stabile Seriennummer. In diesem Fall eine udev-Regel verwenden.
+If the `by-id` name has changed, a different adapter was usually connected or the device does not provide a stable serial number. Use a udev rule in that case.
 
-### Keine Werte trotz erfolgreichem Öffnen
+### No values despite opening the interface successfully
 
-Ein erfolgreich geöffnetes serielles Gerät bestätigt noch keine Modbus-Antwort. Slave ID und Profil müssen zum Gerät passen. Außerdem kann ein Hersteller Register je nach Firmware, Betriebsart oder installiertem Zubehör anders bereitstellen. Solche Abweichungen sollten als eigenes getestetes SolarMiner-Profil dokumentiert werden.
-
+Successfully opening the serial device does not confirm that a Modbus response was received. The slave ID and profile must match the device. A manufacturer may also expose registers differently depending on the firmware, operating mode, or installed accessories. Document such differences in a dedicated, tested SolarMiner profile.
