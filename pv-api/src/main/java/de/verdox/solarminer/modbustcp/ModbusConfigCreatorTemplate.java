@@ -20,20 +20,55 @@ public record ModbusConfigCreatorTemplate(String id, String name, List<RequiredF
             new RequiredField("battery_soc", "%")
     ));
 
+    public static final ModbusConfigCreatorTemplate INVERTER = new ModbusConfigCreatorTemplate(
+            "inverter",
+            "Solar Inverter",
+            List.of(
+                    new RequiredField("current_dc_power", "w"),
+                    new RequiredField("current_dc_voltage", "v"),
+                    new RequiredField("current_ac_power", "w"),
+                    new RequiredField("current_ac_voltage", "v"),
+                    new RequiredField("grid_frequency", "hz"),
+                    new RequiredField("total_energy_yield", "wh"),
+                    new RequiredField("internal_temperature", "c"),
+                    new RequiredField("status_code", "")
+            )
+    );
+
+    public static final ModbusConfigCreatorTemplate BATTERY = new ModbusConfigCreatorTemplate(
+            "battery",
+            "Battery Storage",
+            List.of(
+                    new RequiredField("state_of_charge", "%"),
+                    new RequiredField("current_power", "w"),
+                    new RequiredField("current_max_charge_power", "w"),
+                    new RequiredField("current_max_discharge_power", "w"),
+                    new RequiredField("state_of_health", "%"),
+                    new RequiredField("temperature", "c")
+            )
+    );
+
+    public static final ModbusConfigCreatorTemplate SMART_METER = new ModbusConfigCreatorTemplate(
+            "smart_meter",
+            "Grid Smart Meter",
+            List.of(
+                    new RequiredField("total_active_power", "w"),
+                    new RequiredField("total_imported", "wh"),
+                    new RequiredField("total_exported", "wh"),
+                    new RequiredField("power_l1", "w"),
+                    new RequiredField("power_l2", "w"),
+                    new RequiredField("power_l3", "w"),
+                    new RequiredField("voltage_l1", "v"),
+                    new RequiredField("voltage_l2", "v"),
+                    new RequiredField("voltage_l3", "v")
+            )
+    );
+
     public static List<ModbusConfigCreatorTemplate> getAll() {
-        return List.of(PV_SITE);
+        return List.of(INVERTER, BATTERY, SMART_METER);
     }
 
     public static ModbusConfigCreatorTemplate byId(String id) {
         return getAll().stream().filter(modbusConfigCreatorTemplate -> modbusConfigCreatorTemplate.id().equals(id)).findAny().orElseThrow(() -> new NoSuchElementException("No modbus creator template found with id "+id));
     }
-
-    public ModbusConfig createTemplateConfig() {
-        Map<String, ModbusConfig.Entry<?>> templateValues = new HashMap<>();
-        for (RequiredField requiredField : requiredFields) {
-            templateValues.put(requiredField.field(), new ModbusConfig.Entry<>(40000, 2, 1, "", ModbusParameterType.INT32, ModbusReadOperationType.READ_HOLDING_REGISTER, ByteOrder.BIG_ENDIAN));
-        }
-        return new ModbusConfig(new ModbusConfig.Fingerprint(40000, 2, ModbusParameterType.INT32, ModbusReadOperationType.READ_HOLDING_REGISTER, ByteOrder.BIG_ENDIAN, ""),templateValues);
-    }
-
 }

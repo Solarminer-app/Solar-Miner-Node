@@ -5,6 +5,9 @@ import '../app/globals.css';
 import HomePage from '../app/page';
 import RestConfigPage from '../app/config/pv/rest/page';
 import ModbusConfigPage from '../app/config/pv/modbus/tcp/page';
+import ModbusRtuConfigPage from '../app/config/pv/modbus/rtu/page';
+import MqttConfigPage from '../app/config/pv/mqtt/page';
+import WebSocketConfigPage from '../app/config/pv/websocket/page';
 import LightningWalletPage from '../app/lightning-wallet/page';
 import SetupPage from '../app/setup/page';
 import SiteLayout from '../app/site/[siteId]/layout';
@@ -14,6 +17,7 @@ import FinancePage from '../app/site/[siteId]/finance/page';
 import MiningPage from '../app/site/[siteId]/mining/page';
 import ClusterConfigPage from '../app/site/[siteId]/mining/clusters/[clusterName]/config/page';
 import MinerDetailsPage from '../app/site/[siteId]/mining/miners/[minerId]/page';
+import RepairProfilesPage from '../app/site/[siteId]/repair-profiles/page';
 import {SitePreferencesProvider} from '../app/site/[siteId]/site-preferences-context';
 
 function SiteShell() {
@@ -30,9 +34,13 @@ function Application() {
                     <Route element={<LightningWalletPage/>} path="/lightning-wallet"/>
                     <Route element={<RestConfigPage/>} path="/config/pv/rest"/>
                     <Route element={<ModbusConfigPage/>} path="/config/pv/modbus/tcp"/>
+                    <Route element={<ModbusRtuConfigPage/>} path="/config/pv/modbus/rtu"/>
+                    <Route element={<MqttConfigPage/>} path="/config/pv/mqtt"/>
+                    <Route element={<WebSocketConfigPage/>} path="/config/pv/websocket"/>
                     <Route element={<SiteShell/>} path="/site/:siteId">
                         <Route element={<Navigate replace to="dashboard"/>} index/>
                         <Route element={<DashboardPage/>} path="dashboard"/>
+                        <Route element={<RepairProfilesPage/>} path="repair-profiles"/>
                         <Route element={<DetailsPage/>} path="details"/>
                         <Route element={<FinancePage/>} path="finance"/>
                         <Route element={<MiningPage/>} path="mining"/>

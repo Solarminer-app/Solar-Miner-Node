@@ -7,7 +7,7 @@ import {useParams} from 'next/navigation';
 
 import de from '../../../locales/de.json';
 import en from '../../../locales/en.json';
-import type {DiscoveredMinerDto, MinerDto, MiningPageDto} from '../../../types';
+import type {DiscoveredMinerDto, MinerDto, MiningLiveSnapshotDto, MiningPageDto} from '../../../types';
 import {useSitePreferences} from '../site-preferences-context';
 
 const translations = {de, en};
@@ -41,6 +41,7 @@ export default function MiningPage() {
     const [referralInput, setReferralInput] = useState('');
     const [savingReferral, setSavingReferral] = useState(false);
     const referralEditing = useRef(false);
+    const liveRefreshRunning = useRef(false);
     const [scanning, setScanning] = useState(false);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -49,7 +50,7 @@ export default function MiningPage() {
 
     const loadData = useCallback(async (signal?: AbortSignal) => {
         try {
-            const response = await fetch(`/api/pv-site/${siteId}/mining`, {signal});
+            const response = await fetch(`/api/pv-site/${siteId}/mining`, {cache: 'no-store', signal});
             if (!response.ok) throw new Error(String(response.status));
             const nextData: MiningPageDto = await response.json();
             if (signal?.aborted) return;
@@ -75,13 +76,67 @@ export default function MiningPage() {
         const controller = new AbortController();
         const refresh = () => void loadData(controller.signal);
         const timeout = window.setTimeout(refresh, 0);
-        const interval = window.setInterval(refresh, 10000);
+        const interval = window.setInterval(refresh, 30000);
         return () => {
             window.clearTimeout(timeout);
             window.clearInterval(interval);
             controller.abort();
         };
     }, [isHydrated, loadData, siteId]);
+
+    const loadLiveData = useCallback(async (signal?: AbortSignal) => {
+        if (liveRefreshRunning.current) return;
+        liveRefreshRunning.current = true;
+        try {
+            const response = await fetch(`/api/pv-site/${siteId}/mining/live`, {cache: 'no-store', signal});
+            if (!response.ok) throw new Error(String(response.status));
+            const snapshot = await response.json() as MiningLiveSnapshotDto;
+            if (signal?.aborted) return;
+            const liveByMinerId = new Map(snapshot.miners.map(miner => [miner.id, miner]));
+            const mergeMiner = (miner: MinerDto): MinerDto => {
+                const live = liveByMinerId.get(miner.id);
+                return live ? {...miner, ...live} : miner;
+            };
+            setData(current => current ? {
+                ...current,
+                totalHashrateThs: snapshot.totalHashrateThs,
+                connectedMiners: current.connectedMiners.map(mergeMiner),
+                unassignedMiners: current.unassignedMiners.map(mergeMiner),
+                clusters: current.clusters.map(cluster => ({
+                    ...cluster,
+                    miners: cluster.miners.map(mergeMiner),
+                })),
+            } : current);
+            setPowerTargetMiner(current => current ? mergeMiner(current) : current);
+        } catch (reason) {
+            if (!signal?.aborted) console.error('Failed to refresh live miner data', reason);
+        } finally {
+            liveRefreshRunning.current = false;
+        }
+    }, [siteId]);
+
+    useEffect(() => {
+        if (!siteId || !isHydrated) return;
+        const controller = new AbortController();
+        const refresh = () => {
+            if (!document.hidden) void loadLiveData(controller.signal);
+        };
+        const timeout = window.setTimeout(refresh, 500);
+        const interval = window.setInterval(refresh, 2000);
+        const refreshOnFocus = () => refresh();
+        const refreshOnVisibility = () => {
+            if (!document.hidden) refresh();
+        };
+        window.addEventListener('focus', refreshOnFocus);
+        document.addEventListener('visibilitychange', refreshOnVisibility);
+        return () => {
+            window.clearTimeout(timeout);
+            window.clearInterval(interval);
+            window.removeEventListener('focus', refreshOnFocus);
+            document.removeEventListener('visibilitychange', refreshOnVisibility);
+            controller.abort();
+        };
+    }, [isHydrated, loadLiveData, siteId]);
 
     const selectedCluster = useMemo(
         () => data?.clusters.find((cluster) => cluster.name === selectedClusterName) ?? null,

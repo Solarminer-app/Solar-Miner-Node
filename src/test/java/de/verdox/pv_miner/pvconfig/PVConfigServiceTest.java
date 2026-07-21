@@ -6,8 +6,9 @@ import de.verdox.pv_miner.dto.PVConfigDtos.ModbusProfileDto;
 import de.verdox.pv_miner.dto.PVConfigDtos.RestFieldDto;
 import de.verdox.pv_miner.dto.PVConfigDtos.RestProfileDto;
 import de.verdox.pv_miner.dto.PVConfigDtos.RestTestRequest;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusConfigStorage;
-import de.verdox.pv_miner_extensions.inverter.rest.RestConfigStorage;
+import de.verdox.pv_miner_extensions.device.modbus.ModbusConfigStorage;
+import de.verdox.pv_miner_extensions.device.message.MessageConfigStorage;
+import de.verdox.pv_miner_extensions.device.rest.RestConfigStorage;
 import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
 import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,18 +22,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 class PVConfigServiceTest {
     private RestConfigStorage restStorage;
     private ModbusConfigStorage modbusStorage;
+    private MessageConfigStorage messageStorage;
     private PVConfigService service;
 
     @BeforeEach
     void setUp() {
         restStorage = mock(RestConfigStorage.class);
         modbusStorage = mock(ModbusConfigStorage.class);
-        service = new PVConfigService(restStorage, modbusStorage, mock(ConfigFetcherService.class), false);
+        messageStorage = mock(MessageConfigStorage.class);
+        service = new PVConfigService(restStorage, modbusStorage, messageStorage, mock(ConfigFetcherService.class), false);
     }
 
     @Test
@@ -46,7 +48,6 @@ class PVConfigServiceTest {
 
     @Test
     void rejectsUnexpectedOrMissingTemplateFields() {
-        when(restStorage.doesConfigExistOnDisk(RestConfigCreatorTemplate.HOME_ASSISTANT_PV, "Profile")).thenReturn(true);
         RestProfileDto profile = new RestProfileDto("Profile", RestConfigCreatorTemplate.HOME_ASSISTANT_PV.id(), List.of(
                 new RestFieldDto("pv_power", "kw", "/api/value", "GET", "JSON", "state", 1, "x", "float")
         ));
@@ -69,7 +70,7 @@ class PVConfigServiceTest {
 
     @Test
     void rejectsPublicTargetsForDeviceConnectionTests() {
-        RestTestRequest request = new RestTestRequest("http://8.8.8.8", "", validRestFields());
+        RestTestRequest request = new RestTestRequest("http://8.8.8.8", "", RestConfigCreatorTemplate.HOME_ASSISTANT_PV.id(), validRestFields());
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class,
                 () -> service.testRestConnection(request));
@@ -79,15 +80,24 @@ class PVConfigServiceTest {
 
     @Test
     void rejectsModbusRegistersOutsideTheProtocolRange() {
-        when(modbusStorage.doesConfigExistOnDisk(ModbusConfigCreatorTemplate.PV_SITE, "Profile")).thenReturn(true);
         List<ModbusFieldDto> fields = validModbusFields();
         fields.set(0, new ModbusFieldDto("pv_power", "kw", -1, 2, 1, "x", "int32", "READ_HOLDING_REGISTER", "BIG_ENDIAN"));
-        ModbusProfileDto profile = new ModbusProfileDto("Profile", ModbusConfigCreatorTemplate.PV_SITE.id(), null, fields);
+        ModbusProfileDto profile = new ModbusProfileDto("Profile", ModbusConfigCreatorTemplate.PV_SITE.id(), 0, null, fields);
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class,
                 () -> service.saveModbusProfile("Profile", profile));
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+    }
+
+    @Test
+    void createsMqttProfilesWithSharedMessageFields() {
+        RestProfileDto profile = service.createMessageProfile(
+                "mqtt", "Local meter", RestConfigCreatorTemplate.SMART_METER.id());
+
+        assertEquals(RestConfigCreatorTemplate.SMART_METER.requiredFields().size(), profile.fields().size());
+        assertEquals("solarminer/device/telemetry", profile.fields().getFirst().urlExtension());
+        assertEquals("JSON", profile.fields().getFirst().responseType());
     }
 
     private List<RestFieldDto> validRestFields() {

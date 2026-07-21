@@ -1,0 +1,77 @@
+{
+  "authenticationType": "NONE",
+  "sections": {
+    "battery": {
+      "templateId": "rest_battery",
+      "name": "Zendure Solarflow AC – battery",
+      "entries": {
+        "state_of_charge": {
+          "urlExtension": "/properties/report",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.properties.electricLevel",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_power": {
+          "urlExtension": "/properties/report",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.properties.packInputPower - $.properties.outputPackPower",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "max_charge_power": {
+          "urlExtension": "/properties/report",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.properties.packInputPower - $.properties.outputPackPower",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "max_discharge_power": {
+          "urlExtension": "/properties/report",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.properties.packInputPower - $.properties.outputPackPower",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "state_of_health": {
+          "urlExtension": "/properties/report",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.properties.packInputPower - $.properties.outputPackPower",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "temperature": {
+          "urlExtension": "/properties/report",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.properties.packInputPower - $.properties.outputPackPower",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    }
+  }
+}

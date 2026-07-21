@@ -32,9 +32,11 @@ dependencies {
     implementation("com.intelligt.modbus:jlibmodbus:1.2.9.11") {
         exclude(group = "com.google.android.things", module = "androidthings")
     }
+    implementation("com.fazecast:jSerialComm:2.11.4")
 
     implementation("com.google.guava:guava:33.3.1-jre")
     implementation("de.verdox:vserializer:1.1-SNAPSHOT")
+    implementation("com.google.code.gson:gson:2.12.1")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.20.0")
 
     testImplementation(platform("org.junit:junit-bom:5.10.0"))

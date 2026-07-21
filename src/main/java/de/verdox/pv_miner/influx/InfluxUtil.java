@@ -3,15 +3,16 @@ package de.verdox.pv_miner.influx;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 public class InfluxUtil {
     public static class InfluxRecordBuilder {
         private final String measurement;
-        private final Map<String, String> tags = new HashMap<>();
-        private final Map<String, Object> fields = new HashMap<>();
+        // Stable, lexicographically sorted keys improve line-protocol compression and write throughput.
+        private final Map<String, String> tags = new TreeMap<>();
+        private final Map<String, Object> fields = new TreeMap<>();
         private long timestamp;
 
         public InfluxRecordBuilder(String measurement) {
@@ -58,7 +59,7 @@ public class InfluxUtil {
         private String measurement;
         private Instant startTime;
         private Instant endTime;
-        private final Map<String, String> filters = new HashMap<>();
+        private final Map<String, String> filters = new TreeMap<>();
         private final List<String> fields = new ArrayList<>();
         private AggregateOperation aggregateOperation;
         private Duration aggregationInterval;

@@ -2,17 +2,42 @@ package de.verdox.pv_miner.entity;
 
 import de.verdox.pv_miner.influx.QueryResult;
 import de.verdox.pv_miner.miner.MinerQueryStrategy;
+import de.verdox.pv_miner.pvsite.PVSiteEntity;
+import de.verdox.pv_miner.pvsite.SiteQueryStrategy;
+import de.verdox.pv_miner_extensions.device.modbus.battery.ModbusBattery;
+import de.verdox.pv_miner_extensions.device.modbus.battery.ModbusBatteryQueryStrategy;
+import de.verdox.pv_miner_extensions.device.modbus.inverter.ModbusInverter;
+import de.verdox.pv_miner_extensions.device.modbus.inverter.ModbusInverterQueryStrategy;
+import de.verdox.pv_miner_extensions.device.modbus.smartmeter.ModbusSmartMeter;
+import de.verdox.pv_miner_extensions.device.modbus.smartmeter.ModbusSmartMeterQueryStrategy;
+import de.verdox.pv_miner_extensions.device.rest.battery.RestBattery;
+import de.verdox.pv_miner_extensions.device.rest.battery.RestBatteryQueryStrategy;
+import de.verdox.pv_miner_extensions.device.rest.inverter.RestInverter;
+import de.verdox.pv_miner_extensions.device.rest.inverter.RestInverterQueryStrategy;
+import de.verdox.pv_miner_extensions.device.rest.smartmeter.RestSmartMeter;
+import de.verdox.pv_miner_extensions.device.rest.smartmeter.RestSmartMeterQueryStrategy;
+import de.verdox.pv_miner_extensions.device.modbusrtu.battery.ModbusRtuBattery;
+import de.verdox.pv_miner_extensions.device.modbusrtu.battery.ModbusRtuBatteryQueryStrategy;
+import de.verdox.pv_miner_extensions.device.modbusrtu.inverter.ModbusRtuInverter;
+import de.verdox.pv_miner_extensions.device.modbusrtu.inverter.ModbusRtuInverterQueryStrategy;
+import de.verdox.pv_miner_extensions.device.modbusrtu.smartmeter.ModbusRtuSmartMeter;
+import de.verdox.pv_miner_extensions.device.modbusrtu.smartmeter.ModbusRtuSmartMeterQueryStrategy;
+import de.verdox.pv_miner_extensions.device.message.MessageBatteryQueryStrategy;
+import de.verdox.pv_miner_extensions.device.message.MessageInverterQueryStrategy;
+import de.verdox.pv_miner_extensions.device.message.MessageSmartMeterQueryStrategy;
+import de.verdox.pv_miner_extensions.device.mqtt.battery.MqttBattery;
+import de.verdox.pv_miner_extensions.device.mqtt.inverter.MqttInverter;
+import de.verdox.pv_miner_extensions.device.mqtt.smartmeter.MqttSmartMeter;
+import de.verdox.pv_miner_extensions.device.websocket.battery.WebSocketBattery;
+import de.verdox.pv_miner_extensions.device.websocket.inverter.WebSocketInverter;
+import de.verdox.pv_miner_extensions.device.websocket.smartmeter.WebSocketSmartMeter;
 import de.verdox.pv_miner_extensions.miner.AgentMinerEntity;
 import de.verdox.pv_miner_extensions.miner.AntminerEntity;
 import de.verdox.pv_miner_extensions.miner.BraiinsOSAsicMinerEntity;
 import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolEntity;
 import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolQueryStrategy;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusPVSite;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusPVSiteQueryStrategy;
 import de.verdox.pv_miner_extensions.pools.nicehash.NiceHashPoolEntity;
 import de.verdox.pv_miner_extensions.pools.nicehash.NicehashPoolQueryStrategy;
-import de.verdox.pv_miner_extensions.inverter.rest.RestPVSite;
-import de.verdox.pv_miner_extensions.inverter.rest.RestPVSiteQueryStrategy;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -37,8 +62,28 @@ public class EntityQueryService {
         this.strategies.put(BraiinsOSAsicMinerEntity.class, minerQueryStrategy);
         this.strategies.put(AntminerEntity.class, minerQueryStrategy);
 
-        this.strategies.put(ModbusPVSite.class, new ModbusPVSiteQueryStrategy());
-        this.strategies.put(RestPVSite.class, new RestPVSiteQueryStrategy());
+        this.strategies.put(PVSiteEntity.class, new SiteQueryStrategy());
+
+        this.strategies.put(ModbusBattery.class, new ModbusBatteryQueryStrategy());
+        this.strategies.put(ModbusInverter.class, new ModbusInverterQueryStrategy());
+        this.strategies.put(ModbusSmartMeter.class, new ModbusSmartMeterQueryStrategy());
+        this.strategies.put(ModbusRtuBattery.class, new ModbusRtuBatteryQueryStrategy());
+        this.strategies.put(ModbusRtuInverter.class, new ModbusRtuInverterQueryStrategy());
+        this.strategies.put(ModbusRtuSmartMeter.class, new ModbusRtuSmartMeterQueryStrategy());
+
+        this.strategies.put(RestBattery.class, new RestBatteryQueryStrategy());
+        this.strategies.put(RestInverter.class, new RestInverterQueryStrategy());
+        this.strategies.put(RestSmartMeter.class, new RestSmartMeterQueryStrategy());
+
+        var messageBattery = new MessageBatteryQueryStrategy<>();
+        var messageInverter = new MessageInverterQueryStrategy<>();
+        var messageSmartMeter = new MessageSmartMeterQueryStrategy<>();
+        this.strategies.put(MqttBattery.class, messageBattery);
+        this.strategies.put(MqttInverter.class, messageInverter);
+        this.strategies.put(MqttSmartMeter.class, messageSmartMeter);
+        this.strategies.put(WebSocketBattery.class, messageBattery);
+        this.strategies.put(WebSocketInverter.class, messageInverter);
+        this.strategies.put(WebSocketSmartMeter.class, messageSmartMeter);
 
         this.strategies.put(BraiinsPoolEntity.class, new BraiinsPoolQueryStrategy());
         this.strategies.put(NiceHashPoolEntity.class, new NicehashPoolQueryStrategy());

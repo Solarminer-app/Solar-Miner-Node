@@ -1,0 +1,995 @@
+{
+  "templates": [
+    {
+      "source": "abb-ab.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "ac-elwa-2.yaml",
+      "reason": "no_supported_usage"
+    },
+    {
+      "source": "ac-elwa-e.yaml",
+      "reason": "no_supported_usage"
+    },
+    {
+      "source": "ada-p1-meter.yaml",
+      "reason": "no_supported_usage"
+    },
+    {
+      "source": "amsleser.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "askoheat.yaml",
+      "reason": "no_supported_usage"
+    },
+    {
+      "source": "be-mpm3pm.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "bosch-bpt.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "cfos.yaml",
+      "reason": "evcc_sponsorship_requirement"
+    },
+    {
+      "source": "cg-em24.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "cg-em24_e1.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "cg-emt3xx.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "danfoss-triplelynx-tlx.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "ddm-18sd.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "demo-battery.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "demo-meter.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "deye-hybrid-3p.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode"
+      ]
+    },
+    {
+      "source": "discovergy.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "dsmr-ws.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "dsmr.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "dsmrlogger-aandewiel.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "dzg.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "e3dc-modbus.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_transport"
+      ]
+    },
+    {
+      "source": "e3dc-rscp.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "eastron-sdm220_230.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "eastron-sdm54.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "eastron-sdm72.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "eastron-sdm72v2_630.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "eastron-smart-x96-1a.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "ecoflow-powerocean-modbus.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode"
+      ]
+    },
+    {
+      "source": "ecoflow-powerocean.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "ecoflow-stream.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "eebus-mgcp.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "eebus-mpc.yaml",
+      "reason": "no_supported_usage"
+    },
+    {
+      "source": "eltako-dsz.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "enphase-modbus.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "native_sunspec_discovery_no_static_profile_required",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "enphase.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "esphome-dlms-austria.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "finder-7m24.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "finder-7m38.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "fox-ess-h1.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode"
+      ]
+    },
+    {
+      "source": "fritzdect.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "fritzgrid.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "fronius-gen24.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "native_sunspec_discovery_no_static_profile_required",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "fronius-ohmpilot.yaml",
+      "reason": "no_supported_usage"
+    },
+    {
+      "source": "fronius-vertoplus.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "native_sunspec_discovery_no_static_profile_required",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "goodwe-wifi-dt.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "goodwe-wifi-es.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "goodwe-wifi-et.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "growatt-hybrid-tlxh.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode"
+      ]
+    },
+    {
+      "source": "growatt-min-tlxe.yaml",
+      "reason": "no_supported_usage"
+    },
+    {
+      "source": "hager-flow-modbus.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_transport"
+      ]
+    },
+    {
+      "source": "homeassistant.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "homematic.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "homewizard-kwh.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "homewizard-p1.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "hoymiles-ahoydtu.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "hoymiles-dtu-mb.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "indevolt-battery.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "indevolt-hybrid.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "inepro.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "iobroker.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "http_template_has_no_configurable_host"
+      ]
+    },
+    {
+      "source": "iotawatt.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "janitza.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "kaco-blueplanet.yaml",
+      "reason": "missing_template_or_render"
+    },
+    {
+      "source": "keba-kecontact.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "native_sunspec_discovery_no_static_profile_required",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "kostal-ksem.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "native_sunspec_discovery_no_static_profile_required",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "kostal-plenticore-gen2.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode",
+        "native_sunspec_discovery_no_static_profile_required"
+      ]
+    },
+    {
+      "source": "lg-ess-home-15.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "lg-ess-home-8-10.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "lovato-dmg610.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "loxone.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "marstek-jupiterc-plus.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode"
+      ]
+    },
+    {
+      "source": "marstek-venus-e.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode"
+      ]
+    },
+    {
+      "source": "mystrom.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "openems-modbus.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode"
+      ]
+    },
+    {
+      "source": "orno-we504.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "orno-we514_515.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "orno-we525_526.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "orno.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "p1monitor.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "powerfox-poweropti.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "http_template_has_no_configurable_host"
+      ]
+    },
+    {
+      "source": "qcells-hybrid-cloud.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "http_template_has_no_configurable_host"
+      ]
+    },
+    {
+      "source": "rct-power.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "sax.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode"
+      ]
+    },
+    {
+      "source": "sbc-axx3.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "schneider-iem3000.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "senec-home.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "shelly-1pm.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "shelly-3em.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "shelly-pro-3em.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "siemens-pac2200.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "sigenergy.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_transport"
+      ]
+    },
+    {
+      "source": "slimmelezer-luxembourg.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "slimmelezer-v2.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "slimmelezer.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "sma-energymeter.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "sma-homemanager.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "sma-hybrid-speedwire.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "sma-hybrid.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode"
+      ]
+    },
+    {
+      "source": "sma-inverter-speedwire.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "smartfox-em2.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "smartstuff-dsmr.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "sofarsolar-g3.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode"
+      ]
+    },
+    {
+      "source": "solaredge-inverter.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "native_sunspec_discovery_no_static_profile_required",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "solaredge-se-mtr-3y.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "solarlog.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_transport"
+      ]
+    },
+    {
+      "source": "solarwatt-flex.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "solax-hybrid-cloud.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "http_template_has_no_configurable_host"
+      ]
+    },
+    {
+      "source": "solax-inverter-cloud.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "http_template_has_no_configurable_host"
+      ]
+    },
+    {
+      "source": "solinteg.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode"
+      ]
+    },
+    {
+      "source": "solplanet-ai-dongle.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "sunspec-battery-control.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "native_sunspec_discovery_no_static_profile_required",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "sunspec-hybrid-curtailable.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "native_sunspec_discovery_no_static_profile_required",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "sunspec-hybrid.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "native_sunspec_discovery_no_static_profile_required",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "sunspec-inverter-control.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "native_sunspec_discovery_no_static_profile_required",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "sunspec-inverter-curtailable.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "native_sunspec_discovery_no_static_profile_required",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "sunspec-inverter.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "native_sunspec_discovery_no_static_profile_required",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "sunspec-meter.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "native_sunspec_discovery_no_static_profile_required",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "tapo.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "tasmota-3p.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "tasmota-sml.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "tasmota.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "tesla-powerwall.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "thor.yaml",
+      "reason": "no_supported_usage"
+    },
+    {
+      "source": "tibber-pulse.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "tplink.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "tq-em.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "tq-em420.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "varta.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_transport"
+      ]
+    },
+    {
+      "source": "victron-energy.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_transport"
+      ]
+    },
+    {
+      "source": "victron-vrm.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "http_template_has_no_configurable_host"
+      ]
+    },
+    {
+      "source": "volkszaehler-http.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "http_template_has_no_configurable_host"
+      ]
+    },
+    {
+      "source": "volkszaehler-importexport.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "http_template_has_no_configurable_host"
+      ]
+    },
+    {
+      "source": "volkszaehler-ws.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "websocket_requires_message_filter_or_dynamic_parameter"
+      ]
+    },
+    {
+      "source": "vzlogger.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_http_expression_or_response_shape"
+      ]
+    },
+    {
+      "source": "wago-879-30xx.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "mbmd_model_register_map_not_present_in_template_export",
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    },
+    {
+      "source": "wattsonic-gen3.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode"
+      ]
+    },
+    {
+      "source": "wattsonic.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_modbus_expression_or_decode"
+      ]
+    },
+    {
+      "source": "zendure-hyper.yaml",
+      "reason": "not_losslessly_representable",
+      "limitations": [
+        "unsupported_evcc_driver_or_composite_expression"
+      ]
+    }
+  ]
+}

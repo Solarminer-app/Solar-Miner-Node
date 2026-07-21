@@ -1,0 +1,110 @@
+{
+  "authenticationType": "NONE",
+  "sections": {
+    "smart_meter": {
+      "templateId": "rest_smart_meter",
+      "name": "Sessy Sessy P1 – smart meter",
+      "entries": {
+        "total_active_power": {
+          "urlExtension": "/api/v2/p1/details",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.power_total",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_imported": {
+          "urlExtension": "/api/v2/p1/details",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.power_total",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_exported": {
+          "urlExtension": "/api/v2/p1/details",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.power_total",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l1": {
+          "urlExtension": "/api/v2/p1/details",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.power_total",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l2": {
+          "urlExtension": "/api/v2/p1/details",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.power_total",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l3": {
+          "urlExtension": "/api/v2/p1/details",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.power_total",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l1": {
+          "urlExtension": "/api/v2/p1/details",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.voltage_l1",
+          "scaleFactor": 0.001,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l2": {
+          "urlExtension": "/api/v2/p1/details",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.voltage_l2",
+          "scaleFactor": 0.001,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l3": {
+          "urlExtension": "/api/v2/p1/details",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.voltage_l3",
+          "scaleFactor": 0.001,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    }
+  }
+}

@@ -16,8 +16,9 @@ import de.verdox.pv_miner.dto.PVConfigDtos.RestFieldDto;
 import de.verdox.pv_miner.dto.PVConfigDtos.RestProfileDto;
 import de.verdox.pv_miner.dto.PVConfigDtos.RestTestRequest;
 import de.verdox.pv_miner.dto.PVConfigDtos.TemplateDto;
-import de.verdox.pv_miner_extensions.inverter.modbustcp.ModbusConfigStorage;
-import de.verdox.pv_miner_extensions.inverter.rest.RestConfigStorage;
+import de.verdox.pv_miner_extensions.device.modbus.ModbusConfigStorage;
+import de.verdox.pv_miner_extensions.device.rest.RestConfigStorage;
+import de.verdox.pv_miner_extensions.device.message.MessageConfigStorage;
 import de.verdox.solarminer.RequiredField;
 import de.verdox.solarminer.formula.FormulaEngine;
 import de.verdox.solarminer.modbustcp.ModbusConfig;
@@ -33,6 +34,7 @@ import de.verdox.solarminer.rest.RestParameterType;
 import de.verdox.solarminer.rest.RestResponseType;
 import de.verdox.vserializer.json.JsonSerializerContext;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -71,25 +73,36 @@ public class PVConfigService {
 
     private final RestConfigStorage restStorage;
     private final ModbusConfigStorage modbusStorage;
+    private final MessageConfigStorage messageStorage;
     private final ConfigFetcherService configFetcherService;
     private final boolean allowPublicDeviceHosts;
     private final Semaphore connectionTestSlots = new Semaphore(4, true);
 
+    @Autowired
     public PVConfigService(RestConfigStorage restStorage,
                            ModbusConfigStorage modbusStorage,
+                           MessageConfigStorage messageStorage,
                            ConfigFetcherService configFetcherService,
                            @Value("${solarminer.config.allow-public-device-hosts:false}") boolean allowPublicDeviceHosts) {
         this.restStorage = restStorage;
         this.modbusStorage = modbusStorage;
+        this.messageStorage = messageStorage;
         this.configFetcherService = configFetcherService;
         this.allowPublicDeviceHosts = allowPublicDeviceHosts;
     }
 
+    /** Keeps embedders and older tests source-compatible while message profiles remain optional. */
+    public PVConfigService(RestConfigStorage restStorage, ModbusConfigStorage modbusStorage,
+                           ConfigFetcherService configFetcherService, boolean allowPublicDeviceHosts) {
+        this(restStorage, modbusStorage, new MessageConfigStorage(configFetcherService), configFetcherService, allowPublicDeviceHosts);
+    }
+
     public RestCatalogDto getRestCatalog() {
-        RestConfigCreatorTemplate template = RestConfigCreatorTemplate.HOME_ASSISTANT_PV;
         return new RestCatalogDto(
-                List.of(toTemplate(template.id(), template.name(), template.requiredFields())),
-                loadNames(() -> restStorage.getSavedConfigs(template)),
+                RestConfigCreatorTemplate.getAll().stream()
+                        .map(template -> toTemplate(template.id(), template.name(), template.requiredFields()))
+                        .toList(),
+                loadNames(restStorage::getSavedConfigs),
                 communityNames("Rest-API"),
                 Arrays.stream(RestHttpMethod.values()).map(Enum::name).toList(),
                 Arrays.stream(RestResponseType.values()).map(Enum::name).toList(),
@@ -98,12 +111,11 @@ public class PVConfigService {
     }
 
     public ModbusCatalogDto getModbusCatalog() {
-        ModbusConfigCreatorTemplate template = ModbusConfigCreatorTemplate.PV_SITE;
         return new ModbusCatalogDto(
                 ModbusConfigCreatorTemplate.getAll().stream()
                         .map(entry -> toTemplate(entry.id(), entry.name(), entry.requiredFields()))
                         .toList(),
-                loadNames(() -> modbusStorage.getSavedConfigs(template)),
+                loadNames(modbusStorage::getSavedConfigs),
                 communityNames("Modbus-TCP"),
                 Arrays.stream(ModbusParameterType.values()).map(ModbusParameterType::identifier).sorted().toList(),
                 Arrays.stream(ModbusReadOperationType.values())
@@ -116,12 +128,15 @@ public class PVConfigService {
     public synchronized RestProfileDto createRestProfile(String rawName, String templateId) {
         String name = profileName(rawName);
         RestConfigCreatorTemplate template = restTemplate(templateId);
-        if (restStorage.doesConfigExistOnDisk(template, name)) {
-            throw conflict("A profile with this name already exists");
-        }
         try {
-            RestPVConfig config = template.createTemplateConfig();
-            restStorage.save(template, name, config);
+            RestPVConfig existing = restStorage.doesConfigExistOnDisk(name)
+                    ? restStorage.loadConfig(name)
+                    : new RestPVConfig(Map.of());
+            if (findRestSection(existing, template.id()) != null) {
+                throw conflict("This profile already contains the selected device type");
+            }
+            RestPVConfig config = mergeRestSection(existing, buildRestConfig(template, emptyRestFields(template)), template);
+            restStorage.save(name, config);
             return toRestProfile(name, template, config);
         } catch (IOException exception) {
             throw storageFailure("Could not create REST profile", exception);
@@ -132,7 +147,7 @@ public class PVConfigService {
         String name = profileName(rawName);
         RestConfigCreatorTemplate template = restTemplate(templateId);
         try {
-            return toRestProfile(name, template, restStorage.loadConfig(template, name));
+            return toRestProfile(name, template, restStorage.loadConfig(name));
         } catch (NoSuchElementException exception) {
             throw notFound("REST profile not found");
         } catch (IOException exception) {
@@ -144,10 +159,11 @@ public class PVConfigService {
         String name = profileName(rawName);
         requireMatchingName(name, profile == null ? null : profile.name());
         RestConfigCreatorTemplate template = restTemplate(profile == null ? null : profile.templateId());
-        requireExistingRestProfile(template, name);
-        RestPVConfig config = buildRestConfig(template, profile.fields());
+        RestPVConfig replacement = buildRestConfig(template, profile.fields());
         try {
-            restStorage.save(template, name, config);
+            requireExistingRestProfile(template, name);
+            RestPVConfig config = mergeRestSection(restStorage.loadConfig(name), replacement, template);
+            restStorage.save(name, config);
             return toRestProfile(name, template, config);
         } catch (IOException exception) {
             throw storageFailure("Could not save REST profile", exception);
@@ -158,9 +174,11 @@ public class PVConfigService {
         String name = profileName(rawName);
         RestConfigCreatorTemplate template = restTemplate(templateId);
         try {
-            if (!restStorage.delete(template, name)) {
-                throw notFound("REST profile not found");
-            }
+            RestPVConfig existing = restStorage.loadConfig(name);
+            Map<String, RestPVConfig.ConfigSection> sections = new LinkedHashMap<>(existing.getSections());
+            boolean removed = sections.entrySet().removeIf(entry -> template.id().equals(entry.getValue().getTemplateId()));
+            if (!removed) throw notFound("REST profile section not found");
+            if (sections.isEmpty()) restStorage.delete(name); else restStorage.save(name, new RestPVConfig(sections));
         } catch (IOException exception) {
             throw storageFailure("Could not delete REST profile", exception);
         }
@@ -170,7 +188,7 @@ public class PVConfigService {
         RestConfigCreatorTemplate template = restTemplate(templateId);
         String name = profileName(rawName);
         try {
-            RestPVConfig config = restStorage.loadConfig(template, name);
+            RestPVConfig config = restStorage.loadConfig(name);
             JsonSerializerContext context = new JsonSerializerContext();
             return context.toJsonString(RestPVConfig.SERIALIZER.serialize(context, config));
         } catch (NoSuchElementException exception) {
@@ -186,8 +204,8 @@ public class PVConfigService {
         RestPVConfig imported = deserializeRest(json);
         RestPVConfig validated = buildRestConfig(template, toRestProfile(name, template, imported).fields());
         try {
-            restStorage.save(template, name, validated);
-            return toRestProfile(name, template, validated);
+            restStorage.save(name, imported);
+            return toRestProfile(name, template, imported);
         } catch (IOException exception) {
             throw storageFailure("Could not import REST profile", exception);
         }
@@ -200,8 +218,8 @@ public class PVConfigService {
                 .orElseThrow(() -> notFound("Community REST profile not found"));
         RestPVConfig validated = buildRestConfig(template, toRestProfile(name, template, community).fields());
         try {
-            restStorage.save(template, name, validated);
-            return toRestProfile(name, template, validated);
+            restStorage.save(name, community);
+            return toRestProfile(name, template, community);
         } catch (IOException exception) {
             throw storageFailure("Could not save community REST profile", exception);
         }
@@ -210,12 +228,15 @@ public class PVConfigService {
     public synchronized ModbusProfileDto createModbusProfile(String rawName, String templateId) {
         String name = profileName(rawName);
         ModbusConfigCreatorTemplate template = modbusTemplate(templateId);
-        if (modbusStorage.doesConfigExistOnDisk(template, name)) {
-            throw conflict("A profile with this name already exists");
-        }
         try {
-            ModbusConfig config = template.createTemplateConfig();
-            modbusStorage.save(template, name, config);
+            ModbusConfig existing = modbusStorage.doesConfigExistOnDisk(name)
+                    ? modbusStorage.loadConfig(name)
+                    : new ModbusConfig(null, Map.of(), 0);
+            if (findModbusSection(existing, template.id()) != null) {
+                throw conflict("This profile already contains the selected device type");
+            }
+            ModbusConfig config = mergeModbusSection(existing, buildModbusConfig(template, emptyModbusFields(template), null, existing.getAddressOffset()), template);
+            modbusStorage.save(name, config);
             return toModbusProfile(name, template, config);
         } catch (IOException exception) {
             throw storageFailure("Could not create Modbus profile", exception);
@@ -226,7 +247,7 @@ public class PVConfigService {
         String name = profileName(rawName);
         ModbusConfigCreatorTemplate template = modbusTemplate(templateId);
         try {
-            return toModbusProfile(name, template, modbusStorage.loadConfig(template, name));
+            return toModbusProfile(name, template, modbusStorage.loadConfig(name));
         } catch (NoSuchElementException exception) {
             throw notFound("Modbus profile not found");
         } catch (IOException exception) {
@@ -238,10 +259,11 @@ public class PVConfigService {
         String name = profileName(rawName);
         requireMatchingName(name, profile == null ? null : profile.name());
         ModbusConfigCreatorTemplate template = modbusTemplate(profile == null ? null : profile.templateId());
-        requireExistingModbusProfile(template, name);
-        ModbusConfig config = buildModbusConfig(template, profile.fields(), profile.fingerprint());
+        ModbusConfig replacement = buildModbusConfig(template, profile.fields(), profile.fingerprint(), profile.addressOffset());
         try {
-            modbusStorage.save(template, name, config);
+            requireExistingModbusProfile(template, name);
+            ModbusConfig config = mergeModbusSection(modbusStorage.loadConfig(name), replacement, template);
+            modbusStorage.save(name, config);
             return toModbusProfile(name, template, config);
         } catch (IOException exception) {
             throw storageFailure("Could not save Modbus profile", exception);
@@ -252,9 +274,12 @@ public class PVConfigService {
         String name = profileName(rawName);
         ModbusConfigCreatorTemplate template = modbusTemplate(templateId);
         try {
-            if (!modbusStorage.delete(template, name)) {
-                throw notFound("Modbus profile not found");
-            }
+            ModbusConfig existing = modbusStorage.loadConfig(name);
+            Map<String, ModbusConfig.ConfigSection> sections = new LinkedHashMap<>(existing.getSections());
+            boolean removed = sections.entrySet().removeIf(entry -> template.id().equals(entry.getValue().getTemplateId()));
+            if (!removed) throw notFound("Modbus profile section not found");
+            if (sections.isEmpty()) modbusStorage.delete(name);
+            else modbusStorage.save(name, new ModbusConfig(existing.getFingerprint(), sections, existing.getAddressOffset()));
         } catch (IOException exception) {
             throw storageFailure("Could not delete Modbus profile", exception);
         }
@@ -264,7 +289,7 @@ public class PVConfigService {
         ModbusConfigCreatorTemplate template = modbusTemplate(templateId);
         String name = profileName(rawName);
         try {
-            ModbusConfig config = modbusStorage.loadConfig(template, name);
+            ModbusConfig config = modbusStorage.loadConfig(name);
             JsonSerializerContext context = new JsonSerializerContext();
             return context.toJsonString(ModbusConfig.SERIALIZER.serialize(context, config));
         } catch (NoSuchElementException exception) {
@@ -279,10 +304,10 @@ public class PVConfigService {
         ModbusConfigCreatorTemplate template = modbusTemplate(templateId);
         ModbusConfig imported = deserializeModbus(json);
         ModbusProfileDto dto = toModbusProfile(name, template, imported);
-        ModbusConfig validated = buildModbusConfig(template, dto.fields(), dto.fingerprint());
+        ModbusConfig validated = buildModbusConfig(template, dto.fields(), dto.fingerprint(), dto.addressOffset());
         try {
-            modbusStorage.save(template, name, validated);
-            return toModbusProfile(name, template, validated);
+            modbusStorage.save(name, imported);
+            return toModbusProfile(name, template, imported);
         } catch (IOException exception) {
             throw storageFailure("Could not import Modbus profile", exception);
         }
@@ -294,10 +319,10 @@ public class PVConfigService {
         ModbusConfig community = configFetcherService.getModbusConfig(name)
                 .orElseThrow(() -> notFound("Community Modbus profile not found"));
         ModbusProfileDto dto = toModbusProfile(name, template, community);
-        ModbusConfig validated = buildModbusConfig(template, dto.fields(), dto.fingerprint());
+        ModbusConfig validated = buildModbusConfig(template, dto.fields(), dto.fingerprint(), dto.addressOffset());
         try {
-            modbusStorage.save(template, name, validated);
-            return toModbusProfile(name, template, validated);
+            modbusStorage.save(name, community);
+            return toModbusProfile(name, template, community);
         } catch (IOException exception) {
             throw storageFailure("Could not save community Modbus profile", exception);
         }
@@ -308,7 +333,9 @@ public class PVConfigService {
             throw badRequest("Test request is required");
         }
         URI baseUri = restBaseUri(request.baseUrl());
-        RestConfigCreatorTemplate template = RestConfigCreatorTemplate.HOME_ASSISTANT_PV;
+        RestConfigCreatorTemplate template = request.templateId() == null || request.templateId().isBlank()
+                ? RestConfigCreatorTemplate.HOME_ASSISTANT_PV
+                : restTemplate(request.templateId());
         RestPVConfig config = buildRestConfig(template, request.fields());
         acquireTestSlot();
         try (RestPVClient client = new RestPVClient(baseUri.toString(), safeToken(request.apiToken()))) {
@@ -330,12 +357,15 @@ public class PVConfigService {
         String host = deviceHost(request.host());
         int port = integerRange(request.port(), 1, 65_535, "Port");
         int slaveId = integerRange(request.slaveId(), 1, 247, "Slave ID");
-        ModbusConfigCreatorTemplate template = ModbusConfigCreatorTemplate.PV_SITE;
-        ModbusConfig config = buildModbusConfig(template, request.fields(), request.fingerprint());
+        ModbusConfigCreatorTemplate template = request.templateId() == null || request.templateId().isBlank()
+                ? ModbusConfigCreatorTemplate.PV_SITE
+                : modbusTemplate(request.templateId());
+        ModbusConfig config = buildModbusConfig(template, request.fields(), request.fingerprint(), request.addressOffset());
         acquireTestSlot();
         try (TCPModbusClient client = new TCPModbusClient(host, port, slaveId)) {
             Map<String, FieldTestDto> values = testModbusFields(client, config);
-            boolean fingerprintMatches = config.getFingerprint() != null && client.verifyFingerprint(config.getFingerprint());
+            boolean fingerprintMatches = config.getFingerprint() != null
+                    && client.verifyFingerprint(config.getAddressOffset(), config.getFingerprint());
             return new ConnectionTestDto(true, fingerprintMatches, "connected", values);
         } catch (Exception exception) {
             LOGGER.log(Level.FINE, "Modbus device test failed for " + host, exception);
@@ -348,9 +378,11 @@ public class PVConfigService {
     private Map<String, FieldTestDto> testRestFields(RestPVClient client, RestPVConfig config) {
         Map<String, FieldTestDto> results = new LinkedHashMap<>();
         Map<String, Double> cache = new HashMap<>();
-        for (String field : config.getConfigEntries().keySet()) {
+        RestPVConfig.ConfigSection section = config.getSections().values().stream().findFirst()
+                .orElseThrow(() -> badRequest("REST profile has no section"));
+        for (String field : section.getEntries().keySet()) {
             try {
-                results.put(field, FieldTestDto.number(readRestValue(field, client, config, cache, new HashSet<>())));
+                results.put(field, FieldTestDto.number(readRestValue(field, client, section, cache, new HashSet<>())));
             } catch (Exception exception) {
                 results.put(field, FieldTestDto.error("read_failed"));
             }
@@ -358,7 +390,7 @@ public class PVConfigService {
         return results;
     }
 
-    private double readRestValue(String field, RestPVClient client, RestPVConfig config,
+    private double readRestValue(String field, RestPVClient client, RestPVConfig.ConfigSection section,
                                  Map<String, Double> cache, Set<String> visiting) throws Exception {
         if (cache.containsKey(field)) {
             return cache.get(field);
@@ -366,7 +398,7 @@ public class PVConfigService {
         if (!visiting.add(field)) {
             throw new IllegalArgumentException("Circular formula reference");
         }
-        RestPVConfig.Entry<?> entry = config.getEntryForId(field);
+        RestPVConfig.Entry<?> entry = section.getEntryForId(field);
         RestPVConfig.Entry<?> rawEntry = new RestPVConfig.Entry<>(
                 entry.urlExtension(), entry.httpMethod(), entry.responseType(), entry.dataPath(),
                 1.0f, "x", entry.restParameterType()
@@ -374,7 +406,7 @@ public class PVConfigService {
         double raw = client.read(rawEntry);
         double evaluated = FormulaEngine.evaluate(raw, entry.formula(), referenced -> {
             try {
-                return readRestValue(referenced, client, config, cache, new HashSet<>(visiting));
+                return readRestValue(referenced, client, section, cache, new HashSet<>(visiting));
             } catch (Exception exception) {
                 throw new IllegalArgumentException(exception);
             }
@@ -387,9 +419,11 @@ public class PVConfigService {
     private Map<String, FieldTestDto> testModbusFields(TCPModbusClient client, ModbusConfig config) {
         Map<String, FieldTestDto> results = new LinkedHashMap<>();
         Map<String, Double> cache = new HashMap<>();
-        for (String field : config.getConfigEntries().keySet()) {
+        ModbusConfig.ConfigSection section = config.getSections().values().stream().findFirst()
+                .orElseThrow(() -> badRequest("Modbus profile has no section"));
+        for (String field : section.getEntries().keySet()) {
             try {
-                results.put(field, FieldTestDto.number(readModbusValue(field, client, config, cache, new HashSet<>())));
+                results.put(field, FieldTestDto.number(readModbusValue(field, client, section, config.getAddressOffset(), cache, new HashSet<>())));
             } catch (Exception exception) {
                 results.put(field, FieldTestDto.error("read_failed"));
             }
@@ -397,7 +431,8 @@ public class PVConfigService {
         return results;
     }
 
-    private double readModbusValue(String field, TCPModbusClient client, ModbusConfig config,
+    private double readModbusValue(String field, TCPModbusClient client, ModbusConfig.ConfigSection section,
+                                   int addressOffset,
                                    Map<String, Double> cache, Set<String> visiting) throws Exception {
         if (cache.containsKey(field)) {
             return cache.get(field);
@@ -405,18 +440,18 @@ public class PVConfigService {
         if (!visiting.add(field)) {
             throw new IllegalArgumentException("Circular formula reference");
         }
-        ModbusConfig.Entry<?> entry = config.getEntryForId(field);
+        ModbusConfig.Entry<?> entry = section.getEntryForId(field);
         ModbusConfig.Entry<?> rawEntry = new ModbusConfig.Entry<>(
                 entry.startAddress(), entry.size(), 1.0f, "x", entry.modbusParameterType(),
                 entry.readOperationType(), entry.byteOrder()
         );
-        Object rawObject = client.read(rawEntry);
+        Object rawObject = client.read(addressOffset, rawEntry);
         double raw = rawObject instanceof Number number
                 ? number.doubleValue()
                 : Double.parseDouble(String.valueOf(rawObject).trim());
         double evaluated = FormulaEngine.evaluate(raw, entry.formula(), referenced -> {
             try {
-                return readModbusValue(referenced, client, config, cache, new HashSet<>(visiting));
+                return readModbusValue(referenced, client, section, addressOffset, cache, new HashSet<>(visiting));
             } catch (Exception exception) {
                 throw new IllegalArgumentException(exception);
             }
@@ -452,11 +487,120 @@ public class PVConfigService {
                     restParameterType(field.parameterType())
             ));
         }
-        return new RestPVConfig(entries);
+        RestPVConfig.ConfigSection section = new RestPVConfig.ConfigSection(template.id(), template.name(), entries);
+        return new RestPVConfig(Map.of(template.id(), section));
+    }
+
+    private RestPVConfig buildMessageConfig(RestConfigCreatorTemplate template, List<RestFieldDto> fields) {
+        Map<String, RestFieldDto> byName = indexFields(fields, RestFieldDto::field);
+        requireExactFields(template.requiredFields(), byName.keySet());
+        Set<String> allowedReferences = requiredFieldNames(template.requiredFields());
+        Map<String, RestPVConfig.Entry<?>> entries = new LinkedHashMap<>();
+        for (RequiredField required : template.requiredFields()) {
+            RestFieldDto field = byName.get(required.field());
+            String source = requiredText(field.urlExtension(), "Topic/message source", 512);
+            if (hasControlCharacters(source)) throw badRequest("Topic/message source contains control characters");
+            String dataPath = optionalText(field.dataPath(), 256);
+            RestResponseType responseType = enumValue(RestResponseType.class, field.responseType(), "response type");
+            if (responseType != RestResponseType.PLAIN_TEXT && dataPath.isBlank()) throw badRequest("A data path is required for JSON and XML messages");
+            entries.put(required.field(), new RestPVConfig.Entry<>(source, RestHttpMethod.GET, responseType, dataPath,
+                    scaleFactor(field.scaleFactor()), formula(field.formula(), allowedReferences), restParameterType(field.parameterType())));
+        }
+        return new RestPVConfig(Map.of(template.id(), new RestPVConfig.ConfigSection(template.id(), template.name(), entries)));
+    }
+
+    public RestCatalogDto getMessageCatalog(String protocol) {
+        return new RestCatalogDto(
+                RestConfigCreatorTemplate.getAll().stream()
+                        .map(template -> toTemplate(template.id(), template.name(), template.requiredFields())).toList(),
+                loadNames(() -> messageStorage.getSavedConfigs(messageProtocol(protocol))),
+                communityNames(profileProtocol(protocol)),
+                List.of(RestHttpMethod.GET.name()),
+                Arrays.stream(RestResponseType.values()).map(Enum::name).toList(),
+                List.of("int", "long", "float", "double")
+        );
+    }
+
+    public synchronized RestProfileDto createMessageProfile(String protocol, String rawName, String templateId) {
+        String transport = messageProtocol(protocol);
+        String name = profileName(rawName);
+        RestConfigCreatorTemplate template = restTemplate(templateId);
+        try {
+            RestPVConfig existing = messageStorage.exists(transport, name) ? messageStorage.loadConfig(transport, name) : new RestPVConfig(Map.of());
+            if (findRestSection(existing, template.id()) != null) throw conflict("This profile already contains the selected device type");
+            RestPVConfig config = mergeRestSection(existing, buildMessageConfig(template, emptyMessageFields(template, transport)), template);
+            messageStorage.save(transport, name, config);
+            return toRestProfile(name, template, config);
+        } catch (IOException exception) { throw storageFailure("Could not create message profile", exception); }
+    }
+
+    public RestProfileDto loadMessageProfile(String protocol, String rawName, String templateId) {
+        String name = profileName(rawName);
+        RestConfigCreatorTemplate template = restTemplate(templateId);
+        try { return toRestProfile(name, template, messageStorage.loadConfig(messageProtocol(protocol), name)); }
+        catch (NoSuchElementException exception) { throw notFound("Message profile not found"); }
+        catch (IOException exception) { throw storageFailure("Could not load message profile", exception); }
+    }
+
+    public synchronized RestProfileDto saveMessageProfile(String protocol, String rawName, RestProfileDto profile) {
+        String transport = messageProtocol(protocol);
+        String name = profileName(rawName);
+        requireMatchingName(name, profile == null ? null : profile.name());
+        RestConfigCreatorTemplate template = restTemplate(profile == null ? null : profile.templateId());
+        RestPVConfig replacement = buildMessageConfig(template, profile.fields());
+        try {
+            if (!messageStorage.exists(transport, name)) throw notFound("Message profile not found");
+            RestPVConfig existing = messageStorage.loadConfig(transport, name);
+            if (findRestSection(existing, template.id()) == null) throw notFound("Message profile section not found");
+            RestPVConfig config = mergeRestSection(existing, replacement, template);
+            messageStorage.save(transport, name, config);
+            return toRestProfile(name, template, config);
+        } catch (IOException exception) { throw storageFailure("Could not save message profile", exception); }
+    }
+
+    public synchronized void deleteMessageProfile(String protocol, String rawName, String templateId) {
+        String transport = messageProtocol(protocol);
+        String name = profileName(rawName);
+        RestConfigCreatorTemplate template = restTemplate(templateId);
+        try {
+            RestPVConfig existing = messageStorage.loadConfig(transport, name);
+            Map<String, RestPVConfig.ConfigSection> sections = new LinkedHashMap<>(existing.getSections());
+            if (!sections.entrySet().removeIf(entry -> template.id().equals(entry.getValue().getTemplateId()))) throw notFound("Message profile section not found");
+            if (sections.isEmpty()) messageStorage.delete(transport, name); else messageStorage.save(transport, name, new RestPVConfig(sections));
+        } catch (IOException exception) { throw storageFailure("Could not delete message profile", exception); }
+    }
+
+    public String exportMessageProfile(String protocol, String rawName) {
+        try {
+            RestPVConfig config = messageStorage.loadConfig(messageProtocol(protocol), profileName(rawName));
+            JsonSerializerContext context = new JsonSerializerContext();
+            return context.toJsonString(RestPVConfig.SERIALIZER.serialize(context, config));
+        } catch (IOException exception) { throw storageFailure("Could not export message profile", exception); }
+    }
+
+    public synchronized RestProfileDto importMessageProfile(String protocol, String rawName, String templateId, String json) {
+        String name = profileName(rawName);
+        RestConfigCreatorTemplate template = restTemplate(templateId);
+        RestPVConfig imported = deserializeRest(json);
+        buildMessageConfig(template, toRestProfile(name, template, imported).fields());
+        try { messageStorage.save(messageProtocol(protocol), name, imported); return toRestProfile(name, template, imported); }
+        catch (IOException exception) { throw storageFailure("Could not import message profile", exception); }
+    }
+
+    public synchronized RestProfileDto downloadMessageCommunityProfile(String protocol, String rawName, String templateId) {
+        String name = profileName(rawName);
+        RestConfigCreatorTemplate template = restTemplate(templateId);
+        RestPVConfig community = configFetcherService.getRestPVConfig(name)
+                .orElseThrow(() -> notFound("Community message profile not found"));
+        buildMessageConfig(template, toRestProfile(name, template, community).fields());
+        try {
+            messageStorage.save(messageProtocol(protocol), name, community);
+            return toRestProfile(name, template, community);
+        } catch (IOException exception) { throw storageFailure("Could not save community message profile", exception); }
     }
 
     private ModbusConfig buildModbusConfig(ModbusConfigCreatorTemplate template, List<ModbusFieldDto> fields,
-                                            ModbusFingerprintDto fingerprintDto) {
+                                            ModbusFingerprintDto fingerprintDto, int addressOffset) {
         Map<String, ModbusFieldDto> byName = indexFields(fields, ModbusFieldDto::field);
         requireExactFields(template.requiredFields(), byName.keySet());
         Set<String> allowedReferences = requiredFieldNames(template.requiredFields());
@@ -466,7 +610,8 @@ public class PVConfigService {
             entries.put(required.field(), modbusEntry(field.startAddress(), field.size(), field.scaleFactor(),
                     field.formula(), field.parameterType(), field.operationType(), field.byteOrder(), allowedReferences));
         }
-        return new ModbusConfig(fingerprint(fingerprintDto), entries);
+        ModbusConfig.ConfigSection section = new ModbusConfig.ConfigSection(template.id(), template.name(), entries);
+        return new ModbusConfig(fingerprint(fingerprintDto), Map.of(template.id(), section), addressOffset);
     }
 
     private ModbusConfig.Entry<?> modbusEntry(int address, int size, double scale, String formula,
@@ -506,11 +651,13 @@ public class PVConfigService {
     }
 
     private RestProfileDto toRestProfile(String name, RestConfigCreatorTemplate template, RestPVConfig config) {
+        RestPVConfig.ConfigSection section = findRestSection(config, template.id());
+        if (section == null) throw notFound("REST profile does not contain the selected device type");
         List<RestFieldDto> fields = new ArrayList<>();
         for (RequiredField required : template.requiredFields()) {
             RestPVConfig.Entry<?> entry;
             try {
-                entry = config.getEntryForId(required.field());
+                entry = section.getEntryForId(required.field());
             } catch (NoSuchElementException exception) {
                 throw badRequest("Profile is missing required field " + required.field());
             }
@@ -524,11 +671,13 @@ public class PVConfigService {
     }
 
     private ModbusProfileDto toModbusProfile(String name, ModbusConfigCreatorTemplate template, ModbusConfig config) {
+        ModbusConfig.ConfigSection section = findModbusSection(config, template.id());
+        if (section == null) throw notFound("Modbus profile does not contain the selected device type");
         List<ModbusFieldDto> fields = new ArrayList<>();
         for (RequiredField required : template.requiredFields()) {
             ModbusConfig.Entry<?> entry;
             try {
-                entry = config.getEntryForId(required.field());
+                entry = section.getEntryForId(required.field());
             } catch (NoSuchElementException exception) {
                 throw badRequest("Profile is missing required field " + required.field());
             }
@@ -543,7 +692,7 @@ public class PVConfigService {
                 fingerprint.address(), fingerprint.size(), fingerprint.parameterType().identifier(),
                 fingerprint.operationType().name(), fingerprint.byteOrder().toString(), fingerprint.expectedValue()
         );
-        return new ModbusProfileDto(name, template.id(), fingerprintDto, fields);
+        return new ModbusProfileDto(name, template.id(), config.getAddressOffset(), fingerprintDto, fields);
     }
 
     private RestPVConfig deserializeRest(String json) {
@@ -762,30 +911,132 @@ public class PVConfigService {
         }
     }
 
+    private List<RestFieldDto> emptyRestFields(RestConfigCreatorTemplate template) {
+        return template.requiredFields().stream()
+                .map(field -> new RestFieldDto(
+                        field.field(), field.unit(), "/", RestHttpMethod.GET.name(),
+                        RestResponseType.PLAIN_TEXT.name(), "", 1.0, "x", RestParameterType.DOUBLE.identifier()
+                ))
+                .toList();
+    }
+
+    private List<RestFieldDto> emptyMessageFields(RestConfigCreatorTemplate template, String protocol) {
+        String source = MessageConfigStorage.MQTT.equals(protocol) ? "solarminer/device/telemetry" : "message";
+        return template.requiredFields().stream().map(field -> new RestFieldDto(
+                field.field(), field.unit(), source, RestHttpMethod.GET.name(), RestResponseType.JSON.name(),
+                "$." + field.field(), 1.0, "x", RestParameterType.DOUBLE.identifier())).toList();
+    }
+
+    private String messageProtocol(String protocol) {
+        return switch (protocol == null ? "" : protocol.toLowerCase(Locale.ROOT)) {
+            case "mqtt" -> MessageConfigStorage.MQTT;
+            case "websocket" -> MessageConfigStorage.WEBSOCKET;
+            default -> throw badRequest("Unsupported message protocol");
+        };
+    }
+
+    private String profileProtocol(String protocol) {
+        return MessageConfigStorage.MQTT.equals(messageProtocol(protocol)) ? "MQTT" : "WebSocket";
+    }
+
+    private List<ModbusFieldDto> emptyModbusFields(ModbusConfigCreatorTemplate template) {
+        return template.requiredFields().stream()
+                .map(field -> new ModbusFieldDto(
+                        field.field(), field.unit(), 0, 1, 1.0, "x",
+                        ModbusParameterType.UINT16.identifier(), ModbusReadOperationType.READ_HOLDING_REGISTER.name(),
+                        ByteOrder.BIG_ENDIAN.toString()
+                ))
+                .toList();
+    }
+
+    private RestPVConfig.ConfigSection findRestSection(RestPVConfig config, String templateId) {
+        if (config == null || config.getSections() == null) return null;
+        return config.getSections().values().stream()
+                .filter(section -> templateId.equals(section.getTemplateId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private ModbusConfig.ConfigSection findModbusSection(ModbusConfig config, String templateId) {
+        if (config == null || config.getSections() == null) return null;
+        return config.getSections().values().stream()
+                .filter(section -> templateId.equals(section.getTemplateId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private RestPVConfig mergeRestSection(RestPVConfig existing, RestPVConfig replacement,
+                                          RestConfigCreatorTemplate template) {
+        Map<String, RestPVConfig.ConfigSection> sections = new LinkedHashMap<>(existing.getSections());
+        String sectionKey = sections.entrySet().stream()
+                .filter(entry -> template.id().equals(entry.getValue().getTemplateId()))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(template.id());
+        RestPVConfig.ConfigSection newSection = findRestSection(replacement, template.id());
+        RestPVConfig.ConfigSection oldSection = sections.get(sectionKey);
+        String sectionName = oldSection == null || oldSection.getName() == null || oldSection.getName().isBlank()
+                ? template.name()
+                : oldSection.getName();
+        sections.put(sectionKey, new RestPVConfig.ConfigSection(template.id(), sectionName, newSection.getEntries()));
+        return new RestPVConfig(sections);
+    }
+
+    private ModbusConfig mergeModbusSection(ModbusConfig existing, ModbusConfig replacement,
+                                             ModbusConfigCreatorTemplate template) {
+        Map<String, ModbusConfig.ConfigSection> sections = new LinkedHashMap<>(existing.getSections());
+        String sectionKey = sections.entrySet().stream()
+                .filter(entry -> template.id().equals(entry.getValue().getTemplateId()))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(template.id());
+        ModbusConfig.ConfigSection newSection = findModbusSection(replacement, template.id());
+        ModbusConfig.ConfigSection oldSection = sections.get(sectionKey);
+        String sectionName = oldSection == null || oldSection.getName() == null || oldSection.getName().isBlank()
+                ? template.name()
+                : oldSection.getName();
+        sections.put(sectionKey, new ModbusConfig.ConfigSection(template.id(), sectionName, newSection.getEntries()));
+        return new ModbusConfig(replacement.getFingerprint(), sections, replacement.getAddressOffset());
+    }
+
     private RestConfigCreatorTemplate restTemplate(String templateId) {
-        if (RestConfigCreatorTemplate.HOME_ASSISTANT_PV.id().equals(templateId)) {
-            return RestConfigCreatorTemplate.HOME_ASSISTANT_PV;
-        }
-        throw badRequest("Unknown REST template");
+        String id = requiredText(templateId, "Template", 64);
+        if (RestConfigCreatorTemplate.HOME_ASSISTANT_PV.id().equals(id)) return RestConfigCreatorTemplate.HOME_ASSISTANT_PV;
+        return RestConfigCreatorTemplate.getAll().stream()
+                .filter(template -> template.id().equals(id))
+                .findFirst()
+                .orElseThrow(() -> badRequest("Unknown REST template"));
     }
 
     private ModbusConfigCreatorTemplate modbusTemplate(String templateId) {
+        String id = requiredText(templateId, "Template", 64);
+        if (ModbusConfigCreatorTemplate.PV_SITE.id().equals(id)) return ModbusConfigCreatorTemplate.PV_SITE;
         try {
-            return ModbusConfigCreatorTemplate.byId(requiredText(templateId, "Template", 64));
+            return ModbusConfigCreatorTemplate.byId(id);
         } catch (NoSuchElementException exception) {
             throw badRequest("Unknown Modbus template");
         }
     }
 
     private void requireExistingRestProfile(RestConfigCreatorTemplate template, String name) {
-        if (!restStorage.doesConfigExistOnDisk(template, name)) {
-            throw notFound("REST profile not found");
+        try {
+            if (!restStorage.doesConfigExistOnDisk(name)
+                    || findRestSection(restStorage.loadConfig(name), template.id()) == null) {
+                throw notFound("REST profile not found");
+            }
+        } catch (IOException exception) {
+            throw storageFailure("Could not load REST profile", exception);
         }
     }
 
     private void requireExistingModbusProfile(ModbusConfigCreatorTemplate template, String name) {
-        if (!modbusStorage.doesConfigExistOnDisk(template, name)) {
-            throw notFound("Modbus profile not found");
+        try {
+            if (!modbusStorage.doesConfigExistOnDisk(name)
+                    || findModbusSection(modbusStorage.loadConfig(name), template.id()) == null) {
+                throw notFound("Modbus profile not found");
+            }
+        } catch (IOException exception) {
+            throw storageFailure("Could not load Modbus profile", exception);
         }
     }
 

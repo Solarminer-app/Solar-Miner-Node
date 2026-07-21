@@ -1,5 +1,7 @@
 package de.verdox.solarminer.pcagent.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import de.verdox.solarminer.pcagent.dto.MinerStats;
 import de.verdox.solarminer.pcagent.mining.MiningService;
 import de.verdox.solarminer.pcagent.xmr.XmrConfigService;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/agent")
+@Tag(name = "PC mining agent")
 public class MiningController {
     private final MiningService miningService;
     private final XmrConfigService xmrConfigService;

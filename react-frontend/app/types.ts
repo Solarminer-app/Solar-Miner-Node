@@ -214,9 +214,22 @@ export interface PVSiteDetailsDto {
     totalPanels: number;
     totalGroups: number;
     panelGroups: PanelGroupDto[];
+    pvDevices: PvDeviceDto[];
     miners: MinerCostDto[];
     feedInTariffs: PriceDto[];
     electricityPrices: PriceDto[];
+}
+
+export interface PvDeviceDto {
+    id: string;
+    deviceType: 'INVERTER' | 'BATTERY' | 'SMART_METER';
+    name: string;
+    providerId: string;
+    host: string;
+    port: number;
+    slaveId: number;
+    profileName: string;
+    sectionKey: string;
 }
 
 export interface FinanceKpiDto {
@@ -354,6 +367,18 @@ export interface MiningPageDto {
     unassignedMiners: MinerDto[];
     connectedPools: MiningPoolDto[];
     devFee: DevFeeOverviewDto;
+}
+
+export interface MiningLiveSnapshotDto {
+    updatedAt: string;
+    totalHashrateThs: number;
+    miners: Array<{
+        id: string;
+        status: string;
+        hashrateThs: number;
+        powerWatts: number;
+        temperatureCelsius: number;
+    }>;
 }
 
 export interface DevFeeOverviewDto {
@@ -495,6 +520,22 @@ export interface MinerDetailsPageDto {
         minimumRunMinutes: number | null;
         minimumIdleMinutes: number | null;
         powerChangeLockMinutes: number | null;
+    };
+    efficiencyStrategy: {
+        dispatchPriority: number | null;
+        nominalEfficiencyJTh: number | null;
+        effectiveEfficiencyJTh: number | null;
+        effectiveSource: 'LEARNED' | 'NOMINAL' | 'LIVE';
+        effectivePowerTargetBucketWatts: number | null;
+        effectiveSampleCount: number;
+        learnedProfiles: Array<{
+            powerTargetBucketWatts: number;
+            learnedEfficiencyJTh: number;
+            sampleCount: number;
+            averageTemperatureCelsius: number | null;
+            lastObservedAt: string;
+            controllerReady: boolean;
+        }>;
     };
     pools: Array<{url: string; username: string}>;
     workers: Array<{

@@ -22,6 +22,10 @@ val currencyRatesImage = providers.gradleProperty("currencyRatesImage")
 
 allprojects {
     group = projectGroup.get()
+
+    tasks.withType<JavaCompile>().configureEach {
+        options.compilerArgs.add("-parameters")
+    }
 }
 
 version = frontendVersion.get()
@@ -66,6 +70,8 @@ repositories {
 }
 
 dependencies {
+    implementation("com.github.ben-manes.caffeine:caffeine:3.2.4")
+    implementation("com.hivemq:hivemq-mqtt-client:1.3.14")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
     implementation("org.apache.commons:commons-compress:1.28.0")
     implementation("org.shredzone.commons:commons-suncalc:3.5")
@@ -81,6 +87,9 @@ dependencies {
     implementation(
         "org.springframework.boot:spring-boot-starter-web"
     )
+    // 2.8.17 is built against Spring Boot 3.5 / Spring Framework 6.2.17 and
+    // registers resource patterns that Spring Boot 3.4.3 cannot parse.
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5")
     implementation("org.springframework:spring-context")
 
     implementation("io.projectreactor:reactor-core")
@@ -203,6 +212,10 @@ tasks.processResources {
 
     from(reactFrontendOutput) {
         into("static")
+    }
+
+    from(layout.projectDirectory.dir("device-profiles/bundled")) {
+        into("device-profiles/bundled")
     }
 }
 

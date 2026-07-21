@@ -1,0 +1,99 @@
+{
+  "authenticationType": "NONE",
+  "sections": {
+    "inverter": {
+      "templateId": "rest_inverter",
+      "name": "APsystems EZ1 – inverter",
+      "entries": {
+        "current_dc_power": {
+          "urlExtension": "/getOutputData",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.data.p1+$.data.p2",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_dc_voltage": {
+          "urlExtension": "/getOutputData",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.data.p1+$.data.p2",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_ac_power": {
+          "urlExtension": "/getOutputData",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.data.p1+$.data.p2",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "current_ac_voltage": {
+          "urlExtension": "/getOutputData",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.data.p1+$.data.p2",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "grid_frequency": {
+          "urlExtension": "/getOutputData",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.data.p1+$.data.p2",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_energy_yield": {
+          "urlExtension": "/getOutputData",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.data.te1+$.data.te2",
+          "scaleFactor": 1000,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "internal_temperature": {
+          "urlExtension": "/getOutputData",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.data.p1+$.data.p2",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "status_code": {
+          "urlExtension": "/getOutputData",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:$.data.p1+$.data.p2",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    }
+  }
+}

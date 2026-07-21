@@ -1,5 +1,7 @@
 package de.verdox.pv_miner.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import de.verdox.pv_miner.dto.FinancePageRequests.BitcoinSaleRequest;
 import de.verdox.pv_miner.dto.PVStatisticDto;
 import de.verdox.pv_miner.entity.EntityService;
@@ -42,6 +44,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/pv-site/{siteId}/finance")
 @CrossOrigin(origins = "http://localhost:3000", exposedHeaders = HttpHeaders.CONTENT_DISPOSITION)
+@Tag(name = "Finance")
 public class FinanceController {
     private final PVSiteRepository pvSiteRepository;
     private final PVFinanceService financeService;

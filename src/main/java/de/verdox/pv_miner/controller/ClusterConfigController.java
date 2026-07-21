@@ -1,5 +1,7 @@
 package de.verdox.pv_miner.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import de.verdox.pv_miner.dto.ClusterConfigDto;
 import de.verdox.pv_miner.dto.ClusterConfigRequests.SaveClusterConfigRequest;
 import de.verdox.pv_miner.dto.ClusterConfigRequests.SimulateClusterConfigRequest;
@@ -21,6 +23,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/pv-site/{siteId}/mining/configs")
+@Tag(name = "Cluster configurations")
 public class ClusterConfigController {
     private final ClusterConfigService configService;
     private final PVSiteRepository siteRepository;

@@ -14,6 +14,7 @@ import java.util.function.Consumer;
 
 public class PVSiteInfluxStrategy implements InfluxEntityStrategy<PVSiteEntity, PVSiteDataDTO> {
     public static final String MEASUREMENT_KEY = "pv_site_data";
+    public static final String HOURLY_MEASUREMENT_KEY = "pv_site_hourly_summary";
 
     public static final String PV_POWER_IN_KW = "PVPowerInKw";
     public static final String FEED_IN_POWER_IN_KW = "FeedInPowerInKw";

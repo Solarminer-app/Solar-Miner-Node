@@ -60,6 +60,16 @@ class DashboardChartQueryServiceTest {
         AtomicInteger queryNumber = new AtomicInteger();
         List<String> builtQueries = new ArrayList<>();
 
+        when(influxService.getDownSampledInfluxBucket()).thenReturn("solarminer_downsampled");
+        when(influxService.queryMeasurementData(
+                eq("solarminer_downsampled"),
+                eq(PVSiteInfluxStrategy.HOURLY_MEASUREMENT_KEY),
+                eq(site),
+                any(Instant.class),
+                any(Instant.class),
+                eq(List.of(PVSiteInfluxStrategy.PV_POWER_IN_KW))
+        )).thenReturn(historyRecords);
+
         doAnswer(invocation -> {
                     Consumer<InfluxUtil.InfluxQueryBuilder> queryCustomizer = invocation.getArgument(3);
                     InfluxUtil.InfluxQueryBuilder builder = new InfluxUtil.InfluxQueryBuilder("solarminer")
@@ -67,7 +77,8 @@ class DashboardChartQueryServiceTest {
                             .setTimeRange(invocation.getArgument(1), invocation.getArgument(2));
                     queryCustomizer.accept(builder);
                     builtQueries.add(builder.build());
-                    return queryNumber.getAndIncrement() == 0 ? liveRecords : historyRecords;
+                    queryNumber.incrementAndGet();
+                    return liveRecords;
                 })
                 .when(influxService)
                 .queryDataFromApi(
@@ -94,22 +105,26 @@ class DashboardChartQueryServiceTest {
         assertEquals(1.8, first.live().minerConsumption().getFirst().value());
         assertEquals(1, first.pvHistory().size());
         assertEquals(3.7, first.pvHistory().getFirst().value());
-        assertEquals(2, builtQueries.size());
+        assertEquals(1, builtQueries.size());
         assertTrue(builtQueries.getFirst().contains(PVSiteInfluxStrategy.PV_POWER_IN_KW));
         assertTrue(builtQueries.getFirst().contains(PVSiteInfluxStrategy.FEED_IN_POWER_IN_KW));
         assertTrue(builtQueries.getFirst().contains(PVSiteInfluxStrategy.GRID_CONSUMPTION_POWER));
         assertTrue(builtQueries.getFirst().contains(PVSiteInfluxStrategy.LOADS_POWER_IN_KW));
         assertTrue(builtQueries.getFirst().contains(PVSiteInfluxStrategy.MINER_POWER_IN_KW));
         assertFalse(builtQueries.getFirst().contains("group(columns: [\"_time\"])"));
-        assertFalse(builtQueries.getLast().contains("group(columns: [\"_time\"])"));
-        assertTrue(builtQueries.getLast().contains("fn: mean"));
-        assertTrue(builtQueries.getLast().contains(Instant.ofEpochMilli(todayEnd).minus(Duration.ofDays(7)).toString()));
-        assertFalse(builtQueries.getLast().contains(Instant.ofEpochMilli(siteStart).toString()));
-        verify(influxService, times(2)).queryDataFromApi(
+        verify(influxService, times(1)).queryDataFromApi(
                 eq(site),
                 any(Instant.class),
                 any(Instant.class),
                 org.mockito.ArgumentMatchers.<Consumer<InfluxUtil.InfluxQueryBuilder>>any()
+        );
+        verify(influxService).queryMeasurementData(
+                eq("solarminer_downsampled"),
+                eq(PVSiteInfluxStrategy.HOURLY_MEASUREMENT_KEY),
+                eq(site),
+                eq(Instant.ofEpochMilli(todayEnd).minus(Duration.ofDays(7))),
+                eq(Instant.ofEpochMilli(todayEnd)),
+                eq(List.of(PVSiteInfluxStrategy.PV_POWER_IN_KW))
         );
     }
 

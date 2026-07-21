@@ -43,9 +43,12 @@ public class MinerStatisticsAccumulator implements DailyStatisticAccumulator<Min
     @Override
     public String generateDownsamplingTaskQuery(String sourceBucket, String targetBucket, String measurement) {
         return String.format(
-                "option task = {name: \"Downsample_Miner_%s\", every: 1d, offset: 15m}\n\n" + // Offset hinzugefügt
+                "import \"date\"\n\n" +
+                        "option task = {name: \"Downsample_Miner_%s\", every: 1d, offset: 15m}\n\n" +
+                        "stop = date.truncate(t: now(), unit: 1d)\n" +
+                        "start = date.sub(d: 2d, from: stop)\n\n" +
                         "from(bucket: \"%s\")\n" +
-                        "  |> range(start: -2d)\n" +
+                        "  |> range(start: start, stop: stop)\n" +
                         "  |> filter(fn: (r) => r[\"_measurement\"] == \"%s\")\n" +
                         "  |> filter(fn: (r) => r[\"_field\"] == \"" + MinerInfluxStrategy.POWER_USAGE_WATTS + "\")\n" +
                         "  |> group(columns: [\"_measurement\", \"_field\", \"entity\"])\n" + // <-- FIX: Gruppierung wie im Backfill!

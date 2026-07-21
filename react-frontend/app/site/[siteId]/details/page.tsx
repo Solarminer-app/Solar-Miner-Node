@@ -17,6 +17,7 @@ import {
     RefreshCw,
     Ruler,
     Save,
+    Server,
     Sun,
     Trash2,
     X,
@@ -25,7 +26,7 @@ import {
 
 import de from '../../../locales/de.json';
 import en from '../../../locales/en.json';
-import type {MinerCostDto, PanelGroupDto, PriceDto, PVSiteDetailsDto} from '../../../types';
+import type {MinerCostDto, PanelGroupDto, PriceDto, PVSiteDetailsDto, PvDeviceDto} from '../../../types';
 import {useSitePreferences} from '../site-preferences-context';
 
 const translations = {de, en};
@@ -39,11 +40,81 @@ type DialogState =
     | {kind: 'panel'; panel: PanelGroupDto | null}
     | {kind: 'price'; priceType: PriceType}
     | {kind: 'miner'; miner: MinerCostDto}
+    | {kind: 'pv-device'; baseDevice: PvDeviceDto | null}
     | null;
+
+type PvDeviceSection = {sectionKey: string; templateId: string; name: string; deviceType: 'INVERTER' | 'BATTERY' | 'SMART_METER'};
+type PvDeviceProfile = {providerId: string; profileName: string; sections: PvDeviceSection[]};
+type SetupField = {
+    key: string;
+    label: string;
+    helpText: string;
+    type: 'TEXT' | 'NUMBER' | 'PASSWORD' | 'SELECT';
+    required: boolean;
+    defaultValue: string;
+    minimum: number | null;
+    maximum: number | null;
+    options: {value: string; label: string}[];
+};
+type PvSourceOption = {
+    id: string;
+    label: string;
+    description: string;
+    fields: SetupField[];
+};
+type PvDeviceDraft = {
+    providerId: string;
+    values: Record<string, string>;
+    selectedSectionKeys: string[];
+};
 
 type PanelGroupDraft = Omit<PanelGroupDto, 'id' | 'peakPowerKw'>;
 
 const inputClassName = 'mt-1.5 w-full rounded-xl border border-white/10 bg-[#0e0e11] px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-[#5f5f68] focus:border-yellow-400/60 focus:ring-2 focus:ring-yellow-400/10';
+
+function defaultProviderValues(option: PvSourceOption | undefined) {
+    return Object.fromEntries((option?.fields ?? []).map((field) => [field.key, field.defaultValue ?? '']));
+}
+
+function valuesForExistingDevice(device: PvDeviceDto, option: PvSourceOption | undefined) {
+    const values = {...defaultProviderValues(option), profile: device.profileName};
+    if (device.providerId === 'MODBUS_TCP') {
+        return {...values, host: device.host, port: String(device.port), slaveId: String(device.slaveId)};
+    }
+    if (device.providerId === 'REST_API') {
+        return {...values, host: device.host, port: String(device.port)};
+    }
+    if (device.providerId === 'MODBUS_RTU') {
+        return {...values, serialPort: device.host, baudRate: String(device.port), slaveId: String(device.slaveId)};
+    }
+    if (device.providerId === 'MQTT') {
+        return {...values, brokerUri: device.host};
+    }
+    if (device.providerId === 'WEBSOCKET') {
+        return {...values, url: device.host};
+    }
+    return values;
+}
+
+function isSameConnection(device: PvDeviceDto, providerId: string, values: Record<string, string>) {
+    if (device.providerId !== providerId) return false;
+    if (providerId === 'MODBUS_TCP' || providerId === 'REST_API') {
+        return device.host === values.host && device.port === Number(values.port);
+    }
+    if (providerId === 'MODBUS_RTU') {
+        return device.host === values.serialPort
+            && device.port === Number(values.baudRate)
+            && device.slaveId === Number(values.slaveId);
+    }
+    if (providerId === 'MQTT') return device.host === values.brokerUri;
+    if (providerId === 'WEBSOCKET') return device.host === values.url;
+    return false;
+}
+
+const providerIdentityFields = new Set([
+    'host', 'port', 'slaveId', 'serialPort', 'baudRate', 'dataBits', 'stopBits',
+    'parity', 'brokerUri', 'url', 'clientId',
+]);
 
 function Modal({
     title,
@@ -189,6 +260,13 @@ export default function PVSiteDetailsPage() {
     });
     const [priceDraft, setPriceDraft] = useState({validFrom: '', amount: 0});
     const [minerCostDraft, setMinerCostDraft] = useState(0);
+    const [pvSourceOptions, setPvSourceOptions] = useState<PvSourceOption[]>([]);
+    const [deviceProfiles, setDeviceProfiles] = useState<PvDeviceProfile[]>([]);
+    const [deviceDraft, setDeviceDraft] = useState<PvDeviceDraft>({
+        providerId: 'MODBUS_TCP',
+        values: {host: '', port: '502', slaveId: '1', profile: ''},
+        selectedSectionKeys: [],
+    });
 
     const numberLocale = locale === 'de' ? 'de-DE' : 'en-US';
     const numberFormatter = useMemo(
@@ -322,6 +400,48 @@ export default function PVSiteDetailsPage() {
         setDialog({kind: 'miner', miner});
     };
 
+    const openPvDeviceEditor = async (baseDevice: PvDeviceDto | null) => {
+        setMutationError(null);
+        const providerId = baseDevice?.providerId ?? 'MODBUS_TCP';
+        const [catalogResponse, profilesResponse] = await Promise.all([
+            fetch(`${API_BASE_URL}/setup/catalog?locale=${locale}`),
+            fetch(`${API_BASE_URL}/setup/pv-devices/profiles?providerId=${providerId}`),
+        ]);
+        if (!catalogResponse.ok) {
+            setMutationError(t['setup.error.catalog']);
+            return;
+        }
+        const catalog = await catalogResponse.json() as {pvSources: PvSourceOption[]};
+        const options = catalog.pvSources ?? [];
+        const option = options.find((entry) => entry.id === providerId);
+        const profiles = profilesResponse.ok ? await profilesResponse.json() as PvDeviceProfile[] : [];
+        setPvSourceOptions(options);
+        setDeviceProfiles(profiles);
+        const profile = baseDevice?.profileName ?? profiles[0]?.profileName ?? '';
+        const values = baseDevice
+            ? valuesForExistingDevice(baseDevice, option)
+            : {...defaultProviderValues(option), profile};
+        const alreadyConfigured = new Set((details?.pvDevices ?? [])
+            .filter((device) => isSameConnection(device, providerId, values) && device.profileName === profile)
+            .map((device) => device.sectionKey));
+        const available = profiles.find((entry) => entry.profileName === profile)?.sections.filter((section) => !alreadyConfigured.has(section.sectionKey)).map((section) => section.sectionKey) ?? [];
+        setDeviceDraft({providerId, values, selectedSectionKeys: available});
+        setDialog({kind: 'pv-device', baseDevice});
+    };
+
+    const loadDeviceProfiles = async (providerId: string) => {
+        const response = await fetch(`${API_BASE_URL}/setup/pv-devices/profiles?providerId=${providerId}`);
+        const profiles = response.ok ? await response.json() as PvDeviceProfile[] : [];
+        setDeviceProfiles(profiles);
+        const profile = profiles[0];
+        const option = pvSourceOptions.find((entry) => entry.id === providerId);
+        setDeviceDraft({
+            providerId,
+            values: {...defaultProviderValues(option), profile: profile?.profileName ?? ''},
+            selectedSectionKeys: profile?.sections.map((section) => section.sectionKey) ?? [],
+        });
+    };
+
     const submitDialog = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!dialog) return;
@@ -344,10 +464,15 @@ export default function PVSiteDetailsPage() {
                 method: 'POST',
                 body: JSON.stringify({...priceDraft, currency}),
             });
-        } else {
+        } else if (dialog.kind === 'miner') {
             void mutateDetails(`/miners/${dialog.miner.id}/cost`, {
                 method: 'PUT',
                 body: JSON.stringify({amount: minerCostDraft, currency}),
+            });
+        } else {
+            void mutateDetails('/pv-devices', {
+                method: 'POST',
+                body: JSON.stringify(deviceDraft),
             });
         }
     };
@@ -360,6 +485,11 @@ export default function PVSiteDetailsPage() {
     const deletePrice = (priceType: PriceType, price: PriceDto) => {
         if (!window.confirm(t['details.prices.delete_confirm'])) return;
         void mutateDetails(`/prices/${priceType}/${price.validFrom}`, {method: 'DELETE'});
+    };
+
+    const deletePvDevice = (device: PvDeviceDto) => {
+        if (!window.confirm(t['details.pv_devices.delete_confirm'])) return;
+        void mutateDetails(`/pv-devices/${device.id}`, {method: 'DELETE'});
     };
 
     const formatDate = (date: string) => dateFormatter.format(new Date(`${date}T00:00:00`));
@@ -427,6 +557,8 @@ export default function PVSiteDetailsPage() {
     ];
     const completedChecks = completenessChecks.filter((check) => check.complete).length;
     const completenessPercentage = Math.round((completedChecks / completenessChecks.length) * 100);
+    const selectedPvSourceOption = pvSourceOptions.find((option) => option.id === deviceDraft.providerId);
+    const selectedDeviceProfile = deviceProfiles.find((profile) => profile.profileName === deviceDraft.values.profile);
 
     return (
         <div className="min-h-[calc(100vh-72px)] bg-[#0b0b0d] px-4 py-7 text-white sm:px-6 lg:px-8">
@@ -486,6 +618,7 @@ export default function PVSiteDetailsPage() {
                     {[
                         ['#site-configuration', t['details.navigation.site']],
                         ['#panel-groups', t['details.navigation.panels']],
+                        ['#pv-devices', t['details.navigation.pv_devices']],
                         ['#mining-hardware', t['details.navigation.hardware']],
                         ['#energy-prices', t['details.navigation.prices']],
                     ].map(([href, label]) => (
@@ -571,6 +704,14 @@ export default function PVSiteDetailsPage() {
                         )}
                     </section>
                 </div>
+
+                <section className="scroll-mt-32 overflow-hidden rounded-2xl border border-white/[0.07] bg-[#151518]" id="pv-devices">
+                    <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-4">
+                        <div className="flex items-center gap-3"><Server className="text-cyan-400" size={20}/><div><h2 className="text-lg font-semibold">{t['details.pv_devices.title']}</h2><p className="mt-1 text-xs text-[#777781]">{t['details.pv_devices.description']}</p></div></div>
+                        <button className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400/20" onClick={() => void openPvDeviceEditor(null)} type="button"><Plus size={14}/>{t['details.pv_devices.add']}</button>
+                    </div>
+                    {details.pvDevices.length === 0 ? <p className="px-5 py-8 text-sm text-[#85858f]">{t['details.pv_devices.empty']}</p> : <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">{details.pvDevices.map((device) => <article className="rounded-xl border border-white/[0.07] bg-[#0f0f12] p-4" key={device.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><span className="rounded-md bg-cyan-400/10 px-2 py-1 text-[10px] font-semibold uppercase text-cyan-200">{t[`setup.source.type.${device.deviceType.toLowerCase()}`]}</span><h3 className="mt-3 truncate font-semibold">{device.name}</h3><p className="mt-1 truncate font-mono text-xs text-[#85858f]">{device.host}:{device.port}</p></div><button aria-label={t['details.action.delete']} className="grid h-8 w-8 place-items-center rounded-lg text-[#777781] transition hover:bg-red-500/10 hover:text-red-400" onClick={() => deletePvDevice(device)} type="button"><Trash2 size={14}/></button></div><div className="mt-4 border-t border-white/5 pt-3"><p className="truncate text-xs text-[#777781]">{device.profileName} · {device.sectionKey}</p>{device.providerId !== 'SMARTFOX' ? <button className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-300 hover:text-emerald-200" onClick={() => void openPvDeviceEditor(device)} type="button"><Plus size={13}/>{t['details.pv_devices.add_from_same']}</button> : null}</div></article>)}</div>}
+                </section>
 
                 <section className="scroll-mt-32 overflow-hidden rounded-2xl border border-white/[0.07] bg-[#151518]" id="mining-hardware">
                     <div className="flex items-center gap-3 border-b border-white/[0.07] px-5 py-4">
@@ -781,6 +922,87 @@ export default function PVSiteDetailsPage() {
                         {t['details.hardware.cost']} ({currency})
                         <input autoFocus className={inputClassName} min="0" onChange={(event) => setMinerCostDraft(Number(event.target.value))} required step="0.01" type="number" value={minerCostDraft}/>
                     </label>
+                </Modal>
+            )}
+
+            {dialog?.kind === 'pv-device' && (
+                <Modal
+                    cancelLabel={t['details.action.cancel']}
+                    error={mutationError}
+                    onClose={() => setDialog(null)}
+                    onSubmit={submitDialog}
+                    saving={saving}
+                    submitLabel={t['details.pv_devices.add_selected']}
+                    title={dialog.baseDevice ? t['details.pv_devices.extend_title'] : t['details.pv_devices.create_title']}
+                >
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="text-sm text-[#b7b7c0]">
+                            {t['details.pv_devices.protocol']}
+                            <select className={inputClassName} disabled={Boolean(dialog.baseDevice)} onChange={(event) => void loadDeviceProfiles(event.target.value)} value={deviceDraft.providerId}>
+                                {pvSourceOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                            </select>
+                            {selectedPvSourceOption?.description ? <span className="mt-1.5 block text-xs leading-5 text-[#777781]">{selectedPvSourceOption.description}</span> : null}
+                        </label>
+                        <label className="text-sm text-[#b7b7c0]">
+                            {t['details.pv_devices.profile']}
+                            <select className={inputClassName} onChange={(event) => {
+                                const profile = deviceProfiles.find((entry) => entry.profileName === event.target.value);
+                                setDeviceDraft((draft) => ({
+                                    ...draft,
+                                    values: {...draft.values, profile: event.target.value},
+                                    selectedSectionKeys: profile?.sections.map((section) => section.sectionKey) ?? [],
+                                }));
+                            }} required value={deviceDraft.values.profile ?? ''}>
+                                <option value="">—</option>
+                                {deviceProfiles.map((profile) => <option key={profile.profileName} value={profile.profileName}>{profile.profileName}</option>)}
+                            </select>
+                        </label>
+                        {selectedPvSourceOption?.fields.filter((field) => field.key !== 'profile').map((field) => (
+                            <label className={`text-sm text-[#b7b7c0] ${field.type === 'TEXT' || field.type === 'PASSWORD' ? 'sm:col-span-2' : ''}`} key={field.key}>
+                                {field.label}{field.required ? <span className="ml-1 text-yellow-400">*</span> : null}
+                                {field.type === 'SELECT' ? (
+                                    <select
+                                        className={inputClassName}
+                                        disabled={Boolean(dialog.baseDevice) && providerIdentityFields.has(field.key)}
+                                        onChange={(event) => setDeviceDraft((draft) => ({...draft, values: {...draft.values, [field.key]: event.target.value}}))}
+                                        required={field.required}
+                                        value={deviceDraft.values[field.key] ?? ''}
+                                    >
+                                        <option value="">—</option>
+                                        {field.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                    </select>
+                                ) : (
+                                    <input
+                                        autoComplete={field.type === 'PASSWORD' ? 'new-password' : undefined}
+                                        className={inputClassName}
+                                        disabled={Boolean(dialog.baseDevice) && providerIdentityFields.has(field.key)}
+                                        max={field.maximum ?? undefined}
+                                        min={field.minimum ?? undefined}
+                                        onChange={(event) => setDeviceDraft((draft) => ({...draft, values: {...draft.values, [field.key]: event.target.value}}))}
+                                        required={field.required}
+                                        type={field.type === 'PASSWORD' ? 'password' : field.type === 'NUMBER' ? 'number' : 'text'}
+                                        value={deviceDraft.values[field.key] ?? ''}
+                                    />
+                                )}
+                                {field.helpText ? <span className="mt-1.5 block text-xs leading-5 text-[#777781]">{field.helpText}</span> : null}
+                            </label>
+                        ))}
+                        <div className="sm:col-span-2">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#777781]">{t['details.pv_devices.available_components']}</p>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                {(selectedDeviceProfile?.sections ?? []).map((section) => {
+                                    const unavailable = details.pvDevices.some((device) => isSameConnection(device, deviceDraft.providerId, deviceDraft.values)
+                                        && device.profileName === deviceDraft.values.profile
+                                        && device.sectionKey === section.sectionKey);
+                                    const checked = deviceDraft.selectedSectionKeys.includes(section.sectionKey);
+                                    return <label className={`flex gap-3 rounded-xl border p-3 ${unavailable ? 'cursor-not-allowed border-white/5 opacity-40' : checked ? 'border-emerald-400/30 bg-emerald-400/[0.06]' : 'cursor-pointer border-white/[0.08]'}`} key={section.sectionKey}>
+                                        <input checked={checked && !unavailable} className="mt-1 accent-emerald-400" disabled={unavailable} onChange={() => setDeviceDraft((draft) => ({...draft, selectedSectionKeys: checked ? draft.selectedSectionKeys.filter((key) => key !== section.sectionKey) : [...draft.selectedSectionKeys, section.sectionKey]}))} type="checkbox"/>
+                                        <span><strong className="block text-sm">{section.name}</strong><span className="text-xs text-[#777781]">{t[`setup.source.type.${section.deviceType.toLowerCase()}`]}</span></span>
+                                    </label>;
+                                })}
+                            </div>
+                        </div>
+                    </div>
                 </Modal>
             )}
         </div>

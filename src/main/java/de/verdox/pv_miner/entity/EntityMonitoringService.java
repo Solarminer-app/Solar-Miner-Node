@@ -2,6 +2,7 @@ package de.verdox.pv_miner.entity;
 
 import de.verdox.pv_miner.influx.InfluxService;
 import de.verdox.pv_miner.influx.QueryResult;
+import de.verdox.pv_miner.pvconfig.DeviceProfileConfigurationException;
 import lombok.Getter;
 import org.springframework.stereotype.Service;
 import reactor.core.Disposable;
@@ -35,7 +36,9 @@ public class EntityMonitoringService {
     private final Map<UUID, MonitoringJob<?, ?>> monitoringJobs = new ConcurrentHashMap<>();
 
     public <E extends QueryEntity<? extends Q>, Q extends QueryResult> Flux<Q> hookIntoLiveData(E entity) {
-        if (monitoringJobs.containsKey(entity.getId()) && !monitoringJobs.get(entity.getId()).isRunning) {
+        if (monitoringJobs.containsKey(entity.getId())
+                && !monitoringJobs.get(entity.getId()).isRunning
+                && !monitoringJobs.get(entity.getId()).profileRepairRequired) {
             monitoringJobs.get(entity.getId()).start();
         }
         if (!monitoringJobs.containsKey(entity.getId())) {
@@ -46,15 +49,22 @@ public class EntityMonitoringService {
         return (Flux<Q>) monitoringJob.getLiveDataFlux();
     }
 
+    @SuppressWarnings("unchecked")
     public <E extends QueryEntity<Q>, Q extends QueryResult> void attach(E entity, Q defaultValue) {
-        if (monitoringJobs.containsKey(entity.getId())) {
+        MonitoringJob<?, ?> existing = monitoringJobs.get(entity.getId());
+        if (existing != null) {
+            ((MonitoringJob<E, Q>) existing).updateEntity(entity);
             return;
         }
         LOGGER.info("Attaching " + entity + " to entity monitoring");
 
         MonitoringJob<E, Q> monitoringJob = new MonitoringJob<>(entity, defaultValue);
-        monitoringJob.start();
-        monitoringJobs.put(entity.getId(), monitoringJob);
+        MonitoringJob<?, ?> concurrentlyAttached = monitoringJobs.putIfAbsent(entity.getId(), monitoringJob);
+        if (concurrentlyAttached == null) {
+            monitoringJob.start();
+        } else {
+            ((MonitoringJob<E, Q>) concurrentlyAttached).updateEntity(entity);
+        }
     }
 
     public <E extends QueryEntity<Q>, Q extends QueryResult> void detach(E entity) {
@@ -67,18 +77,27 @@ public class EntityMonitoringService {
 
     private class MonitoringJob<E extends QueryEntity<Q>, Q extends QueryResult> {
         @Getter
-        private final E entity;
+        private volatile E entity;
         private final Q defaultValue;
         @Getter
         private Flux<Q> liveDataFlux;
         private ScheduledFuture<?> schedulerJob;
         private Disposable monitoringJob;
         @Getter
-        private boolean isRunning;
+        private volatile boolean isRunning;
+        private volatile boolean profileRepairRequired;
 
         public MonitoringJob(E entity, Q defaultValue) {
             this.entity = entity;
             this.defaultValue = defaultValue;
+        }
+
+        private synchronized void updateEntity(E entity) {
+            this.entity = entity;
+            this.profileRepairRequired = false;
+            if (!isRunning) {
+                start();
+            }
         }
 
         private synchronized void start() {
@@ -88,17 +107,6 @@ public class EntityMonitoringService {
             stop();
             LOGGER.info("Starting monitoring job for " + entity);
             Sinks.Many<Q> sink = Sinks.many().replay().latest();
-            this.schedulerJob = scheduler.scheduleAtFixedRate(() -> {
-                try {
-                    Q result = entityQueryService.query(entity);
-                    if (result == null) {
-                        return;
-                    }
-                    sink.tryEmitNext(result).isFailure();
-                } catch (Throwable e) {
-                    LOGGER.log(Level.SEVERE, "An error occurred while emitting a monitoring signal for " + entity.getClass().getSimpleName() + " - " + entity.getId() + ": " + e.getMessage(), e);
-                }
-            }, 0, 1, TimeUnit.SECONDS);
             this.liveDataFlux = sink.asFlux().share();
 
             if (influxService.hasInfluxStrategy(entity)) {
@@ -107,7 +115,25 @@ public class EntityMonitoringService {
             } else {
                 LOGGER.info("No influx strategy found for monitoring the entity " + entity);
             }
+
             isRunning = true;
+            schedulerJob = scheduler.scheduleAtFixedRate(() -> {
+                try {
+                    Q result = entityQueryService.query(entity);
+                    if (result == null) {
+                        return;
+                    }
+                    sink.tryEmitNext(result).isFailure();
+                } catch (DeviceProfileConfigurationException exception) {
+                    profileRepairRequired = true;
+                    LOGGER.warning("Pausing monitoring for " + entity.getClass().getSimpleName() + " - "
+                            + entity.getId() + " because its device profile must be repaired: "
+                            + exception.getMessage());
+                    stop();
+                } catch (Throwable e) {
+                    LOGGER.log(Level.SEVERE, "An error occurred while emitting a monitoring signal for " + entity.getClass().getSimpleName() + " - " + entity.getId() + ": " + e.getMessage(), e);
+                }
+            }, 0, 1, TimeUnit.SECONDS);
         }
 
         private synchronized void stop() {

@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -39,7 +40,8 @@ public class InfluxService {
     private static final int WRITE_TIMEOUT_SECONDS = 15;
     private static final int READ_TIMEOUT_SECONDS = 30;
     private static final int WRITE_BUFFER_LIMIT = 10_000;
-    private static final int WRITE_FLUSH_INTERVAL_MILLIS = 1_000;
+    private static final int DEFAULT_WRITE_BATCH_SIZE = 500;
+    private static final int DEFAULT_WRITE_FLUSH_INTERVAL_MILLIS = 5_000;
 
     @Getter
     @Value("${influxdb.url}")
@@ -56,6 +58,12 @@ public class InfluxService {
     @Getter
     @Value("${influxdb.bucket}")
     private String influxBucket;
+
+    @Value("${influxdb.write-batch-size:500}")
+    private int writeBatchSize;
+
+    @Value("${influxdb.write-flush-interval:5s}")
+    private Duration writeFlushInterval;
 
     private InfluxDBClient influxDBClient;
     private WriteApi writeApi;
@@ -96,7 +104,10 @@ public class InfluxService {
 
         // WriteApi owns a background scheduler and is explicitly designed to be a singleton.
         // Creating one per sample leaks a thread per write, especially while InfluxDB is offline.
-        this.writeApi = influxDBClient.makeWriteApi(createWriteOptions());
+        this.writeApi = influxDBClient.makeWriteApi(createWriteOptions(
+                writeBatchSize,
+                Math.toIntExact(writeFlushInterval.toMillis())
+        ));
 
         strategies.put(PVSiteEntity.class, new PVSiteInfluxStrategy());
         strategies.put(MinerEntity.class, new MinerInfluxStrategy());
@@ -104,8 +115,12 @@ public class InfluxService {
         strategies.put(BraiinsPoolEntity.class, new BraiinsPoolInfluxStrategy());
         strategies.put(NiceHashPoolEntity.class, new NiceHashPoolInfluxStrategy());
 
-        registerTasksForDailyStatisticsAccumulator("daily_pv_site_data_task",new PVStatisticsAccumulator(), "pv_site_data");
-        registerTasksForDailyStatisticsAccumulator("daily_miner_data_task", new MinerStatisticsAccumulator(), "miner_data");
+        registerTasksForDailyStatisticsAccumulator("Downsample_PV_pv_site_data",new PVStatisticsAccumulator(), "pv_site_data");
+        registerTasksForDailyStatisticsAccumulator("Downsample_Miner_miner_data", new MinerStatisticsAccumulator(), "miner_data");
+        registerTask(
+                "Downsample_PV_Hourly",
+                InfluxDownsamplingQueries.generatePvHourlyTask(influxBucket, getDownSampledInfluxBucket())
+        );
     }
 
     public InfluxDBClient getInfluxDBClient() {
@@ -125,9 +140,19 @@ public class InfluxService {
     }
 
     static WriteOptions createWriteOptions() {
+        return createWriteOptions(DEFAULT_WRITE_BATCH_SIZE, DEFAULT_WRITE_FLUSH_INTERVAL_MILLIS);
+    }
+
+    static WriteOptions createWriteOptions(int batchSize, int flushIntervalMillis) {
+        if (batchSize <= 0) {
+            throw new IllegalArgumentException("Influx write batch size must be positive");
+        }
+        if (flushIntervalMillis <= 0) {
+            throw new IllegalArgumentException("Influx write flush interval must be positive");
+        }
         return WriteOptions.builder()
-                .batchSize(500)
-                .flushInterval(WRITE_FLUSH_INTERVAL_MILLIS)
+                .batchSize(batchSize)
+                .flushInterval(flushIntervalMillis)
                 .retryInterval(2_000)
                 .maxRetries(5)
                 .maxRetryDelay(15_000)
@@ -196,17 +221,21 @@ public class InfluxService {
         if (!accumulator.supportsDownsampling()) return;
 
         String fluxScript = accumulator.generateDownsamplingTaskQuery(influxBucket, getDownSampledInfluxBucket(), measurement);
+        registerTask(taskName, fluxScript);
+    }
+
+    void registerTask(String taskName, String fluxScript) {
         TasksApi tasksApi = influxDBClient.getTasksApi();
 
         try {
             var existingTasks = tasksApi.findTasks();
 
-            var existingTaskOpt = existingTasks.stream()
+            var matchingTasks = existingTasks.stream()
                     .filter(t -> taskName.equals(t.getName()))
-                    .findFirst();
+                    .toList();
 
-            if (existingTaskOpt.isPresent()) {
-                var existingTask = existingTaskOpt.get();
+            if (!matchingTasks.isEmpty()) {
+                var existingTask = matchingTasks.getFirst();
 
                 if (!fluxScript.equals(existingTask.getFlux())) {
                     LOGGER.info("Updating changed influx task: " + taskName);
@@ -215,6 +244,10 @@ public class InfluxService {
                     tasksApi.updateTask(existingTask);
                 } else {
                     LOGGER.info("Influx task already exists: " + taskName);
+                }
+                for (int index = 1; index < matchingTasks.size(); index++) {
+                    tasksApi.deleteTask(matchingTasks.get(index));
+                    LOGGER.warning("Removed duplicate influx task: " + taskName);
                 }
             } else {
                 LOGGER.info("Registering new influx task: " + taskName);
@@ -253,17 +286,56 @@ public class InfluxService {
         }
     }
 
-    public void executeRawFluxQuery(String fluxQuery) {
+    public boolean executeRawFluxQuery(String fluxQuery) {
         Objects.requireNonNull(fluxQuery, "fluxQuery cannot be null");
         try {
-
             QueryApi queryApi = getInfluxDBClient().getQueryApi();
-            long start = System.currentTimeMillis();
-
             queryApi.query(fluxQuery, getInfluxOrg());
+            return true;
         } catch (Throwable e) {
             LOGGER.log(Level.SEVERE, "Could not issue raw flux query", e);
+            return false;
         }
+    }
+
+    public List<FluxRecord> queryRawFlux(String fluxQuery) {
+        Objects.requireNonNull(fluxQuery, "fluxQuery cannot be null");
+        try {
+            return queryRawFluxOrThrow(fluxQuery);
+        } catch (Throwable e) {
+            LOGGER.log(Level.SEVERE, "Could not issue raw Flux query", e);
+            return List.of();
+        }
+    }
+
+    List<FluxRecord> queryRawFluxOrThrow(String fluxQuery) {
+        Objects.requireNonNull(fluxQuery, "fluxQuery cannot be null");
+        List<FluxRecord> records = new ArrayList<>();
+        for (FluxTable table : getInfluxDBClient().getQueryApi().query(fluxQuery, getInfluxOrg())) {
+            records.addAll(table.getRecords());
+        }
+        return records;
+    }
+
+    public List<FluxRecord> queryMeasurementData(
+            String bucket,
+            String measurement,
+            QueryEntity<?> entity,
+            Instant from,
+            Instant to,
+            Collection<String> fields) {
+        String fieldFilter = fields.stream()
+                .map(field -> "r[\"_field\"] == \"" + field + "\"")
+                .reduce((left, right) -> left + " or " + right)
+                .orElse("true");
+        String query = String.format(
+                "from(bucket: \"%s\") |> range(start: %s, stop: %s)" +
+                        " |> filter(fn: (r) => r[\"_measurement\"] == \"%s\")" +
+                        " |> filter(fn: (r) => r[\"entity\"] == \"%s\")" +
+                        " |> filter(fn: (r) => %s)",
+                bucket, from, to, measurement, entity.getId(), fieldFilter
+        );
+        return queryRawFlux(query);
     }
 
     public boolean isMeasurementEmpty(String bucketName, String measurementName) {

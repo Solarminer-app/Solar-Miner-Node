@@ -97,6 +97,16 @@ public abstract class MinerEntity<MC extends MinerEntityController> extends Abst
     @Column(name = "min_idle_time_minutes")
     private Integer minIdleTimeMinutes;
 
+    @Setter
+    @Getter
+    @Column(name = "efficiency_dispatch_priority")
+    private Integer efficiencyDispatchPriority;
+
+    @Setter
+    @Getter
+    @Column(name = "nominal_efficiency_j_th")
+    private Double nominalEfficiencyJTh;
+
     @Transient
     @JsonIgnore
     public abstract MinerApiClient.MinerDetails getDetails();

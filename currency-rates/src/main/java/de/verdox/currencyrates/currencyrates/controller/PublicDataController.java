@@ -1,5 +1,7 @@
 package de.verdox.currencyrates.currencyrates.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import de.verdox.currencyrates.currencyrates.service.DataQueryService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,6 +14,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/public")
+@Tag(name = "Market data")
 public class PublicDataController {
 
     private final DataQueryService queryService;

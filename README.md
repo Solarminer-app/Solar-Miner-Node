@@ -37,6 +37,14 @@ A specialized microservice for financial data.
 *   **Status:** Work in progress.
 *   **Function:** A native client that will in the future manage CPU and GPU mining workloads on desktop operating systems (Windows, Linux, macOS) in conjunction with the SolarMiner Node.
 
+## API Documentation
+
+The REST interfaces are documented in [docs/API.md](docs/API.md). Every running service also exposes a machine-readable OpenAPI description at `/v3/api-docs` and `/v3/api-docs.yaml`, plus an interactive Swagger UI at `/swagger-ui.html`.
+
+## Device profiles
+
+Bundled device profiles and their coverage report are stored in [device-profiles/bundled](device-profiles/bundled). Regenerate the EVCC-derived part with `node tools/evcc-profile-importer.mjs`. The generator emits only profiles safely representable through SolarMiner's Modbus TCP, Modbus RTU, extended HTTP or MQTT schemas and never invents device fingerprints. Profile provenance and licensing are recorded in the manifest instead of the runtime directory name. The profiles remain available when the community config repository is offline. Protocol architecture and remaining gaps are documented in [docs/DEVICE_PROTOCOL_ROADMAP.md](docs/DEVICE_PROTOCOL_ROADMAP.md); the Mini-PC/Docker setup for serial devices is described in [docs/MODBUS_RTU_DOCKER.md](docs/MODBUS_RTU_DOCKER.md).
+
 ## Deployment & Installation
 
 The application is pre-configured for production deployment via container orchestration.

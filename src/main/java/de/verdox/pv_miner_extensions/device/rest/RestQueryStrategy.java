@@ -1,0 +1,77 @@
+package de.verdox.pv_miner_extensions.device.rest;
+
+import de.verdox.pv_miner.SpringContextHelper;
+import de.verdox.pv_miner.entity.EntityQueryService;
+import de.verdox.pv_miner.influx.QueryResult;
+import de.verdox.pv_miner.pvconfig.DeviceProfileConfigurationException;
+import de.verdox.solarminer.formula.FormulaEngine;
+import de.verdox.solarminer.formula.VariableProvider;
+import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
+import de.verdox.solarminer.rest.RestPVClient;
+import de.verdox.solarminer.rest.RestPVConfig;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.NoSuchElementException;
+
+public abstract class RestQueryStrategy<RESULT extends QueryResult, REST_ENTITY extends RestEntity<RESULT>> implements EntityQueryService.Strategy<REST_ENTITY, RESULT> {
+    @Override
+    public RESULT query(EntityQueryService entityQueryService, REST_ENTITY entity) throws Throwable {
+        RestPVConfig restConfig;
+        try {
+            restConfig = SpringContextHelper.getBean(RestConfigStorage.class).loadConfig(entity.getRestConfigName());
+        } catch (NoSuchElementException exception) {
+            throw new DeviceProfileConfigurationException("Config " + entity.getRestConfigName() + " was not found");
+        }
+        try (var client = new RestPVClient(entity.getHostName() + ":" + entity.getPort(), entity.getApiToken(), restConfig.getAuthenticationType())) {
+            return querySection(restConfig, entity.getSectionKey(), client);
+        }
+    }
+
+    /** Executes the regular profile DSL against an already opened HTTP client. */
+    public final RESULT querySection(RestPVConfig config, String sectionKey, RestPVClient client) throws Exception {
+        RestPVConfig.ConfigSection section = config.getSection(sectionKey);
+        if (section == null) {
+            throw new DeviceProfileConfigurationException("No section " + sectionKey + " found in config");
+        }
+        Map<String, Double> calculatedValues = new HashMap<>();
+        VariableProvider variableProvider = new VariableProvider() {
+            @Override
+            public double getValueFor(String variableName) {
+                try { return evaluateEntry(variableName, section, client, calculatedValues, this); }
+                catch (Exception e) { return 0.0; }
+            }
+        };
+        return createResult(section, client, calculatedValues, variableProvider);
+    }
+
+    protected abstract RESULT createResult(RestPVConfig.ConfigSection section, RestPVClient client, Map<String, Double> calculatedValues, VariableProvider provider) throws Exception;
+
+    protected static double evaluateEntry(String id, RestPVConfig.ConfigSection section, RestPVClient client, Map<String, Double> calculatedValues, VariableProvider provider) throws Exception {
+        if (calculatedValues.containsKey(id)) return calculatedValues.get(id);
+        RestPVConfig.Entry<?> entry;
+        try {
+            entry = section.getEntryForId(id);
+        }
+        catch (NoSuchElementException e) {
+            return 0;
+        }
+        RestPVConfig.Entry<?> rawEntry = new RestPVConfig.Entry<>(
+                entry.urlExtension(), entry.httpMethod(), entry.responseType(), entry.dataPath(),
+                1.0f, "x", entry.restParameterType()
+        );
+        double rawValue = client.read(rawEntry);
+        double evaluatedValue = FormulaEngine.evaluate(rawValue, entry.formula(), provider);
+        double finalValue = evaluatedValue * entry.scaleFactor();
+        calculatedValues.put(id, finalValue);
+        return finalValue;
+    }
+
+    protected static boolean hasEntry(RestPVConfig.ConfigSection section, String id) {
+        return section.getEntries().containsKey(id);
+    }
+
+    @Override
+    public void ping(REST_ENTITY entity) throws Throwable {
+        try (var client = new RestPVClient(entity.getHostName() + ":" + entity.getPort(), entity.getApiToken())) {}
+    }
+}

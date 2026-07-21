@@ -31,6 +31,7 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5")
 
     runtimeOnly("com.h2database:h2")
 
@@ -53,7 +54,7 @@ tasks.named<BootBuildImage>("bootBuildImage") {
     )
 
     environment.put("BP_NATIVE_IMAGE", "true")
-    
+
     environment.put(
         "BP_NATIVE_IMAGE_BUILD_ARGUMENTS",
         "-march=compatibility --initialize-at-run-time=sun.security.util.Password,sun.security.util.Password\$ConsoleHolder"

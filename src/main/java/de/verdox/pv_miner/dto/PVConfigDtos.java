@@ -42,7 +42,7 @@ public final class PVConfigDtos {
     ) {
     }
 
-    public record RestTestRequest(String baseUrl, String apiToken, List<RestFieldDto> fields) {
+    public record RestTestRequest(String baseUrl, String apiToken, String templateId, List<RestFieldDto> fields) {
     }
 
     public record ModbusCatalogDto(
@@ -61,6 +61,7 @@ public final class PVConfigDtos {
     public record ModbusProfileDto(
             String name,
             String templateId,
+            int addressOffset,
             ModbusFingerprintDto fingerprint,
             List<ModbusFieldDto> fields
     ) {
@@ -93,6 +94,8 @@ public final class PVConfigDtos {
             String host,
             int port,
             int slaveId,
+            String templateId,
+            int addressOffset,
             ModbusFingerprintDto fingerprint,
             List<ModbusFieldDto> fields
     ) {

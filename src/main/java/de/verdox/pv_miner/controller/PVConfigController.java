@@ -1,5 +1,7 @@
 package de.verdox.pv_miner.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import de.verdox.pv_miner.dto.PVConfigDtos.ConnectionTestDto;
 import de.verdox.pv_miner.dto.PVConfigDtos.CreateProfileRequest;
 import de.verdox.pv_miner.dto.PVConfigDtos.ModbusCatalogDto;
@@ -29,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 @RestController
 @RequestMapping("/api/config/pv")
 @CrossOrigin(origins = "http://localhost:3000", exposedHeaders = HttpHeaders.CONTENT_DISPOSITION)
+@Tag(name = "PV profiles")
 public class PVConfigController {
     private static final String DEFAULT_REST_TEMPLATE = "ha_pvsite";
     private static final String DEFAULT_MODBUS_TEMPLATE = "pvsite";
@@ -104,12 +107,12 @@ public class PVConfigController {
         return configService.testRestConnection(request);
     }
 
-    @GetMapping("/modbus/tcp/catalog")
+    @GetMapping({"/modbus/tcp/catalog", "/modbus/rtu/catalog"})
     public ModbusCatalogDto getModbusCatalog() {
         return configService.getModbusCatalog();
     }
 
-    @PostMapping("/modbus/tcp/profiles")
+    @PostMapping({"/modbus/tcp/profiles", "/modbus/rtu/profiles"})
     public ModbusProfileDto createModbusProfile(@RequestBody CreateProfileRequest request) {
         return configService.createModbusProfile(
                 request == null ? null : request.name(),
@@ -117,7 +120,7 @@ public class PVConfigController {
         );
     }
 
-    @GetMapping("/modbus/tcp/profiles/{name}")
+    @GetMapping({"/modbus/tcp/profiles/{name}", "/modbus/rtu/profiles/{name}"})
     public ModbusProfileDto getModbusProfile(
             @PathVariable String name,
             @RequestParam(defaultValue = DEFAULT_MODBUS_TEMPLATE) String templateId
@@ -125,12 +128,12 @@ public class PVConfigController {
         return configService.loadModbusProfile(name, templateId);
     }
 
-    @PutMapping("/modbus/tcp/profiles/{name}")
+    @PutMapping({"/modbus/tcp/profiles/{name}", "/modbus/rtu/profiles/{name}"})
     public ModbusProfileDto saveModbusProfile(@PathVariable String name, @RequestBody ModbusProfileDto profile) {
         return configService.saveModbusProfile(name, profile);
     }
 
-    @DeleteMapping("/modbus/tcp/profiles/{name}")
+    @DeleteMapping({"/modbus/tcp/profiles/{name}", "/modbus/rtu/profiles/{name}"})
     public ResponseEntity<Void> deleteModbusProfile(
             @PathVariable String name,
             @RequestParam(defaultValue = DEFAULT_MODBUS_TEMPLATE) String templateId
@@ -139,7 +142,7 @@ public class PVConfigController {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping(value = "/modbus/tcp/profiles/{name}/export", produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(value = {"/modbus/tcp/profiles/{name}/export", "/modbus/rtu/profiles/{name}/export"}, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> exportModbusProfile(
             @PathVariable String name,
             @RequestParam(defaultValue = DEFAULT_MODBUS_TEMPLATE) String templateId
@@ -147,7 +150,7 @@ public class PVConfigController {
         return jsonDownload(name, configService.exportModbusProfile(name, templateId));
     }
 
-    @PostMapping(value = "/modbus/tcp/profiles/import", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(value = {"/modbus/tcp/profiles/import", "/modbus/rtu/profiles/import"}, consumes = MediaType.APPLICATION_JSON_VALUE)
     public ModbusProfileDto importModbusProfile(
             @RequestParam String name,
             @RequestParam(defaultValue = DEFAULT_MODBUS_TEMPLATE) String templateId,
@@ -156,7 +159,7 @@ public class PVConfigController {
         return configService.importModbusProfile(name, templateId, json);
     }
 
-    @PostMapping("/modbus/tcp/community/{name}")
+    @PostMapping({"/modbus/tcp/community/{name}", "/modbus/rtu/community/{name}"})
     public ModbusProfileDto downloadModbusCommunityProfile(
             @PathVariable String name,
             @RequestParam(defaultValue = DEFAULT_MODBUS_TEMPLATE) String templateId
@@ -167,6 +170,53 @@ public class PVConfigController {
     @PostMapping("/modbus/tcp/test")
     public ConnectionTestDto testModbusConnection(@RequestBody ModbusTestRequest request) {
         return configService.testModbusConnection(request);
+    }
+
+    @GetMapping("/{protocol:mqtt|websocket}/catalog")
+    public RestCatalogDto getMessageCatalog(@PathVariable String protocol) {
+        return configService.getMessageCatalog(protocol);
+    }
+
+    @PostMapping("/{protocol:mqtt|websocket}/profiles")
+    public RestProfileDto createMessageProfile(@PathVariable String protocol, @RequestBody CreateProfileRequest request) {
+        return configService.createMessageProfile(protocol, request == null ? null : request.name(), request == null ? null : request.templateId());
+    }
+
+    @GetMapping("/{protocol:mqtt|websocket}/profiles/{name}")
+    public RestProfileDto getMessageProfile(@PathVariable String protocol, @PathVariable String name,
+                                            @RequestParam(defaultValue = DEFAULT_REST_TEMPLATE) String templateId) {
+        return configService.loadMessageProfile(protocol, name, templateId);
+    }
+
+    @PutMapping("/{protocol:mqtt|websocket}/profiles/{name}")
+    public RestProfileDto saveMessageProfile(@PathVariable String protocol, @PathVariable String name,
+                                             @RequestBody RestProfileDto profile) {
+        return configService.saveMessageProfile(protocol, name, profile);
+    }
+
+    @DeleteMapping("/{protocol:mqtt|websocket}/profiles/{name}")
+    public ResponseEntity<Void> deleteMessageProfile(@PathVariable String protocol, @PathVariable String name,
+                                                     @RequestParam(defaultValue = DEFAULT_REST_TEMPLATE) String templateId) {
+        configService.deleteMessageProfile(protocol, name, templateId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping(value = "/{protocol:mqtt|websocket}/profiles/{name}/export", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> exportMessageProfile(@PathVariable String protocol, @PathVariable String name) {
+        return jsonDownload(name, configService.exportMessageProfile(protocol, name));
+    }
+
+    @PostMapping(value = "/{protocol:mqtt|websocket}/profiles/import", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public RestProfileDto importMessageProfile(@PathVariable String protocol, @RequestParam String name,
+                                               @RequestParam(defaultValue = DEFAULT_REST_TEMPLATE) String templateId,
+                                               @RequestBody String json) {
+        return configService.importMessageProfile(protocol, name, templateId, json);
+    }
+
+    @PostMapping("/{protocol:mqtt|websocket}/community/{name}")
+    public RestProfileDto downloadMessageCommunityProfile(@PathVariable String protocol, @PathVariable String name,
+                                                          @RequestParam(defaultValue = DEFAULT_REST_TEMPLATE) String templateId) {
+        return configService.downloadMessageCommunityProfile(protocol, name, templateId);
     }
 
     private ResponseEntity<String> jsonDownload(String profileName, String json) {

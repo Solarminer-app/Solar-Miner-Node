@@ -1,15 +1,27 @@
 package de.verdox.pv_miner.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import de.verdox.pv_miner.dto.PVSiteDetailsDto;
 import de.verdox.pv_miner.dto.PVSiteDetailsRequests;
+import de.verdox.pv_miner.dto.SetupRequests;
 import de.verdox.pv_miner.dto.MoneyDto;
 import de.verdox.pv_miner.entity.EntityService;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.pvsite.HistoricalPrice;
-import de.verdox.pv_miner.pvsite.PVPanels;
+import de.verdox.pv_miner.pvsite.panels.PVPanels;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
+import de.verdox.pv_miner.pvsite.inverter.InverterEntity;
+import de.verdox.pv_miner.pvsite.battery.BatteryEntity;
+import de.verdox.pv_miner.pvsite.smartmeter.SmartMeterEntity;
+import de.verdox.pv_miner.setup.SetupService;
+import de.verdox.pv_miner_extensions.device.modbus.ModbusEntity;
+import de.verdox.pv_miner_extensions.device.rest.RestEntity;
+import de.verdox.pv_miner_extensions.device.modbusrtu.ModbusRtuEntity;
+import de.verdox.pv_miner_extensions.device.mqtt.MqttEntity;
+import de.verdox.pv_miner_extensions.device.websocket.WebSocketEntity;
 import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
 import org.springframework.http.HttpStatus;
@@ -34,6 +46,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/pv-site/{siteId}/details")
+@Tag(name = "PV site details")
 public class PVSiteDetailsController {
     private static final Set<String> SUPPORTED_CURRENCIES = Set.of("EUR", "USD", "CHF");
     private static final Set<String> SUPPORTED_LOCALES = Set.of("de", "en");
@@ -41,15 +54,18 @@ public class PVSiteDetailsController {
     private final PVSiteRepository pvSiteRepository;
     private final GlobalConstantsService globalConstantsService;
     private final EntityService entityService;
+    private final SetupService setupService;
 
     public PVSiteDetailsController(
             PVSiteRepository pvSiteRepository,
             GlobalConstantsService globalConstantsService,
-            EntityService entityService
+            EntityService entityService,
+            SetupService setupService
     ) {
         this.pvSiteRepository = pvSiteRepository;
         this.globalConstantsService = globalConstantsService;
         this.entityService = entityService;
+        this.setupService = setupService;
     }
 
     @GetMapping
@@ -98,6 +114,12 @@ public class PVSiteDetailsController {
                 .mapToDouble(PVSiteDetailsDto.PanelGroupDto::peakPowerKw)
                 .sum();
 
+        List<PVSiteDetailsDto.PvDeviceDto> pvDevices = new ArrayList<>();
+        site.getInverters().forEach(device -> pvDevices.add(toPvDeviceDto(device, "INVERTER")));
+        site.getBatteries().forEach(device -> pvDevices.add(toPvDeviceDto(device, "BATTERY")));
+        site.getSmartMeters().forEach(device -> pvDevices.add(toPvDeviceDto(device, "SMART_METER")));
+        pvDevices.sort(Comparator.comparing(PVSiteDetailsDto.PvDeviceDto::name, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)));
+
         return new PVSiteDetailsDto(
                 site.getId(),
                 site.getName(),
@@ -108,10 +130,76 @@ public class PVSiteDetailsController {
                 totalPanels,
                 panelGroups.size(),
                 panelGroups,
+                pvDevices,
                 miners,
                 toPriceDtos(site.getFeedInTariffHistory(), targetCurrency, targetLocale),
                 toPriceDtos(site.getElectricityPriceHistory(), targetCurrency, targetLocale)
         );
+    }
+
+    @PostMapping("/pv-devices")
+    public PVSiteDetailsDto addPvDevices(
+            @PathVariable UUID siteId,
+            @RequestBody SetupRequests.ProviderSelection selection,
+            @RequestParam(defaultValue = "de") String locale,
+            @RequestParam(defaultValue = "EUR") String currency
+    ) {
+        PVSiteEntity site = findSite(siteId);
+        setupService.addPvDevices(site, selection, site.getBatteryCapacityWh());
+        return getDetails(siteId, locale, currency);
+    }
+
+    @DeleteMapping("/pv-devices/{deviceId}")
+    public PVSiteDetailsDto deletePvDevice(
+            @PathVariable UUID siteId,
+            @PathVariable UUID deviceId,
+            @RequestParam(defaultValue = "de") String locale,
+            @RequestParam(defaultValue = "EUR") String currency
+    ) {
+        PVSiteEntity site = findSite(siteId);
+        InverterEntity inverter = site.getInverters().stream().filter(device -> deviceId.equals(device.getId())).findFirst().orElse(null);
+        if (inverter != null) entityService.delete(inverter);
+        else {
+            BatteryEntity battery = site.getBatteries().stream().filter(device -> deviceId.equals(device.getId())).findFirst().orElse(null);
+            if (battery != null) entityService.delete(battery);
+            else {
+                SmartMeterEntity meter = site.getSmartMeters().stream().filter(device -> deviceId.equals(device.getId())).findFirst().orElse(null);
+                if (meter != null) entityService.delete(meter);
+                else throw new ResponseStatusException(HttpStatus.NOT_FOUND, "PV device not found");
+            }
+        }
+        return getDetails(siteId, locale, currency);
+    }
+
+    private PVSiteDetailsDto.PvDeviceDto toPvDeviceDto(Object device, String type) {
+        UUID id;
+        String name;
+        if (device instanceof InverterEntity inverter) { id = inverter.getId(); name = inverter.getName(); }
+        else if (device instanceof BatteryEntity battery) { id = battery.getId(); name = battery.getName(); }
+        else if (device instanceof SmartMeterEntity meter) { id = meter.getId(); name = meter.getName(); }
+        else throw new IllegalArgumentException("Unsupported PV device");
+
+        if (device instanceof ModbusEntity<?> modbus) {
+            return new PVSiteDetailsDto.PvDeviceDto(id, type, name, SetupService.MODBUS,
+                    modbus.getIpAddress(), modbus.getPort(), modbus.getSlaveId(), modbus.getModbusConfigName(), modbus.getSectionKey());
+        }
+        if (device instanceof RestEntity<?> rest) {
+            return new PVSiteDetailsDto.PvDeviceDto(id, type, name, SetupService.REST,
+                    rest.getHostName(), rest.getPort(), 1, rest.getRestConfigName(), rest.getSectionKey());
+        }
+        if (device instanceof ModbusRtuEntity<?> rtu) {
+            return new PVSiteDetailsDto.PvDeviceDto(id, type, name, SetupService.MODBUS_RTU,
+                    rtu.getSerialPort(), rtu.getBaudRate(), rtu.getSlaveId(), rtu.getModbusConfigName(), rtu.getSectionKey());
+        }
+        if (device instanceof MqttEntity<?> mqtt) {
+            return new PVSiteDetailsDto.PvDeviceDto(id, type, name, SetupService.MQTT,
+                    mqtt.getBrokerUri(), 0, 0, mqtt.getMessageConfigName(), mqtt.getSectionKey());
+        }
+        if (device instanceof WebSocketEntity<?> websocket) {
+            return new PVSiteDetailsDto.PvDeviceDto(id, type, name, SetupService.WEBSOCKET,
+                    websocket.getUrl(), 0, 0, websocket.getMessageConfigName(), websocket.getSectionKey());
+        }
+        throw new IllegalStateException("PV device provider is not supported by the details API");
     }
 
     @PutMapping
@@ -154,7 +242,7 @@ public class PVSiteDetailsController {
     ) {
         PVSiteEntity site = findSite(siteId);
         PVPanels panels = new PVPanels();
-        panels.setParentEntity(site);
+        panels.setParentSite(site);
         applyPanelGroupRequest(panels, request);
         entityService.save(site, panels);
 

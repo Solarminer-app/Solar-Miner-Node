@@ -1,0 +1,110 @@
+{
+  "authenticationType": "NONE",
+  "sections": {
+    "smart_meter": {
+      "templateId": "rest_smart_meter",
+      "name": "IOmeter – smart meter",
+      "entries": {
+        "total_active_power": {
+          "urlExtension": "/v1/reading",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_imported": {
+          "urlExtension": "/v1/reading",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1000,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_exported": {
+          "urlExtension": "/v1/reading",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l1": {
+          "urlExtension": "/v1/reading",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l2": {
+          "urlExtension": "/v1/reading",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l3": {
+          "urlExtension": "/v1/reading",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l1": {
+          "urlExtension": "/v1/reading",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l2": {
+          "urlExtension": "/v1/reading",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l3": {
+          "urlExtension": "/v1/reading",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    }
+  }
+}

@@ -163,7 +163,7 @@ export default function ClusterConfigPage() {
                         <button className="mt-auto inline-flex h-[42px] items-center justify-center gap-2 rounded-lg bg-violet-500 px-5 text-sm font-semibold hover:bg-violet-400 disabled:opacity-50" disabled={simulating || config.modes.length === 0} onClick={() => void simulate()} type="button"><Play size={16}/>{simulating ? tr('cluster.simulator.running', 'Simuliert...') : tr('cluster.simulator.run', 'Simulation starten')}</button>
                     </div>
                     {sourceType === 'PRESET' && selectedPreset && <p className="mt-3 text-xs text-[#92929d]">{tr(selectedPreset.descriptionKey, '')}</p>}
-                    {simulation && <SimulationResult data={simulation} chartData={chartData} tr={tr}/>} 
+                    {simulation && <SimulationResult data={simulation} chartData={chartData} tr={tr}/>}
                 </section>
             </div>
         </main>

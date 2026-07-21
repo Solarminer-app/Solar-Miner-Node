@@ -31,10 +31,16 @@ public class MinerAnalyticsService {
 
     private final EntityQueryService queryService;
     private final InfluxService influxService;
+    private final MinerEfficiencyLearningService efficiencyLearningService;
 
-    public MinerAnalyticsService(EntityQueryService queryService, InfluxService influxService) {
+    public MinerAnalyticsService(
+            EntityQueryService queryService,
+            InfluxService influxService,
+            MinerEfficiencyLearningService efficiencyLearningService
+    ) {
         this.queryService = queryService;
         this.influxService = influxService;
+        this.efficiencyLearningService = efficiencyLearningService;
     }
 
     public MinerDetailsPageDto getDetails(MinerEntity<?> miner, int requestedHours) {
@@ -50,6 +56,12 @@ public class MinerAnalyticsService {
         double efficiency = stats.terahashPerSecond() > 0
                 ? stats.approximatedPowerUsageWatts() / stats.terahashPerSecond()
                 : 0;
+        long estimateTarget = stats.powerTargetWatts() > 0 ? stats.powerTargetWatts() : miner.getMaxPowerTarget();
+        MinerEfficiencyLearningService.EfficiencyEstimate estimate = efficiencyLearningService.estimate(miner, estimateTarget);
+        Double effectiveEfficiency = estimate.efficiencyJTh();
+        if (effectiveEfficiency == null && efficiency > 0 && Double.isFinite(efficiency)) {
+            effectiveEfficiency = efficiency;
+        }
 
         return new MinerDetailsPageDto(
                 miner.getId(),
@@ -70,6 +82,19 @@ public class MinerAnalyticsService {
                         stats.minPowerTarget(), stats.defaultPowerTarget(), stats.maxPowerTarget(),
                         miner.getMinPowerTarget(), miner.getMaxPowerTarget(), miner.getPowerStepSizeWatts(),
                         miner.getMinRunTimeMinutes(), miner.getMinIdleTimeMinutes(), miner.getPowerChangeLockTimeMinutes()
+                ),
+                new MinerDetailsPageDto.MinerEfficiencyStrategyDto(
+                        miner.getEfficiencyDispatchPriority(), miner.getNominalEfficiencyJTh(),
+                        effectiveEfficiency, estimate.source().name(), estimate.powerTargetBucketWatts(),
+                        estimate.sampleCount(),
+                        efficiencyLearningService.getProfiles(miner.getId()).stream()
+                                .map(profile -> new MinerDetailsPageDto.MinerEfficiencyProfileDto(
+                                        profile.getPowerTargetBucketWatts(), profile.getLearnedEfficiencyJTh(),
+                                        profile.getSampleCount(), profile.getAverageTemperatureCelsius(),
+                                        profile.getLastObservedAt(),
+                                        profile.getSampleCount() >= MinerEfficiencyLearningService.MINIMUM_CONFIDENT_SAMPLES
+                                ))
+                                .toList()
                 ),
                 stats.pools().stream()
                         .map(pool -> new MinerDetailsPageDto.MinerPoolDto(pool.poolUrl(), pool.poolUsername()))

@@ -39,7 +39,7 @@ const LIVE_APPLY_DELAY_MS = 850;
 const inputClass = 'w-full rounded-lg border border-white/10 bg-[#0e0e12] px-3 py-2 text-sm text-white outline-none transition placeholder:text-[#5f5f68] focus:border-yellow-400/60 focus:ring-2 focus:ring-yellow-400/10 disabled:opacity-50';
 const compactInputClass = 'w-full min-w-[100px] rounded-md border border-white/10 bg-[#0d0d10] px-2.5 py-1.5 text-sm text-white outline-none focus:border-yellow-400/50';
 
-type Protocol = 'rest' | 'modbus';
+type Protocol = 'rest' | 'modbus' | 'modbus-rtu' | 'mqtt' | 'websocket';
 type Template = {id: string; name: string; fields: Array<{field: string; unit: string}>};
 type OperationType = {value: string; label: string};
 type Catalog = {
@@ -85,6 +85,7 @@ type Fingerprint = {
 type Profile = {
     name: string;
     templateId: string;
+    addressOffset?: number;
     fingerprint?: Fingerprint | null;
     fields: Array<RestField | ModbusField>;
 };
@@ -103,8 +104,12 @@ function replace(template: string, values: Record<string, string | number>) {
 }
 
 function protocolPath(protocol: Protocol) {
-    return protocol === 'rest' ? 'rest' : 'modbus/tcp';
+    if (protocol === 'modbus') return 'modbus/tcp';
+    if (protocol === 'modbus-rtu') return 'modbus/rtu';
+    return protocol;
 }
+
+function isModbusProtocol(protocol: Protocol) { return protocol === 'modbus' || protocol === 'modbus-rtu'; }
 
 function isRestField(field: RestField | ModbusField): field is RestField {
     return 'urlExtension' in field;
@@ -121,14 +126,15 @@ async function errorMessage(response: Response, fallback: string) {
 
 type ConfigEditorProps = {
     protocol: Protocol;
-    headerTitleKey: 'config.title.rest' | 'config.title.modbus';
-    headerSubtitleKey: 'config.subtitle.rest' | 'config.subtitle.modbus';
+    headerTitleKey: string;
+    headerSubtitleKey: string;
 };
 
 export default function ConfigEditor({protocol, headerTitleKey, headerSubtitleKey}: ConfigEditorProps) {
     const {locale, setLocale} = useSitePreferences();
     const t = translations[locale] as Record<string, string>;
     const apiPath = `${API_BASE_URL}/${protocolPath(protocol)}`;
+    const supportsLiveTest = protocol === 'rest' || protocol === 'modbus';
     const importRef = useRef<HTMLInputElement>(null);
     const lastSavedProfileRef = useRef<string | null>(null);
     const currentProfileRef = useRef<Profile | null>(null);
@@ -272,14 +278,25 @@ export default function ConfigEditor({protocol, headerTitleKey, headerSubtitleKe
 
     useEffect(() => {
         if (!appliedProfile) return;
+        if (!supportsLiveTest) {
+            setLiveState('idle');
+            setTestResult(null);
+            return;
+        }
 
         const controller = new AbortController();
         const timeout = window.setTimeout(() => {
             setLiveState('testing');
             setError(null);
             const body = protocol === 'rest'
-                ? {...restTarget, fields: appliedProfile.fields}
-                : {...modbusTarget, fingerprint: appliedProfile.fingerprint, fields: appliedProfile.fields};
+                ? {...restTarget, templateId: appliedProfile.templateId, fields: appliedProfile.fields}
+                : {
+                    ...modbusTarget,
+                    templateId: appliedProfile.templateId,
+                    addressOffset: appliedProfile.addressOffset ?? 0,
+                    fingerprint: appliedProfile.fingerprint,
+                    fields: appliedProfile.fields,
+                };
             void fetch(`${apiPath}/test`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -306,7 +323,7 @@ export default function ConfigEditor({protocol, headerTitleKey, headerSubtitleKe
             window.clearTimeout(timeout);
             controller.abort();
         };
-    }, [apiPath, appliedProfile, connectionRevision, modbusTarget, protocol, restTarget, t]);
+    }, [apiPath, appliedProfile, connectionRevision, modbusTarget, protocol, restTarget, supportsLiveTest, t]);
 
     const run = async (key: string, action: () => Promise<void>) => {
         setBusy(key);
@@ -446,6 +463,13 @@ export default function ConfigEditor({protocol, headerTitleKey, headerSubtitleKe
         setNotice(null);
     };
 
+    const updateAddressOffset = (addressOffset: number) => {
+        setProfile((current) => current ? {...current, addressOffset} : current);
+        setTestResult(null);
+        setLiveState('waiting');
+        setNotice(null);
+    };
+
     const fieldLabel = (field: RestField | ModbusField) => t[`config.field.${field.field}`] ?? field.field;
     const liveValue = (field: RestField | ModbusField) => {
         const result = testResult?.fields[field.field];
@@ -490,8 +514,11 @@ export default function ConfigEditor({protocol, headerTitleKey, headerSubtitleKe
                     </div>
                     <div className="flex items-center gap-2">
                         <nav className="flex rounded-xl border border-white/10 bg-[#111115] p-1">
-                            <Link className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${protocol === 'rest' ? 'bg-violet-400/15 text-violet-200' : 'text-[#888892] hover:text-white'}`} href="/config/pv/rest">REST</Link>
+                            <Link className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${protocol === 'rest' ? 'bg-violet-400/15 text-violet-200' : 'text-[#888892] hover:text-white'}`} href="/config/pv/rest">HTTP</Link>
                             <Link className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${protocol === 'modbus' ? 'bg-cyan-400/15 text-cyan-200' : 'text-[#888892] hover:text-white'}`} href="/config/pv/modbus/tcp">Modbus TCP</Link>
+                            <Link className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${protocol === 'modbus-rtu' ? 'bg-cyan-400/15 text-cyan-200' : 'text-[#888892] hover:text-white'}`} href="/config/pv/modbus/rtu">RTU</Link>
+                            <Link className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${protocol === 'mqtt' ? 'bg-emerald-400/15 text-emerald-200' : 'text-[#888892] hover:text-white'}`} href="/config/pv/mqtt">MQTT</Link>
+                            <Link className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${protocol === 'websocket' ? 'bg-orange-400/15 text-orange-200' : 'text-[#888892] hover:text-white'}`} href="/config/pv/websocket">WebSocket</Link>
                         </nav>
                         <select aria-label={t['config.language']} className="rounded-xl border border-white/10 bg-[#111115] px-3 py-2 text-sm" onChange={(event) => setLocale(event.target.value as 'de' | 'en')} value={locale}><option value="de">DE</option><option value="en">EN</option></select>
                     </div>
@@ -516,14 +543,14 @@ export default function ConfigEditor({protocol, headerTitleKey, headerSubtitleKe
 
                     {!profile ? <div className="grid min-h-[600px] place-items-center rounded-3xl border border-white/[0.08] bg-[#121216]"><div className="max-w-md px-6 text-center"><ServerCog className="mx-auto text-[#4f4f58]" size={48}/><h2 className="mt-5 text-xl font-semibold">{t['config.empty.title']}</h2><p className="mt-2 text-sm leading-6 text-[#7e7e88]">{t['config.empty.description']}</p></div></div> : <>
                         <article className="rounded-2xl border border-white/[0.08] bg-[#121216] px-4 py-3">
-                            <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${protocol === 'rest' ? 'bg-violet-400/10 text-violet-200' : 'bg-cyan-400/10 text-cyan-200'}`}>{protocol === 'rest' ? <Radio size={18}/> : <Network size={18}/>}</span><div className="min-w-0"><h2 className="truncate text-lg font-bold">{profile.name}</h2><p className="truncate text-xs text-[#777781]">{selectedTemplate?.name} · {profile.fields.length} {t['config.fields.count']}</p></div></div><div className="flex flex-wrap items-center gap-2"><span className={`inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold ${saveStatusClass}`}>{saveState === 'saving' ? <LoaderCircle className="animate-spin" size={14}/> : saveState === 'saved' ? <CheckCircle2 size={14}/> : saveState === 'error' ? <CircleAlert size={14}/> : <Save size={14}/>} {t[`config.autosave.${saveState}`]}</span><button aria-label={t['config.action.export']} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 text-[#b2b2ba] transition hover:bg-white/[0.05]" disabled={busy !== null} onClick={() => void exportProfile()}><Download size={15}/></button><button aria-label={t['config.action.delete']} className="grid h-8 w-8 place-items-center rounded-lg border border-red-400/20 text-red-300 transition hover:bg-red-400/10" disabled={busy !== null} onClick={() => void deleteProfile()}><Trash2 size={15}/></button></div></div>
+                            <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${isModbusProtocol(protocol) ? 'bg-cyan-400/10 text-cyan-200' : 'bg-violet-400/10 text-violet-200'}`}>{isModbusProtocol(protocol) ? <Network size={18}/> : <Radio size={18}/>}</span><div className="min-w-0"><h2 className="truncate text-lg font-bold">{profile.name}</h2><p className="truncate text-xs text-[#777781]">{selectedTemplate?.name} · {profile.fields.length} {t['config.fields.count']}</p></div></div><div className="flex flex-wrap items-center gap-2"><span className={`inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold ${saveStatusClass}`}>{saveState === 'saving' ? <LoaderCircle className="animate-spin" size={14}/> : saveState === 'saved' ? <CheckCircle2 size={14}/> : saveState === 'error' ? <CircleAlert size={14}/> : <Save size={14}/>} {t[`config.autosave.${saveState}`]}</span><button aria-label={t['config.action.export']} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 text-[#b2b2ba] transition hover:bg-white/[0.05]" disabled={busy !== null} onClick={() => void exportProfile()}><Download size={15}/></button><button aria-label={t['config.action.delete']} className="grid h-8 w-8 place-items-center rounded-lg border border-red-400/20 text-red-300 transition hover:bg-red-400/10" disabled={busy !== null} onClick={() => void deleteProfile()}><Trash2 size={15}/></button></div></div>
                         </article>
 
-                        <article className="rounded-2xl border border-white/[0.08] bg-[#121216] p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><Wifi className="text-violet-300" size={17}/><h3 className="text-sm font-semibold">{t['config.test.title']}</h3><span className="hidden text-xs text-[#686872] sm:inline">· {t['config.test.auto']}</span></div><div className="flex items-center gap-2"><span className={`inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold ${liveState === 'error' || (testResult && !testResult.connected) ? 'bg-red-400/10 text-red-300' : testResult?.connected ? 'bg-emerald-400/10 text-emerald-300' : 'bg-white/[0.05] text-[#92929c]'}`}>{liveState === 'waiting' || liveState === 'testing' ? <LoaderCircle className="animate-spin" size={14}/> : testResult?.connected ? <CheckCircle2 size={14}/> : testResult ? <XCircle size={14}/> : <Gauge size={14}/>} {liveStatusText}</span><button aria-label={t['config.test.refresh']} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 text-[#92929c] transition hover:bg-white/[0.05] hover:text-white" onClick={() => {setLiveState('waiting'); setConnectionRevision((value) => value + 1);}}><RotateCw size={14}/></button></div></div>
+                        {supportsLiveTest ? <article className="rounded-2xl border border-white/[0.08] bg-[#121216] p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><Wifi className="text-violet-300" size={17}/><h3 className="text-sm font-semibold">{t['config.test.title']}</h3><span className="hidden text-xs text-[#686872] sm:inline">· {t['config.test.auto']}</span></div><div className="flex items-center gap-2"><span className={`inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold ${liveState === 'error' || (testResult && !testResult.connected) ? 'bg-red-400/10 text-red-300' : testResult?.connected ? 'bg-emerald-400/10 text-emerald-300' : 'bg-white/[0.05] text-[#92929c]'}`}>{liveState === 'waiting' || liveState === 'testing' ? <LoaderCircle className="animate-spin" size={14}/> : testResult?.connected ? <CheckCircle2 size={14}/> : testResult ? <XCircle size={14}/> : <Gauge size={14}/>} {liveStatusText}</span><button aria-label={t['config.test.refresh']} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 text-[#92929c] transition hover:bg-white/[0.05] hover:text-white" onClick={() => {setLiveState('waiting'); setConnectionRevision((value) => value + 1);}}><RotateCw size={14}/></button></div></div>
                             {protocol === 'rest' ? <div className="mt-3 grid gap-2 md:grid-cols-[1.25fr_1fr]"><label className="text-[11px] text-[#92929c]">{t['config.test.base_url']}<input className={`${inputClass} mt-1`} onChange={(event) => {setRestTarget({...restTarget, baseUrl: event.target.value}); setLiveState('waiting');}} value={restTarget.baseUrl}/></label><label className="text-[11px] text-[#92929c]">{t['config.test.token']}<input autoComplete="off" className={`${inputClass} mt-1`} onChange={(event) => {setRestTarget({...restTarget, apiToken: event.target.value}); setLiveState('waiting');}} type="password" value={restTarget.apiToken}/></label></div> : <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_120px_120px]"><label className="text-[11px] text-[#92929c]">{t['config.test.host']}<input className={`${inputClass} mt-1`} onChange={(event) => {setModbusTarget({...modbusTarget, host: event.target.value}); setLiveState('waiting');}} value={modbusTarget.host}/></label><label className="text-[11px] text-[#92929c]">{t['config.test.port']}<input className={`${inputClass} mt-1`} max={65535} min={1} onChange={(event) => {setModbusTarget({...modbusTarget, port: Number(event.target.value)}); setLiveState('waiting');}} type="number" value={modbusTarget.port}/></label><label className="text-[11px] text-[#92929c]">{t['config.test.slave']}<input className={`${inputClass} mt-1`} max={247} min={1} onChange={(event) => {setModbusTarget({...modbusTarget, slaveId: Number(event.target.value)}); setLiveState('waiting');}} type="number" value={modbusTarget.slaveId}/></label></div>}
-                        </article>
+                        </article> : null}
 
-                        {protocol === 'modbus' && catalog ? <article className="rounded-2xl border border-white/[0.08] bg-[#121216] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-semibold">{t['config.fingerprint.title']}</h3><p className="mt-0.5 text-xs text-[#7e7e88]">{t['config.fingerprint.description']}</p></div>{profile.fingerprint?.expectedValue && testResult?.connected ? <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${testResult.fingerprintMatches ? 'bg-emerald-400/10 text-emerald-300' : 'bg-orange-400/10 text-orange-300'}`}>{t[testResult.fingerprintMatches ? 'config.fingerprint.match' : 'config.fingerprint.no_match']}</span> : null}</div><div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-6"><SmallField label={t['config.field.address']}><input className={compactInputClass} min={0} onChange={(event) => updateFingerprint({address: event.target.value ? Number(event.target.value) : null})} type="number" value={profile.fingerprint?.address ?? ''}/></SmallField><SmallField label={t['config.field.size']}><input className={compactInputClass} min={1} onChange={(event) => updateFingerprint({size: Number(event.target.value)})} type="number" value={profile.fingerprint?.size ?? 1}/></SmallField><SmallField label={t['config.field.type']}><select className={compactInputClass} onChange={(event) => updateFingerprint({parameterType: event.target.value})} value={profile.fingerprint?.parameterType ?? catalog.parameterTypes[0]}>{catalog.parameterTypes.map((value) => <option key={value}>{value}</option>)}</select></SmallField><SmallField label={t['config.field.operation']}><select className={compactInputClass} onChange={(event) => updateFingerprint({operationType: event.target.value})} value={profile.fingerprint?.operationType ?? catalog.operationTypes?.[0]?.value}>{catalog.operationTypes?.map((value) => <option key={value.value} value={value.value}>{value.label}</option>)}</select></SmallField><SmallField label={t['config.field.byte_order']}><select className={compactInputClass} onChange={(event) => updateFingerprint({byteOrder: event.target.value})} value={profile.fingerprint?.byteOrder ?? catalog.byteOrders?.[0]}>{catalog.byteOrders?.map((value) => <option key={value}>{value}</option>)}</select></SmallField><SmallField label={t['config.field.expected']}><input className={compactInputClass} maxLength={128} onChange={(event) => updateFingerprint({expectedValue: event.target.value})} value={profile.fingerprint?.expectedValue ?? ''}/></SmallField></div></article> : null}
+                        {protocol === 'modbus' && catalog ? <article className="rounded-2xl border border-white/[0.08] bg-[#121216] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-semibold">{t['config.fingerprint.title']}</h3><p className="mt-0.5 text-xs text-[#7e7e88]">{t['config.fingerprint.description']}</p></div>{profile.fingerprint?.expectedValue && testResult?.connected ? <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${testResult.fingerprintMatches ? 'bg-emerald-400/10 text-emerald-300' : 'bg-orange-400/10 text-orange-300'}`}>{t[testResult.fingerprintMatches ? 'config.fingerprint.match' : 'config.fingerprint.no_match']}</span> : null}</div><div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-7"><SmallField label={t['config.field.address_offset']}><input className={compactInputClass} max={65535} min={0} onChange={(event) => updateAddressOffset(Number(event.target.value))} type="number" value={profile.addressOffset ?? 0}/></SmallField><SmallField label={t['config.field.address']}><input className={compactInputClass} min={0} onChange={(event) => updateFingerprint({address: event.target.value ? Number(event.target.value) : null})} type="number" value={profile.fingerprint?.address ?? ''}/></SmallField><SmallField label={t['config.field.size']}><input className={compactInputClass} min={1} onChange={(event) => updateFingerprint({size: Number(event.target.value)})} type="number" value={profile.fingerprint?.size ?? 1}/></SmallField><SmallField label={t['config.field.type']}><select className={compactInputClass} onChange={(event) => updateFingerprint({parameterType: event.target.value})} value={profile.fingerprint?.parameterType ?? catalog.parameterTypes[0]}>{catalog.parameterTypes.map((value) => <option key={value}>{value}</option>)}</select></SmallField><SmallField label={t['config.field.operation']}><select className={compactInputClass} onChange={(event) => updateFingerprint({operationType: event.target.value})} value={profile.fingerprint?.operationType ?? catalog.operationTypes?.[0]?.value}>{catalog.operationTypes?.map((value) => <option key={value.value} value={value.value}>{value.label}</option>)}</select></SmallField><SmallField label={t['config.field.byte_order']}><select className={compactInputClass} onChange={(event) => updateFingerprint({byteOrder: event.target.value})} value={profile.fingerprint?.byteOrder ?? catalog.byteOrders?.[0]}>{catalog.byteOrders?.map((value) => <option key={value}>{value}</option>)}</select></SmallField><SmallField label={t['config.field.expected']}><input className={compactInputClass} maxLength={128} onChange={(event) => updateFingerprint({expectedValue: event.target.value})} value={profile.fingerprint?.expectedValue ?? ''}/></SmallField></div></article> : null}
 
                         <article className="rounded-2xl border border-white/[0.08] bg-[#121216] p-4"><div className="mb-3 flex flex-wrap items-end justify-between gap-3"><div><h3 className="text-sm font-semibold">{t['config.fields.title']}</h3><p className="mt-0.5 text-xs text-[#7e7e88]">{t['config.fields.description']}</p></div><label className="relative block w-full sm:w-72"><Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#65656f]" size={14}/><input aria-label={t['config.fields.search']} className="w-full rounded-lg border border-white/10 bg-[#0d0d10] py-1.5 pl-8 pr-3 text-sm text-white outline-none placeholder:text-[#5f5f68] focus:border-yellow-400/50" onChange={(event) => setFieldQuery(event.target.value)} placeholder={t['config.fields.search']} value={fieldQuery}/></label></div><div className="space-y-1.5">{filteredFields.map((field) => {const expanded = expandedField === field.field; const connection = isRestField(field) ? field.urlExtension : `${t['config.field.address']} ${field.startAddress}`; return <div className="overflow-hidden rounded-lg border border-white/[0.07] bg-[#0d0d10]" key={field.field}><button aria-expanded={expanded} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left transition hover:bg-white/[0.025]" onClick={() => setExpandedField(expanded ? null : field.field)}><ChevronDown className={`text-[#686872] transition-transform ${expanded ? 'rotate-180' : ''}`} size={15}/><span className="min-w-0"><span className="flex min-w-0 items-baseline gap-2"><span className="truncate text-sm font-semibold">{fieldLabel(field)}</span><span className="hidden truncate font-mono text-[10px] text-[#55555f] md:inline">{field.field} · {connection}</span></span></span><span className={`rounded-md px-2 py-1 font-mono text-[11px] ${testResult?.fields[field.field]?.errorCode ? 'bg-red-400/10 text-red-300' : testResult?.fields[field.field] ? 'bg-emerald-400/10 text-emerald-300' : 'bg-white/[0.04] text-[#777781]'}`}>{liveValue(field)}</span></button>{expanded ? <div className="border-t border-white/[0.06] px-3 py-3">{isRestField(field) ? <RestFieldEditor catalog={catalog!} field={field} labels={t} onChange={(patch) => updateField(field.field, patch)}/> : <ModbusFieldEditor catalog={catalog!} field={field} labels={t} onChange={(patch) => updateField(field.field, patch)}/>}</div> : null}</div>;})}{filteredFields.length === 0 ? <div className="rounded-lg border border-dashed border-white/10 px-4 py-8 text-center text-sm text-[#666670]">{t['config.fields.no_results']}</div> : null}</div></article>
                     </>}

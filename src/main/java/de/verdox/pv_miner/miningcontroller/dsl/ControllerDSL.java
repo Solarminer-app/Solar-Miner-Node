@@ -2,7 +2,7 @@ package de.verdox.pv_miner.miningcontroller.dsl;
 
 import de.verdox.pv_miner.influx.InfluxUtil;
 import de.verdox.pv_miner.miner.MinerEntityController;
-import de.verdox.pv_miner.pvsite.PVPanels;
+import de.verdox.pv_miner.pvsite.panels.PVPanels;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVSiteInfluxStrategy;
 import de.verdox.vserializer.SerializableField;

@@ -70,9 +70,12 @@ public class PVStatisticsAccumulator implements DailyStatisticAccumulator<PVStat
     @Override
     public String generateDownsamplingTaskQuery(String sourceBucket, String targetBucket, String measurement) {
         return String.format(
-                "option task = {name: \"Downsample_PV_%s\", every: 1d, offset: 15m}\n\n" +
+                "import \"date\"\n\n" +
+                        "option task = {name: \"Downsample_PV_%s\", every: 1d, offset: 15m}\n\n" +
+                        "stop = date.truncate(t: now(), unit: 1d)\n" +
+                        "start = date.sub(d: 2d, from: stop)\n\n" +
                         "from(bucket: \"%s\")\n" +
-                        "  |> range(start: -2d)\n" +
+                        "  |> range(start: start, stop: stop)\n" +
                         "  |> filter(fn: (r) => r[\"_measurement\"] == \"%s\")\n" +
                         "  |> filter(fn: (r) => r[\"_field\"] == \"" + PVSiteInfluxStrategy.PV_POWER_IN_KW + "\" or r[\"_field\"] == \"" + PVSiteInfluxStrategy.GRID_CONSUMPTION_POWER + "\" or r[\"_field\"] == \"" + PVSiteInfluxStrategy.FEED_IN_POWER_IN_KW + "\" or r[\"_field\"] == \"" + PVSiteInfluxStrategy.LOADS_POWER_IN_KW + "\" or r[\"_field\"] == \"" + PVSiteInfluxStrategy.MINER_POWER_IN_KW + "\")\n" +
                         "  |> group(columns: [\"_measurement\", \"_field\", \"entity\"])\n" +

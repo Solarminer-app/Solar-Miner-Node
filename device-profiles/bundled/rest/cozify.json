@@ -1,0 +1,110 @@
+{
+  "authenticationType": "NONE",
+  "sections": {
+    "smart_meter": {
+      "templateId": "rest_smart_meter",
+      "name": "Cozify HAN Cozify HAN – smart meter",
+      "entries": {
+        "total_active_power": {
+          "urlExtension": "/meter/data",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:($.pi[0] - $.pe[0])",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_imported": {
+          "urlExtension": "/meter/data",
+          "httpMethod": "GET",
+          "responseType": "PLAIN_TEXT",
+          "dataPath": "",
+          "scaleFactor": 1000,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "total_exported": {
+          "urlExtension": "/meter/data",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:($.pi[0] - $.pe[0])",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l1": {
+          "urlExtension": "/meter/data",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:($.pi[0] - $.pe[0])",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l2": {
+          "urlExtension": "/meter/data",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:($.pi[0] - $.pe[0])",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "power_l3": {
+          "urlExtension": "/meter/data",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "expr:($.pi[0] - $.pe[0])",
+          "scaleFactor": 1,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l1": {
+          "urlExtension": "/meter/data",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.u[0]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l2": {
+          "urlExtension": "/meter/data",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.u[1]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        },
+        "voltage_l3": {
+          "urlExtension": "/meter/data",
+          "httpMethod": "GET",
+          "responseType": "JSON",
+          "dataPath": "$.u[2]",
+          "scaleFactor": 1,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "double"
+          }
+        }
+      }
+    }
+  }
+}

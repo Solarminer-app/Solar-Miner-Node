@@ -7,6 +7,16 @@ import de.verdox.pv_miner.miningcontroller.MinerClusterService;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.miningpool.MiningPoolRepository;
 import de.verdox.pv_miner.pvsite.*;
+import de.verdox.pv_miner.pvsite.battery.BatteryDataDTO;
+import de.verdox.pv_miner.pvsite.battery.BatteryEntity;
+import de.verdox.pv_miner.pvsite.battery.BatteryEntityRepository;
+import de.verdox.pv_miner.pvsite.inverter.InverterDataDTO;
+import de.verdox.pv_miner.pvsite.inverter.InverterEntity;
+import de.verdox.pv_miner.pvsite.inverter.InverterEntityRepository;
+import de.verdox.pv_miner.pvsite.panels.PVPanels;
+import de.verdox.pv_miner.pvsite.smartmeter.SmartMeterDataDTO;
+import de.verdox.pv_miner.pvsite.smartmeter.SmartMeterEntity;
+import de.verdox.pv_miner.pvsite.smartmeter.SmartMeterRepository;
 import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -33,8 +43,11 @@ public class EntityService {
     private final PVPanelsRepository pVPanelsRepository;
     private final DailyStatisticService dailyStatisticService;
     private final MinerClusterService minerClusterService;
+    private final InverterEntityRepository inverterEntityRepository;
+    private final BatteryEntityRepository batteryEntityRepository;
+    private final SmartMeterRepository smartMeterRepository;
 
-    public EntityService(PVSiteRepository pvSiteRepository, MinerRepository minerRepository, MiningPoolRepository miningPoolRepository, EntityMonitoringService entityMonitoringService, PVPanelsRepository pVPanelsRepository, DailyStatisticService dailyStatisticService, MinerClusterService minerClusterService) {
+    public EntityService(PVSiteRepository pvSiteRepository, MinerRepository minerRepository, MiningPoolRepository miningPoolRepository, EntityMonitoringService entityMonitoringService, PVPanelsRepository pVPanelsRepository, DailyStatisticService dailyStatisticService, MinerClusterService minerClusterService, InverterEntityRepository inverterEntityRepository, BatteryEntityRepository batteryEntityRepository, SmartMeterRepository smartMeterRepository) {
         this.pvSiteRepository = pvSiteRepository;
         this.minerRepository = minerRepository;
         this.miningPoolRepository = miningPoolRepository;
@@ -42,6 +55,9 @@ public class EntityService {
         this.pVPanelsRepository = pVPanelsRepository;
         this.dailyStatisticService = dailyStatisticService;
         this.minerClusterService = minerClusterService;
+        this.inverterEntityRepository = inverterEntityRepository;
+        this.batteryEntityRepository = batteryEntityRepository;
+        this.smartMeterRepository = smartMeterRepository;
     }
 
     public PVSiteRef pvSiteRef(UUID uuid) {
@@ -72,6 +88,16 @@ public class EntityService {
         LOGGER.info("Loading all pv sites");
         for (PVSiteEntity pvSiteEntity : pvSiteRepository.findAll()) {
             entityMonitoringService.attach(pvSiteEntity, PVSiteDataDTO.createDefault());
+            for (BatteryEntity battery : pvSiteEntity.getBatteries()) {
+                entityMonitoringService.attach(battery, BatteryDataDTO.DEFAULT);
+            }
+            for (InverterEntity inverter : pvSiteEntity.getInverters()) {
+                entityMonitoringService.attach(inverter, InverterDataDTO.DEFAULT);
+            }
+            for (SmartMeterEntity smartMeter : pvSiteEntity.getSmartMeters()) {
+                entityMonitoringService.attach(smartMeter, SmartMeterDataDTO.DEFAULT);
+            }
+
             LOGGER.info("Loaded: " + pvSiteEntity.getName());
             LOGGER.info("Loading miners for " + pvSiteEntity.getName());
             for (MinerEntity<?> miner : pvSiteEntity.getMiners()) {
@@ -114,10 +140,28 @@ public class EntityService {
         return saved;
     }
 
-    public PVPanels save(PVSiteEntity pvSiteEntity, PVPanels entity) {
+    public InverterEntity save(InverterEntity entity) {
+        var saved = inverterEntityRepository.save(entity);
+        entityMonitoringService.attach(saved, InverterDataDTO.DEFAULT);
+        return saved;
+    }
+
+    public BatteryEntity save(BatteryEntity entity) {
+        var saved = batteryEntityRepository.save(entity);
+        entityMonitoringService.attach(saved, BatteryDataDTO.DEFAULT);
+        return saved;
+    }
+
+    public SmartMeterEntity save(SmartMeterEntity entity) {
+        var saved = smartMeterRepository.save(entity);
+        entityMonitoringService.attach(saved, SmartMeterDataDTO.DEFAULT);
+        return saved;
+    }
+
+    public PVPanels save(PVSiteEntity parentEntity, PVPanels entity) {
         var panels = pVPanelsRepository.save(entity);
-        pvSiteEntity.getPvPanels().add(entity);
-        save(pvSiteEntity);
+        parentEntity.getPvPanels().add(entity);
+        save(parentEntity);
         return panels;
     }
 
@@ -179,9 +223,36 @@ public class EntityService {
     }
 
     public void delete(PVPanels entity) {
-        var parent = entity.getParentEntity();
+        var parent = entity.getParentSite();
         parent.getPvPanels().remove(entity);
         pvSiteRepository.save(parent);
         pVPanelsRepository.delete(entity);
+    }
+
+    public void delete(InverterEntity entity) {
+        PVSiteEntity parent = entity.getParentSite();
+        if (parent != null) parent.getInverters().remove(entity);
+        entityMonitoringService.detach(entity);
+        dailyStatisticService.cleanUpEntity(entity.getId());
+        inverterEntityRepository.delete(entity);
+        if (parent != null) pvSiteRepository.save(parent);
+    }
+
+    public void delete(BatteryEntity entity) {
+        PVSiteEntity parent = entity.getParentSite();
+        if (parent != null) parent.getBatteries().remove(entity);
+        entityMonitoringService.detach(entity);
+        dailyStatisticService.cleanUpEntity(entity.getId());
+        batteryEntityRepository.delete(entity);
+        if (parent != null) pvSiteRepository.save(parent);
+    }
+
+    public void delete(SmartMeterEntity entity) {
+        PVSiteEntity parent = entity.getParentSite();
+        if (parent != null) parent.getSmartMeters().remove(entity);
+        entityMonitoringService.detach(entity);
+        dailyStatisticService.cleanUpEntity(entity.getId());
+        smartMeterRepository.delete(entity);
+        if (parent != null) pvSiteRepository.save(parent);
     }
 }
