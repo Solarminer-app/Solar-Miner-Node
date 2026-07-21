@@ -25,6 +25,7 @@ services:
       - PHOENIXD_BACKEND_URL=http://phoenixd:9740
       - PHOENIX_CONFIG_PATH=/app/phoenixd/phoenix.conf
       - PHOENIX_SEED_PATH=/app/phoenixd/seed.dat
+      - SOLARMINER_STORAGE_ROOT=/app/storage
 
       - INFLUXDB_ADMIN_TOKEN=${INFLUXDB_ADMIN_TOKEN}
       - INFLUXDB_ORG=SolarMiner
