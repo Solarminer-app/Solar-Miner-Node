@@ -34,17 +34,22 @@ public abstract class MessageQueryStrategy<RESULT extends QueryResult, ENTITY ex
 
     /** Executes the regular message profile DSL without a persisted entity. */
     public final RESULT querySection(RestPVConfig config, String sectionKey, ENTITY entity) throws Exception {
+        return querySection(config, sectionKey, entity, new HashMap<>());
+    }
+
+    /** Executes a section while reusing payloads already fetched for sibling sections. */
+    public final RESULT querySection(RestPVConfig config, String sectionKey, ENTITY entity,
+                                     Map<String, String> sharedPayloads) throws Exception {
         RestPVConfig.ConfigSection section = config.getSection(sectionKey);
         if (section == null) throw new DeviceProfileConfigurationException("No section " + sectionKey + " found in config");
         Map<String, Double> values = new HashMap<>();
-        Map<String, String> payloads = new HashMap<>();
         VariableProvider provider = new VariableProvider() {
             @Override public double getValueFor(String variable) {
-                try { return evaluateEntry(variable, section, entity, values, payloads, this); }
+                try { return evaluateEntry(variable, section, entity, values, sharedPayloads, this); }
                 catch (Exception ignored) { return 0; }
             }
         };
-        return createResult(section, entity, values, payloads, provider);
+        return createResult(section, entity, values, sharedPayloads, provider);
     }
 
     protected abstract RESULT createResult(RestPVConfig.ConfigSection section, ENTITY entity,

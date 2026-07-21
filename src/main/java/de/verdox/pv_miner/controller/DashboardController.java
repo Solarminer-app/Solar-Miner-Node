@@ -1,5 +1,6 @@
 package de.verdox.pv_miner.controller;
 
+import de.verdox.pv_miner.miner.data.Pools;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import de.verdox.pv_miner.dashboard.DashboardChartQueryService;
@@ -62,10 +63,10 @@ public class DashboardController {
             var lock = cluster == null ? null : cluster.getActiveLocks().get(miner.getId());
             long stateRemaining = lock == null ? 0 : remainingSeconds(lock.runStateUnlockTime());
             long powerRemaining = lock == null ? 0 : remainingSeconds(lock.powerChangeUnlockTime());
-            String displayName = miner.getName() != null && !miner.getName().isBlank()
-                    ? miner.getName()
-                    : stats.minerIdentity().minerModel();
-            String pool = stats.pools().stream().findFirst().map(value -> value.poolUrl()).orElse("");
+            String displayName = stats.minerIdentity().minerModel() != null && !stats.minerIdentity().minerModel().isBlank()
+                    ? stats.minerIdentity().minerModel()
+                    : miner.getName();
+            String pool = stats.pools().stream().findFirst().map(Pools::poolUrl).orElse("");
             miners.add(new MinerDashboardItemDTO(
                     displayName,
                     miner.getIP(),

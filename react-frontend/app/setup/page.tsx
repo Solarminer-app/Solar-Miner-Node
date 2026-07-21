@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import {useRouter} from 'next/navigation';
-import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
     ArrowLeft,
     ArrowRight,
@@ -71,6 +71,16 @@ type ConfiguredPvDevice = {
 type PvDeviceSection = {sectionKey: string; templateId: string; name: string; deviceType: 'INVERTER' | 'BATTERY' | 'SMART_METER'};
 type PvDeviceProfile = {providerId: string; profileName: string; sections: PvDeviceSection[]};
 type DiscoveredPvDevice = PvDeviceProfile & {host: string; port: number; slaveId: number; requiresAuth: boolean};
+type PvDevicePreviewValue = {key: string; value: number; unit: string};
+type PvDeviceSectionPreview = {
+    sectionKey: string;
+    deviceType: PvDeviceSection['deviceType'];
+    name: string;
+    availability: 'AVAILABLE' | 'INCONCLUSIVE' | 'NO_RESPONSE' | 'ERROR';
+    values: PvDevicePreviewValue[];
+    message: string;
+};
+type PvDevicePreview = {sections: PvDeviceSectionPreview[]};
 
 type PanelGroup = {
     id: string;
@@ -134,6 +144,51 @@ function Verification({state}: {state: {valid: boolean; message: string} | undef
     );
 }
 
+function SectionPreviewCard({section, preview, checked, onToggle, t, locale}: {
+    section: PvDeviceSection;
+    preview?: PvDeviceSectionPreview;
+    checked: boolean;
+    onToggle: () => void;
+    t: Record<string, string>;
+    locale: string;
+}) {
+    const status = preview?.availability;
+    const statusClass = status === 'AVAILABLE'
+        ? 'bg-emerald-400/10 text-emerald-300'
+        : status === 'INCONCLUSIVE'
+            ? 'bg-yellow-400/10 text-yellow-200'
+            : status
+                ? 'bg-red-400/10 text-red-300'
+                : 'bg-white/[0.05] text-[#777781]';
+    return (
+        <label className={`cursor-pointer rounded-xl border p-3 transition ${checked ? 'border-emerald-400/30 bg-emerald-400/[0.06]' : 'border-white/[0.08] bg-black/10'}`}>
+            <div className="flex items-start gap-3">
+                <input checked={checked} className="mt-1 accent-emerald-400" onChange={onToggle} type="checkbox"/>
+                <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center justify-between gap-2">
+                        <strong className="block truncate text-sm">{section.name}</strong>
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusClass}`}>
+                            {status ? t[`setup.source.preview.status.${status.toLowerCase()}`] : t['setup.source.preview.waiting']}
+                        </span>
+                    </span>
+                    <span className="mt-0.5 block text-xs text-[#777781]">{t[`setup.source.type.${section.deviceType.toLowerCase()}`]}</span>
+                </span>
+            </div>
+            {preview?.values.length ? (
+                <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/[0.07] pt-3">
+                    {preview.values.map((metric) => (
+                        <span className="rounded-lg bg-black/20 px-2.5 py-2" key={metric.key}>
+                            <span className="block truncate text-[10px] text-[#777781]">{t[`setup.source.preview.metric.${metric.key}`]}</span>
+                            <strong className="mt-0.5 block text-sm text-[#e7e7ec]">{new Intl.NumberFormat(locale, {maximumFractionDigits: 2}).format(metric.value)} {metric.unit}</strong>
+                        </span>
+                    ))}
+                </div>
+            ) : null}
+            {preview?.message ? <p className="mt-3 break-words text-xs leading-5 text-red-300/80">{preview.message}</p> : null}
+        </label>
+    );
+}
+
 export default function SetupPage() {
     const router = useRouter();
     const {locale, setLocale, currency, setCurrency, timeZone} = useSitePreferences();
@@ -150,6 +205,10 @@ export default function SetupPage() {
     const [profileSearch, setProfileSearch] = useState('');
     const [profiles, setProfiles] = useState<PvDeviceProfile[]>([]);
     const [selectedSectionKeys, setSelectedSectionKeys] = useState<string[]>([]);
+    const [devicePreview, setDevicePreview] = useState<PvDevicePreview | null>(null);
+    const [previewing, setPreviewing] = useState(false);
+    const [previewError, setPreviewError] = useState(false);
+    const previewSelectionKey = useRef('');
     const [discoveredDevices, setDiscoveredDevices] = useState<DiscoveredPvDevice[]>([]);
     const [discovering, setDiscovering] = useState(false);
     const [selectedPools, setSelectedPools] = useState<string[]>([]);
@@ -239,6 +298,9 @@ export default function SetupPage() {
 
     useEffect(() => {
         if (selectedProfile) setSelectedSectionKeys(selectedProfile.sections.map((section) => section.sectionKey));
+        setDevicePreview(null);
+        setPreviewError(false);
+        previewSelectionKey.current = '';
     }, [selectedProfile?.profileName]);
 
     const updateProviderValue = (providerId: string, key: string, value: string) => {
@@ -247,6 +309,57 @@ export default function SetupPage() {
     };
 
     const providerFieldsComplete = (option: SetupOption) => option.fields.every((field) => !field.required || Boolean(providerValues[option.id]?.[field.key]?.trim()));
+
+    const previewRequestKey = JSON.stringify({providerId: selectedSource, values: providerValues[selectedSource] ?? {}});
+    useEffect(() => {
+        if (step !== 1 || !selectedProfile || !verification[selectedSource]?.valid) {
+            setDevicePreview(null);
+            setPreviewing(false);
+            setPreviewError(false);
+            return;
+        }
+        let stopped = false;
+        let running = false;
+        let activeController: AbortController | null = null;
+        const loadPreview = async () => {
+            if (running || stopped) return;
+            running = true;
+            activeController = new AbortController();
+            setPreviewing(true);
+            try {
+                const response = await fetch(`${API_BASE_URL}/setup/pv-devices/preview`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({providerId: selectedSource, values: providerValues[selectedSource] ?? {}}),
+                    signal: activeController.signal,
+                });
+                if (!response.ok) throw new Error();
+                const result = await response.json() as PvDevicePreview;
+                if (stopped) return;
+                setDevicePreview(result);
+                setPreviewError(false);
+                if (previewSelectionKey.current !== previewRequestKey) {
+                    const unavailable = new Set(result.sections
+                        .filter((section) => section.availability === 'NO_RESPONSE' || section.availability === 'ERROR')
+                        .map((section) => section.sectionKey));
+                    setSelectedSectionKeys((current) => current.filter((key) => !unavailable.has(key)));
+                    previewSelectionKey.current = previewRequestKey;
+                }
+            } catch (error) {
+                if (!stopped && !(error instanceof DOMException && error.name === 'AbortError')) setPreviewError(true);
+            } finally {
+                running = false;
+                if (!stopped) setPreviewing(false);
+            }
+        };
+        void loadPreview();
+        const interval = window.setInterval(() => void loadPreview(), 5000);
+        return () => {
+            stopped = true;
+            activeController?.abort();
+            window.clearInterval(interval);
+        };
+    }, [step, selectedProfile?.profileName, selectedSource, verification[selectedSource]?.valid, previewRequestKey]);
 
     const testProvider = async (option: SetupOption) => {
         setTestingProvider(option.id);
@@ -484,7 +597,63 @@ export default function SetupPage() {
                                 {pvDevices.length ? <div className="mb-5 space-y-2"><p className="text-xs font-semibold uppercase tracking-wider text-[#777781]">{t['setup.source.configured']}</p>{pvDevices.map((device) => <div className="flex items-center gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.05] px-4 py-3" key={device.id}><CheckCircle2 className="shrink-0 text-emerald-300" size={17}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{device.label} · {device.values.profile}</p><p className="truncate text-xs text-[#85858f]">{device.values.host}:{device.values.port} · {device.selectedSectionKeys.length} {t['setup.source.components']}</p></div><button aria-label={t['setup.source.remove']} className="grid h-8 w-8 place-items-center rounded-lg text-[#777781] transition hover:bg-red-400/10 hover:text-red-300" onClick={() => setPvDevices((current) => current.filter((entry) => entry.id !== device.id))}><Trash2 size={15}/></button></div>)}</div> : null}
                                 {discoveredDevices.length ? <div className="mb-5 rounded-2xl border border-yellow-400/15 bg-yellow-400/[0.04] p-4"><p className="mb-3 text-xs font-semibold uppercase tracking-wider text-yellow-200">{t['setup.source.discovered']}</p><div className="grid gap-2 md:grid-cols-2">{discoveredDevices.map((device) => <button className="rounded-xl border border-white/[0.08] bg-[#101014] p-3 text-left transition hover:border-yellow-400/40" key={`${device.providerId}-${device.host}-${device.port}-${device.profileName}`} onClick={() => useDiscoveredDevice(device)}><p className="text-sm font-semibold">{device.profileName}</p><p className="mt-1 text-xs text-[#85858f]">{device.host}:{device.port} · {device.sections.length} {t['setup.source.components']}</p></button>)}</div></div> : null}
                                 <div className="grid gap-3 md:grid-cols-2">{catalog.pvSources.map((option) => <button className={`rounded-2xl border p-4 text-left transition ${selectedSource === option.id ? 'border-yellow-400/50 bg-yellow-400/[0.06]' : 'border-white/[0.08] bg-[#101014] hover:border-white/20'}`} key={option.id} onClick={() => {setSelectedSource(option.id); setError(null);}}><div className="flex items-start justify-between gap-3"><Server className={selectedSource === option.id ? 'text-yellow-300' : 'text-[#777781]'} size={22}/>{option.recommended ? <span className="rounded-full bg-yellow-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-yellow-300">{t['setup.recommended']}</span> : null}</div><h3 className="mt-4 font-semibold">{option.label}</h3><p className="mt-1.5 text-sm leading-5 text-[#85858f]">{option.description}</p></button>)}</div>
-                                {selectedSourceOption ? <div className="mt-5 rounded-2xl border border-white/[0.08] bg-[#101014] p-5"><label className="mb-4 block text-sm text-[#c3c3cb]">{t['setup.source.profile_search']}<input className={inputClass} onChange={(event) => setProfileSearch(event.target.value)} placeholder={t['setup.source.profile_search_placeholder']} value={profileSearch}/></label>{profileSearch && profiles.length ? <div className="mb-4 flex flex-wrap gap-2">{profiles.slice(0, 8).map((profile) => <button className={`rounded-lg border px-3 py-2 text-xs ${selectedProfile?.profileName === profile.profileName ? 'border-yellow-400/50 bg-yellow-400/10 text-yellow-200' : 'border-white/10 text-[#aaaab4]'}`} key={profile.profileName} onClick={() => updateProviderValue(selectedSourceOption.id, 'profile', profile.profileName)}>{profile.profileName}</button>)}</div> : null}<ProviderFields onChange={(key, value) => updateProviderValue(selectedSourceOption.id, key, value)} option={selectedSourceOption} values={providerValues[selectedSourceOption.id] ?? {}}/>{selectedProfile ? <div className="mt-5"><p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#777781]">{t['setup.source.select_components']}</p><div className="grid gap-2 sm:grid-cols-2">{selectedProfile.sections.map((section) => {const checked = selectedSectionKeys.includes(section.sectionKey); return <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${checked ? 'border-emerald-400/30 bg-emerald-400/[0.06]' : 'border-white/[0.08]'}`} key={section.sectionKey}><input checked={checked} className="mt-1 accent-emerald-400" onChange={() => setSelectedSectionKeys((current) => checked ? current.filter((key) => key !== section.sectionKey) : [...current, section.sectionKey])} type="checkbox"/><span><strong className="block text-sm">{section.name}</strong><span className="text-xs text-[#777781]">{t[`setup.source.type.${section.deviceType.toLowerCase()}`]}</span></span></label>;})}</div></div> : null}<div className="mt-5 flex flex-wrap gap-2"><button className="inline-flex items-center gap-2 rounded-xl bg-violet-400/10 px-4 py-2.5 text-sm font-semibold text-violet-200 transition hover:bg-violet-400/20 disabled:opacity-50" disabled={!providerFieldsComplete(selectedSourceOption) || testingProvider === selectedSourceOption.id} onClick={() => void testProvider(selectedSourceOption)}>{testingProvider === selectedSourceOption.id ? <LoaderCircle className="animate-spin" size={16}/> : <DatabaseZap size={16}/>} {t['setup.connection.test']}</button><button className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-300 disabled:opacity-40" disabled={!verification[selectedSourceOption.id]?.valid || selectedSectionKeys.length === 0} onClick={addPvDevice}><Plus size={16}/>{t['setup.source.add']}</button></div><Verification state={verification[selectedSourceOption.id]}/></div> : null}
+                                {selectedSourceOption ? (
+                                    <div className="mt-5 rounded-2xl border border-white/[0.08] bg-[#101014] p-5">
+                                        <label className="mb-4 block text-sm text-[#c3c3cb]">
+                                            {t['setup.source.profile_search']}
+                                            <input className={inputClass} onChange={(event) => setProfileSearch(event.target.value)} placeholder={t['setup.source.profile_search_placeholder']} value={profileSearch}/>
+                                        </label>
+                                        {profileSearch && profiles.length ? (
+                                            <div className="mb-4 flex flex-wrap gap-2">
+                                                {profiles.slice(0, 8).map((profile) => (
+                                                    <button className={`rounded-lg border px-3 py-2 text-xs ${selectedProfile?.profileName === profile.profileName ? 'border-yellow-400/50 bg-yellow-400/10 text-yellow-200' : 'border-white/10 text-[#aaaab4]'}`} key={profile.profileName} onClick={() => updateProviderValue(selectedSourceOption.id, 'profile', profile.profileName)}>{profile.profileName}</button>
+                                                ))}
+                                            </div>
+                                        ) : null}
+                                        <ProviderFields onChange={(key, value) => updateProviderValue(selectedSourceOption.id, key, value)} option={selectedSourceOption} values={providerValues[selectedSourceOption.id] ?? {}}/>
+                                        {selectedProfile ? (
+                                            <div className="mt-5">
+                                                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                                    <p className="text-xs font-semibold uppercase tracking-wider text-[#777781]">{t['setup.source.select_components']}</p>
+                                                    {verification[selectedSourceOption.id]?.valid ? (
+                                                        <span className="inline-flex items-center gap-1.5 text-xs text-[#85858f]">
+                                                            <span className={`h-2 w-2 rounded-full ${previewing ? 'animate-pulse bg-yellow-300' : 'bg-emerald-300'}`}/>
+                                                            {previewing ? t['setup.source.preview.loading'] : t['setup.source.preview.live']}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                                <div className="grid gap-2 sm:grid-cols-2">
+                                                    {selectedProfile.sections.map((section) => {
+                                                        const checked = selectedSectionKeys.includes(section.sectionKey);
+                                                        const preview = devicePreview?.sections.find((entry) => entry.sectionKey === section.sectionKey);
+                                                        return (
+                                                            <SectionPreviewCard
+                                                                checked={checked}
+                                                                key={section.sectionKey}
+                                                                locale={locale}
+                                                                onToggle={() => setSelectedSectionKeys((current) => checked ? current.filter((key) => key !== section.sectionKey) : [...current, section.sectionKey])}
+                                                                preview={preview}
+                                                                section={section}
+                                                                t={t}
+                                                            />
+                                                        );
+                                                    })}
+                                                </div>
+                                                {!verification[selectedSourceOption.id]?.valid ? <p className="mt-3 text-xs text-[#777781]">{t['setup.source.preview.test_hint']}</p> : null}
+                                                {previewError ? <p className="mt-3 text-xs text-red-300">{t['setup.source.preview.error']}</p> : null}
+                                            </div>
+                                        ) : null}
+                                        <div className="mt-5 flex flex-wrap gap-2">
+                                            <button className="inline-flex items-center gap-2 rounded-xl bg-violet-400/10 px-4 py-2.5 text-sm font-semibold text-violet-200 transition hover:bg-violet-400/20 disabled:opacity-50" disabled={!providerFieldsComplete(selectedSourceOption) || testingProvider === selectedSourceOption.id} onClick={() => void testProvider(selectedSourceOption)}>
+                                                {testingProvider === selectedSourceOption.id ? <LoaderCircle className="animate-spin" size={16}/> : <DatabaseZap size={16}/>} {t['setup.connection.test']}
+                                            </button>
+                                            <button className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-300 disabled:opacity-40" disabled={!verification[selectedSourceOption.id]?.valid || selectedSectionKeys.length === 0} onClick={addPvDevice}>
+                                                <Plus size={16}/>{t['setup.source.add']}
+                                            </button>
+                                        </div>
+                                        <Verification state={verification[selectedSourceOption.id]}/>
+                                    </div>
+                                ) : null}
                             </div>
                         ) : null}
 

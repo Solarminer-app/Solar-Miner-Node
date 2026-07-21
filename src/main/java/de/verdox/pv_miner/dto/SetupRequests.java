@@ -40,6 +40,31 @@ public final class SetupRequests {
     ) {
     }
 
+    public record PvDevicePreviewRequest(String providerId, Map<String, String> values) {
+        public PvDevicePreviewRequest {
+            values = values == null ? Map.of() : Map.copyOf(values);
+        }
+    }
+
+    public record PvDevicePreviewDto(List<PvDeviceSectionPreviewDto> sections) {
+        public PvDevicePreviewDto {
+            sections = sections == null ? List.of() : List.copyOf(sections);
+        }
+    }
+
+    public record PvDeviceSectionPreviewDto(
+            String sectionKey,
+            String deviceType,
+            String name,
+            String availability,
+            List<PvDevicePreviewValueDto> values,
+            String message
+    ) {
+    }
+
+    public record PvDevicePreviewValueDto(String key, double value, String unit) {
+    }
+
     public record ProviderValidationRequest(Map<String, String> values) {
         public ProviderValidationRequest {
             values = values == null ? Map.of() : Map.copyOf(values);
