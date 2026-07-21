@@ -187,20 +187,49 @@ public class ConfigFetcherService {
     }
 
     public Optional<ModbusConfig> getModbusConfig(String deviceName) {
-        return Optional.ofNullable(cachedModbusConfigs.get(deviceName));
+        return findCompatibleConfig(cachedModbusConfigs, deviceName);
     }
 
     public Optional<RestPVConfig> getRestPVConfig(String deviceName) {
-        return Optional.ofNullable(cachedRestPVConfigs.get(deviceName));
+        return findCompatibleConfig(cachedRestPVConfigs, deviceName);
     }
 
     public Optional<RestPVConfig> getMessagePVConfig(String protocol, String deviceName) {
         if (protocol == null) return Optional.empty();
         return switch (protocol.toLowerCase(Locale.ROOT)) {
-            case "mqtt" -> Optional.ofNullable(cachedMqttConfigs.get(deviceName));
-            case "websocket" -> Optional.ofNullable(cachedWebSocketConfigs.get(deviceName));
+            case "mqtt" -> findCompatibleConfig(cachedMqttConfigs, deviceName);
+            case "websocket" -> findCompatibleConfig(cachedWebSocketConfigs, deviceName);
             default -> Optional.empty();
         };
+    }
+
+    public Optional<String> resolveProfileName(String protocol, String configuredName) {
+        if (protocol == null) return Optional.empty();
+        Map<String, ?> configs = switch (protocol.toLowerCase(Locale.ROOT)) {
+            case "modbus-tcp", "modbus-rtu" -> cachedModbusConfigs;
+            case "rest-api" -> cachedRestPVConfigs;
+            case "mqtt" -> cachedMqttConfigs;
+            case "websocket" -> cachedWebSocketConfigs;
+            default -> Map.of();
+        };
+        return findCompatibleKey(configs, configuredName);
+    }
+
+    private <T> Optional<T> findCompatibleConfig(Map<String, T> configs, String configuredName) {
+        return findCompatibleKey(configs, configuredName).map(configs::get);
+    }
+
+    private Optional<String> findCompatibleKey(Map<String, ?> configs, String configuredName) {
+        if (configuredName == null || configuredName.isBlank()) return Optional.empty();
+        if (configs.containsKey(configuredName)) return Optional.of(configuredName);
+        String normalized = normalizeProfileName(configuredName);
+        return configs.keySet().stream()
+                .filter(name -> normalizeProfileName(name).equals(normalized))
+                .findFirst();
+    }
+
+    private String normalizeProfileName(String value) {
+        return value.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
     }
 
     private void replaceCaches(List<DeviceProfile> profiles,

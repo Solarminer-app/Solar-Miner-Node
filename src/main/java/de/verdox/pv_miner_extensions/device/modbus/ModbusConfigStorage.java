@@ -1,5 +1,6 @@
 package de.verdox.pv_miner_extensions.device.modbus;
 
+import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
 import de.verdox.solarminer.modbustcp.ModbusConfig;
 import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
 import de.verdox.vserializer.generic.SerializationElement;
@@ -24,8 +25,10 @@ public class ModbusConfigStorage {
     private static final Logger LOGGER = Logger.getLogger(ModbusConfigStorage.class.getSimpleName());
     private final File storageFolder = new File("./storage/modbus/");
     private final Map<String, ModbusConfig> cache = new HashMap<>();
+    private final ConfigFetcherService configFetcherService;
 
-    public ModbusConfigStorage() {
+    public ModbusConfigStorage(ConfigFetcherService configFetcherService) {
+        this.configFetcherService = configFetcherService;
         initStorage();
     }
 
@@ -78,10 +81,7 @@ public class ModbusConfigStorage {
     }
 
     public boolean doesConfigExistOnDisk(String name) {
-        File saveFile = new File(storageFolder + "/" + name + ".json");
-        File legacyFile = new File(storageFolder + "/pvsite/" + name + ".json");
-        return storageFolder.exists() && storageFolder.isDirectory()
-                && ((saveFile.exists() && saveFile.isFile()) || (legacyFile.exists() && legacyFile.isFile()));
+        return findConfigFile(name) != null;
     }
 
     public ModbusConfig loadConfig(String name) throws IOException {
@@ -89,9 +89,13 @@ public class ModbusConfigStorage {
             return cache.get(name);
         }
 
-        File saveFile = new File(storageFolder + "/" + name + ".json");
-        if (!saveFile.isFile()) saveFile = new File(storageFolder + "/pvsite/" + name + ".json");
-        if (!storageFolder.exists() || !storageFolder.isDirectory() || !saveFile.exists() || !saveFile.isFile()) {
+        File saveFile = findConfigFile(name);
+        if (saveFile == null) {
+            ModbusConfig bundled = configFetcherService.getModbusConfig(name).orElse(null);
+            if (bundled != null) {
+                cache.put(name, bundled);
+                return bundled;
+            }
             throw new NoSuchElementException("The modbus config "+name+" does not exist!");
         }
         LOGGER.info("Loading modbus config " + saveFile);
@@ -102,5 +106,22 @@ public class ModbusConfigStorage {
         ModbusConfig loaded = (legacy ? ModbusConfig.LEGACY_SERIALIZER : ModbusConfig.SERIALIZER).deserialize(element);
         cache.put(name, loaded);
         return loaded;
+    }
+
+    private File findConfigFile(String name) {
+        if (name == null || !storageFolder.isDirectory()) return null;
+        String normalized = normalizeName(name);
+        for (File folder : List.of(storageFolder, new File(storageFolder, "pvsite"))) {
+            File[] files = folder.listFiles(file -> file.isFile() && file.getName().endsWith(".json"));
+            if (files == null) continue;
+            for (File file : files) {
+                if (normalizeName(FileNameUtils.getBaseName(file.getName())).equals(normalized)) return file;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeName(String value) {
+        return value.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
     }
 }

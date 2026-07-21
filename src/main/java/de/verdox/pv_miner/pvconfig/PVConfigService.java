@@ -94,7 +94,7 @@ public class PVConfigService {
     /** Keeps embedders and older tests source-compatible while message profiles remain optional. */
     public PVConfigService(RestConfigStorage restStorage, ModbusConfigStorage modbusStorage,
                            ConfigFetcherService configFetcherService, boolean allowPublicDeviceHosts) {
-        this(restStorage, modbusStorage, new MessageConfigStorage(), configFetcherService, allowPublicDeviceHosts);
+        this(restStorage, modbusStorage, new MessageConfigStorage(configFetcherService), configFetcherService, allowPublicDeviceHosts);
     }
 
     public RestCatalogDto getRestCatalog() {

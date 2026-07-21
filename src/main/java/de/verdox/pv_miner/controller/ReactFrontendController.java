@@ -17,6 +17,7 @@ public class ReactFrontendController {
             "/config/pv/websocket",
             "/site/{siteId}",
             "/site/{siteId}/dashboard",
+            "/site/{siteId}/repair-profiles",
             "/site/{siteId}/details",
             "/site/{siteId}/finance",
             "/site/{siteId}/mining",

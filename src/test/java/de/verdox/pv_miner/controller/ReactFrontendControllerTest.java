@@ -30,6 +30,7 @@ class ReactFrontendControllerTest {
         assertTrue(routes.contains("/config/pv/modbus/rtu"));
         assertTrue(routes.contains("/config/pv/mqtt"));
         assertTrue(routes.contains("/config/pv/websocket"));
+        assertTrue(routes.contains("/site/{siteId}/repair-profiles"));
     }
 
     @Test

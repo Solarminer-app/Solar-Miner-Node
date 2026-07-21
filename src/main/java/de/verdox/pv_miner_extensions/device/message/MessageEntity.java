@@ -5,6 +5,8 @@ import de.verdox.pv_miner.influx.QueryResult;
 
 public interface MessageEntity<RESULT extends QueryResult> extends QueryEntity<RESULT> {
     String getMessageConfigName();
+    void setMessageConfigName(String name);
     String getSectionKey();
+    void setSectionKey(String sectionKey);
     String getMessageProtocol();
 }

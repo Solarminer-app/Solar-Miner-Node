@@ -8,5 +8,7 @@ public interface RestEntity<RESULT extends QueryResult> extends QueryEntity<RESU
     int getPort();
     String getApiToken();
     String getRestConfigName();
+    void setRestConfigName(String name);
     String getSectionKey();
+    void setSectionKey(String sectionKey);
 }

@@ -17,6 +17,7 @@ import FinancePage from '../app/site/[siteId]/finance/page';
 import MiningPage from '../app/site/[siteId]/mining/page';
 import ClusterConfigPage from '../app/site/[siteId]/mining/clusters/[clusterName]/config/page';
 import MinerDetailsPage from '../app/site/[siteId]/mining/miners/[minerId]/page';
+import RepairProfilesPage from '../app/site/[siteId]/repair-profiles/page';
 import {SitePreferencesProvider} from '../app/site/[siteId]/site-preferences-context';
 
 function SiteShell() {
@@ -39,6 +40,7 @@ function Application() {
                     <Route element={<SiteShell/>} path="/site/:siteId">
                         <Route element={<Navigate replace to="dashboard"/>} index/>
                         <Route element={<DashboardPage/>} path="dashboard"/>
+                        <Route element={<RepairProfilesPage/>} path="repair-profiles"/>
                         <Route element={<DetailsPage/>} path="details"/>
                         <Route element={<FinancePage/>} path="finance"/>
                         <Route element={<MiningPage/>} path="mining"/>

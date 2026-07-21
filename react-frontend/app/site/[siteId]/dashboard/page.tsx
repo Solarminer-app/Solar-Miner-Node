@@ -1,7 +1,7 @@
 'use client';
 
 import {useCallback, useEffect, useMemo, useState} from 'react';
-import {useParams} from 'next/navigation';
+import {useParams, useRouter} from 'next/navigation';
 import {
     Activity,
     AlertTriangle,
@@ -52,6 +52,7 @@ type ChartTab = 'live' | 'history' | 'controller';
 
 export default function DashboardPage() {
     const params = useParams();
+    const router = useRouter();
     const siteId = params.siteId as string;
     const {locale, currency, timeZone, isHydrated} = useSitePreferences();
     const t = translations[locale] as Record<string, string>;
@@ -64,6 +65,22 @@ export default function DashboardPage() {
     const [selectedCluster, setSelectedCluster] = useState('Standard');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [profilesReady, setProfilesReady] = useState(false);
+
+    useEffect(() => {
+        if (!siteId) return;
+        const controller = new AbortController();
+        fetch(`${API_BASE_URL}/${siteId}/profile-compatibility`, {signal: controller.signal, cache: 'no-store'})
+            .then((response) => response.ok ? response.json() as Promise<{compatible: boolean}> : Promise.reject())
+            .then((result) => {
+                if (result.compatible) setProfilesReady(true);
+                else router.replace(`/site/${siteId}/repair-profiles`);
+            })
+            .catch(() => {
+                if (!controller.signal.aborted) setError(t['profileCheckError']);
+            });
+        return () => controller.abort();
+    }, [router, siteId, t]);
 
     const loadInitialization = useCallback(async (signal?: AbortSignal) => {
         const response = await fetch(`${API_BASE_URL}/${siteId}/dashboard/init`, {signal, cache: 'no-store'});
@@ -97,7 +114,7 @@ export default function DashboardPage() {
     }, [selectedCluster, siteId, timeZone]);
 
     useEffect(() => {
-        if (!siteId) return;
+        if (!siteId || !profilesReady) return;
         const controller = new AbortController();
         const refresh = () => void loadInitialization(controller.signal).catch((reason) => {
             if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : t['dashboard.error.missing']);
@@ -109,10 +126,10 @@ export default function DashboardPage() {
             window.clearInterval(interval);
             controller.abort();
         };
-    }, [loadInitialization, siteId, t]);
+    }, [loadInitialization, profilesReady, siteId, t]);
 
     useEffect(() => {
-        if (!siteId || !isHydrated) return;
+        if (!siteId || !isHydrated || !profilesReady) return;
         const controller = new AbortController();
         const refresh = () => void loadLiveUpdates(controller.signal).catch((reason) => {
             if (!controller.signal.aborted) {
@@ -127,10 +144,10 @@ export default function DashboardPage() {
             window.clearInterval(interval);
             controller.abort();
         };
-    }, [isHydrated, loadLiveUpdates, siteId, t]);
+    }, [isHydrated, loadLiveUpdates, profilesReady, siteId, t]);
 
     useEffect(() => {
-        if (!siteId || !isHydrated) return;
+        if (!siteId || !isHydrated || !profilesReady) return;
         const controller = new AbortController();
         const refresh = () => void loadCharts(controller.signal).catch(() => undefined);
         const timeout = window.setTimeout(refresh, 0);
@@ -140,7 +157,7 @@ export default function DashboardPage() {
             window.clearInterval(interval);
             controller.abort();
         };
-    }, [isHydrated, loadCharts, siteId]);
+    }, [isHydrated, loadCharts, profilesReady, siteId]);
 
     const liveChartData = useMemo(() => {
         if (!charts) return [];

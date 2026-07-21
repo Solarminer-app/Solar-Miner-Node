@@ -1,5 +1,6 @@
 package de.verdox.pv_miner_extensions.device.rest;
 
+import de.verdox.pv_miner.configfetcher.ConfigFetcherService;
 import de.verdox.solarminer.rest.RestConfigCreatorTemplate;
 import de.verdox.solarminer.rest.RestPVConfig;
 import de.verdox.vserializer.generic.SerializationElement;
@@ -26,6 +27,11 @@ public class RestConfigStorage {
     private static final Logger LOGGER = Logger.getLogger(RestConfigStorage.class.getSimpleName());
     private final File storageFolder = new File("./storage/rest/");
     private final Map<String, RestPVConfig> cache = new HashMap<>();
+    private final ConfigFetcherService configFetcherService;
+
+    public RestConfigStorage(ConfigFetcherService configFetcherService) {
+        this.configFetcherService = configFetcherService;
+    }
 
     @EventListener(ApplicationReadyEvent.class)
     private void initStorage() {
@@ -81,9 +87,13 @@ public class RestConfigStorage {
             return cache.get(name);
         }
 
-        File saveFile = new File(storageFolder + "/" + name + ".json");
-        if (!saveFile.isFile()) saveFile = new File(storageFolder + "/pvsite/" + name + ".json");
-        if (!storageFolder.exists() || !storageFolder.isDirectory() || !saveFile.exists() || !saveFile.isFile()) {
+        File saveFile = findConfigFile(name);
+        if (saveFile == null) {
+            RestPVConfig bundled = configFetcherService.getRestPVConfig(name).orElse(null);
+            if (bundled != null) {
+                cache.put(name, bundled);
+                return bundled;
+            }
             throw new NoSuchElementException("The rest config "+name+" does not exist!");
         }
         LOGGER.info("Loading REST config " + saveFile);
@@ -103,9 +113,23 @@ public class RestConfigStorage {
     }
 
     public boolean doesConfigExistOnDisk(String selectedConfigName) {
-        File saveFile = new File(storageFolder + "/" + selectedConfigName + ".json");
-        File legacyFile = new File(storageFolder + "/pvsite/" + selectedConfigName + ".json");
-        return storageFolder.exists() && storageFolder.isDirectory()
-                && ((saveFile.exists() && saveFile.isFile()) || (legacyFile.exists() && legacyFile.isFile()));
+        return findConfigFile(selectedConfigName) != null;
+    }
+
+    private File findConfigFile(String name) {
+        if (name == null || !storageFolder.isDirectory()) return null;
+        String normalized = normalizeName(name);
+        for (File folder : List.of(storageFolder, new File(storageFolder, "pvsite"))) {
+            File[] files = folder.listFiles(file -> file.isFile() && file.getName().endsWith(".json"));
+            if (files == null) continue;
+            for (File file : files) {
+                if (normalizeName(FileNameUtils.getBaseName(file.getName())).equals(normalized)) return file;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeName(String value) {
+        return value.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
     }
 }

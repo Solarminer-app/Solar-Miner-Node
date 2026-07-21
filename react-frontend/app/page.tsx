@@ -24,6 +24,8 @@ export default function PVSiteSelectionView() {
     const [data, setData] = useState<StartViewData | null>(null);
     const [selectedSite, setSelectedSite] = useState<string>("");
     const [lang, setLang] = useState<Language>('de');
+    const [checkingSite, setCheckingSite] = useState(false);
+    const [selectionError, setSelectionError] = useState<string | null>(null);
 
     const t = translations[lang];
 
@@ -82,11 +84,24 @@ export default function PVSiteSelectionView() {
                     <select
                         className="w-full p-3 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 cursor-pointer"
                         value={selectedSite}
-                        onChange={(e) => {
+                        disabled={checkingSite}
+                        onChange={async (e) => {
                             const siteId = e.target.value;
                             setSelectedSite(siteId);
                             if (siteId) {
-                                router.push(`/site/${siteId}/dashboard`);
+                                setCheckingSite(true);
+                                setSelectionError(null);
+                                try {
+                                    const response = await fetch(`/api/pv-site/${siteId}/profile-compatibility`, {cache: 'no-store'});
+                                    if (!response.ok) throw new Error();
+                                    const result = await response.json() as {compatible: boolean};
+                                    router.push(`/site/${siteId}/${result.compatible ? 'dashboard' : 'repair-profiles'}`);
+                                } catch {
+                                    setSelectionError(t.profileCheckError);
+                                    setSelectedSite('');
+                                } finally {
+                                    setCheckingSite(false);
+                                }
                             }
                         }}
                     >
@@ -95,6 +110,8 @@ export default function PVSiteSelectionView() {
                             <option key={site.id} value={site.id}>{site.name}</option>
                         ))}
                     </select>
+                    {checkingSite ? <p className="mt-2 text-sm text-blue-300">{t.profileCheck}</p> : null}
+                    {selectionError ? <p className="mt-2 text-sm text-red-400">{selectionError}</p> : null}
                 </div>
 
                 {/* Register Button & Limit Info */}
