@@ -3,6 +3,7 @@ package de.verdox.pv_miner_extensions.device.modbus;
 import de.verdox.pv_miner.SpringContextHelper;
 import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.influx.QueryResult;
+import de.verdox.pv_miner.pvconfig.DeviceProfileConfigurationException;
 import de.verdox.solarminer.formula.FormulaEngine;
 import de.verdox.solarminer.formula.VariableProvider;
 import de.verdox.solarminer.modbustcp.ModbusConfig;
@@ -19,27 +20,36 @@ import java.util.NoSuchElementException;
 public abstract class ModbusQueryStrategy<RESULT extends QueryResult, MODBUS_ENTITY extends ModbusProfileEntity<RESULT>> implements EntityQueryService.Strategy<MODBUS_ENTITY, RESULT> {
     @Override
     public RESULT query(EntityQueryService entityQueryService, MODBUS_ENTITY entity) throws Throwable {
-        ModbusConfig modbusConfig = SpringContextHelper.getBean(ModbusConfigStorage.class).loadConfig(entity.getModbusConfigName());
-
-        ModbusConfig.ConfigSection section = modbusConfig.getSection(entity.getSectionKey());
-        if (section == null) {
-            throw new IllegalStateException("");
+        ModbusConfig modbusConfig;
+        try {
+            modbusConfig = SpringContextHelper.getBean(ModbusConfigStorage.class).loadConfig(entity.getModbusConfigName());
+        } catch (NoSuchElementException exception) {
+            throw new DeviceProfileConfigurationException("Config " + entity.getModbusConfigName() + " was not found");
         }
 
         try (var client = createClient(entity)) {
-            Map<String, Double> calculatedValues = new HashMap<>();
-            VariableProvider variableProvider = new VariableProvider() {
-                @Override
-                public double getValueFor(String variableName) {
-                    try {
-                        return evaluateEntry(variableName, section, client, calculatedValues, this, modbusConfig.getAddressOffset());
-                    } catch (Exception e) {
-                        return 0.0;
-                    }
-                }
-            };
-            return createResult(section, client, calculatedValues, variableProvider, modbusConfig.getAddressOffset());
+            return querySection(modbusConfig, entity.getSectionKey(), client);
         }
+    }
+
+    /** Executes the regular profile DSL against an already opened client. */
+    public final RESULT querySection(ModbusConfig config, String sectionKey, ModbusRegisterClient client) throws Exception {
+        ModbusConfig.ConfigSection section = config.getSection(sectionKey);
+        if (section == null) {
+            throw new DeviceProfileConfigurationException("No section " + sectionKey + " found in config");
+        }
+        Map<String, Double> calculatedValues = new HashMap<>();
+        VariableProvider variableProvider = new VariableProvider() {
+            @Override
+            public double getValueFor(String variableName) {
+                try {
+                    return evaluateEntry(variableName, section, client, calculatedValues, this, config.getAddressOffset());
+                } catch (Exception e) {
+                    return 0.0;
+                }
+            }
+        };
+        return createResult(section, client, calculatedValues, variableProvider, config.getAddressOffset());
     }
 
     protected abstract RESULT createResult(ModbusConfig.ConfigSection section, ModbusRegisterClient client, Map<String, Double> calculatedValues, VariableProvider provider, int offset) throws Exception;

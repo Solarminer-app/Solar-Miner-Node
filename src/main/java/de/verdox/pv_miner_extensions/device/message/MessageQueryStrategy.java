@@ -3,6 +3,7 @@ package de.verdox.pv_miner_extensions.device.message;
 import de.verdox.pv_miner.SpringContextHelper;
 import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.influx.QueryResult;
+import de.verdox.pv_miner.pvconfig.DeviceProfileConfigurationException;
 import de.verdox.pv_miner_extensions.device.mqtt.MqttEntity;
 import de.verdox.pv_miner_extensions.device.mqtt.MqttMessageService;
 import de.verdox.pv_miner_extensions.device.websocket.WebSocketEntity;
@@ -21,10 +22,20 @@ public abstract class MessageQueryStrategy<RESULT extends QueryResult, ENTITY ex
         implements EntityQueryService.Strategy<ENTITY, RESULT> {
     @Override
     public RESULT query(EntityQueryService queryService, ENTITY entity) throws Throwable {
-        RestPVConfig config = SpringContextHelper.getBean(MessageConfigStorage.class)
-                .loadConfig(entity.getMessageProtocol(), entity.getMessageConfigName());
-        RestPVConfig.ConfigSection section = config.getSection(entity.getSectionKey());
-        if (section == null) throw new IllegalStateException("Profile section is missing: " + entity.getSectionKey());
+        RestPVConfig config;
+        try {
+            config = SpringContextHelper.getBean(MessageConfigStorage.class)
+                    .loadConfig(entity.getMessageProtocol(), entity.getMessageConfigName());
+        } catch (NoSuchElementException exception) {
+            throw new DeviceProfileConfigurationException("Config " + entity.getMessageConfigName() + " was not found");
+        }
+        return querySection(config, entity.getSectionKey(), entity);
+    }
+
+    /** Executes the regular message profile DSL without a persisted entity. */
+    public final RESULT querySection(RestPVConfig config, String sectionKey, ENTITY entity) throws Exception {
+        RestPVConfig.ConfigSection section = config.getSection(sectionKey);
+        if (section == null) throw new DeviceProfileConfigurationException("No section " + sectionKey + " found in config");
         Map<String, Double> values = new HashMap<>();
         Map<String, String> payloads = new HashMap<>();
         VariableProvider provider = new VariableProvider() {

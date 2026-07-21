@@ -142,19 +142,19 @@ public class EntityService {
 
     public InverterEntity save(InverterEntity entity) {
         var saved = inverterEntityRepository.save(entity);
-        entityMonitoringService.attach(entity, InverterDataDTO.DEFAULT);
+        entityMonitoringService.attach(saved, InverterDataDTO.DEFAULT);
         return saved;
     }
 
     public BatteryEntity save(BatteryEntity entity) {
         var saved = batteryEntityRepository.save(entity);
-        entityMonitoringService.attach(entity, BatteryDataDTO.DEFAULT);
+        entityMonitoringService.attach(saved, BatteryDataDTO.DEFAULT);
         return saved;
     }
 
     public SmartMeterEntity save(SmartMeterEntity entity) {
         var saved = smartMeterRepository.save(entity);
-        entityMonitoringService.attach(entity, SmartMeterDataDTO.DEFAULT);
+        entityMonitoringService.attach(saved, SmartMeterDataDTO.DEFAULT);
         return saved;
     }
 
