@@ -1,9 +1,12 @@
 services:
   frontend:
     image: verdox/solar-miner
+    user: "${SOLARMINER_UID:-1000}:${SOLARMINER_GID:-1000}"
     ports:
       - "8080:8080"
     depends_on:
+      frontend-storage-init:
+        condition: service_completed_successfully
       mariadb-frontend:
         condition: service_started
       influxdb-frontend:
@@ -47,6 +50,17 @@ services:
       options:
         max-size: "20m"
         max-file: "3"
+
+  frontend-storage-init:
+    image: verdox/solar-miner
+    user: "0:0"
+    restart: "no"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - mkdir -p /app/storage && chown -R "${SOLARMINER_UID:-1000}:${SOLARMINER_GID:-1000}" /app/storage
+    volumes:
+      - ./app/frontend/app:/app/storage
 
   mariadb-frontend:
     image: mariadb:latest
