@@ -157,6 +157,10 @@ jobs:
           set -euo pipefail
 
           chmod +x ./gradlew
+          
+          ./gradlew clean --no-daemon
+          
+          chmod -R 777 .
 
           # Use absolute Gradle task paths. An unqualified `bootBuildImage`
           # also selects tasks with that name in subprojects such as pc-agent.

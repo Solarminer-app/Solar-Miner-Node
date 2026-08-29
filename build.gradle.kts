@@ -247,18 +247,7 @@ tasks.named<BootBuildImage>("bootBuildImage") {
         }
     }
 
-/*    environment.put(
-        "BP_NATIVE_IMAGE_BUILD_ARGUMENTS",
-        "-J-Xmx6G " +
-                "-march=compatibility " +
-                "--initialize-at-build-time=" +
-                "org.slf4j,ch.qos.logback " +
-                "--initialize-at-run-time=" +
-                "io.grpc,io.netty,io.grpc.netty.shaded " +
-                "--trace-class-initialization=" +
-                "io.grpc.netty.shaded.io.netty.buffer." +
-                "PooledByteBufAllocator"
-    )*/
+    createdDate = "now"
 
     publish.set(false)
 }
