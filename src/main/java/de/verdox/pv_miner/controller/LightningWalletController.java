@@ -121,16 +121,29 @@ public class LightningWalletController {
 
     @PostMapping("/connection/toggle")
     public ResponseEntity<ConnectionStatusResponse> toggleConnection() {
+        boolean isEnabled = solarMiningWebSocketClient.isEnabled();
+        solarMiningWebSocketClient.setEnabled(!isEnabled);
+        return ResponseEntity.ok(new ConnectionStatusResponse(!isEnabled, solarMiningWebSocketClient.isConnected()));
+    }
 
-        boolean isEnabled = solarMiningWebSocketClient.isConnected();
-        if (isEnabled) {
-            solarMiningWebSocketClient.connect();
-        } else {
-            solarMiningWebSocketClient.disconnect();
+    @GetMapping("/connection/status")
+    public ResponseEntity<ConnectionStatusResponse> connectionStatus() {
+        return ResponseEntity.ok(new ConnectionStatusResponse(
+                solarMiningWebSocketClient.isEnabled(),
+                solarMiningWebSocketClient.isConnected()
+        ));
+    }
+
+    @PostMapping("/invoice")
+    public ResponseEntity<InvoiceResponse> createInvoice(@RequestBody InvoiceRequest request) {
+        long amountSat = request.amountSat() != null && request.amountSat() > 0 ? request.amountSat() : 0;
+        String memo = request.memo() != null && !request.memo().isBlank() ? request.memo().trim() : "Mining payout";
+
+        LightningTransaction invoice = walletService.createInvoice(amountSat, memo);
+        if (invoice == null || invoice.bolt11() == null) {
+            return ResponseEntity.ok(new InvoiceResponse(false, null, memo, amountSat));
         }
-
-        boolean newStatus = solarMiningWebSocketClient.isConnected();
-        return ResponseEntity.ok(new ConnectionStatusResponse(newStatus, solarMiningWebSocketClient.isConnected()));
+        return ResponseEntity.ok(new InvoiceResponse(true, invoice.bolt11(), invoice.memo(), invoice.amountSat()));
     }
 
     @PostMapping("/withdraw/onchain")
@@ -161,6 +174,12 @@ public class LightningWalletController {
     }
 
     public record ConnectionStatusResponse(boolean enabled, boolean connected) {
+    }
+
+    public record InvoiceRequest(Long amountSat, String memo) {
+    }
+
+    public record InvoiceResponse(boolean success, String bolt11, String memo, long amountSat) {
     }
 
     public record OnChainWithdrawRequest(String address, long amountSat, long feeRateSatPerVByte) {

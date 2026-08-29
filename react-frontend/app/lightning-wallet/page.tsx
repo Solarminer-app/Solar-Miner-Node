@@ -4,8 +4,32 @@ import { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     ArrowLeft, Wallet, Copy, Zap, Link as LinkIcon, Settings,
-    History, QrCode, Network, ArrowUpCircle, ArrowDownCircle, AtSign, Check, X, AlertTriangle
+    History, QrCode, Network, ArrowUpCircle, ArrowDownCircle, AtSign, Check, X, AlertTriangle, FileText
 } from 'lucide-react';
+
+// navigator.clipboard ist nur in sicheren Kontexten (HTTPS/localhost) vorhanden.
+// Die WebUI läuft in der Praxis häufig über HTTP im LAN -> Fallback per execCommand.
+const copyToClipboard = (text: string): Promise<void> => {
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+    }
+    return new Promise<void>((resolve, reject) => {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy') ? resolve() : reject(new Error('Copy failed'));
+        } catch (e) {
+            reject(e);
+        } finally {
+            document.body.removeChild(textArea);
+        }
+    });
+};
 
 // Lokale Übersetzungen importieren (Pfade ggf. anpassen)
 import de from './../locales/de.json';
@@ -51,12 +75,13 @@ export default function LightningWalletView() {
 
     const [data, setData] = useState<WalletData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [wsConnected, setWsConnected] = useState(true);
-    const [wsEnabled, setWsEnabled] = useState(true);
+    const [wsConnected, setWsConnected] = useState(false);
+    const [wsEnabled, setWsEnabled] = useState(false);
 
     // Modal States
     const [isLightningModalOpen, setIsLightningModalOpen] = useState(false);
     const [isOnChainModalOpen, setIsOnChainModalOpen] = useState(false);
+    const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 
     // Form States
     const [payTarget, setPayTarget] = useState("");
@@ -64,6 +89,10 @@ export default function LightningWalletView() {
     const [onChainAddress, setOnChainAddress] = useState("");
     const [onChainAmount, setOnChainAmount] = useState<string>("");
     const [feeRate, setFeeRate] = useState<string>("5"); // Standard: 5 sat/vB
+    const [invoiceMemo, setInvoiceMemo] = useState("");
+    const [invoiceAmount, setInvoiceAmount] = useState<string>("");
+    const [createdInvoice, setCreatedInvoice] = useState<string | null>(null);
+    const [creatingInvoice, setCreatingInvoice] = useState(false);
 
     const [sending, setSending] = useState(false);
 
@@ -88,6 +117,26 @@ export default function LightningWalletView() {
         return () => window.clearTimeout(timeout);
     }, [fetchWallet]);
 
+    // Verbindungsstatus live abfragen (Initial + Polling alle 5s)
+    const fetchConnectionStatus = useCallback(async () => {
+        try {
+            const response = await fetch('/api/lightning-wallet/connection/status');
+            if (response.ok) {
+                const status = await response.json();
+                setWsEnabled(status.enabled);
+                setWsConnected(status.connected);
+            }
+        } catch (e) {
+            console.error("Fehler beim Abfragen des Verbindungsstatus", e);
+        }
+    }, []);
+
+    useEffect(() => {
+        void fetchConnectionStatus();
+        const interval = window.setInterval(() => void fetchConnectionStatus(), 5000);
+        return () => window.clearInterval(interval);
+    }, [fetchConnectionStatus]);
+
     // WebSocket Verbindung aktivieren/trennen
     const toggleConnection = async () => {
         try {
@@ -99,8 +148,42 @@ export default function LightningWalletView() {
                 setWsEnabled(status.enabled);
                 setWsConnected(status.connected);
             }
+            // Status sofort neu pollen (Reconnect dauert kurz)
+            window.setTimeout(() => void fetchConnectionStatus(), 1500);
         } catch (e) {
             console.error("Fehler beim Toggle der Verbindung", e);
+        }
+    };
+
+    // BOLT11-Rechnung über phoenixd erstellen
+    const handleCreateInvoice = async () => {
+        try {
+            setCreatingInvoice(true);
+            const amountSat = invoiceAmount ? parseInt(invoiceAmount) : null;
+
+            const response = await fetch('/api/lightning-wallet/invoice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    amountSat: amountSat,
+                    memo: invoiceMemo || null
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.bolt11) {
+                    setCreatedInvoice(result.bolt11);
+                    fetchWallet();
+                } else {
+                    alert(t["lightning.notification.invoice_failed"]);
+                }
+            }
+        } catch (e) {
+            console.error("Fehler beim Erstellen der BOLT11-Rechnung", e);
+            alert(t["lightning.notification.invoice_failed"]);
+        } finally {
+            setCreatingInvoice(false);
         }
     };
 
@@ -247,9 +330,14 @@ export default function LightningWalletView() {
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(data.lightningAddress);
-                                        alert(t["lightning.notification.copied"]);
+                                    onClick={async () => {
+                                        try {
+                                            await copyToClipboard(data.lightningAddress);
+                                            alert(t["lightning.notification.copied"]);
+                                        } catch (e) {
+                                            console.error("Kopieren fehlgeschlagen", e);
+                                            alert(t["lightning.notification.copy_failed"]);
+                                        }
                                     }}
                                     className="p-2 bg-gray-700 hover:bg-gray-600 rounded transition shrink-0"
                                     title={t["lightning.action.copy"]}
@@ -258,7 +346,7 @@ export default function LightningWalletView() {
                                 </button>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                 <button
                                     onClick={() => setIsLightningModalOpen(true)}
                                     className="flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-500 py-3 rounded-lg font-semibold transition"
@@ -270,6 +358,17 @@ export default function LightningWalletView() {
                                     className="flex justify-center items-center gap-2 bg-gray-700 hover:bg-gray-600 py-3 rounded-lg font-semibold transition"
                                 >
                                     <LinkIcon size={18} /> {t["lightning.button.withdraw_onchain"]}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setCreatedInvoice(null);
+                                        setInvoiceMemo("");
+                                        setInvoiceAmount("");
+                                        setIsInvoiceModalOpen(true);
+                                    }}
+                                    className="flex justify-center items-center gap-2 bg-green-700 hover:bg-green-600 py-3 rounded-lg font-semibold transition"
+                                >
+                                    <FileText size={18} /> {t["lightning.button.create_invoice"]}
                                 </button>
                                 <button className="flex justify-center items-center gap-2 bg-gray-800 border border-gray-600 text-gray-400 cursor-not-allowed py-3 rounded-lg font-semibold">
                                     <Settings size={18} /> {t["lightning.button.auto_rules"]}
@@ -382,10 +481,16 @@ export default function LightningWalletView() {
                                     className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-gray-300 outline-none"
                                 />
                                 <button
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(data.bolt12Offer);
-                                        alert(t["lightning.notification.copied_bolt12"]);
+                                    onClick={async () => {
+                                        try {
+                                            await copyToClipboard(data.bolt12Offer);
+                                            alert(t["lightning.notification.copied_bolt12"]);
+                                        } catch (e) {
+                                            console.error("Kopieren fehlgeschlagen", e);
+                                            alert(t["lightning.notification.copy_failed"]);
+                                        }
                                     }}
+                                    title={t["lightning.action.copy"]}
                                     className="bg-gray-700 hover:bg-gray-600 p-2 rounded transition shrink-0"
                                 >
                                     <Copy size={16} />
@@ -530,6 +635,99 @@ export default function LightningWalletView() {
                                 {sending ? t["lightning.dialog.sending"] : <><Check size={18} /> {t["lightning.button.withdraw_onchain_submit"]}</>}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: CREATE BOLT11 INVOICE */}
+            {isInvoiceModalOpen && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+                    <div className="bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold">{t["lightning.dialog.invoice.title"]}</h3>
+                            <button aria-label={t["lightning.action.close"]} onClick={() => setIsInvoiceModalOpen(false)} className="text-gray-400 hover:text-white">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {!createdInvoice ? (
+                            <>
+                                <p className="text-sm text-gray-400 mb-4">{t["lightning.dialog.invoice.info"]}</p>
+
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium mb-1">{t["lightning.dialog.invoice.amount_label"]}</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={invoiceAmount}
+                                        onChange={(e) => setInvoiceAmount(e.target.value)}
+                                        className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white outline-none focus:border-blue-500 font-mono text-sm"
+                                        placeholder={t["lightning.dialog.invoice.amount_placeholder"]}
+                                    />
+                                </div>
+
+                                <div className="mb-6">
+                                    <label className="block text-sm font-medium mb-1">{t["lightning.dialog.invoice.memo_label"]}</label>
+                                    <input
+                                        type="text"
+                                        value={invoiceMemo}
+                                        onChange={(e) => setInvoiceMemo(e.target.value)}
+                                        className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white outline-none focus:border-blue-500 text-sm"
+                                        placeholder={t["lightning.dialog.invoice.memo_placeholder"]}
+                                    />
+                                </div>
+
+                                <div className="flex justify-end gap-3">
+                                    <button
+                                        onClick={() => setIsInvoiceModalOpen(false)}
+                                        disabled={creatingInvoice}
+                                        className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition disabled:opacity-50"
+                                    >
+                                        {t["lightning.dialog.button.cancel"]}
+                                    </button>
+                                    <button
+                                        onClick={handleCreateInvoice}
+                                        disabled={creatingInvoice}
+                                        className="px-4 py-2 bg-green-700 hover:bg-green-600 rounded-lg font-medium transition flex items-center gap-2 disabled:opacity-50"
+                                    >
+                                        {creatingInvoice ? t["lightning.dialog.invoice.creating"] : <><FileText size={18} /> {t["lightning.dialog.invoice.create"]}</>}
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-sm text-gray-400 mb-4">{t["lightning.dialog.invoice.created"]}</p>
+
+                                <textarea
+                                    readOnly
+                                    value={createdInvoice}
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white min-h-[100px] outline-none font-mono text-xs mb-4"
+                                />
+
+                                <div className="flex justify-end gap-3">
+                                    <button
+                                        onClick={() => setIsInvoiceModalOpen(false)}
+                                        className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition"
+                                    >
+                                        {t["lightning.dialog.button.cancel"]}
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                await copyToClipboard(createdInvoice);
+                                                alert(t["lightning.notification.copied_invoice"]);
+                                            } catch (e) {
+                                                console.error("Kopieren fehlgeschlagen", e);
+                                                alert(t["lightning.notification.copy_failed"]);
+                                            }
+                                        }}
+                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition flex items-center gap-2"
+                                    >
+                                        <Copy size={18} /> {t["lightning.action.copy"]}
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}
