@@ -104,6 +104,7 @@ jobs:
 #
 #          chmod +x ./gradlew
 #          ./gradlew clean check --no-daemon
+
   build-and-push:
     name: Build Frontend JVM ${{ matrix.arch }}
     needs:
@@ -140,6 +141,10 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Fix workspace permissions for Paketo Builder
+        shell: bash
+        run: chmod -R a+rw .
 
       - name: Build and publish Frontend JVM image
         shell: bash
