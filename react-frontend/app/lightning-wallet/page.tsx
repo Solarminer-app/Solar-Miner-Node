@@ -65,6 +65,21 @@ interface WalletData {
     transactions: LightningTransaction[];
 }
 
+interface FeeTier {
+    satPerVByte: number;
+    fastBlocks: number | null;
+}
+
+interface FeeEstimate {
+    floor: FeeTier | null;
+    fast: FeeTier | null;
+    fastest: FeeTier | null;
+    typicalVBytes: number;
+    fiatPricePerSat: number;
+    currencyCode: string;
+    available: boolean;
+}
+
 export default function LightningWalletView() {
     const router = useRouter();
     const [lang, setLang] = useState<Language>('de');
@@ -89,6 +104,10 @@ export default function LightningWalletView() {
     const [onChainAddress, setOnChainAddress] = useState("");
     const [onChainAmount, setOnChainAmount] = useState<string>("");
     const [feeRate, setFeeRate] = useState<string>("5"); // Standard: 5 sat/vB
+    const [feeEstimate, setFeeEstimate] = useState<FeeEstimate | null>(null);
+    const [feeEstimateLoading, setFeeEstimateLoading] = useState(false);
+    const [feeSpeedIndex, setFeeSpeedIndex] = useState(1); // 0 = hour, 1 = halfHour, 2 = fastest
+    const [feeAdvanced, setFeeAdvanced] = useState(false);
     const [invoiceMemo, setInvoiceMemo] = useState("");
     const [invoiceAmount, setInvoiceAmount] = useState<string>("");
     const [createdInvoice, setCreatedInvoice] = useState<string | null>(null);
@@ -136,6 +155,59 @@ export default function LightningWalletView() {
         const interval = window.setInterval(() => void fetchConnectionStatus(), 5000);
         return () => window.clearInterval(interval);
     }, [fetchConnectionStatus]);
+
+    // Empfohlene On-Chain-Gebühren (mempool.space) über den Backend-Proxy laden
+    const fetchFeeEstimate = useCallback(async () => {
+        try {
+            setFeeEstimateLoading(true);
+            const response = await fetch(`/api/lightning-wallet/fees/recommended?currency=${currency}`);
+            if (response.ok) {
+                const result = await response.json();
+                setFeeEstimate(result);
+            }
+        } catch (e) {
+            console.error("Fehler beim Laden der empfohlenen Gebühren", e);
+        } finally {
+            setFeeEstimateLoading(false);
+        }
+    }, [currency]);
+
+    useEffect(() => {
+        if (isOnChainModalOpen) {
+            setFeeAdvanced(false);
+            setFeeSpeedIndex(1);
+            void fetchFeeEstimate();
+        }
+    }, [isOnChainModalOpen, fetchFeeEstimate]);
+
+    // Gebühren-Schalter: Slider verbergen und manuellen Sat/vB-Input zeigen,
+    // wenn der Nutzer "Erweitert" wählt oder die Empfehlung nicht verfügbar ist.
+    const showManualFeeInput = feeAdvanced || !feeEstimate?.available;
+    const speedTiers: FeeTier[] = feeEstimate?.available
+        ? [feeEstimate.floor, feeEstimate.fast, feeEstimate.fastest].filter((tier): tier is FeeTier => tier !== null)
+        : [];
+
+    // Effektiver Gebührensatz, unabhängig davon ob Slider oder manuell gewählt.
+    const getEffectiveFeeRate = (): number => {
+        if (showManualFeeInput) {
+            return parseInt(feeRate) || 0;
+        }
+        return speedTiers[feeSpeedIndex]?.satPerVByte ?? 0;
+    };
+
+    // Ungefährer Gebühren-Betrag in Sats + Umrechnung in die gewählte Währung.
+    const estimateVBytes = feeEstimate?.typicalVBytes ?? 141;
+    const effectiveFeeRate = getEffectiveFeeRate();
+    const estimatedFeeSat = effectiveFeeRate > 0 ? Math.round(effectiveFeeRate * estimateVBytes) : 0;
+    const fiatPerSat = feeEstimate?.fiatPricePerSat ?? 0;
+    const estimatedFeeFiat = estimatedFeeSat * fiatPerSat;
+    const estimateCurrency = feeEstimate?.currencyCode ?? currency;
+
+    const formatFiat = (value: number, code: string): string => {
+        const symbol = code === 'USD' ? '$' : code + ' ';
+        const formatted = value.toLocaleString(lang === 'de' ? 'de-DE' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return symbol + formatted;
+    };
 
     // WebSocket Verbindung aktivieren/trennen
     const toggleConnection = async () => {
@@ -224,6 +296,7 @@ export default function LightningWalletView() {
     // Kette-Auszahlung (On-Chain) absenden
     const handleOnChainWithdraw = async () => {
         if (!onChainAddress.trim() || !onChainAmount) return;
+        const selectedFeeRate = getEffectiveFeeRate();
         try {
             setSending(true);
             const response = await fetch('/api/lightning-wallet/withdraw/onchain', {
@@ -232,7 +305,7 @@ export default function LightningWalletView() {
                 body: JSON.stringify({
                     address: onChainAddress,
                     amountSat: parseInt(onChainAmount),
-                    feeRateSatPerVByte: parseInt(feeRate)
+                    feeRateSatPerVByte: selectedFeeRate
                 })
             });
 
@@ -243,6 +316,8 @@ export default function LightningWalletView() {
                     setOnChainAddress("");
                     setOnChainAmount("");
                     setFeeRate("5");
+                    setFeeAdvanced(false);
+                    setFeeSpeedIndex(1);
                     alert(t["lightning.notification.onchain_success"]);
                     fetchWallet();
                 } else {
@@ -607,16 +682,78 @@ export default function LightningWalletView() {
                             )}
                         </div>
 
-                        {/* Fee Rate (sat/vB) */}
+                        {/* Fee: Geschwindigkeits-Auswahl + Schätzung + erweiterter manueller Satz */}
                         <div className="mb-6">
-                            <label className="block text-sm font-medium mb-1">{t["lightning.dialog.fee_rate_label"]}</label>
-                            <input
-                                type="number"
-                                min="1"
-                                value={feeRate}
-                                onChange={(e) => setFeeRate(e.target.value)}
-                                className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white outline-none focus:border-blue-500 font-mono text-sm"
-                            />
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium">{t["lightning.dialog.fee.label"]}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setFeeAdvanced((prev) => !prev)}
+                                    className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition"
+                                >
+                                    <Settings size={14} />
+                                    {feeAdvanced ? t["lightning.dialog.fee.back_to_quick"] : t["lightning.dialog.fee.advanced"]}
+                                </button>
+                            </div>
+
+                            {showManualFeeInput ? (
+                                <div>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={feeRate}
+                                        onChange={(e) => setFeeRate(e.target.value)}
+                                        className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white outline-none focus:border-blue-500 font-mono text-sm"
+                                        placeholder={t["lightning.dialog.fee.manual_placeholder"]}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">{t["lightning.dialog.fee_rate_label"]}</p>
+                                </div>
+                            ) : (feeEstimateLoading || !feeEstimate?.available || speedTiers.length === 0) ? (
+                                <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm text-gray-400">
+                                    {t["lightning.dialog.fee.loading_or_unavailable"]}
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max={speedTiers.length - 1}
+                                        step="1"
+                                        value={feeSpeedIndex}
+                                        onChange={(e) => setFeeSpeedIndex(parseInt(e.target.value))}
+                                        className="w-full accent-blue-500 cursor-pointer"
+                                    />
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {speedTiers.map((tier, idx) => {
+                                            const active = idx === feeSpeedIndex;
+                                            const blocks = tier.fastBlocks ?? 0;
+                                            const minutes = blocks <= 1 ? 10 : blocks === 2 ? 30 : 60;
+                                            return (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => setFeeSpeedIndex(idx)}
+                                                    className={`rounded-lg border p-2 text-left transition ${active ? 'border-blue-500 bg-blue-950/40' : 'border-gray-700 bg-gray-900 hover:border-gray-600'}`}
+                                                >
+                                                    <div className={`text-xs font-semibold ${active ? 'text-blue-300' : 'text-gray-200'}`}>{t[`lightning.dialog.fee.speed.${idx}`]}</div>
+                                                    <div className="text-[11px] text-gray-400">~{minutes} {t["lightning.dialog.fee.unit_minutes"]}</div>
+                                                    <div className="text-[11px] font-mono text-gray-300 mt-0.5">{tier.satPerVByte} sat/vB</div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="mt-3 bg-gray-900 border border-gray-700 rounded-lg p-3 flex items-center justify-between">
+                                <span className="text-xs text-gray-400">{t["lightning.dialog.fee.estimate_label"]}</span>
+                                <span className="text-sm font-semibold">
+                                    {estimatedFeeSat.toLocaleString(lang === 'de' ? 'de-DE' : 'en-US')} sats
+                                    {estimatedFeeFiat > 0 && (
+                                        <span className="text-gray-400 font-normal"> ≈ {formatFiat(estimatedFeeFiat, estimateCurrency)}</span>
+                                    )}
+                                </span>
+                            </div>
                         </div>
 
                         <div className="flex justify-end gap-3">
@@ -630,7 +767,7 @@ export default function LightningWalletView() {
                             <button
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition flex items-center gap-2 disabled:opacity-50"
                                 onClick={handleOnChainWithdraw}
-                                disabled={sending || !onChainAddress.trim() || !onChainAmount || parseInt(onChainAmount) > data.balanceSat}
+                                disabled={sending || !onChainAddress.trim() || !onChainAmount || parseInt(onChainAmount) > data.balanceSat || effectiveFeeRate <= 0}
                             >
                                 {sending ? t["lightning.dialog.sending"] : <><Check size={18} /> {t["lightning.button.withdraw_onchain_submit"]}</>}
                             </button>

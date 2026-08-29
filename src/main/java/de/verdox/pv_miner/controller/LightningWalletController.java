@@ -152,6 +152,42 @@ public class LightningWalletController {
         return ResponseEntity.ok(new PaymentResponse(success));
     }
 
+    // Approximate weight of a single-recipient P2WPKH (native segwit) on-chain send.
+    private static final int ASSUMED_VBYTES_ONCHAIN_SEND = 141;
+
+    @GetMapping("/fees/recommended")
+    public FeeEstimateResponse recommendedOnChainFees(
+            @RequestParam(value = "currency", defaultValue = "EUR") String currencyCode
+    ) {
+        String normalizedCode = currencyCode == null || currencyCode.isBlank() ? "EUR" : currencyCode;
+
+        LightningWalletService.OnChainFeeEstimate estimate = walletService.getRecommendedOnChainFees();
+        if (estimate == null) {
+            return new FeeEstimateResponse(null, null, null, ASSUMED_VBYTES_ONCHAIN_SEND, 0.0, normalizedCode, false);
+        }
+
+        return new FeeEstimateResponse(
+                new FeeTierDto(estimate.floorTier().satPerVByte(), estimate.floorTier().fastBlocks()),
+                new FeeTierDto(estimate.fastTier().satPerVByte(), estimate.fastTier().fastBlocks()),
+                new FeeTierDto(estimate.fastestTier().satPerVByte(), estimate.fastestTier().fastBlocks()),
+                ASSUMED_VBYTES_ONCHAIN_SEND,
+                fiatPerSat(normalizedCode),
+                normalizedCode,
+                true
+        );
+    }
+
+    private double fiatPerSat(String currencyCode) {
+        CustomCurrency userCurrency = CustomCurrency.getInstance(currencyCode);
+        CustomCurrency btcCurrency = CustomCurrency.getInstance("BTC");
+        double rate = globalConstantsService.getExchangeRate(btcCurrency, userCurrency);
+        if (rate <= 0.0) {
+            double fallbackBtcEurRate = 63000.0;
+            rate = userCurrency.getCurrencyCode().equals("USD") ? fallbackBtcEurRate * 1.08 : fallbackBtcEurRate;
+        }
+        return rate / 100000000.0;
+    }
+
     private String convertSatsToUserCurrencyString(long sats, CustomCurrency userCurrency, Locale userLocale) {
         double btc = sats / 100000000.0;
         CustomCurrency btcCurrency = CustomCurrency.getInstance("BTC");
@@ -183,6 +219,20 @@ public class LightningWalletController {
     }
 
     public record OnChainWithdrawRequest(String address, long amountSat, long feeRateSatPerVByte) {
+    }
+
+    public record FeeTierDto(long satPerVByte, Integer fastBlocks) {
+    }
+
+    public record FeeEstimateResponse(
+            FeeTierDto floor,
+            FeeTierDto fast,
+            FeeTierDto fastest,
+            int typicalVBytes,
+            double fiatPricePerSat,
+            String currencyCode,
+            boolean available
+    ) {
     }
 
     public record WalletData(

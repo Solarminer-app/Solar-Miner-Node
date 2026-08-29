@@ -1,5 +1,7 @@
 package de.verdox.pv_miner.lightning;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.phoenixdjava.PhoenixClient;
 import de.verdox.phoenixdjava.PhoenixClientImpl;
 import de.verdox.phoenixdjava.PhoenixDTOs;
@@ -17,6 +19,8 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,6 +40,8 @@ import java.util.regex.Pattern;
 public class LightningWalletService {
     private static final Pattern authPattern = Pattern.compile("AUTH-[0-9a-fA-F]{8}");
     private static final Pattern claimPattern = Pattern.compile("CLAIM-[0-9a-fA-F]{12}");
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final String RECOMMENDED_FEES_URL = "https://mempool.space/api/v1/fees/recommended";
 
     private final PhoenixClient phoenixClient;
     private final String backendUrl;
@@ -313,6 +319,50 @@ public class LightningWalletService {
             return phoenixClient.payOnChain(amountSat, address.trim(), feeRateSatByte);
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
+            return null;
+        }
+    }
+
+    public record OnChainFeeTier(long satPerVByte, Integer fastBlocks) {
+    }
+
+    public record OnChainFeeEstimate(long floor, long fast, long fastest, OnChainFeeTier floorTier, OnChainFeeTier fastTier, OnChainFeeTier fastestTier, Boolean reliable) {
+    }
+
+    public OnChainFeeEstimate getRecommendedOnChainFees() {
+        try {
+            HttpClient httpClient = HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(5))
+                    .build();
+            HttpResponse<String> response = httpClient.send(
+                    HttpRequest.newBuilder(java.net.URI.create(RECOMMENDED_FEES_URL))
+                            .timeout(java.time.Duration.ofSeconds(10))
+                            .GET()
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                System.err.println("Failed to fetch recommended fees from mempool.space, HTTP " + response.statusCode());
+                return null;
+            }
+
+            JsonNode root = OBJECT_MAPPER.readTree(response.body());
+            long floor = root.path("hourFee").asLong();
+            long fast = root.path("halfHourFee").asLong();
+            long fastest = root.path("fastestFee").asLong();
+            // mempool.space naming maps to confirmation speed: fastestFee ~ 1 block (~10 min),
+            // halfHourFee ~ 2 blocks (~30 min), hourFee ~ 12 blocks (~1 h).
+            OnChainFeeTier floorTier = new OnChainFeeTier(floor, 12);
+            OnChainFeeTier fastTier = new OnChainFeeTier(fast, 2);
+            OnChainFeeTier fastestTier = new OnChainFeeTier(fastest, 1);
+            boolean reliable = root.path("blocks").isInt() && floor > 0 && fast > 0 && fastest > 0;
+            if (!reliable) {
+                System.err.println("Recommended fees from mempool.space look incomplete: " + response.body());
+                return null;
+            }
+            return new OnChainFeeEstimate(floor, fast, fastest, floorTier, fastTier, fastestTier, true);
+        } catch (IOException | InterruptedException e) {
+            System.err.println("Failed to fetch recommended fees from mempool.space: " + e.getMessage());
             return null;
         }
     }
