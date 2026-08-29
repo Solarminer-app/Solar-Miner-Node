@@ -34,12 +34,12 @@ dependencies {
     }
     implementation("com.fazecast:jSerialComm:2.11.4")
 
-    implementation("com.google.guava:guava:33.3.1-jre")
+    implementation("com.google.guava:guava:33.4.0-jre")
     implementation("de.verdox:vserializer:1.1-SNAPSHOT")
     implementation("com.google.code.gson:gson:2.12.1")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.20.0")
 
-    testImplementation(platform("org.junit:junit-bom:5.10.0"))
+    testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -59,26 +59,15 @@ publishing {
                 name.set("SolarMiner PV API")
 
                 description.set(
-                    "Shared API types for SolarMiner " +
-                            "photovoltaic integrations."
+                    "Shared API types for SolarMiner photovoltaic integrations."
                 )
 
-                url.set(
-                    "https://github.com/" +
-                            "Solarminer-app/Solar-Miner-Node"
-                )
+                url.set("https://github.com/Solarminer-app/Solar-Miner-Node")
 
                 licenses {
                     license {
-                        name.set(
-                            "GNU Affero General Public License v3.0"
-                        )
-
-                        url.set(
-                            "https://github.com/" +
-                                    "Solarminer-app/" +
-                                    "Solar-Miner-Node/blob/master/LICENSE"
-                        )
+                        name.set("GNU Affero General Public License v3.0")
+                        url.set("https://github.com/Solarminer-app/Solar-Miner-Node/blob/master/LICENSE")
                     }
                 }
 
@@ -91,22 +80,9 @@ publishing {
                 }
 
                 scm {
-                    connection.set(
-                        "scm:git:git://github.com/" +
-                                "Solarminer-app/" +
-                                "Solar-Miner-Node.git"
-                    )
-
-                    developerConnection.set(
-                        "scm:git:ssh://github.com/" +
-                                "Solarminer-app/" +
-                                "Solar-Miner-Node.git"
-                    )
-
-                    url.set(
-                        "https://github.com/" +
-                                "Solarminer-app/Solar-Miner-Node"
-                    )
+                    connection.set("scm:git:git://github.com/Solarminer-app/Solar-Miner-Node.git")
+                    developerConnection.set("scm:git:ssh://github.com/Solarminer-app/Solar-Miner-Node.git")
+                    url.set("https://github.com/Solarminer-app/Solar-Miner-Node")
                 }
             }
         }
@@ -116,20 +92,9 @@ publishing {
         maven {
             name = "verdox"
 
-            val snapshotsRepository =
-                providers.gradleProperty(
-                    "pvApiSnapshotsRepository"
-                )
-
-            val releasesRepository =
-                providers.gradleProperty(
-                    "pvApiReleasesRepository"
-                )
-
-            val isSnapshot =
-                project.version
-                    .toString()
-                    .endsWith("-SNAPSHOT")
+            val snapshotsRepository = providers.gradleProperty("pvApiSnapshotsRepository")
+            val releasesRepository = providers.gradleProperty("pvApiReleasesRepository")
+            val isSnapshot = project.version.toString().endsWith("-SNAPSHOT")
 
             url = uri(
                 if (isSnapshot) {
@@ -140,13 +105,8 @@ publishing {
             )
 
             credentials {
-                username = providers
-                    .environmentVariable("REPO_USER")
-                    .orNull
-
-                password = providers
-                    .environmentVariable("REPO_PASSWORD")
-                    .orNull
+                username = providers.environmentVariable("REPO_USER").orNull
+                password = providers.environmentVariable("REPO_PASSWORD").orNull
             }
         }
     }

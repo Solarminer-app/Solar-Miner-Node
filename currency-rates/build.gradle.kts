@@ -44,8 +44,7 @@ tasks.withType<Test> {
 }
 
 tasks.named<BootBuildImage>("bootBuildImage") {
-    val currencyRatesImage =
-        providers.gradleProperty("currencyRatesImage")
+    val currencyRatesImage = providers.gradleProperty("currencyRatesImage")
 
     imageName.set(
         currencyRatesImage.map { image ->

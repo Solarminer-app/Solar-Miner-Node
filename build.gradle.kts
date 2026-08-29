@@ -112,7 +112,7 @@ dependencies {
 
     implementation("io.grpc:grpc-protobuf:1.50.2")
     implementation("io.grpc:grpc-stub:1.50.2")
-    implementation("com.google.protobuf:protobuf-java:3.21.12")
+    implementation("com.google.protobuf:protobuf-java:4.28.2")
 
     implementation("de.verdox:vserializer:1.1-SNAPSHOT")
     implementation("com.influxdb:influxdb-client-java:7.2.0")

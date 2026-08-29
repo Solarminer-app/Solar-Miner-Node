@@ -39,15 +39,15 @@ dependencies {
     implementation(project(":cgminerapi"))
     implementation("io.netty:netty-handler:4.2.15.Final")
 
-    implementation("io.grpc:grpc-okhttp:1.50.2")
+    implementation("io.grpc:grpc-okhttp:1.69.0")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5")
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
     implementation(project(":proto"))
 
-    implementation("io.grpc:grpc-stub:1.45.1")
-    implementation("com.google.protobuf:protobuf-java:3.21.12")
+    implementation("io.grpc:grpc-stub:1.69.0")
+    implementation("com.google.protobuf:protobuf-java:3.25.5")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
