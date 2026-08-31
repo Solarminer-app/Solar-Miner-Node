@@ -355,7 +355,7 @@ public class LightningWalletService {
             OnChainFeeTier floorTier = new OnChainFeeTier(floor, 12);
             OnChainFeeTier fastTier = new OnChainFeeTier(fast, 2);
             OnChainFeeTier fastestTier = new OnChainFeeTier(fastest, 1);
-            boolean reliable = root.path("blocks").isInt() && floor > 0 && fast > 0 && fastest > 0;
+            boolean reliable = floor > 0 && fast > 0 && fastest > 0;
             if (!reliable) {
                 System.err.println("Recommended fees from mempool.space look incomplete: " + response.body());
                 return null;
