@@ -29,6 +29,13 @@ out/
 
 *.env
 
+# EVCC device templates: imported reference copies, not checked in here
+/Templates taken from evcc/
+
+# Build output
+target/
+src/main/bundles/
+
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
