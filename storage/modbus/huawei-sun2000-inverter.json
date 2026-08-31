@@ -1,0 +1,99 @@
+{
+  "sections": {
+    "inverter": {
+      "templateId": "inverter",
+      "name": "Huawei – inverter",
+      "entries": {
+        "status_code": {
+          "startAddress": 32080,
+          "size": 2,
+          "scaleFactor": 1.0,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_ac_power": {
+          "startAddress": 32080,
+          "size": 2,
+          "scaleFactor": 1.0,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_dc_power": {
+          "startAddress": 32080,
+          "size": 2,
+          "scaleFactor": 1.0,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "internal_temperature": {
+          "startAddress": 32080,
+          "size": 2,
+          "scaleFactor": 1.0,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_ac_voltage": {
+          "startAddress": 32080,
+          "size": 2,
+          "scaleFactor": 1.0,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "total_energy_yield": {
+          "startAddress": 32106,
+          "size": 2,
+          "scaleFactor": 10.0,
+          "formula": "x",
+          "parameterType": {
+            "primitive": "uint32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "current_dc_voltage": {
+          "startAddress": 32080,
+          "size": 2,
+          "scaleFactor": 1.0,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        },
+        "grid_frequency": {
+          "startAddress": 32080,
+          "size": 2,
+          "scaleFactor": 1.0,
+          "formula": "0",
+          "parameterType": {
+            "primitive": "int32nan"
+          },
+          "operationType": "READ_HOLDING_REGISTER",
+          "byteOrder": "BIG_ENDIAN"
+        }
+      }
+    }
+  },
+  "addressOffset": 0
+}

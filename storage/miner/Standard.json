@@ -1,0 +1,136 @@
+{
+  "entries": {
+    "Mining Cluster Full stop": {
+      "modeName": "Mining Cluster Full stop",
+      "startCondition": {
+        "type": "predicate",
+        "predicate": {
+          "variable": "BATTERY_SOC",
+          "scope": {
+            "valueFunction": "LAST",
+            "timeValue": 1,
+            "timeUnit": "MINUTES"
+          },
+          "comparator": "LESS",
+          "value": 90.0
+        }
+      },
+      "stopCondition": {
+        "type": "predicate",
+        "predicate": {
+          "variable": "BATTERY_SOC",
+          "scope": {
+            "valueFunction": "LAST",
+            "timeValue": 1,
+            "timeUnit": "MINUTES"
+          },
+          "comparator": "GREATER_OR_EQUAL",
+          "value": 92.0
+        }
+      },
+      "actions": [
+        {
+          "actionType": "pause",
+          "targetType": "ALL_MINERS",
+          "strategy": "EQUAL_DISTRIBUTION",
+          "valueExpression": {
+            "type": "constant",
+            "constant": {
+              "valueWatts": 0.0
+            }
+          },
+          "stepSizeWatts": 0
+        }
+      ],
+      "minRunTimeMinutes": 0,
+      "minIdleTimeMinutes": 0,
+      "powerChangeLockTimeMinutes": 0
+    },
+    "Mining with PV-Surplus": {
+      "modeName": "Mining with PV-Surplus",
+      "startCondition": {
+        "type": "logical",
+        "logical": {
+          "operator": "AND",
+          "subConditions": [
+            {
+              "type": "predicate",
+              "predicate": {
+                "variable": "POTENTIAL_PV_SURPLUS",
+                "scope": {
+                  "valueFunction": "MEDIAN",
+                  "timeValue": 30,
+                  "timeUnit": "MINUTES"
+                },
+                "comparator": "GREATER",
+                "value": 0.15
+              }
+            },
+            {
+              "type": "predicate",
+              "predicate": {
+                "variable": "BATTERY_SOC",
+                "scope": {
+                  "valueFunction": "LAST",
+                  "timeValue": 1,
+                  "timeUnit": "MINUTES"
+                },
+                "comparator": "GREATER_OR_EQUAL",
+                "value": 95.0
+              }
+            }
+          ]
+        }
+      },
+      "stopCondition": {
+        "type": "predicate",
+        "predicate": {
+          "variable": "POTENTIAL_PV_SURPLUS",
+          "scope": {
+            "valueFunction": "MEDIAN",
+            "timeValue": 30,
+            "timeUnit": "MINUTES"
+          },
+          "comparator": "LESS",
+          "value": 0.02
+        }
+      },
+      "actions": [
+        {
+          "actionType": "resume",
+          "targetType": "ALL_MINERS",
+          "strategy": "EFFICIENCY_FIRST",
+          "valueExpression": {
+            "type": "constant",
+            "constant": {
+              "valueWatts": 1.0
+            }
+          },
+          "stepSizeWatts": 0
+        },
+        {
+          "actionType": "power",
+          "targetType": "CLUSTER_DYNAMIC",
+          "strategy": "EFFICIENCY_FIRST",
+          "valueExpression": {
+            "type": "dynamic_variable",
+            "dynamic_variable": {
+              "variable": "POTENTIAL_PV_SURPLUS",
+              "adjustment": {
+                "valueFunction": "MEDIAN",
+                "timeValue": 5,
+                "timeUnit": "MINUTES"
+              },
+              "multiplier": 950.0,
+              "offset": 0.0
+            }
+          },
+          "stepSizeWatts": 250
+        }
+      ],
+      "minRunTimeMinutes": 30,
+      "minIdleTimeMinutes": 5,
+      "powerChangeLockTimeMinutes": 15
+    }
+  }
+}
