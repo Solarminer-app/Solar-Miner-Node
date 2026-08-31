@@ -48,6 +48,23 @@ public class PVSiteEntity extends AbstractAuditableEntity implements QueryEntity
     @Column(name = "referral_code", length = 128)
     private String referralCode;
 
+    /** Opt-in to share anonymized network telemetry with the admin service (default off). */
+    @Setter
+    @Getter
+    @Column(name = "telemetry_opt_in", nullable = false)
+    @ColumnDefault("false")
+    private boolean telemetryOptIn;
+
+    /**
+     * Stable, random node identity for telemetry. Kept separate from the primary
+     * key so a node can be re-created/migrated without re-identifying to the
+     * central service; never derived from user data (no GPS/name/wallet).
+     */
+    @Setter
+    @Getter
+    @Column(name = "node_identity", length = 36)
+    private String nodeIdentity;
+
     @Setter
     @Getter
     private int batteryCapacityWh;

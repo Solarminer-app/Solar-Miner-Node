@@ -43,4 +43,7 @@ public final class MiningPageRequests {
 
     public record ReferralRequest(String referralCode) {
     }
+
+    public record TelemetryOptInRequest(Boolean enabled) {
+    }
 }

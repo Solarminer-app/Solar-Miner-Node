@@ -1,0 +1,3 @@
+ALTER TABLE pv_sites
+    ADD COLUMN telemetry_opt_in BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN node_identity VARCHAR(36) NULL;

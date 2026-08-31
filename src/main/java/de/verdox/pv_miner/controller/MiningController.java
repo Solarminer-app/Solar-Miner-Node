@@ -117,6 +117,22 @@ public class MiningController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/telemetry")
+    public Map<String, Boolean> getTelemetryOptIn(@PathVariable UUID siteId) {
+        PVSiteEntity site = findSite(siteId);
+        return Map.of("enabled", site.isTelemetryOptIn());
+    }
+
+    /** Toggle opt-in for anonymized network telemetry (Settings -> Data sharing). */
+    @PostMapping("/telemetry")
+    public ResponseEntity<Void> updateTelemetryOptIn(@PathVariable UUID siteId, @RequestBody TelemetryOptInRequest request) {
+        PVSiteEntity site = findSite(siteId);
+        boolean enabled = request != null && Boolean.TRUE.equals(request.enabled());
+        site.setTelemetryOptIn(enabled);
+        pvSiteRepository.save(site);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/miners/discovery")
     public CompletableFuture<List<MiningPageDto.DiscoveredMinerDto>> discoverMiners(@PathVariable UUID siteId, @RequestParam String subnet) {
         PVSiteEntity site = findSite(siteId);
