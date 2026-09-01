@@ -65,6 +65,34 @@ public class PVSiteEntity extends AbstractAuditableEntity implements QueryEntity
     @Column(name = "node_identity", length = 36)
     private String nodeIdentity;
 
+    /** Privacy level for the network location grid: 'OFF'|'COUNTRY'|'REGIONAL'|'AREA'. */
+    @Setter
+    @Getter
+    @Column(name = "telemetry_geo_level", length = 12, nullable = false)
+    @ColumnDefault("'OFF'")
+    private String telemetryGeoLevel = "OFF";
+
+    /** ISO-3166-1 alpha-2 country, used when {@link #telemetryGeoLevel} is 'COUNTRY'. */
+    @Setter
+    @Getter
+    @Column(name = "telemetry_country", length = 2)
+    private String telemetryCountry;
+
+    /**
+     * Approximate site position for REGIONAL/AREA. Stored locally only; the
+     * reporter quantizes it into a coarse grid cell — the raw coordinates are
+     * never transmitted to the central service.
+     */
+    @Setter
+    @Getter
+    @Column(name = "telemetry_lat")
+    private Double telemetryLat;
+
+    @Setter
+    @Getter
+    @Column(name = "telemetry_lng")
+    private Double telemetryLng;
+
     @Setter
     @Getter
     private int batteryCapacityWh;

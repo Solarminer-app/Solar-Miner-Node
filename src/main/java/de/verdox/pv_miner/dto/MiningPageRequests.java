@@ -44,6 +44,21 @@ public final class MiningPageRequests {
     public record ReferralRequest(String referralCode) {
     }
 
-    public record TelemetryOptInRequest(Boolean enabled) {
+    /**
+     * Data-sharing settings for the anonymized network telemetry: the opt-in
+     * flag plus the location privacy level ('OFF'|'COUNTRY'|'REGIONAL'|'AREA'),
+     * the country (for COUNTRY) and approximate coordinates (for REGIONAL/AREA).
+     * Null fields keep the previous value.
+     */
+    public record TelemetryOptInRequest(
+            Boolean enabled,
+            String geoLevel,
+            String country,
+            Double lat,
+            Double lng
+    ) {
+        public TelemetryOptInRequest(Boolean enabled) {
+            this(enabled, null, null, null, null);
+        }
     }
 }

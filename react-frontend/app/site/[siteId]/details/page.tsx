@@ -14,6 +14,7 @@ import {
     Layers3,
     MapPin,
     Plus,
+    Radio,
     RefreshCw,
     Ruler,
     Save,
@@ -34,6 +35,13 @@ const API_BASE_URL = '/api';
 const PanelLocationMap = dynamic(() => import('../../../components/panel-location-map'), {ssr: false});
 
 type PriceType = 'feed-in' | 'electricity';
+type TelemetryGeoLevel = 'OFF' | 'COUNTRY' | 'REGIONAL' | 'AREA';
+
+const TELEMETRY_COUNTRIES = [
+    'AT', 'AU', 'BE', 'BR', 'CA', 'CH', 'CL', 'CZ', 'DE', 'DK', 'ES', 'FI', 'FR',
+    'GB', 'GR', 'HR', 'HU', 'ID', 'IE', 'IL', 'IN', 'IT', 'JP', 'KR', 'LU',
+    'MX', 'NL', 'NO', 'NZ', 'PL', 'PT', 'RO', 'RS', 'SE', 'SI', 'SK', 'US', 'VN',
+];
 
 type DialogState =
     | {kind: 'site'}
@@ -267,6 +275,11 @@ export default function PVSiteDetailsPage() {
         values: {host: '', port: '502', slaveId: '1', profile: ''},
         selectedSectionKeys: [],
     });
+    const [telemetry, setTelemetry] = useState<{enabled: boolean; geoLevel: TelemetryGeoLevel; country: string; lat: number; lng: number}>(
+        {enabled: false, geoLevel: 'OFF', country: 'DE', lat: 0, lng: 0},
+    );
+    const [telemetrySaving, setTelemetrySaving] = useState(false);
+    const [telemetryNotice, setTelemetryNotice] = useState<{kind: 'saved' | 'error'; message: string} | null>(null);
 
     const numberLocale = locale === 'de' ? 'de-DE' : 'en-US';
     const numberFormatter = useMemo(
@@ -323,6 +336,67 @@ export default function PVSiteDetailsPage() {
             controller.abort();
         };
     }, [isHydrated, loadDetails, siteId]);
+
+    const loadTelemetry = useCallback(async (signal?: AbortSignal) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/pv-site/${siteId}/mining/telemetry`, {signal});
+            if (!response.ok) return;
+            const data = await response.json() as {enabled?: boolean; geoLevel?: string; country?: string | null; lat?: number | null; lng?: number | null};
+            if (signal?.aborted) return;
+            const geoLevel = (['OFF', 'COUNTRY', 'REGIONAL', 'AREA'] as const).includes(data.geoLevel as TelemetryGeoLevel)
+                ? (data.geoLevel as TelemetryGeoLevel)
+                : 'OFF';
+            setTelemetry({
+                enabled: Boolean(data.enabled),
+                geoLevel,
+                country: data.country ?? 'DE',
+                lat: data.lat ?? 0,
+                lng: data.lng ?? 0,
+            });
+        } catch {
+            // The data-sharing section falls back to its defaults when the endpoint is unavailable.
+        }
+    }, [siteId]);
+
+    useEffect(() => {
+        if (!siteId || !isHydrated) return;
+        const controller = new AbortController();
+        void loadTelemetry(controller.signal);
+        return () => controller.abort();
+    }, [isHydrated, loadTelemetry, siteId]);
+
+    const setTelemetryField = (change: (draft: typeof telemetry) => typeof telemetry) => {
+        setTelemetryNotice(null);
+        setTelemetry(change);
+    };
+
+    const saveTelemetry = async () => {
+        setTelemetrySaving(true);
+        setTelemetryNotice(null);
+        try {
+            const response = await fetch(`${API_BASE_URL}/pv-site/${siteId}/mining/telemetry`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    enabled: telemetry.enabled,
+                    geoLevel: telemetry.geoLevel,
+                    country: telemetry.geoLevel === 'COUNTRY' ? telemetry.country : null,
+                    lat: telemetry.geoLevel === 'REGIONAL' || telemetry.geoLevel === 'AREA' ? telemetry.lat : null,
+                    lng: telemetry.geoLevel === 'REGIONAL' || telemetry.geoLevel === 'AREA' ? telemetry.lng : null,
+                }),
+            });
+            if (!response.ok) {
+                const problem = await response.json().catch(() => null) as {detail?: string} | null;
+                throw new Error(problem?.detail || `HTTP ${response.status}`);
+            }
+            setTelemetryNotice({kind: 'saved', message: t['details.telemetry.saved']});
+            window.setTimeout(() => setTelemetryNotice(null), 5000);
+        } catch (requestError) {
+            setTelemetryNotice({kind: 'error', message: requestError instanceof Error ? requestError.message : t['details.telemetry.error']});
+        } finally {
+            setTelemetrySaving(false);
+        }
+    };
 
     const mutateDetails = async (path: string, init: RequestInit) => {
         setSaving(true);
@@ -621,6 +695,7 @@ export default function PVSiteDetailsPage() {
                         ['#pv-devices', t['details.navigation.pv_devices']],
                         ['#mining-hardware', t['details.navigation.hardware']],
                         ['#energy-prices', t['details.navigation.prices']],
+                        ['#data-sharing', t['details.navigation.data_sharing']],
                     ].map(([href, label]) => (
                         <a className="shrink-0 rounded-xl px-3.5 py-2 text-xs font-semibold text-[#aaaab4] transition hover:bg-white/[0.06] hover:text-white" href={href} key={href}>{label}</a>
                     ))}
@@ -791,6 +866,89 @@ export default function PVSiteDetailsPage() {
                             title={t['details.prices.electricity']}
                             validFromLabel={t['details.prices.valid_from']}
                         />
+                    </div>
+                </section>
+
+                <section className="scroll-mt-32 rounded-2xl border border-white/[0.07] bg-[#151518] p-5" id="data-sharing">
+                    <div className="mb-4 flex items-center gap-3">
+                        <Radio className="text-sky-400" size={20}/>
+                        <div>
+                            <h2 className="text-lg font-semibold">{t['details.telemetry.title']}</h2>
+                            <p className="mt-1 max-w-3xl text-xs leading-5 text-[#777781]">{t['details.telemetry.description']}</p>
+                        </div>
+                    </div>
+                    <div className="grid gap-5">
+                        <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-white/[0.07] bg-[#0f0f12] px-4 py-3.5 transition hover:border-white/20">
+                            <span>
+                                <span className="block text-sm font-semibold text-white">{t['details.telemetry.enabled']}</span>
+                                <span className="mt-0.5 block text-xs text-[#7f7f89]">{t['details.telemetry.enabled_hint']}</span>
+                            </span>
+                            <input
+                                className="h-5 w-5 shrink-0 accent-yellow-400"
+                                checked={telemetry.enabled}
+                                onChange={(event) => setTelemetryField((draft) => ({...draft, enabled: event.target.checked}))}
+                                type="checkbox"
+                            />
+                        </label>
+                        <fieldset className={telemetry.enabled ? '' : 'opacity-50'} disabled={!telemetry.enabled}>
+                            <legend className="mb-3 text-sm font-semibold text-white">{t['details.telemetry.location']}</legend>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                {(['OFF', 'COUNTRY', 'REGIONAL', 'AREA'] as const).map((level) => {
+                                    const selected = telemetry.geoLevel === level;
+                                    return (
+                                        <button
+                                            key={level}
+                                            className={`rounded-xl border px-4 py-3 text-left transition ${selected ? 'border-yellow-400/60 bg-yellow-400/[0.08]' : 'border-white/[0.07] bg-[#0f0f12] hover:border-white/20'}`}
+                                            onClick={() => setTelemetryField((draft) => ({...draft, geoLevel: level}))}
+                                            type="button"
+                                        >
+                                            <span className="block text-sm font-semibold text-white">{t[`details.telemetry.level.${level.toLowerCase()}`]}</span>
+                                            <span className="mt-1 block text-xs leading-5 text-[#7f7f89]">{t[`details.telemetry.level.${level.toLowerCase()}_hint`]}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            {telemetry.geoLevel === 'COUNTRY' ? (
+                                <label className="mt-4 block text-sm text-[#b7b7c0]">
+                                    {t['details.telemetry.country']}
+                                    <select
+                                        className={inputClassName}
+                                        value={telemetry.country}
+                                        onChange={(event) => setTelemetryField((draft) => ({...draft, country: event.target.value}))}
+                                    >
+                                        {TELEMETRY_COUNTRIES.map((code) => <option key={code} value={code}>{code}</option>)}
+                                    </select>
+                                </label>
+                            ) : null}
+                            {telemetry.geoLevel === 'REGIONAL' || telemetry.geoLevel === 'AREA' ? (
+                                <div className="mt-4">
+                                    <p className="mb-2 text-xs leading-5 text-[#7f7f89]">{t['details.telemetry.map_hint']}</p>
+                                    <PanelLocationMap
+                                        labels={{
+                                            select: t['details.panels.map.select'],
+                                            move: t['details.panels.map.move'],
+                                            selected: t['details.panels.map.selected'],
+                                            useLocation: t['details.panels.map.use_location'],
+                                            locationError: t['details.panels.map.location_error'],
+                                        }}
+                                        onChange={(location) => setTelemetryField((draft) => ({...draft, ...location}))}
+                                        value={{latitude: telemetry.lat, longitude: telemetry.lng}}
+                                    />
+                                </div>
+                            ) : null}
+                        </fieldset>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button
+                                className="inline-flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-yellow-300 disabled:cursor-wait disabled:opacity-60"
+                                disabled={telemetrySaving}
+                                onClick={() => void saveTelemetry()}
+                                type="button"
+                            >
+                                {telemetrySaving ? <RefreshCw className="animate-spin" size={16}/> : <Save size={16}/>}
+                                {telemetrySaving ? t['details.telemetry.saving'] : t['details.telemetry.save']}
+                            </button>
+                            {telemetryNotice ? <p className={telemetryNotice.kind === 'saved' ? 'text-sm text-emerald-300' : 'text-sm text-red-300'}>{telemetryNotice.message}</p> : null}
+                        </div>
                     </div>
                 </section>
             </div>
