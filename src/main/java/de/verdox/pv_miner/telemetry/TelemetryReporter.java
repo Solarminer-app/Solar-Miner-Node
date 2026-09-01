@@ -30,8 +30,12 @@ import java.util.UUID;
  * minted locally and kept separate from the primary key), software version, bound
  * referral <i>code</i> (not name), combined hashrate (TH/s), today's solar
  * generation (kWh), lifetime solar generation (kWh), installed PWp, miner count,
- * and an operator-configured coarse location grid. What is NOT sent: names,
- * addresses, GPS, wallet, IPs, or any raw device data.
+ * and a coarse location grid at the privacy level the owner chose:
+ * {@code COUNTRY} (ISO-3166-1 alpha-2), {@code REGIONAL} (~500 km 2&#176; cell,
+ * e.g. {@code R52,10}) or {@code AREA} (~200 km 1&#176; cell, e.g.
+ * {@code A51,10}). When the level is {@code OFF}, an operator-configured env
+ * grid is used as before. The raw coordinates themselves never leave the node.
+ * What is NOT sent: names, addresses, GPS, wallet, IPs, or any raw device data.
  *
  * <p>Telemetry is best-effort: any failure is logged, never propagated, and the
  * node keeps mining. When the opt-in flag is off, nothing is sent at all.
@@ -134,7 +138,46 @@ public class TelemetryReporter {
                 null,
                 round(solarTodayKwh),
                 round(solarTotalKwh),
-                locationGrid);
+                geoGridFor(site));
+    }
+
+    /**
+     * Coarse location grid at the owner's chosen privacy level. Levels:
+     * {@code COUNTRY} → ISO-3166-1 alpha-2 (e.g. "DE"); {@code REGIONAL} →
+     * nearest 2&#176; cell center (e.g. "R52,10", ≈500 km); {@code AREA} → nearest
+     * 1&#176; cell center (e.g. "A51,10", ≈200 km); {@code OFF} → the
+     * operator-configured env grid (legacy behavior). Codes are always ≤ 10
+     * characters so they fit the admin service's grid column as-is.
+     */
+    private String geoGridFor(PVSiteEntity site) {
+        String level = site.getTelemetryGeoLevel() == null ? "" : site.getTelemetryGeoLevel().trim().toUpperCase();
+        switch (level) {
+            case "COUNTRY": {
+                String country = site.getTelemetryCountry() == null ? null : site.getTelemetryCountry().trim().toUpperCase();
+                return country != null && country.matches("[A-Z]{2}") ? country : null;
+            }
+            case "REGIONAL":
+                return cellCode("R", 2, site);
+            case "AREA":
+                return cellCode("A", 1, site);
+            default:
+                return locationGrid;
+        }
+    }
+
+    private String cellCode(String prefix, int degrees, PVSiteEntity site) {
+        Double lat = site.getTelemetryLat();
+        Double lng = site.getTelemetryLng();
+        if (lat == null || lng == null || !Double.isFinite(lat) || !Double.isFinite(lng)) {
+            return null;
+        }
+        if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+            return null;
+        }
+        int iLat = (int) Math.round(lat / (double) degrees) * degrees;
+        int iLng = (int) Math.round(lng / (double) degrees) * degrees;
+        // "R52,10" / "A-180,-180" — always ≤ 10 chars.
+        return prefix + iLat + "," + iLng;
     }
 
     /** Mint + persist a stable random node identity on first use (separate from the PK). */

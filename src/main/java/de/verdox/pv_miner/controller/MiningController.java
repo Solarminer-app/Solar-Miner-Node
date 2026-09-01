@@ -117,18 +117,48 @@ public class MiningController {
         return ResponseEntity.noContent().build();
     }
 
+    /** Current data-sharing settings (opt-in + coarse location privacy level). */
     @GetMapping("/telemetry")
-    public Map<String, Boolean> getTelemetryOptIn(@PathVariable UUID siteId) {
+    public Map<String, Object> getTelemetryOptIn(@PathVariable UUID siteId) {
         PVSiteEntity site = findSite(siteId);
-        return Map.of("enabled", site.isTelemetryOptIn());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("enabled", site.isTelemetryOptIn());
+        body.put("geoLevel", site.getTelemetryGeoLevel() == null || site.getTelemetryGeoLevel().isBlank() ? "OFF" : site.getTelemetryGeoLevel());
+        body.put("country", site.getTelemetryCountry());
+        body.put("lat", site.getTelemetryLat());
+        body.put("lng", site.getTelemetryLng());
+        return body;
     }
 
-    /** Toggle opt-in for anonymized network telemetry (Settings -> Data sharing). */
+    /** Set opt-in + the owner-chosen location privacy level (Settings -> Data sharing). */
     @PostMapping("/telemetry")
     public ResponseEntity<Void> updateTelemetryOptIn(@PathVariable UUID siteId, @RequestBody TelemetryOptInRequest request) {
         PVSiteEntity site = findSite(siteId);
         boolean enabled = request != null && Boolean.TRUE.equals(request.enabled());
         site.setTelemetryOptIn(enabled);
+        if (request != null) {
+            if (request.geoLevel() != null) {
+                String level = request.geoLevel().trim().toUpperCase();
+                if (!level.matches("OFF|COUNTRY|REGIONAL|AREA")) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown telemetry geo level");
+                }
+                site.setTelemetryGeoLevel(level);
+            }
+            if (request.country() != null && !request.country().isBlank()) {
+                String country = request.country().trim().toUpperCase();
+                if (!country.matches("[A-Z]{2}")) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Country must be an ISO-3166-1 alpha-2 code");
+                }
+                site.setTelemetryCountry(country);
+            }
+            if (request.lat() != null && request.lng() != null) {
+                if (Math.abs(request.lat()) > 90 || Math.abs(request.lng()) > 180) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coordinates are out of range");
+                }
+                site.setTelemetryLat(request.lat());
+                site.setTelemetryLng(request.lng());
+            }
+        }
         pvSiteRepository.save(site);
         return ResponseEntity.noContent().build();
     }
