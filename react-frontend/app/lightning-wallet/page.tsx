@@ -80,6 +80,17 @@ interface FeeEstimate {
     available: boolean;
 }
 
+interface OnChainWithdrawal {
+    txId: string;
+    timestamp: string;
+    memo: string;
+    amountSat: number;
+    amountFormatted: string;
+    status: 'CONFIRMED' | 'PENDING';
+    confirmations: number | null;
+    blockHeight: number | null;
+}
+
 export default function LightningWalletView() {
     const router = useRouter();
     const [lang, setLang] = useState<Language>('de');
@@ -112,6 +123,7 @@ export default function LightningWalletView() {
     const [invoiceAmount, setInvoiceAmount] = useState<string>("");
     const [createdInvoice, setCreatedInvoice] = useState<string | null>(null);
     const [creatingInvoice, setCreatingInvoice] = useState(false);
+    const [onChainWithdrawals, setOnChainWithdrawals] = useState<OnChainWithdrawal[]>([]);
 
     const [sending, setSending] = useState(false);
 
@@ -155,6 +167,26 @@ export default function LightningWalletView() {
         const interval = window.setInterval(() => void fetchConnectionStatus(), 5000);
         return () => window.clearInterval(interval);
     }, [fetchConnectionStatus]);
+
+    // On-chain withdrawals (tx + live confirmation status) laden
+    const fetchOnChainWithdrawals = useCallback(async () => {
+        try {
+            const response = await fetch(`/api/lightning-wallet/withdraw/onchain?currency=${currency}&locale=${lang}`);
+            if (response.ok) {
+                const result = await response.json();
+                setOnChainWithdrawals(Array.isArray(result) ? result : []);
+            }
+        } catch (e) {
+            console.error("Fehler beim Laden der On-chain Auszahlungen", e);
+        }
+    }, [currency, lang]);
+
+    useEffect(() => {
+        void fetchOnChainWithdrawals();
+        // Bestätigungsstatus ändert sich langsam -> alle 30s neu pollen
+        const interval = window.setInterval(() => void fetchOnChainWithdrawals(), 30000);
+        return () => window.clearInterval(interval);
+    }, [fetchOnChainWithdrawals]);
 
     // Empfohlene On-Chain-Gebühren (mempool.space) über den Backend-Proxy laden
     const fetchFeeEstimate = useCallback(async () => {
@@ -320,6 +352,8 @@ export default function LightningWalletView() {
                     setFeeSpeedIndex(1);
                     alert(t["lightning.notification.onchain_success"]);
                     fetchWallet();
+                    // Neue On-chain-Tx sofort in der Status-Liste anzeigen
+                    window.setTimeout(() => void fetchOnChainWithdrawals(), 3000);
                 } else {
                     alert(t["lightning.notification.onchain_failed"]);
                 }

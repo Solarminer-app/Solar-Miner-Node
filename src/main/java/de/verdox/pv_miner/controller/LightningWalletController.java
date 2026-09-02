@@ -11,6 +11,7 @@ import de.verdox.pv_miner.util.currency.CustomCurrency;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -147,9 +148,35 @@ public class LightningWalletController {
     }
 
     @PostMapping("/withdraw/onchain")
-    public ResponseEntity<PaymentResponse> withdrawOnChain(@RequestBody OnChainWithdrawRequest request) {
-        boolean success = walletService.sendOnChainPayment(request.amountSat(), request.address(), request.feeRateSatPerVByte()) != null;
-        return ResponseEntity.ok(new PaymentResponse(success));
+    public ResponseEntity<OnChainWithdrawResponse> withdrawOnChain(@RequestBody OnChainWithdrawRequest request) {
+        String txId = walletService.sendOnChainPayment(request.amountSat(), request.address(), request.feeRateSatPerVByte());
+        boolean success = txId != null && !txId.isBlank();
+        return ResponseEntity.ok(new OnChainWithdrawResponse(success, success ? txId : null));
+    }
+
+    @GetMapping("/withdraw/onchain")
+    public List<OnChainWithdrawalDTO> onChainWithdrawals(
+            @RequestParam(value = "currency", defaultValue = "EUR") String currencyCode,
+            @RequestParam(value = "locale", defaultValue = "de") String localeTag
+    ) {
+        Locale userLocale = Locale.forLanguageTag(localeTag);
+        CustomCurrency userCurrency = CustomCurrency.getInstance(currencyCode);
+
+        return walletService.getOnChainWithdrawals().stream().map(tx -> {
+            ZonedDateTime zonedDateTime = Instant.ofEpochMilli(tx.createdAt()).atZone(ZoneId.systemDefault());
+            String formattedDate = zonedDateTime.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"));
+            String memo = tx.memo() != null ? tx.memo() : "";
+
+            return new OnChainWithdrawalDTO(
+                    tx.txId(),
+                    formattedDate,
+                    memo,
+                    tx.amountSat(),
+                    convertSatsToUserCurrencyString(tx.amountSat(), userCurrency, userLocale),
+                    tx.confirmed() ? "CONFIRMED" : "PENDING",
+                    tx.confirmations(),
+                    tx.blockHeight());
+        }).collect(Collectors.toList());
     }
 
     // Approximate weight of a single-recipient P2WPKH (native segwit) on-chain send.
@@ -219,6 +246,21 @@ public class LightningWalletController {
     }
 
     public record OnChainWithdrawRequest(String address, long amountSat, long feeRateSatPerVByte) {
+    }
+
+    public record OnChainWithdrawResponse(boolean success, String txId) {
+    }
+
+    public record OnChainWithdrawalDTO(
+            String txId,
+            String timestamp,
+            String memo,
+            long amountSat,
+            String amountFormatted,
+            String status,
+            Integer confirmations,
+            Integer blockHeight
+    ) {
     }
 
     public record FeeTierDto(long satPerVByte, Integer fastBlocks) {

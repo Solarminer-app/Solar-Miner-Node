@@ -323,6 +323,113 @@ public class LightningWalletService {
         }
     }
 
+    /**
+     * Status of an on-chain transaction, resolved via the mempool.space API:
+     * the txid is looked up at {@code /api/v1/tx/{txid}}. A 404 means the tx is
+     * not indexed (unbroadcast / not in mempool yet) and is reported as pending.
+     */
+    public record OnChainTxStatus(boolean found, boolean confirmed, Integer blockHeight, Integer confirmations) {
+    }
+
+    public OnChainTxStatus getOnChainTransactionStatus(String txId) {
+        if (txId == null || txId.isBlank()) {
+            return new OnChainTxStatus(false, false, null, null);
+        }
+        String clean = txId.trim();
+        try {
+            HttpClient httpClient = HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(5))
+                    .build();
+            HttpResponse<String> response = httpClient.send(
+                    HttpRequest.newBuilder(java.net.URI.create("https://mempool.space/api/v1/tx/" + clean))
+                            .timeout(java.time.Duration.ofSeconds(10))
+                            .GET()
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 404) {
+                // Not yet in the mempool index -> still pending from the user's point of view.
+                return new OnChainTxStatus(false, false, null, null);
+            }
+            if (response.statusCode() != 200) {
+                System.err.println("Failed to fetch on-chain tx " + clean + ", HTTP " + response.statusCode());
+                return new OnChainTxStatus(false, false, null, null);
+            }
+
+            JsonNode root = OBJECT_MAPPER.readTree(response.body());
+            JsonNode status = root.path("status");
+            boolean confirmed = status.path("confirmed").asBoolean(false);
+            Integer blockHeight = status.hasNonNull("block_height") ? status.path("block_height").asInt() : null;
+
+            Integer confirmations = null;
+            if (confirmed && blockHeight != null) {
+                confirmations = tipHeight(httpClient) - blockHeight + 1;
+                if (confirmations < 0) {
+                    confirmations = 1;
+                }
+            }
+            return new OnChainTxStatus(true, confirmed, blockHeight, confirmations);
+        } catch (IOException | InterruptedException e) {
+            System.err.println("Failed to fetch on-chain tx " + clean + ": " + e.getMessage());
+            return new OnChainTxStatus(false, false, null, null);
+        }
+    }
+
+    /**
+     * On-chain sends the phoenixd node has performed (splice / sendtoaddress).
+     * These surface in {@code /payments/outgoing} carrying a {@code txId}; a
+     * confirmation count is resolved live from mempool.space.
+     */
+    public record OnChainWithdrawal(String txId, long amountSat, String memo, long createdAt,
+                                    boolean confirmed, Integer blockHeight, Integer confirmations) {
+    }
+
+    public List<OnChainWithdrawal> getOnChainWithdrawals() {
+        List<OnChainWithdrawal> result = new ArrayList<>();
+        try {
+            List<PhoenixDTOs.IncomingPayment> outgoing = phoenixClient.listOutgoingPayments(true);
+            for (PhoenixDTOs.IncomingPayment payment : outgoing) {
+                if (payment.txId() == null || payment.txId().isBlank()) {
+                    continue; // lightning payment, no on-chain tx
+                }
+                OnChainTxStatus status = getOnChainTransactionStatus(payment.txId());
+                long amount = payment.amountSat() > 0 ? payment.amountSat()
+                        : (payment.sent() != null ? payment.sent() : 0);
+                String memo = payment.description() != null ? payment.description() : "On-chain withdrawal";
+                result.add(new OnChainWithdrawal(
+                        payment.txId(),
+                        amount,
+                        memo,
+                        payment.createdAt(),
+                        status.confirmed(),
+                        status.blockHeight(),
+                        status.confirmations()
+                ));
+            }
+            result.sort(Comparator.comparingLong(OnChainWithdrawal::createdAt).reversed());
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    private int tipHeight(HttpClient httpClient) {
+        try {
+            HttpResponse<String> response = httpClient.send(
+                    HttpRequest.newBuilder(java.net.URI.create("https://mempool.space/api/v1/blocks/tip/height"))
+                            .timeout(java.time.Duration.ofSeconds(10))
+                            .GET()
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                return Integer.parseInt(response.body().trim());
+            }
+        } catch (IOException | InterruptedException | NumberFormatException e) {
+            System.err.println("Failed to fetch current tip height: " + e.getMessage());
+        }
+        return -1;
+    }
+
     public record OnChainFeeTier(long satPerVByte, Integer fastBlocks) {
     }
 
