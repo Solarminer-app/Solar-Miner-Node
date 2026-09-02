@@ -94,7 +94,8 @@ public final class SetupRequests {
             ProviderSelection pvSource,
             List<ProviderSelection> pvDevices,
             List<PanelGroupInput> panelGroups,
-            List<ProviderSelection> miningPools
+            List<ProviderSelection> miningPools,
+            Boolean telemetryOptIn
     ) {
         public CreateSetupRequest {
             pvDevices = pvDevices == null ? List.of() : List.copyOf(pvDevices);

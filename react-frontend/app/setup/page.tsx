@@ -93,7 +93,7 @@ type PanelGroup = {
     slopeDegrees: number;
 };
 
-const steps = ['basics', 'source', 'panels', 'pools', 'summary'] as const;
+const steps = ['basics', 'source', 'panels', 'pools', 'telemetry', 'summary'] as const;
 const inputClass = 'mt-1.5 w-full rounded-xl border border-white/10 bg-[#101014] px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-[#5f5f68] focus:border-yellow-400/60 focus:ring-2 focus:ring-yellow-400/10 disabled:cursor-not-allowed disabled:opacity-60';
 
 function endpointLabel(values: Record<string, string>) {
@@ -214,6 +214,7 @@ export default function SetupPage() {
     const [selectedPools, setSelectedPools] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [createdSiteId, setCreatedSiteId] = useState<string | null>(null);
+    const [telemetryEnabled, setTelemetryEnabled] = useState(true);
 
     const [basics, setBasics] = useState({
         name: '',
@@ -503,6 +504,7 @@ export default function SetupPage() {
                         slopeDegrees: panel.slopeDegrees,
                     })),
                     miningPools: selectedPoolOptions.map((option) => ({providerId: option.id, values: providerValues[option.id]})),
+                    telemetryOptIn: telemetryEnabled,
                 }),
             });
             if (!response.ok) throw new Error(await response.text());
@@ -669,7 +671,10 @@ export default function SetupPage() {
                         ) : null}
 
                         {step === 4 ? (
-                            <div className="grid gap-4 md:grid-cols-2"><div className="rounded-2xl border border-white/[0.08] bg-[#101014] p-5"><CircleDollarSign className="text-emerald-300" size={21}/><h3 className="mt-3 font-semibold">{basics.name}</h3><p className="mt-2 text-sm text-[#85858f]">{basics.setupDate} · {basics.timeZone || timeZone}</p><p className="mt-1 text-sm text-[#85858f]">{t['setup.basics.electricity']}: {basics.electricityPrice} {currency}/kWh</p></div><div className="rounded-2xl border border-white/[0.08] bg-[#101014] p-5"><Server className="text-violet-300" size={21}/><h3 className="mt-3 font-semibold">{pvDevices.length} {t['setup.source.devices']}</h3><p className="mt-2 text-sm text-[#85858f]">{pvDevices.map((device) => `${device.label} (${device.values.host})`).join(', ')}</p></div><div className="rounded-2xl border border-white/[0.08] bg-[#101014] p-5"><Sun className="text-yellow-300" size={21}/><h3 className="mt-3 font-semibold">{panels.length} {t['setup.summary.panel_groups']}</h3><p className="mt-2 text-sm text-[#85858f]">{panels.reduce((sum, panel) => sum + panel.panelCount, 0)} {t['setup.summary.panels']} · {(panels.reduce((sum, panel) => sum + panel.panelCount * panel.powerPerPanelWatts, 0) / 1000).toFixed(2)} kWp</p></div><div className="rounded-2xl border border-white/[0.08] bg-[#101014] p-5"><Pickaxe className="text-cyan-300" size={21}/><h3 className="mt-3 font-semibold">{selectedPoolOptions.length ? selectedPoolOptions.map((pool) => pool.label).join(', ') : t['setup.summary.no_pool']}</h3><p className="mt-2 text-sm text-[#85858f]">{t['setup.summary.miners_later']}</p></div></div>
+                            <div className="max-w-xl"><label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-white/[0.08] bg-[#101014] p-5 transition hover:border-yellow-400/30"><span className="flex items-start gap-3"><DatabaseZap className={`mt-0.5 shrink-0 ${telemetryEnabled ? 'text-emerald-300' : 'text-[#777781]'}`} size={22}/><span><span className="block text-sm font-semibold text-white">{t['setup.step.telemetry.label']}</span><span className="mt-1 block text-xs leading-5 text-[#85858f]">{t['setup.step.telemetry.hint']}</span></span></span><input checked={telemetryEnabled} className="h-5 w-5 shrink-0 accent-emerald-400" onChange={() => setTelemetryEnabled(!telemetryEnabled)} type="checkbox"/></label></div>
+                        ) : null}
+                        {step === 5 ? (
+                            <div className="grid gap-4 md:grid-cols-2"><div className="rounded-2xl border border-white/[0.08] bg-[#101014] p-5"><CircleDollarSign className="text-emerald-300" size={21}/><h3 className="mt-3 font-semibold">{basics.name}</h3><p className="mt-2 text-sm text-[#85858f]">{basics.setupDate} · {basics.timeZone || timeZone}</p><p className="mt-1 text-sm text-[#85858f]">{t['setup.basics.electricity']}: {basics.electricityPrice} {currency}/kWh</p></div><div className="rounded-2xl border border-white/[0.08] bg-[#101014] p-5"><Server className="text-violet-300" size={21}/><h3 className="mt-3 font-semibold">{pvDevices.length} {t['setup.source.devices']}</h3><p className="mt-2 text-sm text-[#85858f]">{pvDevices.map((device) => `${device.label} (${device.values.host})`).join(', ')}</p></div><div className="rounded-2xl border border-white/[0.08] bg-[#101014] p-5"><Sun className="text-yellow-300" size={21}/><h3 className="mt-3 font-semibold">{panels.length} {t['setup.summary.panel_groups']}</h3><p className="mt-2 text-sm text-[#85858f]">{panels.reduce((sum, panel) => sum + panel.panelCount, 0)} {t['setup.summary.panels']} · {(panels.reduce((sum, panel) => sum + panel.panelCount * panel.powerPerPanelWatts, 0) / 1000).toFixed(2)} kWp</p></div><div className="rounded-2xl border border-white/[0.08] bg-[#101014] p-5"><Pickaxe className="text-cyan-300" size={21}/><h3 className="mt-3 font-semibold">{selectedPoolOptions.length ? selectedPoolOptions.map((pool) => pool.label).join(', ') : t['setup.summary.no_pool']}</h3><p className="mt-2 text-sm text-[#85858f]">{t['setup.summary.miners_later']}</p></div><div className="rounded-2xl border border-white/[0.08] bg-[#101014] p-5"><DatabaseZap className="text-cyan-300" size={21}/><h3 className="mt-3 font-semibold">{t['setup.summary.data_sharing']}</h3><p className="mt-2 text-sm text-[#85858f]">{telemetryEnabled ? t['setup.step.telemetry.on'] : t['setup.step.telemetry.off']}</p></div></div>
                         ) : null}
                     </div>
 

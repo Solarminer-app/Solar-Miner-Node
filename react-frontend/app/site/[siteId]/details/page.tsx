@@ -346,17 +346,22 @@ export default function PVSiteDetailsPage() {
             const geoLevel = (['OFF', 'COUNTRY', 'REGIONAL', 'AREA'] as const).includes(data.geoLevel as TelemetryGeoLevel)
                 ? (data.geoLevel as TelemetryGeoLevel)
                 : 'OFF';
+            // No telemetry location saved yet: preselect the PV site location (first placed panel group) as the default.
+            const savedLat = data.lat ?? 0;
+            const savedLng = data.lng ?? 0;
+            const hasSavedLocation = savedLat !== 0 || savedLng !== 0;
+            const siteLocation = details?.panelGroups.find((group) => group.latitude !== 0 || group.longitude !== 0);
             setTelemetry({
                 enabled: Boolean(data.enabled),
                 geoLevel,
                 country: data.country ?? 'DE',
-                lat: data.lat ?? 0,
-                lng: data.lng ?? 0,
+                lat: hasSavedLocation ? savedLat : (siteLocation?.latitude ?? 0),
+                lng: hasSavedLocation ? savedLng : (siteLocation?.longitude ?? 0),
             });
         } catch {
             // The data-sharing section falls back to its defaults when the endpoint is unavailable.
         }
-    }, [siteId]);
+    }, [details, siteId]);
 
     useEffect(() => {
         if (!siteId || !isHydrated) return;
@@ -931,7 +936,7 @@ export default function PVSiteDetailsPage() {
                                             useLocation: t['details.panels.map.use_location'],
                                             locationError: t['details.panels.map.location_error'],
                                         }}
-                                        onChange={(location) => setTelemetryField((draft) => ({...draft, ...location}))}
+                                        onChange={(location) => setTelemetryField((draft) => ({...draft, lat: location.latitude, lng: location.longitude}))}
                                         value={{latitude: telemetry.lat, longitude: telemetry.lng}}
                                     />
                                 </div>

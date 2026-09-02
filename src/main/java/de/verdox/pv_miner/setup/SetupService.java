@@ -245,6 +245,9 @@ public class SetupService {
         site.setName(siteName);
         site.setSetupDate(setupDate);
         site.setTimezoneId(zoneId.getId());
+        // Anonymous telemetry is opt-out by default: the wizard sends it explicitly,
+        // and an absent flag (legacy clients) keeps it enabled.
+        site.setTelemetryOptIn(request.telemetryOptIn() == null || request.telemetryOptIn());
         site.setBatteryCapacityWh(Math.max(0, request.batteryCapacityWh()));
         site.setPvCost(new Money(request.pvCost(), currency));
         site.getElectricityPriceHistory().add(new HistoricalPrice(setupDate, new Money(request.electricityPrice(), currency)));
