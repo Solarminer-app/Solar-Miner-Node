@@ -1,6 +1,7 @@
 package de.verdox.pv_miner.telemetry;
 
 import de.verdox.pv_miner.entity.EntityQueryService;
+import de.verdox.pv_miner.lightning.LightningWalletService;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
 import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
@@ -25,13 +26,16 @@ class TelemetryReporterTest {
     private final PVSiteRepository pvSiteRepository = mock(PVSiteRepository.class);
     private final EntityQueryService queryService = mock(EntityQueryService.class);
     private final DailyStatisticService dailyStatisticService = mock(DailyStatisticService.class);
+    // Unstubbed: getNodeInfo() returns null -> the batch carries no lightning id,
+    // exercising the uuid fallback path.
+    private final LightningWalletService walletService = mock(LightningWalletService.class);
 
     @Test
     void blankTelemetryUrlDisablesReporting() {
         // A blank base url disables the endpoint entirely (self-hosted/offline):
         // report() returns before touching any site, so no identity is ever minted.
         TelemetryReporter disabled = new TelemetryReporter(
-                pvSiteRepository, queryService, dailyStatisticService,
+                pvSiteRepository, queryService, dailyStatisticService, walletService,
                 RestClient.builder(), "", "1.0.0", "DE");
         disabled.report();
 
@@ -51,7 +55,7 @@ class TelemetryReporterTest {
 
         // Connection-refused endpoint: the best-effort POST throws and is swallowed.
         TelemetryReporter reporter = new TelemetryReporter(
-                pvSiteRepository, queryService, dailyStatisticService,
+                pvSiteRepository, queryService, dailyStatisticService, walletService,
                 RestClient.builder(), "http://127.0.0.1:9", "1.0.0", "DE");
         reporter.report();
 

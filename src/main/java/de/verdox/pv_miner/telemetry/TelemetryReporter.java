@@ -1,6 +1,8 @@
 package de.verdox.pv_miner.telemetry;
 
+import de.verdox.phoenixdjava.PhoenixDTOs;
 import de.verdox.pv_miner.entity.EntityQueryService;
+import de.verdox.pv_miner.lightning.LightningWalletService;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
@@ -47,6 +49,7 @@ public class TelemetryReporter {
     private final PVSiteRepository pvSiteRepository;
     private final EntityQueryService queryService;
     private final DailyStatisticService dailyStatisticService;
+    private final LightningWalletService walletService;
     private final RestClient restClient;
     private final String version;
     private final String locationGrid;
@@ -56,6 +59,7 @@ public class TelemetryReporter {
             PVSiteRepository pvSiteRepository,
             EntityQueryService queryService,
             DailyStatisticService dailyStatisticService,
+            LightningWalletService walletService,
             RestClient.Builder restClientBuilder,
             @Value("${solarmining.admin.telemetry.url:}") String telemetryUrl,
             @Value("${solarminer.version:dev}") String version,
@@ -63,6 +67,7 @@ public class TelemetryReporter {
         this.pvSiteRepository = pvSiteRepository;
         this.queryService = queryService;
         this.dailyStatisticService = dailyStatisticService;
+        this.walletService = walletService;
         String base = trimEnd(telemetryUrl);
         this.restClient = base.isBlank()
                 ? null
@@ -138,7 +143,31 @@ public class TelemetryReporter {
                 null,
                 round(solarTodayKwh),
                 round(solarTotalKwh),
-                geoGridFor(site));
+                geoGridFor(site),
+                nodeIdFor());
+    }
+
+    /**
+     * The node's Lightning public key, or null when the local lightning wallet
+     * (phoenixd) is not reachable. Best-effort: telemetry must never be disturbed
+     * by a wallet outage, and a missing id just falls back to the random uuid on
+     * the central service (the de-dup identity prefers the key when present).
+     */
+    private String nodeIdFor() {
+        if (walletService == null) {
+            return null;
+        }
+        try {
+            PhoenixDTOs.NodeInfo info = walletService.getNodeInfo();
+            if (info == null) {
+                return null;
+            }
+            String nodeId = info.nodeId();
+            return nodeId == null || nodeId.isBlank() || "not available".equals(nodeId) ? null : nodeId.trim();
+        } catch (RuntimeException e) {
+            log.info("Telemetry: lightning node id unavailable: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -218,6 +247,7 @@ public class TelemetryReporter {
             Map<String, Double> hashrateByCoin,
             Double solarKwhToday,
             Double solarKwhTotal,
-            String locationGrid) {
+            String locationGrid,
+            String nodeId) {
     }
 }
