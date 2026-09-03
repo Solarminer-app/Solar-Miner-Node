@@ -6,6 +6,8 @@ import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
 import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
@@ -36,7 +38,7 @@ class TelemetryReporterTest {
         // report() returns before touching any site, so no identity is ever minted.
         TelemetryReporter disabled = new TelemetryReporter(
                 pvSiteRepository, queryService, dailyStatisticService, walletService,
-                RestClient.builder(), "", "1.0.0", "DE");
+                RestClient.builder(), versionProvider(null), "", "DE");
         disabled.report();
 
         verify(pvSiteRepository, never()).save(any());
@@ -56,7 +58,7 @@ class TelemetryReporterTest {
         // Connection-refused endpoint: the best-effort POST throws and is swallowed.
         TelemetryReporter reporter = new TelemetryReporter(
                 pvSiteRepository, queryService, dailyStatisticService, walletService,
-                RestClient.builder(), "http://127.0.0.1:9", "1.0.0", "DE");
+                RestClient.builder(), versionProvider("1.0.0"), "http://127.0.0.1:9", "DE");
         reporter.report();
 
         verify(pvSiteRepository, times(1)).save(optedIn);
@@ -69,5 +71,16 @@ class TelemetryReporterTest {
     private static void assertHasUuidShape(String s) {
         String[] parts = s.split("-");
         assertEquals(5, parts.length);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<BuildProperties> versionProvider(String version) {
+        ObjectProvider<BuildProperties> provider = mock(ObjectProvider.class);
+        if (version != null) {
+            java.util.Properties entries = new java.util.Properties();
+            entries.setProperty("version", version);
+            when(provider.getIfAvailable()).thenReturn(new BuildProperties(entries));
+        }
+        return provider;
     }
 }
