@@ -124,6 +124,9 @@ export default function LightningWalletView() {
     const [createdInvoice, setCreatedInvoice] = useState<string | null>(null);
     const [creatingInvoice, setCreatingInvoice] = useState(false);
     const [onChainWithdrawals, setOnChainWithdrawals] = useState<OnChainWithdrawal[]>([]);
+    const [maxOnChain, setMaxOnChain] = useState<{ balanceSat: number; feeSat: number; maxSat: number } | null>(null);
+    const [maxLoading, setMaxLoading] = useState(false);
+    const [closeLoading, setCloseLoading] = useState(false);
 
     const [sending, setSending] = useState(false);
 
@@ -234,6 +237,13 @@ export default function LightningWalletView() {
     const fiatPerSat = feeEstimate?.fiatPricePerSat ?? 0;
     const estimatedFeeFiat = estimatedFeeSat * fiatPerSat;
     const estimateCurrency = feeEstimate?.currencyCode ?? currency;
+
+    // Höchster Betrag, der bei der aktuellen On-Chain-Gebühr durchläuft.
+    // Bevorzugt den frisch vom phoenixd-Backend abgefragten Wert (Max-Button);
+    // fällt sonst auf Saldo minus geschätzte Gebühr zurück.
+    const onChainMaxAllowed = (maxOnChain && maxOnChain.balanceSat >= 0)
+        ? maxOnChain.maxSat
+        : Math.max(0, (data?.balanceSat ?? 0) - estimatedFeeSat);
 
     const formatFiat = (value: number, code: string): string => {
         const symbol = code === 'USD' ? '$' : code + ' ';
@@ -362,6 +372,79 @@ export default function LightningWalletView() {
             console.error("Fehler bei On-Chain Auszahlung", e);
         } finally {
             setSending(false);
+        }
+    };
+
+    // Maximale, zuverlässig durchlaufende On-Chain-Auszahlung an den aktuellen
+    // Fee-Rate-Parameter abfragen (phoenixd-Balance minus On-Chain-Gebühr).
+    // Füllt das Betrachtfeld, damit "Alles auszählen" nie zu groß wird.
+    const handleOnChainMax = async () => {
+        try {
+            setMaxLoading(true);
+            const rate = getEffectiveFeeRate();
+            const response = await fetch(`/api/lightning-wallet/withdraw/onchain/max?feeRateSatPerVByte=${rate}`);
+            if (response.ok) {
+                const result = await response.json();
+                if (result && typeof result.maxSat === "number") {
+                    setMaxOnChain({
+                        balanceSat: result.balanceSat ?? 0,
+                        feeSat: result.feeSat ?? 0,
+                        maxSat: result.maxSat ?? 0,
+                    });
+                    if (result.maxSat > 0) {
+                        setOnChainAmount(String(result.maxSat));
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Fehler beim Abfragen der Maximal-Auszahlung", e);
+        } finally {
+            setMaxLoading(false);
+        }
+    };
+
+    // "Alles auszahlen & Kanal schließen": schließt alle STABLE Lightning-Kanäle
+    // und zahlt den kompletten Saldo on-chain aus (im Gegensatz zum Splice kann
+    // es bis auf den letzten Sat gehen). Wird als separate, bestättigte Aktion
+    // neben der normalen On-Chain-Auszahlung angeboten.
+    const handleCloseAllChannels = async () => {
+        if (!onChainAddress.trim()) {
+            alert(t["lightning.dialog.address_onchain_label"]);
+            return;
+        }
+        if (!window.confirm(t["lightning.dialog.onchain_close_confirm"])) {
+            return;
+        }
+        const selectedFeeRate = getEffectiveFeeRate();
+        try {
+            setCloseLoading(true);
+            const response = await fetch('/api/lightning-wallet/withdraw/onchain/close-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    address: onChainAddress,
+                    feeRateSatPerVByte: selectedFeeRate
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    setIsOnChainModalOpen(false);
+                    setOnChainAddress("");
+                    setOnChainAmount("");
+                    alert(t["lightning.notification.onchain_close_success"]);
+                    fetchWallet();
+                    window.setTimeout(() => void fetchOnChainWithdrawals(), 3000);
+                } else {
+                    alert(t["lightning.notification.onchain_close_failed"]);
+                }
+            }
+        } catch (e) {
+            console.error("Fehler beim Schließen der Kanäle", e);
+            alert(t["lightning.notification.onchain_close_failed"]);
+        } finally {
+            setCloseLoading(false);
         }
     };
 
@@ -700,18 +783,42 @@ export default function LightningWalletView() {
                         {/* Betrag */}
                         <div className="mb-4">
                             <label className="block text-sm font-medium mb-1">{t["lightning.dialog.amount_label"]}</label>
-                            <input
-                                type="number"
-                                min="0"
-                                value={onChainAmount}
-                                onChange={(e) => setOnChainAmount(e.target.value)}
-                                className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white outline-none focus:border-blue-500 font-mono text-sm"
-                                placeholder={t["lightning.dialog.onchain_amount_placeholder"]}
-                            />
-                            {onChainAmount && parseInt(onChainAmount) > data.balanceSat && (
+                            <div className="flex gap-2">
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={onChainAmount}
+                                    onChange={(e) => setOnChainAmount(e.target.value)}
+                                    className="flex-1 min-w-0 bg-gray-900 border border-gray-700 rounded-lg p-3 text-white outline-none focus:border-blue-500 font-mono text-sm"
+                                    placeholder={t["lightning.dialog.onchain_amount_placeholder"]}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleOnChainMax}
+                                    disabled={maxLoading}
+                                    className="shrink-0 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-semibold transition disabled:opacity-50"
+                                    title={t["lightning.dialog.onchain_max_hint"]}
+                                >
+                                    {maxLoading ? t["lightning.dialog.max_loading"] : t["lightning.dialog.max_button"]}
+                                </button>
+                            </div>
+                            {onChainAmount && parseInt(onChainAmount) > onChainMaxAllowed && (
                                 <div className="flex items-center gap-1.5 text-xs text-red-400 mt-1.5">
                                     <AlertTriangle size={14} />
                                     <span>{t["lightning.dialog.amount_warning"]}</span>
+                                </div>
+                            )}
+                            {maxOnChain && maxOnChain.balanceSat >= 0 && (
+                                <div className="text-xs text-gray-500 mt-1.5">
+                                    {t["lightning.dialog.onchain_max_available"]}{" "}
+                                    <span className="font-mono text-gray-400">
+                                        {maxOnChain.maxSat.toLocaleString(lang === 'de' ? 'de-DE' : 'en-US')} sats
+                                    </span>
+                                    {maxOnChain.feeSat > 0 && (
+                                        <span className="text-gray-600"> · {t["lightning.dialog.onchain_max_fee"]}{" "}
+                                            <span className="font-mono">{maxOnChain.feeSat.toLocaleString(lang === 'de' ? 'de-DE' : 'en-US')}</span>
+                                        </span>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -801,10 +908,24 @@ export default function LightningWalletView() {
                             <button
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition flex items-center gap-2 disabled:opacity-50"
                                 onClick={handleOnChainWithdraw}
-                                disabled={sending || !onChainAddress.trim() || !onChainAmount || parseInt(onChainAmount) > data.balanceSat || effectiveFeeRate <= 0}
+                                disabled={sending || !onChainAddress.trim() || !onChainAmount || parseInt(onChainAmount) > onChainMaxAllowed || effectiveFeeRate <= 0}
                             >
                                 {sending ? t["lightning.dialog.sending"] : <><Check size={18} /> {t["lightning.button.withdraw_onchain_submit"]}</>}
                             </button>
+                        </div>
+
+                        {/* Alles auszählen & Kanal schließen – separate, endgültige Aktion */}
+                        <div className="mt-4 pt-4 border-t border-gray-700">
+                            <button
+                                type="button"
+                                onClick={handleCloseAllChannels}
+                                disabled={closeLoading || !onChainAddress.trim() || effectiveFeeRate <= 0}
+                                className="w-full px-4 py-2 bg-red-900/60 hover:bg-red-900 text-red-200 rounded-lg font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
+                                title={t["lightning.dialog.onchain_close_hint"]}
+                            >
+                                {closeLoading ? t["lightning.dialog.sending"] : <><Zap size={16} /> {t["lightning.button.withdraw_onchain_close"]}</>}
+                            </button>
+                            <p className="text-[11px] text-gray-500 mt-1.5 leading-snug">{t["lightning.dialog.onchain_close_hint"]}</p>
                         </div>
                     </div>
                 </div>

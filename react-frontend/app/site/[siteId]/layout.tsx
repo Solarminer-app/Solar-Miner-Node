@@ -39,7 +39,7 @@ function getTimeZones(): string[] {
     }
 }
 
-type IconName = "home" | "wrench" | "cluster" | "money" | "menu" | "close";
+type IconName = "home" | "wrench" | "cluster" | "money" | "menu" | "close" | "sites" | "bolt";
 
 function Icon({name, size = 20}: { name: IconName; size?: number }) {
     const paths: Record<IconName, ReactNode> = {
@@ -62,6 +62,13 @@ function Icon({name, size = 20}: { name: IconName; size?: number }) {
             <path d="M4 7h16M4 12h16M4 17h16"/>
         </>), close: (<>
             <path d="m6 6 12 12M18 6 6 18"/>
+        </>), sites: (<>
+            <path d="M3 21V8l6-4 6 4"/>
+            <path d="M9 21V11h10a1 1 0 0 1 1 1v9"/>
+            <path d="M3 21h18"/>
+            <path d="M12 14h3M12 17h3"/>
+        </>), bolt: (<>
+            <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/>
         </>),
     };
 
@@ -177,6 +184,13 @@ function SiteLayoutContent({children}: PropsWithChildren) {
         label: t("nav.mining"), href: `${basePath}/mining`, icon: "cluster" as const,
     }, {
         label: t("nav.finance"), href: `${basePath}/finance`, icon: "money" as const,
+    }, {
+        // "Exit" links — reachable from inside any site without having to leave.
+        // exact:true so the prefix-based isActive() never marks them active on
+        // in-site paths (their hrefs live outside /site/<id>/...).
+        label: t("nav.site_selection"), href: "/", icon: "sites" as const, exact: true,
+    }, {
+        label: t("nav.lightning"), href: "/lightning-wallet", icon: "bolt" as const, exact: true,
     },], [basePath, t],);
 
     useEffect(() => {

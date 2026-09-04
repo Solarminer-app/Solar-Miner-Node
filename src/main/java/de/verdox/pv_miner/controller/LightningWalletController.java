@@ -154,6 +154,34 @@ public class LightningWalletController {
         return ResponseEntity.ok(new OnChainWithdrawResponse(success, success ? txId : null));
     }
 
+    /**
+     * The largest on-chain withdrawal that can succeed at the given fee rate,
+     * read from a fresh phoenixd balance. The frontend uses this to fill the
+     * amount field via a "max" button so the user never requests an amount
+     * the splice cannot cover (amount + on-chain fee &gt; balance).
+     */
+    @GetMapping("/withdraw/onchain/max")
+    public OnChainMaxWithdrawResponse maxOnChainWithdrawal(
+            @RequestParam("feeRateSatPerVByte") long feeRateSatPerVByte) {
+        LightningWalletService.OnChainMaxInfo info = walletService.maxOnChainWithdrawal(
+                feeRateSatPerVByte, ASSUMED_VBYTES_ONCHAIN_SEND);
+        return new OnChainMaxWithdrawResponse(info.balanceSat(), info.feeSat(), info.maxSat());
+    }
+
+    /**
+     * "Withdraw everything" — closes every STABLE Lightning channel and sends its
+     * full on-chain balance to the given address. Unlike a splice
+     * ({@link #withdrawOnChain}) this can take the funds down to the last sat, but
+     * it closes the channel(s) for good. The frontend should present this as a
+     * separate, confirmable action distinct from the regular on-chain withdrawal.
+     */
+    @PostMapping("/withdraw/onchain/close-all")
+    public ResponseEntity<CloseAllChannelsResponse> closeAllChannels(@RequestBody CloseAllChannelsRequest request) {
+        List<String> txIds = walletService.closeAllChannels(request.address(), request.feeRateSatPerVByte());
+        boolean success = !txIds.isEmpty();
+        return ResponseEntity.ok(new CloseAllChannelsResponse(success, txIds));
+    }
+
     @GetMapping("/withdraw/onchain")
     public List<OnChainWithdrawalDTO> onChainWithdrawals(
             @RequestParam(value = "currency", defaultValue = "EUR") String currencyCode,
@@ -249,6 +277,15 @@ public class LightningWalletController {
     }
 
     public record OnChainWithdrawResponse(boolean success, String txId) {
+    }
+
+    public record OnChainMaxWithdrawResponse(long balanceSat, long feeSat, long maxSat) {
+    }
+
+    public record CloseAllChannelsRequest(String address, long feeRateSatPerVByte) {
+    }
+
+    public record CloseAllChannelsResponse(boolean success, List<String> txIds) {
     }
 
     public record OnChainWithdrawalDTO(

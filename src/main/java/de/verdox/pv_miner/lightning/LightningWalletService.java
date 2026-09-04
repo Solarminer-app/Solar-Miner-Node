@@ -273,7 +273,7 @@ public class LightningWalletService {
                 allTransactions.add(new LightningTransaction(
                         payment.paymentHash(),
                         payment.invoice(),
-                        payment.amountSat(),
+                        outgoingAmount(payment),
                         payment.description() != null ? payment.description() : "Outgoing Payment",
                         status,
                         LightningTransaction.Type.OUTGOING,
@@ -313,6 +313,15 @@ public class LightningWalletService {
 
     public String sendOnChainPayment(long amountSat, String address, long feeRateSatByte) {
         if (address == null || address.isBlank() || amountSat <= 0 || feeRateSatByte <= 0) {
+            return null;
+        }
+        // Defense in depth: never ask phoenixd to splice out more than we hold.
+        // A splice must also cover the on-chain fee, so a full-balance request
+        // would fail silently. Only reject when the balance is actually readable
+        // (getBalanceSat() returns -1 on a phoenixd error, in which case we let
+        // phoenixd be the authority).
+        long balance = getBalanceSat();
+        if (balance > 0 && amountSat >= balance) {
             return null;
         }
         try {
@@ -393,12 +402,10 @@ public class LightningWalletService {
                     continue; // lightning payment, no on-chain tx
                 }
                 OnChainTxStatus status = getOnChainTransactionStatus(payment.txId());
-                long amount = payment.amountSat() > 0 ? payment.amountSat()
-                        : (payment.sent() != null ? payment.sent() : 0);
                 String memo = payment.description() != null ? payment.description() : "On-chain withdrawal";
                 result.add(new OnChainWithdrawal(
                         payment.txId(),
-                        amount,
+                        outgoingAmount(payment),
                         memo,
                         payment.createdAt(),
                         status.confirmed(),
@@ -411,6 +418,70 @@ public class LightningWalletService {
             e.printStackTrace();
         }
         return result;
+    }
+
+    /**
+     * The real amount of an outgoing payment. Lightning payments carry it in
+     * {@code amountSat}; on-chain splices report {@code amountSat=0} and put the
+     * transferred value in {@code sent} instead. Without this fallback a splice
+     * shows up as "- 0 sats" in the history.
+     */
+    private long outgoingAmount(PhoenixDTOs.IncomingPayment payment) {
+        if (payment.amountSat() > 0) {
+            return payment.amountSat();
+        }
+        return payment.sent() != null && payment.sent() > 0 ? payment.sent() : 0;
+    }
+
+    /**
+     * How much the user can still withdraw on-chain at a given fee rate, based on
+     * a fresh phoenixd balance. A splice cannot take the channel below its
+     * minimum, so the guaranteed-withdraw amount is balance minus the on-chain
+     * fee; {@code maxSat} is that figure (clamped to 0). {@code balanceSat} is
+     * -1 when the balance could not be read (phoenixd unreachable).
+     */
+    public record OnChainMaxInfo(long balanceSat, long feeSat, long maxSat) {
+    }
+
+    public OnChainMaxInfo maxOnChainWithdrawal(long feeRateSatByte, int vbytes) {
+        long balance = getBalanceSat();
+        long fee = feeRateSatByte > 0 && vbytes > 0 ? feeRateSatByte * vbytes : 0;
+        long max = balance > 0 ? Math.max(0, balance - fee) : 0;
+        return new OnChainMaxInfo(balance, fee, max);
+    }
+
+    /**
+     * Closes every STABLE Lightning channel, sending each channel's full on-chain
+     * balance to {@code address}. This is the "withdraw everything down to the last
+     * sat" path that a splice (see {@link #sendOnChainPayment}) cannot do: a splice
+     * must leave the channel minimum behind, whereas closing a channel returns the
+     * whole channel to the chain. Returns the closing tx id of each channel that
+     * was closed (may be empty if there are no STABLE channels or the address /
+     * feerate is invalid).
+     */
+    public List<String> closeAllChannels(String address, long feerateSatByte) {
+        List<String> txIds = new ArrayList<>();
+        if (address == null || address.isBlank() || feerateSatByte <= 0) {
+            return txIds;
+        }
+        PhoenixDTOs.NodeInfo nodeInfo = getNodeInfo();
+        if (nodeInfo == null || nodeInfo.channels() == null) {
+            return txIds;
+        }
+        for (PhoenixDTOs.ChannelInfo channel : nodeInfo.channels()) {
+            if (!"STABLE".equalsIgnoreCase(channel.state())) {
+                continue;
+            }
+            try {
+                String txId = phoenixClient.closeChannel(channel.channelId(), address.trim(), feerateSatByte);
+                if (txId != null && !txId.isBlank()) {
+                    txIds.add(txId);
+                }
+            } catch (IOException | InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        return txIds;
     }
 
     private int tipHeight(HttpClient httpClient) {

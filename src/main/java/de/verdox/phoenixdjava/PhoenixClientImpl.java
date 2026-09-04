@@ -117,7 +117,7 @@ public class PhoenixClientImpl implements PhoenixClient {
         params.put("refundAddress", refundAddress);
         params.put("feerateSatByte", String.valueOf(feerateSatByte));
 
-        return executePost("/createoffer", params, String.class, MimeType.PLAIN);
+        return executePost("/closechannel", params, String.class, MimeType.PLAIN);
     }
 
     @Override

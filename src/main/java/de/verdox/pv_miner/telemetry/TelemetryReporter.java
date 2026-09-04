@@ -33,7 +33,9 @@ import java.util.UUID;
  * <p>What is sent: a stable random {@code uuid} (the node's {@code node_identity},
  * minted locally and kept separate from the primary key), software version, bound
  * referral <i>code</i> (not name), combined hashrate (TH/s), today's solar
- * generation (kWh), lifetime solar generation (kWh), installed PWp, miner count,
+ * generation (kWh), lifetime solar generation (kWh), today's mining energy
+ * consumption (kWh, the real electricity the miners drew — the basis for a
+ * realistic "value generated" on the public stats), installed PWp, miner count,
  * and a coarse location grid at the privacy level the owner chose:
  * {@code COUNTRY} (ISO-3166-1 alpha-2), {@code REGIONAL} (~500 km 2&#176; cell,
  * e.g. {@code R52,10}) or {@code AREA} (~200 km 1&#176; cell, e.g.
@@ -134,9 +136,13 @@ public class TelemetryReporter {
         }
 
         double solarTodayKwh = 0.0;
+        double miningTodayKwh = 0.0;
         try {
             PVStatisticPerDay today = dailyStatisticService.getLiveDailyStatistic(site, "PV_DAILY", pvAccumulator);
             solarTodayKwh = Math.max(0, today.getProductionKwh());
+            // Real energy the miners consumed today — already duty-cycle-aware
+            // (miners off ⇒ no energy), unlike the point-in-time hashrate above.
+            miningTodayKwh = Math.max(0, today.getConsumptionKwhMining());
         } catch (RuntimeException ignored) {
             // No live stat yet; report 0 for the day rather than failing the tick.
         }
@@ -159,6 +165,7 @@ public class TelemetryReporter {
                 null,
                 round(solarTodayKwh),
                 round(solarTotalKwh),
+                round(miningTodayKwh),
                 geoGridFor(site),
                 nodeIdFor());
     }
@@ -263,6 +270,7 @@ public class TelemetryReporter {
             Map<String, Double> hashrateByCoin,
             Double solarKwhToday,
             Double solarKwhTotal,
+            Double miningKwhToday,
             String locationGrid,
             String nodeId) {
     }
