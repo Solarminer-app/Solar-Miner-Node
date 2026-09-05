@@ -38,6 +38,39 @@ class DevFeeServiceTest {
     }
 
     @Test
+    void matchesAdminPortalTargetIdFormatOnTheWire() {
+        // What the stratum proxy actually returns: the 5-field shape (the three
+        // beneficiary fields are null) and the admin portal's targetId
+        // "solarminer-referral-<code>-<coin>".
+        var wireTarget = new DevFeeService.FeeTarget(
+                "solarminer-referral-solar-friend-btc",
+                "stratum+tcp://stratum.braiins.com:3333",
+                "worker.",
+                "",
+                1.0,
+                null,
+                null,
+                null
+        );
+        var solarMiner = new DevFeeService.FeeTarget(
+                "solarminer-btc-sha256",
+                "stratum+tcp://stratum.braiins.com:3333",
+                "solarmining_app.",
+                "",
+                2.5,
+                null,
+                null,
+                null
+        );
+
+        assertTrue(DevFeeService.hasReferralTarget(List.of(solarMiner, wireTarget), "solar-friend"));
+        assertTrue(DevFeeService.hasReferralTarget(List.of(solarMiner, wireTarget), "Solar-Friend"));
+        // The house target alone must never validate a referral, nor a different code.
+        assertFalse(DevFeeService.hasReferralTarget(List.of(solarMiner), "solar-friend"));
+        assertFalse(DevFeeService.hasReferralTarget(List.of(solarMiner, wireTarget), "other-code"));
+    }
+
+    @Test
     void legacyTargetListCannotAccidentallyValidateAnIgnoredQueryParameter() {
         var legacyTarget = new DevFeeService.FeeTarget(
                 "solarminer-primary",

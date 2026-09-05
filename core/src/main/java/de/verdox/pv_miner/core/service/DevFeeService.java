@@ -222,8 +222,19 @@ public class DevFeeService {
         if ("REFERRAL".equalsIgnoreCase(target.beneficiaryType())
                 && (equalsIgnoreCase(target.beneficiaryName(), normalized)
                 || equalsIgnoreCase(target.targetId(), normalized))) return true;
-        return equalsIgnoreCase(target.targetId(), "referral:" + normalized)
-                || equalsIgnoreCase(target.targetId(), "referral-" + normalized);
+        // The stratum proxy only ever returns the 5-field shape, so the
+        // referralCode/beneficiaryType/beneficiaryName checks above can never match
+        // in practice — the only reliable key on the wire is the targetId. Match
+        // the forms the backends actually emit:
+        String targetId = target.targetId();
+        if (targetId == null) return false;
+        String id = targetId.trim().toLowerCase(Locale.ROOT);
+        String n = normalized.toLowerCase(Locale.ROOT);
+        // Simple / legacy forms.
+        if (id.equals("referral:" + n) || id.equals("referral-" + n)) return true;
+        // Admin-portal form: "solarminer-referral-<code>" or "solarminer-referral-<code>-<coin>".
+        String prefix = "solarminer-referral-" + n;
+        return id.equals(prefix) || id.startsWith(prefix + "-");
     }
 
     private static boolean equalsIgnoreCase(String left, String right) {
