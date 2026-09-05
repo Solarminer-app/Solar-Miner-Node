@@ -7,7 +7,7 @@ import {useParams} from 'next/navigation';
 
 import de from '../../../locales/de.json';
 import en from '../../../locales/en.json';
-import type {DiscoveredMinerDto, MinerDto, MiningLiveSnapshotDto, MiningPageDto} from '../../../types';
+import type {DiscoveredMinerDto, MinerDto, MiningLiveSnapshotDto, MiningPageDto, ReferralCodeDto} from '../../../types';
 import {useSitePreferences} from '../site-preferences-context';
 
 const translations = {de, en};
@@ -40,6 +40,10 @@ export default function MiningPage() {
     const [poolToken, setPoolToken] = useState('');
     const [referralInput, setReferralInput] = useState('');
     const [savingReferral, setSavingReferral] = useState(false);
+    const [showReferralCatalog, setShowReferralCatalog] = useState(false);
+    const [referralCatalog, setReferralCatalog] = useState<ReferralCodeDto[]>([]);
+    const [referralCatalogLoading, setReferralCatalogLoading] = useState(false);
+    const [referralCatalogError, setReferralCatalogError] = useState(false);
     const referralEditing = useRef(false);
     const liveRefreshRunning = useRef(false);
     const [scanning, setScanning] = useState(false);
@@ -335,6 +339,28 @@ export default function MiningPage() {
         }
     };
 
+    const openReferralCatalog = async () => {
+        setShowReferralCatalog(true);
+        setReferralCatalogError(false);
+        setReferralCatalogLoading(true);
+        try {
+            const response = await fetch('/api/referral-codes', {cache: 'no-store'});
+            if (!response.ok) throw new Error(String(response.status));
+            setReferralCatalog((await response.json()) as ReferralCodeDto[]);
+        } catch (reason) {
+            console.error('Failed to load referral codes', reason);
+            setReferralCatalogError(true);
+        } finally {
+            setReferralCatalogLoading(false);
+        }
+    };
+
+    const selectReferralCode = (code: string) => {
+        referralEditing.current = false;
+        setReferralInput(code);
+        setShowReferralCatalog(false);
+    };
+
     if (loading && !data) {
         return <div className="flex min-h-[70vh] items-center justify-center text-gray-300">
             <RefreshCw className="mr-2 animate-spin" size={20}/> {t['mining.loading']}
@@ -434,6 +460,9 @@ export default function MiningPage() {
                                 {t['mining.fee.referral_code']}
                                 <input className={inputClassName} maxLength={128} onChange={(event) => { referralEditing.current = true; setReferralInput(event.target.value); }} placeholder={t['mining.fee.referral_placeholder']} value={referralInput}/>
                             </label>
+                            <button className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#303038] px-3 py-2 text-xs text-[#b7b7c0] hover:border-violet-400/40 hover:text-white" onClick={() => void openReferralCatalog()} type="button">
+                                <Search size={14}/> {t['mining.fee.referral_catalog_button']}
+                            </button>
                             <div className="mt-3 flex flex-wrap justify-end gap-2">
                                 {data.devFee.referralCode ? <button className="rounded-lg px-3 py-2 text-xs text-red-300 hover:bg-red-400/10 disabled:opacity-40" disabled={savingReferral} onClick={() => void deleteReferral()} type="button">{t['mining.fee.referral_remove']}</button> : null}
                                 <button className="rounded-lg bg-violet-400 px-3 py-2 text-xs font-semibold text-black disabled:opacity-40" disabled={!referralInput.trim() || savingReferral} onClick={() => void saveReferral()} type="button">{savingReferral ? t['mining.fee.referral_checking'] : t['mining.fee.referral_save']}</button>
@@ -791,6 +820,47 @@ export default function MiningPage() {
                 </div>
             ) : null}
 
+            {showReferralCatalog ? (
+                <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={t['mining.fee.referral_catalog_title']}>
+                    <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-[#303038] bg-[#17171b] shadow-2xl">
+                        <div className="flex items-start justify-between gap-4 border-b border-white/[0.06] p-5">
+                            <div><h2 className="font-semibold">{t['mining.fee.referral_catalog_title']}</h2><p className="mt-1 max-w-xl text-xs leading-5 text-[#92929c]">{t['mining.fee.referral_catalog_hint']}</p></div>
+                            <button type="button" aria-label={t['mining.action.close']} onClick={() => setShowReferralCatalog(false)} className="rounded-lg p-2 hover:bg-white/5"><X size={19}/></button>
+                        </div>
+                        <div className="max-h-[55vh] overflow-y-auto p-5">
+                            {referralCatalogLoading ? <p className="text-sm text-[#92929c]"><LoaderCircle className="mr-2 inline animate-spin" size={16}/>{t['mining.fee.referral_catalog_loading']}</p> : null}
+                            {referralCatalogError && !referralCatalogLoading ? <p className="text-sm text-red-300">{t['mining.fee.referral_catalog_error']}</p> : null}
+                            {!referralCatalogLoading && !referralCatalogError && referralCatalog.length === 0 ? <p className="text-sm text-[#92929c]">{t['mining.fee.referral_catalog_empty']}</p> : null}
+                            <div className="space-y-2">
+                                {referralCatalog.map((entry) => {
+                                    const selected = referralInput.trim() === entry.code;
+                                    return (
+                                        <div className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 ${selected ? 'border-violet-400/50 bg-violet-400/10' : 'border-[#303038] bg-[#111113]'}`} key={entry.code}>
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-semibold">{entry.code}</span>
+                                                    {selected ? <span className="rounded-md bg-violet-400/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-200">{t['mining.fee.referral_catalog_selected']}</span> : null}
+                                                </div>
+                                                <div className="mt-0.5 text-xs text-[#92929c]">{entry.name}</div>
+                                                <div className="mt-1 text-xs text-[#b7b7c0]">
+                                                    {t['mining.fee.referral_catalog_col_fee']}: <span className="font-semibold text-white">{entry.totalFee.toFixed(1)}%</span> · {t['mining.fee.referral']} {entry.referralShare.toFixed(1)}% · SolarMiner {entry.solarMinerShare.toFixed(1)}%
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-[#b7b7c0]">{t['mining.fee.referral_catalog_users'].replace('{count}', String(entry.userCount))}</span>
+                                                <button className="rounded-lg bg-violet-400 px-3 py-2 text-xs font-semibold text-black disabled:opacity-40" onClick={() => selectReferralCode(entry.code)} type="button" disabled={selected}>{t['mining.fee.referral_catalog_select']}</button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        <div className="flex justify-end border-t border-white/[0.06] p-4">
+                            <button className="rounded-lg px-4 py-2 text-sm text-gray-300 hover:bg-white/5" onClick={() => setShowReferralCatalog(false)} type="button">{t['mining.action.cancel']}</button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
             {showMinerConnection ? (
                 <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={t['mining.connect_miner.title']}>
                     <div className="my-8 w-full max-w-3xl overflow-hidden rounded-xl border border-[#303038] bg-[#17171b] shadow-2xl">

@@ -2,6 +2,7 @@ package de.verdox.pv_miner.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import de.verdox.pv_miner.central.NodeReferralService;
 import de.verdox.pv_miner.discovery.DiscoveryService;
 import de.verdox.pv_miner.dto.MiningPageDto;
 import de.verdox.pv_miner.dto.MiningPageRequests.*;
@@ -45,14 +46,16 @@ public class MiningController {
     private final EntityService entityService;
     private final DiscoveryService discoveryService;
     private final MinerApiClient minerApiClient;
+    private final NodeReferralService nodeReferralService;
 
-    public MiningController(PVSiteRepository pvSiteRepository, MinerClusterService clusterService, EntityQueryService entityQueryService, EntityService entityService, DiscoveryService discoveryService, MinerApiClient minerApiClient) {
+    public MiningController(PVSiteRepository pvSiteRepository, MinerClusterService clusterService, EntityQueryService entityQueryService, EntityService entityService, DiscoveryService discoveryService, MinerApiClient minerApiClient, NodeReferralService nodeReferralService) {
         this.pvSiteRepository = pvSiteRepository;
         this.clusterService = clusterService;
         this.entityQueryService = entityQueryService;
         this.entityService = entityService;
         this.discoveryService = discoveryService;
         this.minerApiClient = minerApiClient;
+        this.nodeReferralService = nodeReferralService;
     }
 
     @GetMapping
@@ -106,6 +109,9 @@ public class MiningController {
         }
         site.setReferralCode(referralCode);
         pvSiteRepository.save(site);
+        // Tell the portal immediately (not just on the next telemetry tick) so a
+        // referrer sees the new node using their code without waiting for opt-in.
+        nodeReferralService.reportSite(site);
         return ResponseEntity.noContent().build();
     }
 
@@ -114,6 +120,7 @@ public class MiningController {
         PVSiteEntity site = findSite(siteId);
         site.setReferralCode(null);
         pvSiteRepository.save(site);
+        nodeReferralService.reportSite(site);
         return ResponseEntity.noContent().build();
     }
 

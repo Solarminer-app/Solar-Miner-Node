@@ -394,6 +394,16 @@ export interface DevFeeOverviewDto {
     }>;
 }
 
+/** One selectable referral code (mirrors the Node's NodeReferralService.ReferralCode). */
+export interface ReferralCodeDto {
+    code: string;
+    name: string;
+    totalFee: number;
+    referralShare: number;
+    solarMinerShare: number;
+    userCount: number;
+}
+
 export interface ClusterConditionDto {
     type: 'LOGICAL' | 'PREDICATE';
     operator: 'AND' | 'OR' | 'NOT' | null;
