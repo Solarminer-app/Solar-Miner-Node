@@ -7,6 +7,7 @@ import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.shared.dto.DevFeeOverviewDto;
 import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -31,11 +32,15 @@ public class DevFeeService {
     private static final Logger LOGGER = Logger.getLogger(DevFeeService.class.getName());
     private static final long ENFORCEMENT_COOLDOWN_MS = TimeUnit.MINUTES.toMillis(1);
     private static final long TARGET_CACHE_MS = TimeUnit.MINUTES.toMillis(1);
+    private static final long PROXY_REFERRAL_RESYNC_MS = TimeUnit.MINUTES.toMillis(5);
 
     private final Map<String, Long> lastCheckTimes = new ConcurrentHashMap<>();
     private final Map<String, CachedFeeTargets> feeTargetCache = new ConcurrentHashMap<>();
     private final ProxyDiscoveryService proxyDiscoveryService;
     private final RestClient restClient;
+    /** Last referral the stratum proxy was told to enforce (see {@link #syncProxyReferral}). */
+    private volatile String activeProxyReferral;
+    private volatile long lastProxyReferralSync;
 
     public DevFeeService(
             ProxyDiscoveryService proxyDiscoveryService,
@@ -51,6 +56,11 @@ public class DevFeeService {
 
     public void enforceDevFee(MinerStats.MinerIdentity minerIdentity, MinerService minerService, MiningOS miningOS, MinerDetails minerDetails, String referralCode) {
         String coin = "bitcoin";
+
+        // Stratum-routed miners get their dev-fee split decided INSIDE the proxy,
+        // which only knows a single configured referral — point it at the site's
+        // saved referral (house when unset) so the referrer share routes to them.
+        syncProxyReferral(referralCode);
 
         if (miningOS.supportsNativeSplitting()) {
             enforceNativeDevFee(coin, minerIdentity, minerService, miningOS, minerDetails, referralCode);
@@ -110,6 +120,53 @@ public class DevFeeService {
         sanitized = sanitized.replace(":", "");
         sanitized = sanitized.replaceAll("[^a-zA-Z0-9_\\-]", "");
         return sanitized;
+    }
+
+    /**
+     * Tell the stratum proxy which referral to enforce for job routing (the dev-fee
+     * split of stratum-routed miners). The proxy decides the per-job split from this
+     * single configured referral, so the node's saved referral only reaches the
+     * referrer's worker for those miners if the proxy is pointed at it.
+     *
+     * <p>Best-effort and self-healing: it only posts when the value actually changed,
+     * and the field is updated only on success — so a proxy outage is retried on the
+     * next enforcement (e.g. after a docker restart). Blank referral resets to the
+     * house fee ({@code solarminer}).
+     */
+    public void syncProxyReferral(String referralCode) {
+        String target = normalizeReferral(referralCode);
+        if (target == null) {
+            target = "solarminer";
+        }
+        long now = System.currentTimeMillis();
+        boolean changed = !target.equalsIgnoreCase(activeProxyReferral);
+        // Re-push periodically even when unchanged: if the proxy container restarts
+        // on its own it falls back to its env default while this core keeps running,
+        // so the value wouldn't "change" and a stale proxy would otherwise stay on the
+        // house fee until the next core restart.
+        boolean stale = now - lastProxyReferralSync >= PROXY_REFERRAL_RESYNC_MS;
+        if (!changed && !stale) {
+            return;
+        }
+        try {
+            restClient.post()
+                    .uri(uriBuilder -> uriBuilder
+                            .scheme("http")
+                            .host(proxyDiscoveryService.getCurrentProxyIp())
+                            .port(8090)
+                            .path("/api/v1/fees/referral")
+                            .build())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("referral", target))
+                    .retrieve()
+                    .toBodilessEntity();
+            activeProxyReferral = target;
+            lastProxyReferralSync = now;
+            LOGGER.info("Synced stratum-proxy referral to " + target);
+        } catch (RestClientException e) {
+            // Leave lastProxyReferralSync untouched so the next enforcement retries.
+            LOGGER.log(Level.WARNING, "Could not sync stratum-proxy referral to " + target, e);
+        }
     }
 
     public List<FeeTarget> fetchFeeTargets(String coin) {
