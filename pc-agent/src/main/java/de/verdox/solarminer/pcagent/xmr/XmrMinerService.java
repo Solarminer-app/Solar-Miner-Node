@@ -3,6 +3,8 @@ package de.verdox.solarminer.pcagent.xmr;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.solarminer.pcagent.dto.MinerStats;
+import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
+import de.verdox.solarminer.pcagent.mining.MinerConsoleService;
 import de.verdox.solarminer.pcagent.lowlevel.sensor.HardwareSensorReader;
 import jakarta.annotation.PreDestroy;
 import lombok.Getter;
@@ -34,6 +36,8 @@ public class XmrMinerService {
     private static final Path XMRIG_DIR = Paths.get("./solarminer-agent/xmrig/").toAbsolutePath().normalize();
 
     private final XmrConfigService configService;
+    private final ProxyConfigurationService proxyConfigurationService;
+    private final MinerConsoleService console;
     private final ObjectMapper objectMapper;
     private final HardwareSensorReader sensorReader;
     private final String processorName;
@@ -59,8 +63,11 @@ public class XmrMinerService {
     private volatile long currentHashesPerSecond = 0;
     private int apiErrorCount = 0;
 
-    public XmrMinerService(XmrConfigService configService, ObjectMapper objectMapper, HardwareSensorReader sensorReader) {
+    public XmrMinerService(XmrConfigService configService, ObjectMapper objectMapper, HardwareSensorReader sensorReader,
+                           ProxyConfigurationService proxyConfigurationService, MinerConsoleService console) {
         this.configService = configService;
+        this.proxyConfigurationService = proxyConfigurationService;
+        this.console = console;
         this.objectMapper = objectMapper;
         this.sensorReader = sensorReader;
 
@@ -91,16 +98,28 @@ public class XmrMinerService {
                 currentHashesPerSecond / Math.pow(10, 12),
                 readCPUTemperature(),
                 desiredPowerUsage,
-                desiredPowerUsage,
+                0,
                 estimatedMaxCpuWattage,
                 estimatedMaxCpuWattage,
                 getWattage(),
                 List.of(configService.readUserPoolFromConfig()));
     }
 
+    public boolean readyForStart() {
+        return binaryAvailable() && configService.isProxyRouteConfigured();
+    }
+
     public synchronized void startMining() {
         if (isMiningProcessAlive()) {
             LOGGER.info("XMRig is already running.");
+            return;
+        }
+        console.started("monero");
+
+        if (!configService.isProxyRouteConfigured() || !proxyConfigurationService.miningReady("monero")) {
+            LOGGER.severe("Cannot start XMRig: a reachable SolarMiner proxy with a loaded fee route is required in standalone mode");
+            console.append("monero", "[SolarMiner] Start abgelehnt: SolarMiner-Proxy oder Monero-Fee-Ziel nicht bereit");
+            minerStatus = MinerStats.MinerStatus.ERROR;
             return;
         }
 
@@ -110,6 +129,7 @@ public class XmrMinerService {
 
         if (!executableFile.exists()) {
             LOGGER.severe("Cannot start mining: Executable not found at " + executableFile.getAbsolutePath());
+            console.append("monero", "[SolarMiner] Start abgelehnt: XMRig-Datei fehlt: " + executableFile.getAbsolutePath());
             minerStatus = MinerStats.MinerStatus.ERROR;
             return;
         }
@@ -126,26 +146,31 @@ public class XmrMinerService {
             processBuilder.redirectErrorStream(true);
 
             minerProcess = processBuilder.start();
+            Process started = minerProcess;
             minerStatus = MinerStats.MinerStatus.MINING;
             apiErrorCount = 0;
 
-            minerProcess.onExit().thenAccept(process -> {
-                if (minerStatus == MinerStats.MinerStatus.MINING) {
-                    LOGGER.severe("XMRig process crashed or exited unexpectedly with code: " + process.exitValue());
-                    minerStatus = MinerStats.MinerStatus.ERROR;
-                }
-                currentHashesPerSecond = 0;
-            });
-
-            streamReaderExecutor.submit(() -> {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(minerProcess.getInputStream()))) {
+            var outputTask = streamReaderExecutor.submit(() -> {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(started.getInputStream()))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
-                        LOGGER.info("[XMRig] " + line);
+                        console.append("monero", line);
                     }
                 } catch (Exception e) {
                     LOGGER.log(Level.WARNING, "Error reading XMRig output stream", e);
+                    console.append("monero", "[SolarMiner] Miner-Ausgabe konnte nicht gelesen werden: " + e.getMessage());
                 }
+            });
+
+            started.onExit().thenAccept(process -> {
+                try { outputTask.get(1, TimeUnit.SECONDS); }
+                catch (Exception ignored) { }
+                if (minerStatus == MinerStats.MinerStatus.MINING) {
+                    LOGGER.severe("XMRig process crashed or exited unexpectedly with code: " + process.exitValue());
+                    console.append("monero", "[SolarMiner] XMRig beendet mit Exit-Code " + process.exitValue());
+                    minerStatus = MinerStats.MinerStatus.ERROR;
+                }
+                currentHashesPerSecond = 0;
             });
 
             if (apiPollerExecutor != null && !apiPollerExecutor.isShutdown()) {
@@ -158,6 +183,7 @@ public class XmrMinerService {
 
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to start XMRig process: " + e.getMessage(), e);
+            console.append("monero", "[SolarMiner] XMRig konnte nicht gestartet werden: " + e.getMessage());
             minerStatus = MinerStats.MinerStatus.ERROR;
             currentHashesPerSecond = 0;
         }
@@ -177,6 +203,7 @@ public class XmrMinerService {
                 Thread.currentThread().interrupt();
             }
             LOGGER.info("XMRig process terminated.");
+            console.append("monero", "[SolarMiner] XMRig wurde angehalten");
         }
 
         minerStatus = MinerStats.MinerStatus.STOPPED;
@@ -280,5 +307,10 @@ public class XmrMinerService {
 
     public boolean isMiningProcessAlive() {
         return minerProcess != null && minerProcess.isAlive();
+    }
+
+    public boolean binaryAvailable() {
+        String executableName = System.getProperty("os.name", "").toLowerCase().contains("win") ? "xmrig.exe" : "xmrig";
+        return XMRIG_DIR.resolve(executableName).toFile().isFile();
     }
 }

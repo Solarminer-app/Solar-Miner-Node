@@ -1,0 +1,17 @@
+[Unit]
+Description=SolarMiner Pearl GPU miner (SRBMiner-MULTI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=solarminer
+WorkingDirectory=/opt/solarminer
+EnvironmentFile=/etc/solarminer/pearl.env
+ExecStart=/usr/bin/bash /opt/solarminer/pearl-start.sh
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

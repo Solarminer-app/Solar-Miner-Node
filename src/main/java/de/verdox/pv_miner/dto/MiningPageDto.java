@@ -26,6 +26,7 @@ public record MiningPageDto(
 
     public record MinerDto(
             UUID id,
+            String os,
             String name,
             String ipAddress,
             String model,

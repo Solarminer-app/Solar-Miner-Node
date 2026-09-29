@@ -29,6 +29,11 @@ export default function MiningPage() {
     const [showMinerConnection, setShowMinerConnection] = useState(false);
     const [showPoolConnection, setShowPoolConnection] = useState(false);
     const [powerTargetMiner, setPowerTargetMiner] = useState<MinerDto | null>(null);
+    const [pearlMiner, setPearlMiner] = useState<MinerDto | null>(null);
+    const [pearlPool, setPearlPool] = useState('stratum+ssl://prl.kryptex.network:8048');
+    const [pearlWallet, setPearlWallet] = useState('');
+    const [pearlWorker, setPearlWorker] = useState('solarminer');
+    const [pearlDevices, setPearlDevices] = useState('all');
     const [minimumPowerWatts, setMinimumPowerWatts] = useState(0);
     const [maximumPowerWatts, setMaximumPowerWatts] = useState(0);
     const [electricalRiskAcknowledged, setElectricalRiskAcknowledged] = useState(false);
@@ -236,6 +241,26 @@ export default function MiningPage() {
         } catch (reason) {
             console.error('Failed to connect pool', reason);
             setError(t['mining.error.connect_pool']);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const savePearlConfiguration = async () => {
+        if (!pearlMiner) return;
+        setSaving(true);
+        setError(null);
+        try {
+            const response = await fetch(`/api/pv-site/${siteId}/mining/miners/${pearlMiner.id}/pearl`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({poolUrl: pearlPool, wallet: pearlWallet, worker: pearlWorker, devices: pearlDevices}),
+            });
+            if (!response.ok) throw new Error(await response.text());
+            await loadData();
+            setPearlMiner(null);
+            setPearlWallet('');
+        } catch (reason) {
+            setError(reason instanceof Error ? reason.message : String(reason));
         } finally {
             setSaving(false);
         }
@@ -519,6 +544,7 @@ export default function MiningPage() {
                                                 {clusterByMinerId.get(miner.id) ?? t['mining.inventory.unassigned']}
                                             </span>
                                         </Link>
+                                        {miner.os === 'AGENT' && <button className="rounded-lg border border-violet-400/30 px-2 py-1.5 text-xs text-violet-200" onClick={() => setPearlMiner(miner)} type="button">Pearl GPU</button>}
                                         <button aria-label={t['mining.inventory.delete_miner'].replace('{name}', minerName)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[#777781] transition hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-40" disabled={deletingItem !== null} onClick={() => void deleteInventoryItem('miner', miner.id, minerName)} title={t['mining.inventory.delete_miner'].replace('{name}', minerName)} type="button">
                                             {deletingItem === itemKey ? <LoaderCircle className="animate-spin" size={16}/> : <Trash2 size={16}/>}
                                         </button>
@@ -741,6 +767,18 @@ export default function MiningPage() {
                 )}
             </div>
 
+            {pearlMiner && <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-label="Pearl GPU">
+                <div className="w-full max-w-lg space-y-4 rounded-2xl border border-[#34343d] bg-[#151519] p-5">
+                    <div className="flex justify-between"><h2 className="font-semibold">Pearl GPU · {pearlMiner.name || pearlMiner.ipAddress}</h2><button type="button" onClick={() => setPearlMiner(null)}><X size={18}/></button></div>
+                    <p className="text-xs text-amber-200">{locale === 'de' ? 'Experimentell: Mining bleibt bis zum geprüften PRL-Gebührenrouting deaktiviert. Hier kannst du den Agent vorbereiten.' : 'Experimental: mining stays disabled until PRL fee routing is verified. You can prepare the agent here.'}</p>
+                    <label className="block text-sm">Pool-URL<input className={inputClassName} value={pearlPool} onChange={e => setPearlPool(e.target.value)}/></label>
+                    <label className="block text-sm">PRL Wallet<input className={inputClassName} value={pearlWallet} onChange={e => setPearlWallet(e.target.value)} placeholder="prl1…"/></label>
+                    <label className="block text-sm">Worker<input className={inputClassName} value={pearlWorker} onChange={e => setPearlWorker(e.target.value)}/></label>
+                    <label className="block text-sm">GPU indices<input className={inputClassName} value={pearlDevices} onChange={e => setPearlDevices(e.target.value)} placeholder="all or 0,1"/></label>
+                    <button type="button" className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50" disabled={saving || !pearlWallet.startsWith('prl1')} onClick={() => void savePearlConfiguration()}>{locale === 'de' ? 'Agent vorbereiten' : 'Prepare agent'}</button>
+                </div>
+            </div>}
+
             {powerTargetMiner ? (
                 <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={t['mining.power_targets.title']}>
                     <div className="my-8 w-full max-w-2xl overflow-hidden rounded-2xl border border-[#34343d] bg-[#151519] shadow-2xl">
@@ -845,6 +883,7 @@ export default function MiningPage() {
                                                 <div className="mt-1 text-xs text-[#b7b7c0]">
                                                     {t['mining.fee.referral_catalog_col_fee']}: <span className="font-semibold text-white">{entry.totalFee.toFixed(1)}%</span> · {t['mining.fee.referral']} {entry.referralShare.toFixed(1)}% · SolarMiner {entry.solarMinerShare.toFixed(1)}%
                                                 </div>
+                                                <div className="mt-1 text-xs text-[#92929c]">{(entry.supportedCoins ?? []).join(', ') || '—'}</div>
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-[#b7b7c0]">{t['mining.fee.referral_catalog_users'].replace('{count}', String(entry.userCount))}</span>

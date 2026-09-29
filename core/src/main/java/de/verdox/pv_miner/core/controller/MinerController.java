@@ -83,6 +83,11 @@ public class MinerController {
         return minerService.setPoolTarget(request.os(), request.minerDetails(), request.stratumUrl(), request.userName(), request.referralCode());
     }
 
+    @PostMapping("/pearl/configuration")
+    public boolean configurePearl(@RequestBody PearlConfigurationRequest request) {
+        return minerService.configurePearlAgent(request.minerDetails(), request.poolUrl(), request.wallet(), request.worker(), request.devices());
+    }
+
     @PostMapping("/power-target")
     public boolean setPowerTarget(@RequestBody PowerTargetRequest request) {
         return minerService.setPowerTarget(request.os(), request.minerDetails(), request.watts());
@@ -123,5 +128,8 @@ public class MinerController {
     }
 
     public record SetPoolRequest(MiningOS os, MinerDetails minerDetails, String stratumUrl, String userName, String referralCode) {
+    }
+
+    public record PearlConfigurationRequest(MinerDetails minerDetails, String poolUrl, String wallet, String worker, String devices) {
     }
 }

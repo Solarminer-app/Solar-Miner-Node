@@ -354,6 +354,29 @@ public class MiningController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/miners/{minerId}/pearl")
+    public ResponseEntity<Void> configurePearl(@PathVariable UUID siteId, @PathVariable UUID minerId,
+                                               @RequestBody PearlAgentRequest request) {
+        PVSiteEntity site = findSite(siteId);
+        MinerEntity<?> miner = site.getMiners().stream()
+                .filter(candidate -> minerId.equals(candidate.getId())).findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Miner not found on this PV site"));
+        if (miner.getOS() != MiningOS.AGENT) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Pearl requires a SolarMiner PC agent");
+        }
+        if (request == null || request.poolUrl() == null || request.wallet() == null || request.worker() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pearl pool, wallet and worker are required");
+        }
+        if (!minerApiClient.configurePearl(miner.getDetails(), request.poolUrl(), request.wallet(), request.worker(), request.devices())) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Pearl agent configuration failed");
+        }
+        miner.setCurrentMiningPoolTarget(request.poolUrl());
+        entityService.save(miner, site);
+        return ResponseEntity.noContent().build();
+    }
+
+    public record PearlAgentRequest(String poolUrl, String wallet, String worker, String devices) { }
+
     private PVSiteEntity findSite(UUID siteId) {
         return pvSiteRepository.findById(siteId).orElseThrow(() -> new IllegalArgumentException("PV-Site nicht gefunden"));
     }
@@ -409,6 +432,6 @@ public class MiningController {
             stats = MinerStats.DEFAULT;
         }
 
-        return new MiningPageDto.MinerDto(miner.getId(), miner.getName(), miner.getIP(), stats.minerIdentity().minerModel(), stats.miningStatus().name(), stats.terahashPerSecond(), stats.approximatedPowerUsageWatts(), stats.temperatureCelsius(), miner.getCurrentMiningPoolTarget(), stats.minPowerTarget(), stats.defaultPowerTarget() > 0 ? stats.defaultPowerTarget() : stats.maxPowerTarget(), stats.maxPowerTarget(), miner.getMinPowerTarget(), miner.getMaxPowerTarget(), miner.getOS().supportsDynamicPowerScaling(), miner.getPowerStepSizeWatts(), miner.getMinRunTimeMinutes(), miner.getMinIdleTimeMinutes(), miner.getPowerChangeLockTimeMinutes());
+        return new MiningPageDto.MinerDto(miner.getId(), miner.getOS().name(), miner.getName(), miner.getIP(), stats.minerIdentity().minerModel(), stats.miningStatus().name(), stats.terahashPerSecond(), stats.approximatedPowerUsageWatts(), stats.temperatureCelsius(), miner.getCurrentMiningPoolTarget(), stats.minPowerTarget(), stats.defaultPowerTarget() > 0 ? stats.defaultPowerTarget() : stats.maxPowerTarget(), stats.maxPowerTarget(), miner.getMinPowerTarget(), miner.getMaxPowerTarget(), miner.getOS().supportsDynamicPowerScaling(), miner.getPowerStepSizeWatts(), miner.getMinRunTimeMinutes(), miner.getMinIdleTimeMinutes(), miner.getPowerChangeLockTimeMinutes());
     }
 }

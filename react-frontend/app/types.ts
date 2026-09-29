@@ -317,6 +317,7 @@ export interface FinancePageDto {
 
 export interface MinerDto {
     id: string;
+    os: string;
     name: string;
     ipAddress: string;
     model: string;
@@ -402,6 +403,7 @@ export interface ReferralCodeDto {
     referralShare: number;
     solarMinerShare: number;
     userCount: number;
+    supportedCoins?: string[];
 }
 
 export interface ClusterConditionDto {

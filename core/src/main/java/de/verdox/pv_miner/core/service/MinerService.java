@@ -76,7 +76,7 @@ public class MinerService {
     }
 
     public boolean stopMining(MiningOS miningOS, MinerDetails details) {
-        return tryOrGet(miningOS, minerController -> minerController.startMining(details), false);
+        return tryOrGet(miningOS, minerController -> minerController.stopMining(details), false);
     }
 
     public boolean pauseMining(MiningOS miningOS, MinerDetails details) {
@@ -93,7 +93,7 @@ public class MinerService {
 
     public boolean setPoolTarget(MiningOS miningOS, MinerDetails details, String stratumUrl, String userName, String referralCode) {
         String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
-        String proxyStratumUrl = "stratum+tcp://" + proxyIp + ":3333";
+        String proxyStratumUrl = "stratum+tcp://" + proxyIp + (miningOS == MiningOS.AGENT ? ":3335" : ":3333");
         String cleanTargetUrl = stratumUrl.replace("stratum+tcp://", "");
         String proxyUserName = cleanTargetUrl + ";" + userName + ";x";
 
@@ -104,6 +104,11 @@ public class MinerService {
             case BIXBIT, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS -> false;
         };
+    }
+
+    public boolean configurePearlAgent(MinerDetails details, String poolUrl, String wallet, String worker, String devices) {
+        String proxyUrl = "stratum+tcp://" + proxyDiscoveryService.getCurrentProxyIp() + ":3334";
+        return agentController.configurePearl(details, poolUrl, proxyUrl, wallet, worker, devices);
     }
 
     public boolean setPowerTarget(MiningOS miningOS, MinerDetails details, long watts) {

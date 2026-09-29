@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import de.verdox.solarminer.pcagent.dto.Pools;
+import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
 import de.verdox.solarminer.pcagent.xmr.download.XmrDownloadService;
 import org.springframework.stereotype.Service;
 import oshi.SystemInfo;
@@ -13,6 +14,7 @@ import oshi.hardware.NetworkIF;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.net.URI;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -22,58 +24,79 @@ public class XmrConfigService {
 
     private static final Logger LOGGER = Logger.getLogger(XmrConfigService.class.getName());
     private final ObjectMapper objectMapper;
+    private final ProxyConfigurationService proxyConfigurationService;
 
-    public XmrConfigService(ObjectMapper objectMapper) {
+    public XmrConfigService(ObjectMapper objectMapper, ProxyConfigurationService proxyConfigurationService) {
         this.objectMapper = objectMapper;
+        this.proxyConfigurationService = proxyConfigurationService;
     }
 
-    public void configureXmrig(Path configPath, String poolUrl, String wallet, boolean useTls) {
+    public void configureXmrig(Path configPath, String poolUrl, String wallet, boolean useTls) throws IOException {
+        if (useTls || !proxyConfigurationService.matches(poolUrl, "monero") || !validProxyLogin(wallet)) {
+            throw new IllegalArgumentException("XMRig must use the configured SolarMiner Monero proxy and pool;wallet;pass login");
+        }
         File configFile = configPath.toFile();
+        java.nio.file.Files.createDirectories(configPath.toAbsolutePath().getParent());
+        ObjectNode rootNode = objectMapper.createObjectNode();
 
+        ObjectNode httpNode = rootNode.putObject("http");
+        httpNode.put("enabled", true);
+        httpNode.put("host", "127.0.0.1");
+        httpNode.put("port", 1999);
+        httpNode.put("access-token", "token");
+        httpNode.put("restricted", true);
+
+        rootNode.put("autosave", false);
+        rootNode.put("donate-level", 0);
+
+        rootNode.putObject("cpu").put("max-threads-hint", 100);
+        rootNode.put("opencl", false);
+        rootNode.put("cuda", false);
+
+        boolean isNicehash = wallet.toLowerCase().contains("nicehash");
+        String workerId = generateDeterministicWorkerId();
+        ArrayNode poolsNode = rootNode.putArray("pools");
+        ObjectNode poolNode = objectMapper.createObjectNode();
+        poolNode.put("coin", "monero");
+        poolNode.put("algo", "rx/0");
+        poolNode.put("url", poolUrl);
+        poolNode.put("user", wallet);
+        poolNode.put("pass", "x");
+        poolNode.put("rig-id", workerId);
+        poolNode.put("tls", false);
+        poolNode.put("keepalive", true);
+        poolNode.put("nicehash", isNicehash);
+        poolsNode.add(poolNode);
+
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(configFile, rootNode);
+        LOGGER.info("Successfully generated proxy-only XMRig config.json");
+    }
+
+    public boolean isProxyRouteConfigured() {
         try {
-            ObjectNode rootNode = objectMapper.createObjectNode();
-
-            ObjectNode httpNode = rootNode.putObject("http");
-            httpNode.put("enabled", true);
-            httpNode.put("host", "0.0.0.0");
-            httpNode.put("port", 1999);
-            httpNode.put("access-token", "token");
-            httpNode.put("restricted", false);
-
-            rootNode.put("autosave", true);
-            rootNode.put("donate-level", 0);
-
-            ObjectNode cpuNode = rootNode.putObject("cpu");
-            cpuNode.put("max-threads-hint", 100);
-
-            rootNode.put("opencl", false);
-            rootNode.put("cuda", false);
-
-            // NiceHash Erkennung
-            boolean isNicehash = poolUrl != null && poolUrl.toLowerCase().contains("nicehash");
-
-            String workerId = generateDeterministicWorkerId();
-            LOGGER.info("Generated deterministic Worker-ID: " + workerId);
-
-            ArrayNode poolsNode = rootNode.putArray("pools");
-            ObjectNode poolNode = objectMapper.createObjectNode();
-            poolNode.put("coin", "monero");
-            poolNode.put("algo", "rx/0");
-            poolNode.put("url", poolUrl);
-            poolNode.put("user", wallet);
-            poolNode.put("pass", "x");
-            poolNode.put("rig-id", workerId);
-            poolNode.put("tls", useTls);
-            poolNode.put("keepalive", true);
-            poolNode.put("nicehash", isNicehash);
-
-            poolsNode.add(poolNode);
-
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(configFile, rootNode);
-            LOGGER.info("Successfully generated new XMRig config.json from scratch for wallet: " + wallet + " (NiceHash: " + isNicehash + ")");
-
+            JsonNode root = objectMapper.readTree(XmrDownloadService.CONFIG_PATH.toFile());
+            if (root == null) return false;
+            JsonNode pools = root.path("pools");
+            if (!pools.isArray() || pools.size() != 1) return false;
+            JsonNode pool = pools.get(0);
+            return proxyConfigurationService.matches(pool.path("url").asText(), "monero")
+                    && validProxyLogin(pool.path("user").asText())
+                    && !pool.path("tls").asBoolean();
         } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Failed to generate config.json: " + e.getMessage(), e);
+            return false;
+        }
+    }
+
+    private static boolean validProxyLogin(String login) {
+        if (login == null) return false;
+        String[] parts = login.split(";", -1);
+        if (parts.length != 3 || parts[1].isBlank() || parts[2].isBlank()) return false;
+        try {
+            URI upstream = URI.create(parts[0].contains("://") ? parts[0] : "stratum+tcp://" + parts[0]);
+            return ("stratum+tcp".equals(upstream.getScheme()) || "stratum+ssl".equals(upstream.getScheme()))
+                    && upstream.getHost() != null && upstream.getPort() > 0 && upstream.getPort() <= 65535;
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 

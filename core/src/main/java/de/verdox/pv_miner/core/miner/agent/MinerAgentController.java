@@ -6,6 +6,7 @@ import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.service.DevFeeService;
 import org.springframework.web.client.RestClient;
+import org.springframework.http.MediaType;
 
 import java.util.List;
 import java.util.Map;
@@ -80,8 +81,28 @@ public class MinerAgentController implements MinerController {
     public boolean setPoolTarget(MinerDetails details, String stratumUrl, String userName) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/setPowerTarget").queryParam("poolUrl", stratumUrl).queryParam("poolUser", userName).queryParam("devFeePercentage", DevFeeConstants.DevFeePercentage).build()).retrieve().body(Boolean.class));
+            String proxyHost = java.net.URI.create(stratumUrl).getHost();
+            if (proxyHost == null || !Boolean.TRUE.equals(restClient.post()
+                    .uri(uriBuilder -> uriBuilder.path("/api/agent/proxy").queryParam("host", proxyHost).build())
+                    .retrieve().body(Boolean.class))) return false;
+            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/setPoolConfiguration").queryParam("poolUrl", stratumUrl).queryParam("poolUser", userName).queryParam("devFeePercentage", DevFeeConstants.DevFeePercentage).build()).retrieve().body(Boolean.class));
         } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    public boolean configurePearl(MinerDetails details, String poolUrl, String proxyUrl, String wallet, String worker, String devices) {
+        try {
+            var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
+            String proxyHost = java.net.URI.create(proxyUrl).getHost();
+            if (proxyHost == null || !Boolean.TRUE.equals(restClient.post()
+                    .uri(uriBuilder -> uriBuilder.path("/api/agent/proxy").queryParam("host", proxyHost).build())
+                    .retrieve().body(Boolean.class))) return false;
+            return Boolean.TRUE.equals(restClient.post().uri("/api/agent/pearl/configuration")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("poolUrl", poolUrl, "proxyUrl", proxyUrl, "wallet", wallet, "worker", worker, "devices", devices == null ? "all" : devices))
+                    .retrieve().body(Boolean.class));
+        } catch (Exception e) {
             return false;
         }
     }
@@ -111,13 +132,22 @@ public class MinerAgentController implements MinerController {
         return true;
     }
 
-    //TODO: Always return false. We simply send the agent the dev fee all the time for now.
     public boolean verifyProxyRouting(MinerDetails details, String proxyIp) {
-        return false;
+        try {
+            var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
+            Map<?, ?> proxy = restClient.get().uri("/api/agent/proxy").retrieve().body(Map.class);
+            return proxy != null && proxyIp.equals(proxy.get("host")) && Boolean.TRUE.equals(proxy.get("reachable"));
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public void enforceProxyRouting(MinerDetails details, String proxyIP, String proxyPort) {
-
+        try {
+            var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
+            restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/proxy")
+                    .queryParam("host", proxyIP).build()).retrieve().body(Boolean.class);
+        } catch (Exception ignored) { }
     }
 
     @Override

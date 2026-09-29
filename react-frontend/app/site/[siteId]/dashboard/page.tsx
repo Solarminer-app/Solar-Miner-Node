@@ -116,14 +116,19 @@ export default function DashboardPage() {
     useEffect(() => {
         if (!siteId || !profilesReady) return;
         const controller = new AbortController();
-        const refresh = () => void loadInitialization(controller.signal).catch((reason) => {
-            if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : t['dashboard.error.missing']);
-        });
-        const timeout = window.setTimeout(refresh, 0);
-        const interval = window.setInterval(refresh, 15_000);
+        let timeout = 0;
+        const refresh = async () => {
+            try {
+                await loadInitialization(controller.signal);
+            } catch (reason) {
+                if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : t['dashboard.error.missing']);
+            } finally {
+                if (!controller.signal.aborted) timeout = window.setTimeout(refresh, 15_000);
+            }
+        };
+        timeout = window.setTimeout(refresh, 0);
         return () => {
             window.clearTimeout(timeout);
-            window.clearInterval(interval);
             controller.abort();
         };
     }, [loadInitialization, profilesReady, siteId, t]);
@@ -131,17 +136,22 @@ export default function DashboardPage() {
     useEffect(() => {
         if (!siteId || !isHydrated || !profilesReady) return;
         const controller = new AbortController();
-        const refresh = () => void loadLiveUpdates(controller.signal).catch((reason) => {
-            if (!controller.signal.aborted) {
-                setError(reason instanceof Error ? reason.message : t['dashboard.error.missing']);
-                setLoading(false);
+        let timeout = 0;
+        const refresh = async () => {
+            try {
+                await loadLiveUpdates(controller.signal);
+            } catch (reason) {
+                if (!controller.signal.aborted) {
+                    setError(reason instanceof Error ? reason.message : t['dashboard.error.missing']);
+                    setLoading(false);
+                }
+            } finally {
+                if (!controller.signal.aborted) timeout = window.setTimeout(refresh, 3_000);
             }
-        });
-        const timeout = window.setTimeout(refresh, 0);
-        const interval = window.setInterval(refresh, 3_000);
+        };
+        timeout = window.setTimeout(refresh, 0);
         return () => {
             window.clearTimeout(timeout);
-            window.clearInterval(interval);
             controller.abort();
         };
     }, [isHydrated, loadLiveUpdates, profilesReady, siteId, t]);
@@ -149,12 +159,19 @@ export default function DashboardPage() {
     useEffect(() => {
         if (!siteId || !isHydrated || !profilesReady) return;
         const controller = new AbortController();
-        const refresh = () => void loadCharts(controller.signal).catch(() => undefined);
-        const timeout = window.setTimeout(refresh, 0);
-        const interval = window.setInterval(refresh, CHART_REFRESH_INTERVAL_MS);
+        let timeout = 0;
+        const refresh = async () => {
+            try {
+                await loadCharts(controller.signal);
+            } catch {
+                // Keep the last successful chart visible and retry on the next cycle.
+            } finally {
+                if (!controller.signal.aborted) timeout = window.setTimeout(refresh, CHART_REFRESH_INTERVAL_MS);
+            }
+        };
+        timeout = window.setTimeout(refresh, 0);
         return () => {
             window.clearTimeout(timeout);
-            window.clearInterval(interval);
             controller.abort();
         };
     }, [isHydrated, loadCharts, profilesReady, siteId]);
@@ -173,11 +190,26 @@ export default function DashboardPage() {
         return Array.from(points.values()).sort((left, right) => left.timestamp - right.timestamp);
     }, [charts]);
 
-    if (loading && (!initData || !liveData)) {
+    if (loading && !initData) {
         return <main className="grid min-h-[70vh] w-full min-w-0 place-items-center text-[#a1a1aa]"><span className="flex items-center gap-3"><RefreshCw className="animate-spin text-yellow-300"/>{t['dashboard.loading']}</span></main>;
     }
-    if (!initData || !liveData) {
+    if (!initData) {
         return <main className="grid min-h-[70vh] w-full min-w-0 place-items-center text-red-300"><span className="flex items-center gap-3"><AlertTriangle/>{error ?? t['dashboard.error.missing']}</span></main>;
+    }
+    if (!liveData) {
+        return <main className="min-h-screen w-full min-w-0 max-w-full overflow-x-clip bg-[#0b0b0e] px-3 py-4 text-white sm:px-5 lg:px-7">
+            <div className="mx-auto w-full min-w-0 max-w-[1700px] space-y-4">
+                <header className="rounded-2xl border border-white/[0.07] bg-[#131318] px-4 py-3 sm:px-5">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-300">{t['dashboard.eyebrow']} · {initData.siteName}</p>
+                    <h1 className="mt-1 text-xl font-bold sm:text-2xl">{t['dashboard.header.title']}</h1>
+                    <p className="mt-1 flex items-center gap-2 text-sm text-[#777781]"><RefreshCw className="animate-spin text-yellow-300" size={14}/>{error ?? t['dashboard.loading']}</p>
+                </header>
+                <div className="grid gap-3 lg:grid-cols-2">
+                    <InventoryCard miners={initData.miners} t={t}/>
+                    <PoolCard pools={initData.pools} t={t}/>
+                </div>
+            </div>
+        </main>;
     }
 
     const {energy, day, mining, dataQuality} = liveData;

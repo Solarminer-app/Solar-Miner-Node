@@ -48,6 +48,18 @@ public class MinerApiClient {
         return executePoolCommand("/pool-target", new SetPoolRequest(os, details, stratumUrl, workerNameForPool, normalizeReferral(referralCode)));
     }
 
+    public boolean configurePearl(MinerDetails details, String poolUrl, String wallet, String worker, String devices) {
+        try {
+            Boolean result = restClient.post().uri("/pearl/configuration")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new PearlConfigurationRequest(details, poolUrl, wallet, worker, devices))
+                    .retrieve().body(Boolean.class);
+            return Boolean.TRUE.equals(result);
+        } catch (RestClientException e) {
+            return false;
+        }
+    }
+
     public boolean setPowerTarget(MiningOS os, MinerDetails details, long watts) {
         return executePowerCommand("/power-target", new PowerTargetRequest(os, details, watts));
     }
@@ -207,6 +219,9 @@ public class MinerApiClient {
     }
 
     public record SetPoolRequest(MiningOS os, MinerDetails minerDetails, String stratumUrl, String userName, String referralCode) {
+    }
+
+    public record PearlConfigurationRequest(MinerDetails minerDetails, String poolUrl, String wallet, String worker, String devices) {
     }
 
     private static String normalizeReferral(String referralCode) {
