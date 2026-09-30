@@ -1,0 +1,144 @@
+name: Release SolarMiner PC-Agent
+
+on:
+  push:
+    tags:
+      - "pc-agent-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "PC-Agent version from gradle.properties"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-pc-agent-${{ github.ref }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    name: Read PC-Agent metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      image: ${{ steps.metadata.outputs.image }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: derverdox/solarminer-stratum-proxy
+          path: embedded-proxy-src
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Read and validate release metadata
+        id: metadata
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+
+          VERSION="$(./gradlew -q printPcAgentVersion)"
+          IMAGE="$(./gradlew -q printPcAgentImage)"
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "pcAgentVersion must use x.y.z, got: $VERSION" >&2
+            exit 1
+          fi
+
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            RELEASE_VERSION="${REF_NAME#pc-agent-v}"
+          else
+            RELEASE_VERSION="$REQUESTED_VERSION"
+          fi
+
+          if [[ "$RELEASE_VERSION" != "$VERSION" ]]; then
+            echo "Release tag/version and pcAgentVersion do not match." >&2
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Test PC-Agent
+    needs: metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: derverdox/solarminer-stratum-proxy
+          path: embedded-proxy-src
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run PC-Agent tests and build standalone JAR
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew :pc-agent:test :pc-agent:standaloneJar \
+            -Psolarminer.proxy.project-dir=embedded-proxy-src \
+            --no-daemon
+
+  build-and-push:
+    name: Build and publish Linux amd64 image
+    needs:
+      - metadata
+      - test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: derverdox/solarminer-stratum-proxy
+          path: embedded-proxy-src
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and publish PC-Agent image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: pc-agent/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ needs.metadata.outputs.image }}:${{ needs.metadata.outputs.version }}
+            ${{ needs.metadata.outputs.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Inspect published image
+        shell: bash
+        env:
+          IMAGE: ${{ needs.metadata.outputs.image }}
+          VERSION: ${{ needs.metadata.outputs.version }}
+        run: docker buildx imagetools inspect "${IMAGE}:${VERSION}"
