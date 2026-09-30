@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "de.verdox.solarminer"
-version = "0.0.1-SNAPSHOT"
+version = providers.gradleProperty("pcAgentVersion").orElse("0.0.1-SNAPSHOT").get()
 description = "pc-agent"
 
 java {
@@ -18,7 +18,10 @@ java {
     }
 }
 
-val proxyProjectDir = rootProject.projectDir.parentFile.resolve("solarminer-stratum-proxy")
+val proxyProjectDir = providers.gradleProperty("solarminer.proxy.project-dir")
+    .map { rootProject.file(it) }
+    .orElse(rootProject.projectDir.parentFile.resolve("solarminer-stratum-proxy"))
+    .get()
 if (!proxyProjectDir.resolve("src/main/java").isDirectory) {
     throw GradleException("Stratum proxy source is required for PC-Agent builds: $proxyProjectDir")
 }
@@ -54,6 +57,10 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.named<BootJar>("bootJar") {
+    archiveFileName.set("solarminer-pc-agent.jar")
 }
 
 tasks.register<BootJar>("standaloneJar") {

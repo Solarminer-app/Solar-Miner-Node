@@ -21,8 +21,17 @@ The JAR contains the PC-Agent and the Stratum proxy source/classes and dependenc
 
 On a new installation, the Mining page starts with a local quick-start checklist. The normal route asks for the operator's own pool wallet. Choosing the SolarMiner standard payout is explicit: the UI shows the masked destination and complete fee breakdown, and requires a confirmation because the whole payout goes to that target. Windows sensor elevation is optional for mining; without it, hardware telemetry is unavailable but miner installation, configuration and local start remain usable. To let a SolarMiner Node control the agent, enable **Node-Steuerung** locally under Hardware first. The Node can publish its economic/PV decision to `POST /api/agent/node-assessment` with `{ "decision": "PROFITABLE"|"NOT_PROFITABLE"|"UNKNOWN", "reason": "...", "source": "SolarMiner Node" }`; the agent persists and displays that decision but does not calculate PV profitability itself.
 
-Pearl remains disabled by default pending real SRBMiner/Kryptex shares and pool accounting.
+Pearl requires a saved valid configuration, the explicitly installed SRBMiner
+binary, a selected supported GPU and a reachable local proxy with a loaded fee
+route. It does not start automatically.
 
 The Mining page shows a separate live console for each agent-managed miner. Output is appended to `./solarminer-agent/logs/xmrig-console.log` and `./solarminer-agent/logs/srbminer-console.log`, including previous runs, and can be downloaded from the miner view. The page reads the files in chunks via `/api/agent/console/{monero|pearl}`. Each active log is capped at 10 MiB; when that limit is reached, the previous log is retained once as `.log.1`. These local files may contain pool login details.
 
 Opening a miner tab only changes the dashboard view. XMRig and SRBMiner can run at the same time; each selected Pearl GPU has its own SRBMiner process, API port, status, controls and console. The CPU and GPU start/pause buttons affect only the viewed miner. Saving a Pearl configuration that merely adds GPUs keeps existing GPU processes running; changing its pool, wallet, worker or proxy stops the affected Pearl processes. Changing the proxy host stops both coin paths because their routes must be revalidated.
+
+## Linux Docker
+
+For the Linux `amd64` container, GPU-specific Compose overlays and the explicit
+XMR/RandomX host preparation are documented in [DOCKER.md](DOCKER.md). The
+container does not download or start a miner by itself; use the local agent UI
+to explicitly install and configure it after startup.

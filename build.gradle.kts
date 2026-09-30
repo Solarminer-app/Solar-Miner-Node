@@ -14,11 +14,14 @@ val projectGroup = providers.gradleProperty("group")
 val frontendVersion = providers.gradleProperty("frontendVersion")
 val coreVersion = providers.gradleProperty("coreVersion")
 val currencyRatesVersion = providers.gradleProperty("currencyRatesVersion")
+val pcAgentVersion = providers.gradleProperty("pcAgentVersion")
 val pvApiVersion = providers.gradleProperty("pvApiVersion")
 
 val frontendImage = providers.gradleProperty("frontendImage")
 val coreImage = providers.gradleProperty("coreImage")
 val currencyRatesImage = providers.gradleProperty("currencyRatesImage")
+val pcAgentImage = providers.gradleProperty("pcAgentImage")
+val pcAgentStandaloneImage = providers.gradleProperty("pcAgentStandaloneImage")
 
 allprojects {
     group = projectGroup.get()
@@ -41,6 +44,10 @@ project(":core") {
 
 project(":currency-rates") {
     version = currencyRatesVersion.get()
+}
+
+project(":pc-agent") {
+    version = pcAgentVersion.get()
 }
 
 project(":pv-api") {
@@ -289,6 +296,15 @@ tasks.register("printCurrencyRatesVersion") {
     }
 }
 
+tasks.register("printPcAgentVersion") {
+    group = "versioning"
+    description = "Prints the PC-Agent version."
+
+    doLast {
+        println(pcAgentVersion.get())
+    }
+}
+
 tasks.register("printPvApiVersion") {
     group = "versioning"
     description = "Prints the PV API version."
@@ -323,5 +339,23 @@ tasks.register("printCurrencyRatesImage") {
 
     doLast {
         println(currencyRatesImage.get())
+    }
+}
+
+tasks.register("printPcAgentImage") {
+    group = "versioning"
+    description = "Prints the PC-Agent Docker image repository."
+
+    doLast {
+        println(pcAgentImage.get())
+    }
+}
+
+tasks.register("printPcAgentStandaloneImage") {
+    group = "versioning"
+    description = "Prints the standalone PC-Agent Docker image repository."
+
+    doLast {
+        println(pcAgentStandaloneImage.get())
     }
 }
