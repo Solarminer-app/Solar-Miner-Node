@@ -54,7 +54,7 @@ public class ManagedProxyService {
                     "--proxy.coins.bitcoin.port=3333", "--proxy.coins.monero.port=3335",
                     "--proxy.coins.pearl.port=3334",
                     "--proxy.discovery.enabled=false",
-                    "--proxy.pearl.enabled=true", "--solarminer.fee.referral=solarminer");
+                    "--proxy.pearl.enabled=true");
             status = proxyContext.isActive() ? "running" : "failed";
             detail = proxyContext.isActive() ? "" : "Local Stratum service did not remain active";
         } catch (Exception e) {

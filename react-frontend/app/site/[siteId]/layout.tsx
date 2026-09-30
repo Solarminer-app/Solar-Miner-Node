@@ -169,6 +169,7 @@ function SiteLayoutContent({children}: PropsWithChildren) {
 
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
+    const [walletBalance, setWalletBalance] = useState<{btc: number; fiat: number} | null>(null);
     const {
         locale, setLocale, currency, setCurrency, timeZone, setTimeZone,
     } = useSitePreferences();
@@ -219,6 +220,19 @@ function SiteLayoutContent({children}: PropsWithChildren) {
             window.removeEventListener("keydown", closeOnEscape);
         };
     }, [mobileMenuOpen]);
+
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const response = await fetch(`/api/lightning-wallet?currency=USD&locale=${locale}`, {cache: "no-store"});
+                if (!response.ok) return;
+                const data = await response.json() as { balanceSat?: number; balanceFormatted?: string };
+                const match = data.balanceFormatted?.match(/[$]([0-9,.]+)/);
+                setWalletBalance({btc: (data.balanceSat ?? 0) / 100_000_000, fiat: match ? Number(match[1].replace(/,/g, "")) : 0});
+            } catch { /* Wallet service can be offline during setup. */ }
+        };
+        void load();
+    }, [locale]);
 
     const changeCurrency = (nextCurrency: CurrencyCode) => {
         setCurrency(nextCurrency);
@@ -309,6 +323,12 @@ function SiteLayoutContent({children}: PropsWithChildren) {
                 <Icon name="menu" size={26}/>
             </button>
         </header>
+        <section aria-label={t("wallet.strip.label")} className="wallet-strip">
+            <div className="wallet-strip__items">
+                {walletBalance ? <div className="wallet-chip"><span aria-hidden="true">₿</span><strong>{walletBalance.btc.toFixed(8)} BTC</strong><small>${walletBalance.fiat.toLocaleString(undefined, {maximumFractionDigits: 2})}</small></div> : <div className="wallet-chip wallet-chip--loading"><span aria-hidden="true">₿</span><strong>Bitcoin Wallet</strong><small>{t("wallet.strip.loading")}</small></div>}
+            </div>
+            <strong className="wallet-strip__total">{t("wallet.strip.total")} <span>${(walletBalance?.fiat ?? 0).toLocaleString(undefined, {maximumFractionDigits: 2})}</span></strong>
+        </section>
 
         <main className="content">{children}</main>
 
@@ -669,6 +689,11 @@ function SiteLayoutContent({children}: PropsWithChildren) {
                     transform: translateY(0);
                 }
             }
+
+            .wallet-strip { display:flex; align-items:center; justify-content:space-between; gap:1rem; min-height:52px; padding:8px clamp(1rem,3vw,2.5rem); border-bottom:1px solid var(--border); background:#0d0d10; }
+            .wallet-strip__items { display:flex; min-width:0; gap:.6rem; overflow-x:auto; }
+            .wallet-chip { display:inline-flex; align-items:center; gap:.55rem; flex:0 0 auto; padding:.45rem .65rem; border:1px solid #ffffff12; border-radius:.6rem; background:#17171b; font-size:.78rem; }
+            .wallet-chip > span { color:#ffca28; font-size:1.15rem; }.wallet-chip small,.wallet-strip__total { color:var(--muted); }.wallet-chip--loading { opacity:.7; }.wallet-strip__total { flex:0 0 auto; font-size:.78rem; }.wallet-strip__total span { margin-left:.35rem; color:var(--text); }
 
             @media (max-width: 1180px) {
                 .navbar {

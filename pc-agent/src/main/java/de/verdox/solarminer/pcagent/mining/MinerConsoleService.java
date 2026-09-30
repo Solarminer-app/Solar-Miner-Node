@@ -14,11 +14,12 @@ import java.util.Base64;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/** Keeps every line of each local miner's console in a separate, append-only file. */
+/** Keeps local diagnostics bounded so an unattended homelab cannot fill its system disk. */
 @Service
 public class MinerConsoleService {
     private static final Logger LOGGER = Logger.getLogger(MinerConsoleService.class.getName());
     private static final int CHUNK_BYTES = 64 * 1024;
+    private static final long MAX_LOG_BYTES = 10L * 1024 * 1024;
     private final Path directory = Path.of("./solarminer-agent/logs").toAbsolutePath().normalize();
 
     public synchronized void started(String miner) {
@@ -28,11 +29,21 @@ public class MinerConsoleService {
     public synchronized void append(String miner, String line) {
         try {
             Files.createDirectories(directory);
-            Files.write(file(miner), (line + "\n").getBytes(StandardCharsets.UTF_8),
+            Path target = file(miner);
+            byte[] next = (line + "\n").getBytes(StandardCharsets.UTF_8);
+            rotateIfNeeded(target, next.length);
+            Files.write(target, next,
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException e) {
             LOGGER.log(Level.WARNING, "Could not save " + miner + " console output", e);
         }
+    }
+
+    /** Retain one previous log rather than silently deleting diagnostics on rotation. */
+    private void rotateIfNeeded(Path target, int nextBytes) throws IOException {
+        if (!Files.isRegularFile(target) || Files.size(target) + nextBytes <= MAX_LOG_BYTES) return;
+        Path previous = target.resolveSibling(target.getFileName() + ".1");
+        Files.move(target, previous, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
     }
 
     public ConsoleChunk read(String miner, long offset) throws IOException {

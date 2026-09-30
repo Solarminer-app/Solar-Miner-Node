@@ -213,7 +213,7 @@ The Mining page has an independent console for each agent-managed miner. `GET /a
 
 The PC-Agent supports XMRig and SRBMiner concurrently. `POST /api/agent/miners/{monero|pearl}/resume` and `/pause` control only that coin. `POST /api/agent/miners/{monero|pearl}/power-target?powerTarget=<watts>` sets that coin's power target. Each selected Pearl GPU has its own SRBMiner process and can be controlled with `POST /api/agent/pearl/gpus/{vendor}/{index}/resume` or `/pause`. `/api/agent/overview` reports all CPU/GPU workers and per-GPU states in `pearl.gpus`. Logs for a single Pearl GPU use `/api/agent/console/pearl-{vendor}-{index}` and its `/download` endpoint. The generic `/pause` stops all miners; generic `/resume` reapplies a known PV-wide budget, or starts only the legacy preferred coin when no such budget has been set. The generic power target allocates a total PV budget across both. The persisted legacy `activeCoin` selection no longer stops another miner.
 
-For an independent installation, build `./gradlew :pc-agent:standaloneZip` from the Node repository. This builds the sibling `solarminer-stratum-proxy` repository and packages both runnable JARs plus Windows/Linux launchers; see `pc-agent/standalone/README.md`. Java 21 is required on the target PC. The launcher starts the proxy locally on loopback and fixes the agent's proxy host to `127.0.0.1`. Standalone Monero mining is gated on an active, positive fee target from the fee backend. The bundled proxy refuses mining connections without a usable fee target, and the agent stops a running miner if the proxy or fee route disappears. The proxy's job routing performs the fee split; this build path has not yet been validated against a real pool. Pearl stays disabled by default pending real shares and accounting.
+For an independent installation, build `./gradlew :pc-agent:standaloneZip` from the Node repository. This builds the sibling `solarminer-stratum-proxy` repository and packages both runnable JARs plus Windows/Linux launchers; see `pc-agent/standalone/README.md`. Java 21 is required on the target PC. The launcher starts the proxy locally on loopback and fixes the agent's proxy host to `127.0.0.1`. Standalone Monero and Pearl mining are gated on an active, positive fee target from the fee backend. The bundled proxy refuses mining connections without a usable fee target, and the agent stops a running miner if the proxy or fee route disappears. The proxy's job routing performs the fee split.
 
 The PC-Agent also exposes a host hardware snapshot for local integrations. It is sampled on request with a one-second cache and does not upload or persist readings. Linux reads available kernel `hwmon`, thermal and powercap/RAPL sensors. On Windows, the agent downloads LibreHardwareMonitor from its official upstream release and verifies the published SHA-256 digest. It configures the LHM JSON server on loopback (`127.0.0.1:8085`) and asks Windows for elevation when starting LHM, because its sensor driver requires administrator rights. The UI stays blocked until LHM responds; if it does not start, the user can retry from the UAC prompt flow. Missing or inaccessible sensor values are returned with `available: false` and `value: null`; JVM memory is labelled separately from physical host memory. Close a separately running LHM instance if it has no local JSON server enabled.
 
@@ -224,6 +224,11 @@ Controller source: [`MiningController`](../pc-agent/src/main/java/de/verdox/sola
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/agent/identify` | Verify that a compatible PC Agent is reachable. |
+| `GET` | `/api/agent/power-control/identity` | Versioned PC-Agent identity (`solarminer-pc-agent`) used by Node discovery. |
+| `GET` | `/api/agent/power-control` | PV power-control range, applied target, usage measurement state and per-GPU driver/user limits. Unavailable measurements are `null`, never `0 W`. |
+| `POST` | `/api/agent/power-control/target?watts=<watts>` | Apply one PV-wide watt target; below the supported minimum pauses mining and above maximum is capped. |
+| `POST` | `/api/agent/power-control/gpus/{deviceId}/limits` | Persist `{minimumWatts,maximumWatts}` within the freshly reported driver range for one stable GPU ID. |
+| `GET` / `POST` | `/api/agent/power-control/settings` | Read or set `{dynamicPowerScalingEnabled, externalControlEnabled}`. Disabled external control rejects Node start/pause/target commands immediately. |
 | `GET` | `/api/agent` | Get current CPU/GPU mining statistics. |
 | `GET` | `/api/agent/telemetry` | Get a timestamped JSON snapshot of available host CPU, memory and sensor telemetry, including units, source and availability. |
 | `POST` | `/api/agent/telemetry/restart` | Retry starting LibreHardwareMonitor; Windows may show a UAC prompt. |
@@ -234,12 +239,14 @@ Controller source: [`MiningController`](../pc-agent/src/main/java/de/verdox/sola
 | `POST` | `/api/agent/proxy/discover` | Broadcast on local IPv4 subnets to find compatible proxies via UDP 8091, then validate their API over HTTP 8090. |
 | `GET` | `/api/agent/coin` | Get the active mining coin. |
 | `POST` | `/api/agent/coin?coin=monero|pearl` | Select and persist the active coin; stops the previous miner. |
-| `POST` | `/api/agent/pearl/configuration` | Set the experimental Pearl miner configuration. |
+| `POST` | `/api/agent/pearl/configuration` | Set the Pearl GPU miner configuration. |
 | `POST` | `/api/agent/monero/configuration` | Set Monero pool URL, wallet and worker in a JSON body; configures XMRig for the SolarMiner proxy. |
 | `POST` | `/api/agent/setPoolConfiguration` | Set XMRig's proxy-only URL and encoded upstream login. The legacy `devFeePercentage` parameter is accepted for compatibility and does not control fee routing. |
 | `POST` | `/api/agent/setPowerTarget` | Set an absolute host power target. |
 | `POST` | `/api/agent/increasePowerTarget` | Increase the host power target. |
 | `POST` | `/api/agent/decreasePowerTarget` | Decrease the host power target. |
+
+Dynamic GPU-Power-Regelung wird aktuell nur für NVIDIA-Karten angeboten, deren `nvidia-smi` eine stabile UUID, Treibergrenzen und den zurückgelesenen Sollwert liefert. AMD-Karten und andere nicht verifizierbare GPUs bleiben sichtbar, werden aber nicht per Power-Limit geregelt, bis ein entsprechender Treiberadapter stabile IDs und eine Set/Readback-Prüfung bietet. Der Agent ändert weder Spannung noch Takt und versucht beim regulären Beenden, die vor dem ersten SolarMiner-Eingriff gelesenen Limits wiederherzustellen.
 | `POST` | `/api/agent/pause` | Pause PC mining. |
 | `POST` | `/api/agent/resume` | Resume PC mining. |
 

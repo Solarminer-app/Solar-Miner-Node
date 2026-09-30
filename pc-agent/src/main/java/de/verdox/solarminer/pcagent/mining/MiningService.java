@@ -60,9 +60,14 @@ public class MiningService {
             return pauseAll();
         }
         long cpuMax = !cpuManuallyPaused && xmrMinerService.readyForStart() ? xmrMinerService.getEstimatedMaxCpuWattage() : 0;
-        List<LocalGpuPowerService.Gpu> cards = pearlMinerService.eligibleGpus();
+        List<LocalGpuPowerService.Gpu> cards = pearlMinerService.eligibleGpus().stream()
+                .filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling).toList();
         long gpuMinimum = cards.stream().mapToLong(LocalGpuPowerService.Gpu::minWatts).sum();
         long gpuMaximum = cards.stream().mapToLong(LocalGpuPowerService.Gpu::maxWatts).sum();
+        long minimum = cpuMax > 0 ? xmrMinerService.getMinimumControllablePowerWatts() : gpuMinimum;
+        long maximum = cpuMax + gpuMaximum;
+        if (powerTarget < minimum) return setTarget(0);
+        powerTarget = Math.min(powerTarget, maximum);
         long cpuTarget = Math.min(cpuMax, powerTarget);
         long gpuTarget = 0;
         if (!cards.isEmpty() && powerTarget >= gpuMinimum) {
@@ -204,12 +209,22 @@ public class MiningService {
     }
 
     public long calculateMinPowerTargetFromComponents() {
-        return xmrMinerService.getEstimatedMaxCpuWattage();
+        long cpu = !cpuManuallyPaused && xmrMinerService.readyForStart()
+                ? xmrMinerService.getMinimumControllablePowerWatts() : 0;
+        long gpu = pearlMinerService.eligibleGpus().stream().filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling)
+                .mapToLong(LocalGpuPowerService.Gpu::minWatts).sum();
+        return cpu > 0 ? cpu : gpu;
     }
 
     public long calculateMaxPowerTargetFromComponents() {
-        return 0;
+        long cpu = !cpuManuallyPaused && xmrMinerService.readyForStart() ? xmrMinerService.getEstimatedMaxCpuWattage() : 0;
+        long gpu = pearlMinerService.eligibleGpus().stream().filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling)
+                .mapToLong(LocalGpuPowerService.Gpu::maxWatts).sum();
+        return cpu + gpu;
     }
+
+    public long desiredGlobalPowerTarget() { return desiredGlobalPowerTarget; }
+    public long desiredCpuPowerTarget() { return desiredCpuPowerTarget; }
 
     public long approximatePowerUsageSystem() {
         return 0;

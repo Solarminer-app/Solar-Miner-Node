@@ -1,6 +1,7 @@
 const gate = document.getElementById('lhm-gate');
 const retryButton = document.getElementById('gate-retry');
 let retrying = false;
+if (gate && retryButton) {
 async function checkSensorAccess() {
   try {
     const response = await fetch('/api/agent/telemetry', { cache: 'no-store' });
@@ -37,3 +38,4 @@ retryButton.addEventListener('click', async () => {
   }
 });
 checkSensorAccess(); setInterval(checkSensorAccess, 1500);
+}

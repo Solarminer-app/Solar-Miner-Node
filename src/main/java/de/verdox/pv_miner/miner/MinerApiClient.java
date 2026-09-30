@@ -48,11 +48,11 @@ public class MinerApiClient {
         return executePoolCommand("/pool-target", new SetPoolRequest(os, details, stratumUrl, workerNameForPool, normalizeReferral(referralCode)));
     }
 
-    public boolean configurePearl(MinerDetails details, String poolUrl, String wallet, String worker, String devices) {
+    public boolean configurePearl(MinerDetails details, String poolUrl, String wallet, String worker, String devices, String referralCode) {
         try {
             Boolean result = restClient.post().uri("/pearl/configuration")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(new PearlConfigurationRequest(details, poolUrl, wallet, worker, devices))
+                    .body(new PearlConfigurationRequest(details, poolUrl, wallet, worker, devices, normalizeReferral(referralCode)))
                     .retrieve().body(Boolean.class);
             return Boolean.TRUE.equals(result);
         } catch (RestClientException e) {
@@ -221,7 +221,7 @@ public class MinerApiClient {
     public record SetPoolRequest(MiningOS os, MinerDetails minerDetails, String stratumUrl, String userName, String referralCode) {
     }
 
-    public record PearlConfigurationRequest(MinerDetails minerDetails, String poolUrl, String wallet, String worker, String devices) {
+    public record PearlConfigurationRequest(MinerDetails minerDetails, String poolUrl, String wallet, String worker, String devices, String referralCode) {
     }
 
     private static String normalizeReferral(String referralCode) {

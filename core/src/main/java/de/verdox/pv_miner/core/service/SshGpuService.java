@@ -23,9 +23,6 @@ public class SshGpuService {
     private static final Pattern AMD_MAX = Pattern.compile("MAX_POWER_LIMIT:\\s*([0-9]+(?:\\.[0-9]+)?)", Pattern.CASE_INSENSITIVE);
     private final Path identityFile;
     private final Path knownHostsFile;
-    @Value("${solarminer.pearl.experimental-enabled:false}")
-    private boolean pearlExperimentalEnabled;
-
     public SshGpuService(@Value("${solarminer.gpu.ssh.identity-file:}") String identityFile,
                          @Value("${solarminer.gpu.ssh.known-hosts-file:}") String knownHostsFile) {
         this.identityFile = identityFile.isBlank() ? null : Path.of(identityFile).toAbsolutePath().normalize();
@@ -114,7 +111,6 @@ public class SshGpuService {
     public void setPearlServiceRunning(String host, String user, boolean running) throws IOException, InterruptedException {
         Target target = new Target(host, user, 0);
         validateTarget(target);
-        if (running && !pearlExperimentalEnabled) throw new IllegalStateException("Pearl start is disabled until fee routing is verified");
         run(target, "sudo -n systemctl " + (running ? "start" : "stop") + " solarminer-pearl.service");
     }
 

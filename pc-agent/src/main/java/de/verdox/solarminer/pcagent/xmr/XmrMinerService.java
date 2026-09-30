@@ -5,15 +5,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.solarminer.pcagent.dto.MinerStats;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
 import de.verdox.solarminer.pcagent.mining.MinerConsoleService;
+import de.verdox.solarminer.pcagent.mining.PayoutDefaultsService;
+import de.verdox.solarminer.pcagent.xmr.download.XmrDownloadService;
 import de.verdox.solarminer.pcagent.lowlevel.sensor.HardwareSensorReader;
 import jakarta.annotation.PreDestroy;
 import lombok.Getter;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -37,6 +41,7 @@ public class XmrMinerService {
 
     private final XmrConfigService configService;
     private final ProxyConfigurationService proxyConfigurationService;
+    private final PayoutDefaultsService payoutDefaultsService;
     private final MinerConsoleService console;
     private final ObjectMapper objectMapper;
     private final HardwareSensorReader sensorReader;
@@ -49,6 +54,7 @@ public class XmrMinerService {
     private final long estimatedMaxCpuWattage;
 
     private volatile MinerStats.MinerStatus minerStatus = MinerStats.MinerStatus.PAUSED;
+    private volatile String lastStartError;
 
     @Getter
     private long desiredPowerUsage = 0;
@@ -62,12 +68,15 @@ public class XmrMinerService {
 
     private volatile long currentHashesPerSecond = 0;
     private int apiErrorCount = 0;
+    private volatile int crashRestartAttempts;
 
     public XmrMinerService(XmrConfigService configService, ObjectMapper objectMapper, HardwareSensorReader sensorReader,
-                           ProxyConfigurationService proxyConfigurationService, MinerConsoleService console) {
+                           ProxyConfigurationService proxyConfigurationService, MinerConsoleService console,
+                           PayoutDefaultsService payoutDefaultsService) {
         this.configService = configService;
         this.proxyConfigurationService = proxyConfigurationService;
         this.console = console;
+        this.payoutDefaultsService = payoutDefaultsService;
         this.objectMapper = objectMapper;
         this.sensorReader = sensorReader;
 
@@ -77,6 +86,16 @@ public class XmrMinerService {
         this.totalLogicalProcessors = processor.getLogicalProcessorCount();
         this.currentMaxThreads = this.totalLogicalProcessors;
         this.estimatedMaxCpuWattage = estimateCpuTdp(processor.getProcessorIdentifier().getName(), totalLogicalProcessors);
+    }
+
+    /** Retry a bounded number of unexpected exits while a non-zero local target remains set. */
+    @Scheduled(fixedDelay = 30_000)
+    public synchronized void restartAfterUnexpectedExit() {
+        if (minerStatus != MinerStats.MinerStatus.ERROR || desiredPowerUsage <= 0 || isMiningProcessAlive()) return;
+        if (crashRestartAttempts >= 3) return;
+        crashRestartAttempts++;
+        console.append("monero", "[SolarMiner] XMRig-Watchdog: Wiederanlauf " + crashRestartAttempts + "/3");
+        startMining();
     }
 
     @PreDestroy
@@ -106,7 +125,48 @@ public class XmrMinerService {
     }
 
     public boolean readyForStart() {
+        ensureDefaultConfiguration();
         return binaryAvailable() && configService.isProxyRouteConfigured();
+    }
+
+    /**
+     * A fresh PC-Agent install has no XMRig config yet. In that case, initialize it from the
+     * current fee-backend house target so Monero is startable without inventing a user wallet.
+     * Never replace an existing config here; explicit user routes remain the user's choice.
+     */
+    public synchronized boolean ensureDefaultConfiguration() {
+        if (configService.isProxyRouteConfigured()) return true;
+        if (configService.hasConfiguredPoolLogin() || proxyConfigurationService.moneroUrl() == null) return false;
+        PayoutDefaultsService.DefaultPayout payout = payoutDefaultsService.resolve("monero").orElse(null);
+        if (payout == null) return false;
+        try {
+            configService.configureXmrig(XmrDownloadService.CONFIG_PATH, proxyConfigurationService.moneroUrl(),
+                    payout.poolUrl() + ";" + payout.login() + ";x", false);
+            payoutDefaultsService.markDefault("monero", true);
+            return true;
+        } catch (IOException | IllegalArgumentException e) {
+            LOGGER.log(Level.WARNING, "Default Monero payout could not be initialized", e);
+            return false;
+        }
+    }
+
+    /**
+     * A saved fee-backend payout is re-read on every start so a superseded house pool or wallet
+     * never keeps mining somewhere else. If the fee-backend is unreachable the validated route
+     * that is already in config.json stays in use.
+     */
+    private void refreshDefaultPayout() {
+        if (!payoutDefaultsService.usesDefault("monero")) return;
+        PayoutDefaultsService.DefaultPayout payout = payoutDefaultsService.resolve("monero").orElse(null);
+        if (payout == null) return;
+        try {
+            if (configService.updateProxyRoute(XmrDownloadService.CONFIG_PATH, proxyConfigurationService.moneroUrl(),
+                    payout.poolUrl() + ";" + payout.login() + ";x")) {
+                console.append("monero", "[SolarMiner] Auszahlung an aktuelles SolarMiner-Standardziel angepasst");
+            }
+        } catch (IOException e) {
+            LOGGER.log(Level.WARNING, "Default Monero payout could not be refreshed", e);
+        }
     }
 
     public synchronized void startMining() {
@@ -115,13 +175,18 @@ public class XmrMinerService {
             return;
         }
         console.started("monero");
+        lastStartError = null;
+
+        ensureDefaultConfiguration();
 
         if (!configService.isProxyRouteConfigured() || !proxyConfigurationService.miningReady("monero")) {
             LOGGER.severe("Cannot start XMRig: a reachable SolarMiner proxy with a loaded fee route is required in standalone mode");
-            console.append("monero", "[SolarMiner] Start abgelehnt: SolarMiner-Proxy oder Monero-Fee-Ziel nicht bereit");
+            lastStartError = "Start abgelehnt: SolarMiner-Proxy oder Monero-Fee-Ziel nicht bereit";
+            console.append("monero", "[SolarMiner] " + lastStartError);
             minerStatus = MinerStats.MinerStatus.ERROR;
             return;
         }
+        refreshDefaultPayout();
 
         String os = System.getProperty("os.name").toLowerCase();
         String executableName = os.contains("win") ? "xmrig.exe" : "xmrig";
@@ -129,7 +194,8 @@ public class XmrMinerService {
 
         if (!executableFile.exists()) {
             LOGGER.severe("Cannot start mining: Executable not found at " + executableFile.getAbsolutePath());
-            console.append("monero", "[SolarMiner] Start abgelehnt: XMRig-Datei fehlt: " + executableFile.getAbsolutePath());
+            lastStartError = "Start abgelehnt: XMRig-Datei fehlt: " + executableFile.getAbsolutePath();
+            console.append("monero", "[SolarMiner] " + lastStartError);
             minerStatus = MinerStats.MinerStatus.ERROR;
             return;
         }
@@ -168,6 +234,7 @@ public class XmrMinerService {
                 if (minerStatus == MinerStats.MinerStatus.MINING) {
                     LOGGER.severe("XMRig process crashed or exited unexpectedly with code: " + process.exitValue());
                     console.append("monero", "[SolarMiner] XMRig beendet mit Exit-Code " + process.exitValue());
+                    lastStartError = "XMRig beendet mit Exit-Code " + process.exitValue();
                     minerStatus = MinerStats.MinerStatus.ERROR;
                 }
                 currentHashesPerSecond = 0;
@@ -183,7 +250,14 @@ public class XmrMinerService {
 
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to start XMRig process: " + e.getMessage(), e);
-            console.append("monero", "[SolarMiner] XMRig konnte nicht gestartet werden: " + e.getMessage());
+            String reason = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            if (e instanceof java.nio.file.AccessDeniedException || reason.toLowerCase().contains("access is denied")
+                    || reason.toLowerCase().contains("zugriff verweigert")) {
+                lastStartError = "Windows hat den Start von XMRig wegen fehlender Berechtigungen verweigert. Prüfe die Dateiberechtigungen und Windows-Sicherheitsabfragen. Details: " + reason;
+            } else {
+                lastStartError = "XMRig konnte nicht gestartet werden: " + reason;
+            }
+            console.append("monero", "[SolarMiner] " + lastStartError);
             minerStatus = MinerStats.MinerStatus.ERROR;
             currentHashesPerSecond = 0;
         }
@@ -207,6 +281,7 @@ public class XmrMinerService {
         }
 
         minerStatus = MinerStats.MinerStatus.STOPPED;
+        crashRestartAttempts = 0;
         currentHashesPerSecond = 0;
         minerProcess = null;
     }
@@ -274,6 +349,11 @@ public class XmrMinerService {
         }
     }
 
+    /** Lowest estimated CPU budget that still maps to one XMRig worker thread. */
+    public long getMinimumControllablePowerWatts() {
+        return Math.max(1, (long) Math.ceil((double) estimatedMaxCpuWattage / totalLogicalProcessors));
+    }
+
     public double readCPUTemperature() {
         return sensorReader.getCpuTemperatureCelsius();
     }
@@ -308,6 +388,8 @@ public class XmrMinerService {
     public boolean isMiningProcessAlive() {
         return minerProcess != null && minerProcess.isAlive();
     }
+
+    public String lastStartError() { return lastStartError; }
 
     public boolean binaryAvailable() {
         String executableName = System.getProperty("os.name", "").toLowerCase().contains("win") ? "xmrig.exe" : "xmrig";

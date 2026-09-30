@@ -21,7 +21,7 @@ public class MinerAgentController implements MinerController {
     public boolean startMining(MinerDetails details) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/resume").build()).retrieve().body(Boolean.class));
+            return Boolean.TRUE.equals(restClient.post().uri("/api/agent/power-control/external/resume").retrieve().body(Boolean.class));
         } catch (Throwable e) {
             return false;
         }
@@ -31,7 +31,7 @@ public class MinerAgentController implements MinerController {
     public boolean stopMining(MinerDetails details) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/pause").build()).retrieve().body(Boolean.class));
+            return Boolean.TRUE.equals(restClient.post().uri("/api/agent/power-control/external/pause").retrieve().body(Boolean.class));
         } catch (Throwable e) {
             return false;
         }
@@ -51,7 +51,9 @@ public class MinerAgentController implements MinerController {
     public boolean setPowerTarget(MinerDetails details, long watts) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/setPowerTarget").queryParam("powerTarget", watts).build()).retrieve().body(Boolean.class));
+            Map<?, ?> result = restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/power-control/external/target")
+                    .queryParam("watts", watts).build()).retrieve().body(Map.class);
+            return result != null;
         } catch (Throwable e) {
             return false;
         }
@@ -91,13 +93,24 @@ public class MinerAgentController implements MinerController {
         }
     }
 
-    public boolean configurePearl(MinerDetails details, String poolUrl, String proxyUrl, String wallet, String worker, String devices) {
+    /** Keep the agent's embedded proxy and its payout-default lookup on the site's referral. */
+    public boolean setReferral(MinerDetails details, String referral) {
+        try {
+            var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
+            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/referral")
+                    .queryParam("key", referral == null ? "" : referral).build())
+                    .retrieve().body(Boolean.class));
+        } catch (Throwable e) { return false; }
+    }
+
+    public boolean configurePearl(MinerDetails details, String poolUrl, String proxyUrl, String wallet, String worker, String devices, String referral) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
             String proxyHost = java.net.URI.create(proxyUrl).getHost();
             if (proxyHost == null || !Boolean.TRUE.equals(restClient.post()
                     .uri(uriBuilder -> uriBuilder.path("/api/agent/proxy").queryParam("host", proxyHost).build())
                     .retrieve().body(Boolean.class))) return false;
+            if (!setReferral(details, referral)) return false;
             return Boolean.TRUE.equals(restClient.post().uri("/api/agent/pearl/configuration")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("poolUrl", poolUrl, "proxyUrl", proxyUrl, "wallet", wallet, "worker", worker, "devices", devices == null ? "all" : devices))
@@ -111,10 +124,33 @@ public class MinerAgentController implements MinerController {
     public MinerStats queryStats(String minerName, MinerDetails details) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            return restClient.get().uri(uriBuilder -> uriBuilder.path("/api/agent").build()).retrieve().body(MinerStats.class);
+            MinerStats stats = restClient.get().uri(uriBuilder -> uriBuilder.path("/api/agent").build()).retrieve().body(MinerStats.class);
+            Map<?, ?> range = restClient.get().uri("/api/agent/power-control").retrieve().body(Map.class);
+            if (stats == null || range == null) return stats;
+            long min = number(range.get("minPowerWatts"), stats.minPowerTarget());
+            long max = number(range.get("maxPowerWatts"), stats.maxPowerTarget());
+            long target = number(range.get("currentTargetWatts"), stats.powerTargetWatts());
+            long usage = number(range.get("currentUsageWatts"), stats.approximatedPowerUsageWatts());
+            long standard = number(range.get("defaultPowerWatts"), stats.defaultPowerTarget());
+            boolean dynamicEnabled = Boolean.TRUE.equals(range.get("dynamicPowerScalingEnabled"));
+            boolean externalEnabled = Boolean.TRUE.equals(range.get("externalControlEnabled"));
+            // The agent publishes this every monitoring tick (normally one second). Zero limits
+            // make the Node treat locally withdrawn permission as unavailable capacity.
+            if (!dynamicEnabled || !externalEnabled) {
+                min = 0;
+                max = 0;
+                standard = 0;
+                target = 0;
+            }
+            return new MinerStats(stats.minerIdentity(), stats.name(), stats.miningStatus(), target, min, standard, max,
+                    usage, stats.terahashPerSecond(), stats.temperatureCelsius(), stats.pools(), stats.workers());
         } catch (Throwable e) {
             return MinerStats.DEFAULT;
         }
+    }
+
+    private static long number(Object value, long fallback) {
+        return value instanceof Number n ? n.longValue() : fallback;
     }
 
     @Override

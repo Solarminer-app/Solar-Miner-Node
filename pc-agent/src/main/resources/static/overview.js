@@ -1,6 +1,8 @@
 const $ = id => document.getElementById(id);
+const i18n = window.SolarMinerI18n;
+const t = i18n.t;
 const label = {MINING: 'Mining aktiv', PAUSED: 'Pausiert', STOPPED: 'Gestoppt', ERROR: 'Fehler'};
-const number = (value, digits = 2) => new Intl.NumberFormat('de-DE', {maximumFractionDigits: digits}).format(value);
+const number = (value, digits = 2) => new Intl.NumberFormat(i18n.locale, {maximumFractionDigits: digits}).format(value);
 function hashrate(value) {
   if (!(value > 0)) return '—';
   const units = ['H/s', 'kH/s', 'MH/s', 'GH/s', 'TH/s', 'PH/s', 'EH/s']; let unit = 0;
@@ -41,7 +43,7 @@ function render(data) {
   }));
   renderEarnings(data);
   $('connection').className = 'badge online'; $('connection').textContent = 'Agent verbunden';
-  $('updated').textContent = `Aktualisiert ${new Date().toLocaleTimeString('de-DE')}`;
+  $('updated').textContent = t(`Aktualisiert ${new Date().toLocaleTimeString(i18n.locale)}`);
   $('notice').hidden = true;
 }
 async function refresh() {

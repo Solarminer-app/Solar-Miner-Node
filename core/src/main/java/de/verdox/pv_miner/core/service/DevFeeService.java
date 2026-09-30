@@ -61,6 +61,7 @@ public class DevFeeService {
         // which only knows a single configured referral — point it at the site's
         // saved referral (house when unset) so the referrer share routes to them.
         syncProxyReferral(referralCode);
+        minerService.syncAgentReferral(miningOS, minerDetails, referralCode);
 
         if (miningOS.supportsNativeSplitting()) {
             enforceNativeDevFee(coin, minerIdentity, minerService, miningOS, minerDetails, referralCode);
@@ -135,9 +136,7 @@ public class DevFeeService {
      */
     public void syncProxyReferral(String referralCode) {
         String target = normalizeReferral(referralCode);
-        if (target == null) {
-            target = "solarminer";
-        }
+        if (target == null) target = "";
         long now = System.currentTimeMillis();
         boolean changed = !target.equalsIgnoreCase(activeProxyReferral);
         // Re-push periodically even when unchanged: if the proxy container restarts

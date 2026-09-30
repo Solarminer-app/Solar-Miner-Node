@@ -1,25 +1,189 @@
 const $ = id => document.getElementById(id);
+const i18n = window.SolarMinerI18n;
+const t = i18n.t;
 const statusLabels = { MINING: 'Mining aktiv', PAUSED: 'Pausiert', STOPPED: 'Gestoppt', ERROR: 'Fehler' };
 let latest = null, busy = false, deviceFilter = 'all';
 let selectedView = ['monero', 'pearl'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'catalog';
 let pendingInstall = null;
 let selectedGpuIndices = new Set(), gpuSelectionDirty = false, gpuSelectionVersion = null;
 let consoleState = null;
+let randomXOptimization = null, lastOptimizationLoad = 0, optimizationBusy = false;
+let nodeAssessment = null;
 const gpuKey = gpu => `${gpu.vendor}:${gpu.index}`;
-const fmt = (value, digits = 1) => new Intl.NumberFormat('de-DE', { maximumFractionDigits: digits }).format(value);
+// Keep recommendations explicit and evidence-backed per algorithm/platform. A missing
+// platform-specific entry is intentionally not guessed from another miner or coin.
+const miningTips = {
+  monero: [
+    { id: 'huge-pages', status: 'hugePagesConfigured', platforms: ['windows', 'linux'], level: 'Empfohlen', title: 'Huge Pages für RandomX aktivieren', action: 'SolarMiner schaltet die XMRig-Option ein. Unter Windows fragt der Agent per UAC nach der Berechtigung für dein Benutzerkonto; nach einer neuen Anmeldung wird das Recht wirksam.', risk: 'Huge Pages halten RAM während des Minings fest. Dieser Speicher steht anderen Programmen und Windows dann nicht zur Verfügung; bei wenig freiem RAM kann das System langsamer reagieren. Beim Ausschalten entfernt SolarMiner nur ein Windows-Recht, das es selbst hinzugefügt hat.', source: 'https://xmrig.com/docs/miner/hugepages', control: true },
+    { id: '1gb-pages', status: 'oneGbPagesActive', platforms: ['linux'], level: 'Optional · Linux', title: '1-GB-Pages für RandomX aktivieren', action: 'SolarMiner schaltet die XMRig-Option ein. XMRig benötigt dafür bis zu 3 GB Speicher pro NUMA-Knoten; die Nutzung hängt zusätzlich von Kernel und verfügbarer Speicherkonfiguration ab.', risk: 'Der Miner kann 1-GB-Pages möglicherweise nicht reservieren und auf normale Huge Pages zurückfallen. Der zusätzlich benötigte Speicher steht dem System und anderen Programmen währenddessen nicht zur Verfügung.', source: 'https://xmrig.com/docs/miner/hugepages', control: true }
+  ],
+  pearl: [
+    { id: 'pearl-gpu-compatible', platforms: ['windows', 'linux'], level: 'Voraussetzung', title: 'Kompatible GPU und Treiber', action: 'Die GPU-, Treiber- und SRBMiner-Kompatibilität hängt von Modell, Version und Betriebssystem ab. Für diese Prüfung gibt es derzeit keine automatische Aktivierungsaktion.', source: 'https://github.com/doktor83/SRBMiner-Multi' },
+    { id: 'pearl-miner-no-errors', platforms: ['windows', 'linux'], level: 'Hinweis', title: 'Miner-Ausgabe', action: 'SRBMiner meldet erkannte Geräte und Initialisierungsfehler in seiner Konsole. Der PC-Agent zeigt die Miner-Ausgabe in dieser Ansicht.', source: 'https://github.com/doktor83/SRBMiner-Multi' }
+  ]
+};
+function platformKey(platform = '') {
+  const value = platform.toLowerCase();
+  return value.includes('win') ? 'windows' : value.includes('linux') ? 'linux' : value.includes('mac') ? 'macos' : 'other';
+}
+function renderOptimizationChecklist(coin, data) {
+  const panel = $('optimization-panel');
+  const platform = platformKey(data.platform);
+  panel.hidden = !coin || !miningTips[coin.id];
+  if (panel.hidden) return;
+  set('optimization-platform', `${data.platform || 'Unbekannt'} · ${data.architecture || 'Architektur unbekannt'}`);
+  const tips = miningTips[coin.id].filter(tip => tip.platforms.includes(platform));
+  const list = $('optimization-checklist'); list.replaceChildren();
+  if (!tips.length) {
+    list.append(node('p', 'empty', `Für ${data.platform || 'dieses Betriebssystem'} sind noch keine verifizierten Tipps hinterlegt.`));
+    return;
+  }
+  for (const tip of tips) {
+    const active = Boolean(randomXOptimization?.[tip.status]);
+    const item = node('article', `optimization-item ${active ? 'complete' : ''}`);
+    const label = node('div', 'optimization-check');
+    const title = node('strong', '', tip.title);
+    label.append(title, node('span', 'tag', tip.level));
+    if (tip.control) {
+      const input = document.createElement('input'); input.type = 'checkbox'; input.checked = active;
+      input.disabled = optimizationBusy;
+      input.setAttribute('aria-label', `${tip.title} über SolarMiner aktivieren`);
+      input.addEventListener('change', () => setRandomXOptimization(tip, input.checked));
+      label.prepend(input);
+    } else {
+      label.prepend(node('span', 'optimization-info', 'i'));
+    }
+    const description = node('p', 'muted', tip.action);
+    const source = node('a', '', 'Dokumentation öffnen ↗'); source.href = tip.source; source.target = '_blank'; source.rel = 'noopener noreferrer';
+    item.append(label, description);
+    if (tip.risk) item.append(node('p', 'optimization-risk', `Risiko: ${tip.risk}`));
+    item.append(source); list.append(item);
+  }
+  const statusMessage = $('optimization-message');
+  if (randomXOptimization?.restartRequired) {
+    statusMessage.classList.remove('error');
+    statusMessage.hidden = false;
+    set('optimization-message', 'Neustart erforderlich: Die Einstellung und Windows-Berechtigung sind eingerichtet. Starte Windows neu, damit Huge Pages für den PC-Agent wirksam werden.');
+  } else if (randomXOptimization?.error) {
+    statusMessage.classList.add('error');
+    statusMessage.hidden = false;
+    set('optimization-message', `Status konnte nicht geladen werden: ${randomXOptimization.error}`);
+  }
+}
+async function loadRandomXOptimization() {
+  lastOptimizationLoad = Date.now();
+  try {
+    const response = await fetch('/api/agent/optimizations/randomx', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    randomXOptimization = await response.json();
+  } catch (error) {
+    randomXOptimization = { hugePagesActive: false, oneGbPagesActive: false, error: error.message };
+  }
+  if (latest) renderOptimizationChecklist(latest.coins?.find(c => c.id === selectedView), latest);
+}
+async function setRandomXOptimization(tip, enabled) {
+  optimizationBusy = true;
+  if (latest) renderOptimizationChecklist(latest.coins?.find(c => c.id === selectedView), latest);
+  try {
+    const response = await fetch(`/api/agent/optimizations/randomx/${tip.id}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled })
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.message || `HTTP ${response.status}`);
+    }
+    randomXOptimization = await response.json();
+    const message = randomXOptimization.restartRequired
+      ? 'Neustart erforderlich: Windows hat die Berechtigung eingerichtet. Starte den PC neu; danach wird Huge Pages hier als aktiv angezeigt.'
+      : !enabled && platformKey(latest?.platform) === 'windows'
+        ? 'Huge Pages sind in XMRig deaktiviert. Windows übernimmt Änderungen an Benutzerrechten bei einer neuen Anmeldung; vorhandene Sitzungen können das alte Recht bis dahin behalten.'
+        : 'XMRig-Einstellung wurde aktualisiert.';
+    $('optimization-message').classList.remove('error');
+    $('optimization-message').hidden = false;
+    set('optimization-message', message);
+  } catch (error) {
+    $('optimization-message').classList.add('error');
+    $('optimization-message').hidden = false;
+    set('optimization-message', `Aktivierung fehlgeschlagen: ${error.message}`);
+    await loadRandomXOptimization();
+  } finally {
+    optimizationBusy = false;
+    if (latest) renderOptimizationChecklist(latest.coins?.find(c => c.id === selectedView), latest);
+  }
+}
+const fmt = (value, digits = 1) => new Intl.NumberFormat(i18n.locale, { maximumFractionDigits: digits }).format(value);
 function fmtHashrate(value) {
   if (!(value > 0)) return '—';
   const units = ['H/s', 'kH/s', 'MH/s', 'GH/s', 'TH/s', 'PH/s', 'EH/s']; let unit = 0;
   while (value >= 1000 && unit < units.length - 1) { value /= 1000; unit++; }
   return `${fmt(value, value >= 100 ? 0 : 2)} ${units[unit]}`;
 }
-const set = (id, value) => { $(id).textContent = value; };
-function notice(message, error = false) { const el = selectedView === 'catalog' ? $('catalog-notice') : $('notice'); el.textContent = message; el.classList.toggle('error', error); el.hidden = !message; }
-function node(tag, className, value) { const el = document.createElement(tag); if (className) el.className = className; if (value !== undefined) el.textContent = value; return el; }
+const set = (id, value) => { $(id).textContent = t(value); };
+function notice(message, error = false) { const el = selectedView === 'catalog' ? $('catalog-notice') : $('notice'); el.textContent = t(message); el.classList.toggle('error', error); el.hidden = !message; }
+function node(tag, className, value) { const el = document.createElement(tag); if (className) el.className = className; if (value !== undefined) el.textContent = t(value); return el; }
+function usesStandardPayout(coin) {
+  return $(`${coin}-pool-select`).value === 'solarminer';
+}
+function payoutDefault(coin) {
+  return (latest?.payoutDefaults || []).find(entry => entry.coin === coin);
+}
+function renderPayoutNote(coin) {
+  if (!usesStandardPayout(coin)) { set(`${coin}-payout-note`, 'Eigene Auszahlung: Pool und Wallet gehören zusammen.'); return; }
+  const entry = payoutDefault(coin);
+  set(`${coin}-payout-note`, entry?.available
+    ? `Auszahlung an das SolarMiner-Standardziel (${entry.maskedWallet}). Ohne eigene Wallet geht die gesamte Hashrate dorthin.`
+    : 'Kein SolarMiner-Standardziel erreichbar. Eigene Wallet angeben oder Proxy prüfen.');
+}
+function ensureStandardConsent(coin) {
+  const form = $(`${coin}-form`);
+  let row = form.querySelector('.standard-consent');
+  if (!row) {
+    row = document.createElement('label'); row.className = 'standard-consent';
+    const input = document.createElement('input'); input.type = 'checkbox'; input.id = `${coin}-standard-consent`;
+    const copy = document.createElement('span');
+    copy.textContent = 'Ich bestätige: Ohne eigene Wallet geht meine gesamte Mining-Auszahlung an das angezeigte SolarMiner-Standardziel. Die vollständigen Gebühren stehen unten.';
+    row.append(input, copy);
+    const note = $(`${coin}-payout-note`); note.after(row);
+  }
+  row.hidden = !usesStandardPayout(coin);
+  return row.querySelector('input').checked;
+}
+function renderPayoutState(data) {
+  for (const coin of ['monero', 'pearl']) {
+    const select = $(`${coin}-pool-select`);
+    const configured = coin === 'monero' ? data.moneroConfiguration : data.pearlConfiguration;
+    if (payoutDefault(coin)?.inUse && $(`${coin}-form`).dataset.dirty !== 'true') select.value = 'solarminer';
+    // A new user starts with their own payout route. The SolarMiner house route remains an
+    // explicit, consented option instead of silently receiving the user's full hashrate.
+    else if (!configured && $(`${coin}-form`).dataset.initialized !== 'true') {
+      select.value = [...select.options].find(option => option.value !== 'solarminer' && option.value !== 'custom')?.value || 'custom';
+      $(`${coin}-form`).dataset.initialized = 'true';
+    }
+    updatePoolChoice(coin);
+  }
+}
+function payoutAvailable(coin) {
+  if (!usesStandardPayout(coin)) return true;
+  if (!ensureStandardConsent(coin)) {
+    notice('Bestätige zuerst die Auszahlung an das SolarMiner-Standardziel.', true);
+    return false;
+  }
+  if (payoutDefault(coin)?.available) return true;
+  notice(`Kein SolarMiner-Standard-Auszahlungsziel für ${coin === 'pearl' ? 'Pearl' : 'Monero'} erreichbar. Bitte eigene Wallet angeben.`, true);
+  return false;
+}
 function updatePoolChoice(coin) {
-  const custom = $(`${coin}-pool-select`).value === 'custom';
+  const choice = $(`${coin}-pool-select`).value;
+  const standard = choice === 'solarminer';
+  const custom = choice === 'custom';
   $(`${coin}-pool-custom`).hidden = !custom;
   $(`${coin}-pool`).required = custom;
+  const wallet = $(`${coin}-wallet`);
+  wallet.required = !standard;
+  wallet.disabled = standard;
+  if (standard) wallet.value = '';
+  renderPayoutNote(coin);
+  ensureStandardConsent(coin);
 }
 function selectSavedPool(coin, url) {
   const picker = $(`${coin}-pool-select`);
@@ -126,6 +290,32 @@ async function pollConsole() {
   }
 }
 function renderWorkspace(data) {
+  let onboarding = document.getElementById('onboarding');
+  if (!onboarding) {
+    onboarding = node('section', 'onboarding'); onboarding.id = 'onboarding';
+    onboarding.innerHTML = '<div><p class="kicker">SCHNELLSTART</p><h2>Lokal starten – Node später hinzufügen</h2><p class="muted">Der PC-Agent funktioniert eigenständig. Ein SolarMiner Node ergänzt später Automatisierung, PV-Überschuss und weitere Homelab-Geräte.</p></div><ol class="onboarding-steps"></ol>';
+    $('catalog-view').insertBefore(onboarding, $('catalog-notice'));
+  }
+  const steps = onboarding.querySelector('.onboarding-steps'); steps.replaceChildren();
+  const configured = Boolean(data.moneroConfiguration || data.pearlConfiguration);
+  const installedAny = (data.coins || []).some(coin => coin.binaryAvailable);
+  const stepData = [
+    [true, 'Hardware ansehen und einen CPU- oder GPU-Miner auswählen.'],
+    [installedAny, installedAny ? 'Miner installiert – Pool und eigene Wallet einrichten.' : 'Passenden Miner herunterladen und installieren.'],
+    [configured, configured ? 'Eigene Auszahlung ist konfiguriert.' : 'Eigene Wallet eintragen oder das SolarMiner-Standardziel bewusst bestätigen.'],
+    [false, 'Optional: SolarMiner Node verbinden für Regeln, PV-Überschuss und Automatisierung.']
+  ];
+  for (const [done, text] of stepData) steps.append(node('li', done ? 'done' : '', text));
+  let assessment = document.getElementById('node-assessment');
+  if (!assessment) {
+    assessment = node('p', 'node-assessment muted'); assessment.id = 'node-assessment';
+    onboarding.append(assessment);
+  }
+  const decision = nodeAssessment?.decision || 'UNKNOWN';
+  const label = decision === 'PROFITABLE' ? 'Node: Mining ist aktuell wirtschaftlich freigegeben.'
+    : decision === 'NOT_PROFITABLE' ? 'Node: Mining ist aktuell nicht wirtschaftlich freigegeben.'
+      : 'Node: Noch keine Wirtschaftlichkeitsbewertung.';
+  assessment.textContent = `${label}${nodeAssessment?.reason ? ` ${nodeAssessment.reason}` : ''}`;
   const installed = (data.coins || []).filter(c => c.binaryAvailable);
   if (selectedView !== 'catalog' && !installed.some(c => c.id === selectedView)) selectedView = 'catalog';
   $('catalog-view').hidden = selectedView !== 'catalog';
@@ -152,7 +342,6 @@ function renderWorkspace(data) {
       const bar = node('progress', 'download-progress'); bar.max = 100; bar.value = readiness.downloadProgress || 0;
       bar.setAttribute('aria-label', `${coin.name} Downloadfortschritt`); card.append(bar);
     }
-    if (coin.experimental) card.append(node('p', 'muted', 'Pearl ist im Testmodus freigeschaltet. Verwende zum Proxy-Test ein Testkonto.'));
     const button = node('button', `button ${coin.binaryAvailable ? '' : 'primary'}`, coin.binaryAvailable ? 'Miner öffnen' : status === 'DOWNLOADING' ? 'Wird installiert …' : status === 'FAILED' ? 'Erneut versuchen' : 'Herunterladen & installieren');
     button.type = 'button'; button.disabled = busy || status === 'DOWNLOADING';
     button.addEventListener('click', () => {
@@ -186,7 +375,6 @@ function coinBlockers(coin, data) {
   if (standalone && !feeReady) blocked.push(coin.id === 'pearl' ? 'Pearl-Fee-Ziel nicht geladen' : 'Monero-Fee-Ziel nicht geladen');
   if (!coin.configured) blocked.push('Pool-Konfiguration fehlt');
   if (!coin.binaryAvailable) blocked.push('Miner-Binary fehlt');
-  if (coin.id === 'pearl' && !data.pearl?.experimentalEnabled) blocked.push('Experimentfreigabe fehlt');
   return blocked;
 }
 function renderCoins(data) {
@@ -195,7 +383,7 @@ function renderCoins(data) {
   for (const coin of coins) {
     const card = node('article', `coin-card${coin.status === 'MINING' || coin.id === 'pearl' && data.pearl?.running ? ' active' : ''}`);
     const top = node('div', 'coin-top');
-    top.append(node('span', 'coin-emblem', coin.ticker || coin.id), node('span', 'tag', coin.status === 'MINING' || coin.id === 'pearl' && data.pearl?.running ? 'LÄUFT' : coin.experimental ? 'EXPERIMENTELL' : 'VERFÜGBAR'));
+    top.append(node('span', 'coin-emblem', coin.ticker || coin.id), node('span', 'tag', coin.status === 'MINING' || coin.id === 'pearl' && data.pearl?.running ? 'LÄUFT' : 'VERFÜGBAR'));
     const reasons = coinBlockers(coin, data);
     const coinStatus = coin.id === 'pearl' && data.pearl?.running && !data.pearl?.poolHealthy
       ? 'Verbinde mit Pool' : statusLabels[coin.status] || coin.status;
@@ -263,14 +451,38 @@ function renderProxy(proxy) {
   if (document.activeElement !== $('proxy-host')) $('proxy-host').value = proxy?.host || '';
   $('proxy-submit').disabled = busy;
 }
+function renderFees(data) {
+  let section = $('fee-panel');
+  if (!section) {
+    section = node('section', 'section panel'); section.id = 'fee-panel';
+    section.innerHTML = '<div class="section-head"><div><p class="kicker">TRANSPARENTE GEBÜHREN</p><h2>Wo dein Mining-Ertrag hingeht</h2></div><span id="fee-referral-state" class="tag">—</span></div><p class="muted">Alle bekannten Abzüge werden live aufgeschlüsselt. SolarMiner nutzt eine verpflichtende Fee-Route; ist sie nicht erreichbar, startet der betreffende Miner nicht. Pool- und Miner-Gebühren sind zusätzlich ausgewiesen.</p><div id="fee-breakdown"></div><form id="referral-form" class="form-block"><label for="referral-key">Referral-Key</label><div class="input-row"><input id="referral-key" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,63}" autocomplete="off"><button class="button subtle" type="submit">Lokal speichern</button></div><p class="muted">Der SolarMiner Node setzt seinen Referral-Key automatisch erneut, sobald er den Agenten steuert.</p></form>';
+    $('optimization-panel').before(section);
+    $('referral-form').addEventListener('submit', event => { event.preventDefault(); if ($('referral-form').reportValidity()) action('/api/agent/referral', 'Referral-Key lokal gespeichert. Der Node kann ihn wieder überschreiben.', {key: $('referral-key').value.trim()}); });
+  }
+  const root = $('fee-breakdown'); root.replaceChildren();
+  const fee = (data.fees || []).find(item => item.coin === selectedView) || (data.fees || [])[0];
+  set('fee-referral-state', data.referral?.key ? `KEY · ${data.referral.key}` : 'STANDARD · KEIN REFERRER');
+  if (document.activeElement !== $('referral-key')) $('referral-key').value = data.referral?.key || '';
+  if (!fee) { root.append(node('p', 'muted', 'Gebührenmodell wird geladen …')); return; }
+  const knownTotal = fee.parts.filter(part => part.known).reduce((sum, part) => sum + (part.percentage || 0), 0);
+  const card = node('article', 'fee-card'); card.append(node('strong', '', `${fee.coin === 'monero' ? 'Monero · XMRig' : 'Pearl · SRBMiner-MULTI'} · ${i18n.language === 'en' ? 'known deductions' : 'bekannte Abzüge'} ${fmt(knownTotal, 2)} %`));
+  const bar = node('div', 'fee-bar');
+  for (const part of fee.parts.filter(part => part.known && part.percentage > 0)) { const segment = node('span', `fee-segment fee-${part.kind.toLowerCase()}`); segment.style.flexGrow = String(part.percentage); segment.title = `${part.label}: ${fmt(part.percentage, 2)} %`; bar.append(segment); }
+  const user = node('span', 'fee-segment fee-user'); user.style.flexGrow = String(Math.max(0, 100 - knownTotal)); bar.append(user); card.append(bar);
+  for (const part of fee.parts) { const row = node('div', 'detail'); row.append(node('span', '', part.label), node('strong', '', part.known ? `${fmt(part.percentage, 2)} %` : 'unbekannt')); card.append(row, node('small', 'muted', part.source)); }
+  const remaining = node('div', 'detail'); remaining.append(node('span', '', 'Voraussichtlich für dich'), node('strong', '', `${fmt(Math.max(0, 100-knownTotal), 2)} %`)); card.append(remaining); root.append(card);
+}
 function render(data) {
   latest = data;
   hydrateConfiguration('monero-form', data.moneroConfiguration, {poolUrl: 'monero-pool', wallet: 'monero-wallet', worker: 'monero-worker'});
   hydrateConfiguration('pearl-form', data.pearlConfiguration, {poolUrl: 'pearl-pool', wallet: 'pearl-wallet', worker: 'pearl-worker'});
+  renderPayoutState(data);
   renderGpuSelection(data);
   renderWorkspace(data);
-  renderCoins(data); renderProxy(data.proxy); renderGpuProcesses(data); syncConsoleView();
+  renderCoins(data); renderProxy(data.proxy); renderGpuProcesses(data); renderFees(data); syncConsoleView();
   const coin = data.coins?.find(c => c.id === selectedView);
+  if (coin?.id === 'monero' && Date.now() - lastOptimizationLoad > 5000) loadRandomXOptimization();
+  renderOptimizationChecklist(coin, data);
   const workers = (data.stats?.workers || []).filter(worker => worker.currentAlgorithm === (selectedView === 'pearl' ? 'PearlHash' : 'RandomX'));
   const status = coin?.status || 'STOPPED';
   const pearlWaiting = selectedView === 'pearl' && data.pearl?.running && !data.pearl?.poolHealthy;
@@ -284,10 +496,14 @@ function render(data) {
   set('detail-hardware', coin?.device === 'GPU' ? ((data.pearl?.gpus || []).filter(gpu => gpu.selected)
     .map(gpu => gpu.model || `${gpu.vendor} ${gpu.index}`).join(', ') || 'Keine GPU ausgewählt') : 'CPU');
   set('detail-installation', coin?.binaryAvailable ? 'Installiert' : 'Nicht installiert');
-  set('detail-configuration', coin?.configured ? 'Pool und Wallet konfiguriert' : 'Pool und Wallet fehlen');
+  set('detail-configuration', coin?.configured
+    ? (payoutDefault(selectedView)?.inUse ? 'Pool aktiv · Auszahlung an SolarMiner-Standard' : 'Pool und Wallet konfiguriert')
+    : 'Pool und Wallet fehlen');
   set('detail-connection', selectedView === 'pearl' && (data.pearl?.running || status === 'ERROR')
     ? (data.pearl?.minerError || data.pearl?.connectionDetail || 'Verbindung wird geprüft')
-    : data.proxy?.reachable ? (data.proxy?.mode === 'standalone' ? 'Lokaler Mining-Dienst bereit' : 'SolarMiner-Proxy erreichbar') : 'Nicht erreichbar');
+    : selectedView === 'monero' && status === 'ERROR' && data.monero?.minerError
+      ? data.monero.minerError
+      : data.proxy?.reachable ? (data.proxy?.mode === 'standalone' ? 'Lokaler Mining-Dienst bereit' : 'SolarMiner-Proxy erreichbar') : 'Nicht erreichbar');
   const hashValue = workers.reduce((sum, worker) => sum + (worker.terahashPerSecond || 0), 0);
   const hashrate = hashValue > 0;
   set('hashrate', hashrate ? fmtHashrate(hashValue * 1e12) : '—');
@@ -306,7 +522,7 @@ function render(data) {
   $('pause').disabled = busy || (selectedView === 'pearl' ? !data.pearl?.running : status !== 'MINING');
   const pearl = selectedView === 'pearl'; $('monero-form').hidden = pearl; $('pearl-form').hidden = !pearl;
   if (pearl) {
-    set('pearl-readiness', data.pearl?.minerError || (data.pearl?.experimentalEnabled ? 'SRBMiner nutzt den SolarMiner-Proxy. Pearl ist weiterhin im Testmodus.' : 'Pearl-Testmodus ist deaktiviert.'));
+    set('pearl-readiness', data.pearl?.minerError || 'SRBMiner nutzt den SolarMiner-Proxy.');
     $('pearl-download').hidden = data.pearl?.binaryAvailable || data.pearl?.downloadStatus === 'DOWNLOADING';
     $('pearl-download').disabled = busy;
   }
@@ -318,14 +534,17 @@ function render(data) {
   set('power-limits', `${fmt(min, 0)}–${fmt(max, 0)} W`);
   $('power-submit').disabled = busy || !pearl; $('monero-submit').disabled = busy;
   $('connection').className = 'badge online'; set('connection', 'Agent verbunden');
-  set('updated', `Aktualisiert ${new Date().toLocaleTimeString('de-DE')}`);
+  set('updated', `Aktualisiert ${new Date().toLocaleTimeString(i18n.locale)}`);
 }
 async function refresh() {
   if (busy || document.hidden) return;
   try {
     const response = await fetch('/api/agent/overview', { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    render(await response.json());
+    const overview = await response.json();
+    const assessmentResponse = await fetch('/api/agent/node-assessment', { cache: 'no-store' });
+    if (assessmentResponse.ok) nodeAssessment = await assessmentResponse.json();
+    render(overview);
     if ($('notice').dataset.kind === 'connection') { $('notice').hidden = true; $('catalog-notice').hidden = true; }
   } catch (error) {
     $('connection').className = 'badge offline'; set('connection', 'Agent nicht erreichbar');
@@ -362,6 +581,12 @@ $('console-gpu').addEventListener('change', syncConsoleView);
 ['monero-form', 'pearl-form'].forEach(id => $(id).addEventListener('input', () => { $(id).dataset.dirty = 'true'; }));
 ['monero', 'pearl'].forEach(coin => {
   $(`${coin}-pool-select`).addEventListener('change', () => updatePoolChoice(coin));
+  for (const option of $(`${coin}-pool-select`).options) {
+    if (option.value.includes('kryptex.network') && !option.dataset.feeLabel) {
+      option.dataset.feeLabel = 'true';
+      option.textContent += i18n.language === 'en' ? ' · 1% pool fee' : ' · 1 % Poolgebühr';
+    }
+  }
   updatePoolChoice(coin);
 });
 $('add-miner').addEventListener('click', () => showView('catalog'));
@@ -400,8 +625,8 @@ $('proxy-discover').addEventListener('click', async () => {
     button.disabled = false; button.textContent = 'Erneut im Netzwerk suchen';
   }
 });
-$('monero-form').addEventListener('submit', event => { event.preventDefault(); if (!$('monero-form').reportValidity()) return; if (!latest?.proxy?.moneroUrl) return notice('SolarMiner-Proxy für Monero fehlt. Verbinde zuerst den Proxy.', true); action('/api/agent/monero/configuration', 'Monero-Konfiguration gespeichert.', null, { poolUrl: selectedPool('monero'), wallet: $('monero-wallet').value.trim(), worker: $('monero-worker').value.trim() }); });
-$('pearl-form').addEventListener('submit', event => { event.preventDefault(); if (!$('pearl-form').reportValidity()) return; const indices = [...selectedGpuIndices].filter(index => latest?.gpus?.some(gpu => gpuKey(gpu) === index)).sort(); if (!indices.length) return notice('Wähle mindestens eine erkannte GPU.', true); if (!latest?.proxy?.pearlUrl) return notice('SolarMiner-Proxy für Pearl fehlt. Verbinde zuerst den Proxy.', true); action('/api/agent/pearl/configuration', 'Pearl-Konfiguration und GPU-Auswahl gespeichert.', null, { poolUrl: selectedPool('pearl'), proxyUrl: latest.proxy.pearlUrl, wallet: $('pearl-wallet').value.trim(), worker: $('pearl-worker').value.trim(), devices: indices.join(',') }); });
+$('monero-form').addEventListener('submit', event => { event.preventDefault(); if (!$('monero-form').reportValidity()) return; if (!latest?.proxy?.moneroUrl) return notice('SolarMiner-Proxy für Monero fehlt. Verbinde zuerst den Proxy.', true); if (!payoutAvailable('monero')) return; const standard = usesStandardPayout('monero'); action('/api/agent/monero/configuration', standard ? 'Monero gespeichert: Auszahlung an das SolarMiner-Standardziel.' : 'Monero-Konfiguration gespeichert.', null, { poolUrl: standard ? '' : selectedPool('monero'), wallet: standard ? '' : $('monero-wallet').value.trim(), worker: $('monero-worker').value.trim() }); });
+$('pearl-form').addEventListener('submit', event => { event.preventDefault(); if (!$('pearl-form').reportValidity()) return; const indices = [...selectedGpuIndices].filter(index => latest?.gpus?.some(gpu => gpuKey(gpu) === index)).sort(); if (!indices.length) return notice('Wähle mindestens eine erkannte GPU.', true); if (!latest?.proxy?.pearlUrl) return notice('SolarMiner-Proxy für Pearl fehlt. Verbinde zuerst den Proxy.', true); if (!payoutAvailable('pearl')) return; const standard = usesStandardPayout('pearl'); action('/api/agent/pearl/configuration', standard ? 'Pearl gespeichert: Auszahlung an das SolarMiner-Standardziel.' : 'Pearl-Konfiguration und GPU-Auswahl gespeichert.', null, { poolUrl: standard ? '' : selectedPool('pearl'), proxyUrl: latest.proxy.pearlUrl, wallet: standard ? '' : $('pearl-wallet').value.trim(), worker: $('pearl-worker').value.trim(), devices: indices.join(',') }); });
 $('power-form').addEventListener('submit', event => { event.preventDefault(); if ($('power-form').reportValidity()) action('/api/agent/miners/pearl/power-target', 'GPU-Leistungsziel übernommen.', { powerTarget: $('power-input').value }); });
 let lastPoll = Date.now();
 refresh(); setInterval(pollConsole, 2000); setInterval(() => {

@@ -1,7 +1,9 @@
 const $ = id => document.getElementById(id);
-const fmt = (value, digits = 2) => new Intl.NumberFormat('de-DE', { maximumFractionDigits: digits }).format(value);
+const i18n = window.SolarMinerI18n;
+const fmt = (value, digits = 2) => new Intl.NumberFormat(i18n.locale, { maximumFractionDigits: digits }).format(value);
 const text = (id, value) => { $(id).textContent = value; };
 function el(tag, className, value) { const n = document.createElement(tag); if (className) n.className = className; if (value !== undefined) n.textContent = value; return n; }
+function meter(value, maximum, className = '') { const bar = el('div', `telemetry-meter ${className}`); const fill = el('i'); fill.style.width = `${Math.max(0, Math.min(100, value == null ? 0 : value / maximum * 100))}%`; bar.append(fill); return bar; }
 function formatMetric(value, unit) {
   if (unit !== 'B' && unit !== 'B/s') return `${fmt(value)} ${unit || ''}`.trim();
   const suffix = unit === 'B/s' ? '/s' : '';
@@ -18,24 +20,24 @@ function render(data) {
   text('cpu-name', data.cpuName || 'Prozessor unbekannt');
   const cpuPower = data.metrics?.['cpu.package_power'];
   const cpuTemp = data.metrics?.['cpu.temperature'];
-  text('cpu-summary', [
-    cpuPower?.available ? `CPU ${fmt(cpuPower.value)} W` : null,
-    cpuTemp?.available ? `Temperatur ${fmt(cpuTemp.value)} °C` : null
-  ].filter(Boolean).join(' · ') || 'Keine CPU-Sensorwerte verfügbar');
+  text('cpu-temperature', cpuTemp?.available ? `${fmt(cpuTemp.value, 0)} °C` : '—');
   const known = new Map((data.gpus || []).map(gpu => [`${gpu.vendor}:${gpu.index}`, gpu]));
   const names = data.gpuNames || [...known.values()].map(g => g.model);
   text('gpu-count', String(names.length));
-  text('gpu-summary', names.length ? names.join(' · ') : 'Keine Grafikkarte erkannt');
+  text('gpu-summary', names.length ? names.length === 1 ? names[0] : `${names.length} Geräte` : 'Nicht erkannt');
   const devices = $('device-list'); devices.replaceChildren();
-  const cpu = el('article', 'device device-large');
-  cpu.append(el('span', 'device-kind', 'CPU'), el('strong', '', data.cpuName || 'Prozessor unbekannt'),
-    el('small', '', `Leistung: ${cpuPower?.available ? fmt(cpuPower.value) + ' W' : 'nicht verfügbar'} · Temperatur: ${cpuTemp?.available ? fmt(cpuTemp.value) + ' °C' : 'nicht verfügbar'}`));
+  const cpu = el('article', 'telemetry-device cpu-device');
+  const cpuHead = el('div', 'telemetry-device-head'); cpuHead.append(el('span', 'device-kind', 'CPU'), el('strong', '', data.cpuName || 'Prozessor unbekannt'));
+  const cpuValues = el('div', 'telemetry-device-values'); cpuValues.append(el('span', '', cpuTemp?.available ? `${fmt(cpuTemp.value, 0)} °C` : '—'), el('span', '', cpuPower?.available ? `${fmt(cpuPower.value, 0)} W` : '—'));
+  cpu.append(cpuHead, meter(cpuTemp?.available ? cpuTemp.value : null, 100, 'temperature'), cpuValues);
   devices.append(cpu);
   names.forEach((name, index) => {
     const cardData = [...known.values()].find(g => g.model === name) || [...known.values()][index];
-    const card = el('article', 'device device-large');
-    card.append(el('span', 'device-kind', 'GPU'), el('strong', '', name),
-      el('small', '', cardData ? `${cardData.vendor} · Gerät ${cardData.index} · ${cardData.minWatts}–${cardData.maxWatts} W Leistungsbereich · ${cardData.currentWatts != null ? fmt(cardData.currentWatts) + ' W aktuell' : 'aktuelle Leistung nicht verfügbar'}` : 'GPU erkannt; Leistungsgrenzen werden vom Treiber nicht gemeldet.'));
+    const card = el('article', 'telemetry-device gpu-device');
+    const head = el('div', 'telemetry-device-head'); head.append(el('span', 'device-kind', cardData?.vendor || 'GPU'), el('strong', '', name));
+    const max = cardData?.maxWatts || 1, draw = cardData?.currentWatts;
+    const values = el('div', 'telemetry-device-values'); values.append(el('span', '', draw != null ? `${fmt(draw, 0)} W` : '—'), el('span', '', cardData?.currentPowerLimitWatts ? `Limit ${fmt(cardData.currentPowerLimitWatts, 0)} W` : '—'));
+    card.append(head, meter(draw, max, 'power'), values);
     devices.append(card);
   });
   if (!names.length) devices.append(el('p', 'empty', 'Es wurden keine GPUs erkannt.'));
@@ -46,7 +48,8 @@ function render(data) {
   const available = metrics.filter(([, value]) => value.available).length;
   text('sensor-count', String(available));
   text('sensor-summary', `${available} von ${metrics.length} Messwerten verfügbar`);
-  text('collected-at', data.collectedAt ? `Stand ${new Date(data.collectedAt).toLocaleTimeString('de-DE')}` : '—');
+  text('detail-count', `(${available}/${metrics.length})`);
+  text('collected-at', data.collectedAt ? i18n.t(`Stand ${new Date(data.collectedAt).toLocaleTimeString(i18n.locale)}`) : '—');
   const sources = $('sensor-sources'); sources.replaceChildren();
   for (const [name, state] of Object.entries(data.sources || {})) sources.append(el('span', 'source', `${name}: ${state}`));
   const list = $('telemetry-list'); list.replaceChildren();
@@ -70,7 +73,7 @@ async function refresh() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     render(await response.json());
     $('connection').className = 'badge online'; text('connection', 'Agent verbunden');
-    text('updated', `Aktualisiert ${new Date().toLocaleTimeString('de-DE')}`);
+    text('updated', i18n.t(`Aktualisiert ${new Date().toLocaleTimeString(i18n.locale)}`));
   } catch (error) {
     $('connection').className = 'badge offline'; text('connection', 'Agent nicht erreichbar');
     text('updated', `Telemetrie konnte nicht geladen werden: ${error.message}`);

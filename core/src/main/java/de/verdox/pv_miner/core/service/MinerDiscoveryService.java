@@ -52,17 +52,23 @@ public class MinerDiscoveryService {
                     .build();
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://" + ipv4 + ":8084/api/agent/identify"))
+                    .uri(URI.create("http://" + ipv4 + ":8084/api/agent/power-control/identity"))
                     .timeout(Duration.ofMillis(500))
                     .GET()
                     .build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-            if (response.statusCode() == 200 && response.body().trim().equalsIgnoreCase("true")) {
+            if (response.statusCode() == 200 && response.body().contains("\"kind\":\"solarminer-pc-agent\"")) {
                 LOGGER.log(Level.INFO, "Found Solar Miner Agent on IP: " + ipv4);
                 return new MinerDiscoveryService.DetectedMiner(MiningOS.AGENT, "Solarminer PC Agent");
             }
+            // Pre-contract agents expose only the boolean identify endpoint.
+            HttpRequest legacy = HttpRequest.newBuilder().uri(URI.create("http://" + ipv4 + ":8084/api/agent/identify"))
+                    .timeout(Duration.ofMillis(500)).GET().build();
+            HttpResponse<String> legacyResponse = client.send(legacy, HttpResponse.BodyHandlers.ofString());
+            if (legacyResponse.statusCode() == 200 && legacyResponse.body().trim().equalsIgnoreCase("true"))
+                return new MinerDiscoveryService.DetectedMiner(MiningOS.AGENT, "Solarminer PC Agent (legacy API)");
         } catch (Exception ignored) {
         }
         return null;

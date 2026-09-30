@@ -43,6 +43,7 @@ class ProxyConfigurationServiceTest {
 
     private static ProxyConfigurationService proxy(Path file) {
         return new ProxyConfigurationService(new ObjectMapper(), new ManagedProxyService(false, "./lib/proxy.jar"),
+                new ReferralConfigurationService(file.resolveSibling("referral-key.txt").toString()),
                 file.toString(), 3335, 3334, 8090, false);
     }
 }

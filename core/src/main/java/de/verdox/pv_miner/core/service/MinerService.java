@@ -98,7 +98,7 @@ public class MinerService {
         String proxyUserName = cleanTargetUrl + ";" + userName + ";x";
 
         return switch (miningOS) {
-            case AGENT -> agentController.setPoolTarget(details, proxyStratumUrl, proxyUserName);
+            case AGENT -> agentController.setReferral(details, referralCode) && agentController.setPoolTarget(details, proxyStratumUrl, proxyUserName);
             case BRAIINS -> braiinsController.setPoolTargetNoProxy(details, stratumUrl, userName, devFeeService.resolveFeeTargets("bitcoin", referralCode));
             case ANTMINER_STOCK_OS -> antminerBackend.setPoolTarget(details, proxyStratumUrl, proxyUserName);
             case BIXBIT, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
@@ -106,9 +106,9 @@ public class MinerService {
         };
     }
 
-    public boolean configurePearlAgent(MinerDetails details, String poolUrl, String wallet, String worker, String devices) {
+    public boolean configurePearlAgent(MinerDetails details, String poolUrl, String wallet, String worker, String devices, String referralCode) {
         String proxyUrl = "stratum+tcp://" + proxyDiscoveryService.getCurrentProxyIp() + ":3334";
-        return agentController.configurePearl(details, poolUrl, proxyUrl, wallet, worker, devices);
+        return agentController.configurePearl(details, poolUrl, proxyUrl, wallet, worker, devices, referralCode);
     }
 
     public boolean setPowerTarget(MiningOS miningOS, MinerDetails details, long watts) {
@@ -183,6 +183,10 @@ public class MinerService {
         String proxyPort = "3333";
 
         tryOrDo(miningOS, minerController -> minerController.enforceProxyRouting(details, proxyIp, proxyPort));
+    }
+
+    public void syncAgentReferral(MiningOS miningOS, MinerDetails details, String referralCode) {
+        if (miningOS == MiningOS.AGENT) agentController.setReferral(details, referralCode);
     }
 
     public boolean checkIfStandardCredentialsWork(MiningOS miningOS, MinerDetails details) {

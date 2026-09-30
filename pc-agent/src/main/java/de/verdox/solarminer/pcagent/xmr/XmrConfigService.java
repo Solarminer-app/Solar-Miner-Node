@@ -72,6 +72,58 @@ public class XmrConfigService {
         LOGGER.info("Successfully generated proxy-only XMRig config.json");
     }
 
+    /** Enables or disables XMRig's own Huge Pages setting without changing its pool route. */
+    public void setHugePages(Path configPath, boolean enabled) throws IOException {
+        JsonNode parsed = objectMapper.readTree(configPath.toFile());
+        if (!(parsed instanceof ObjectNode root)) throw new IOException("XMRig config is not a JSON object");
+        JsonNode cpuNode = root.path("cpu");
+        ObjectNode cpu = cpuNode instanceof ObjectNode object ? object : root.putObject("cpu");
+        cpu.put("huge-pages", enabled);
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(configPath.toFile(), root);
+    }
+
+    public void setRandomXOneGbPages(Path configPath, boolean enabled) throws IOException {
+        JsonNode parsed = objectMapper.readTree(configPath.toFile());
+        if (!(parsed instanceof ObjectNode root)) throw new IOException("XMRig config is not a JSON object");
+        JsonNode randomXNode = root.path("randomx");
+        ObjectNode randomX = randomXNode instanceof ObjectNode object ? object : root.putObject("randomx");
+        randomX.put("1gb-pages", enabled);
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(configPath.toFile(), root);
+    }
+
+    public boolean hugePagesEnabled(Path configPath) {
+        try { JsonNode root = objectMapper.readTree(configPath.toFile()); return root != null && root.path("cpu").path("huge-pages").asBoolean(false); }
+        catch (IOException e) { return false; }
+    }
+
+    public boolean randomXOneGbPagesEnabled(Path configPath) {
+        try { JsonNode root = objectMapper.readTree(configPath.toFile()); return root != null && root.path("randomx").path("1gb-pages").asBoolean(false); }
+        catch (IOException e) { return false; }
+    }
+
+    /**
+     * Rewrites only the pool route of an existing XMRig config so refreshing the fee-backend
+     * payout cannot reset the miner's other settings. Returns false when the file has no route
+     * to update, leaving the caller's existing configuration in place.
+     */
+    public boolean updateProxyRoute(Path configPath, String poolUrl, String login) throws IOException {
+        if (poolUrl == null || login == null) return false;
+        File configFile = configPath.toFile();
+        if (!configFile.exists()) return false;
+        JsonNode root = objectMapper.readTree(configFile);
+        if (!(root instanceof ObjectNode rootObject)) return false;
+        JsonNode pools = rootObject.path("pools");
+        if (!pools.isArray() || pools.isEmpty() || !(pools.get(0) instanceof ObjectNode firstPool)) return false;
+        if (poolUrl.equals(firstPool.path("url").asText()) && login.equals(firstPool.path("user").asText())) return false;
+        if (!proxyConfigurationService.matches(poolUrl, "monero") || !validProxyLogin(login))
+            throw new IllegalArgumentException("XMRig must use the configured SolarMiner Monero proxy and pool;wallet;pass login");
+        firstPool.put("url", poolUrl);
+        firstPool.put("user", login);
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(configFile, rootObject);
+        LOGGER.info("Updated the XMRig proxy payout route");
+        return true;
+    }
+
     public boolean isProxyRouteConfigured() {
         try {
             JsonNode root = objectMapper.readTree(XmrDownloadService.CONFIG_PATH.toFile());
@@ -84,6 +136,21 @@ public class XmrConfigService {
                     && !pool.path("tls").asBoolean();
         } catch (IOException e) {
             return false;
+        }
+    }
+
+    /** True when an existing XMRig config contains an explicit pool login to preserve. */
+    public boolean hasConfiguredPoolLogin() {
+        File configFile = XmrDownloadService.CONFIG_PATH.toFile();
+        if (!configFile.exists()) return false;
+        try {
+            JsonNode root = objectMapper.readTree(configFile);
+            if (root == null) return false;
+            JsonNode pools = root.path("pools");
+            return pools.isArray() && !pools.isEmpty() && !pools.get(0).path("user").asText("").isBlank();
+        } catch (IOException e) {
+            // An unreadable existing file is not an empty setup; preserve it for the operator.
+            return true;
         }
     }
 
@@ -133,7 +200,8 @@ public class XmrConfigService {
         File configFile = XmrDownloadService.CONFIG_PATH.toFile();
 
         if (!configFile.exists()) {
-            LOGGER.warning("config.json not found at "+configFile.toPath().toAbsolutePath()+" for reading pools. Returning default values.");
+            // XMRig is installed/configured on demand, so this is the normal state before
+            // Monero setup. This method is also called during every overview poll.
             return new Pools("Unknown", "Unknown", "Unknown");
         }
 

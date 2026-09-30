@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.solarminer.pcagent.dto.MinerStats;
 import de.verdox.solarminer.pcagent.dto.Pools;
 import de.verdox.solarminer.pcagent.mining.MinerConsoleService;
+import de.verdox.solarminer.pcagent.mining.PayoutDefaultsService;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,6 +47,7 @@ public class PearlMinerService {
     private final ObjectMapper mapper;
     private final ProxyConfigurationService proxyConfigurationService;
     private final MinerConsoleService console;
+    private final PayoutDefaultsService payoutDefaultsService;
     private final LocalGpuPowerService gpuPowerService;
     private final Path executable;
     private final Path configFile;
@@ -54,8 +56,6 @@ public class PearlMinerService {
     private final Set<String> manuallyPaused = ConcurrentHashMap.newKeySet();
     private volatile Config config;
     private volatile String lastError;
-    @Value("${solarminer.pearl.experimental-enabled:false}")
-    private boolean experimentalEnabled;
 
     private static final class GpuRun {
         final LocalGpuPowerService.Gpu gpu;
@@ -87,12 +87,14 @@ public class PearlMinerService {
 
     public PearlMinerService(ObjectMapper mapper, ProxyConfigurationService proxyConfigurationService,
                              LocalGpuPowerService gpuPowerService, MinerConsoleService console,
+                             PayoutDefaultsService payoutDefaultsService,
                              @Value("${solarminer.pearl.binary:./solarminer-agent/srbminer/SRBMiner-MULTI}") String binary,
                              @Value("${solarminer.pearl.config:./solarminer-agent/srbminer/solarminer-config.json}") String configPath) {
         this.mapper = mapper;
         this.proxyConfigurationService = proxyConfigurationService;
         this.gpuPowerService = gpuPowerService;
         this.console = console;
+        this.payoutDefaultsService = payoutDefaultsService;
         String binaryName = System.getProperty("os.name", "").toLowerCase().contains("win") && !binary.endsWith(".exe")
                 ? binary + ".exe" : binary;
         this.executable = Path.of(binaryName).toAbsolutePath().normalize();
@@ -129,6 +131,13 @@ public class PearlMinerService {
                 }
             }
         }
+        writeConfig(next);
+        config = next;
+        manuallyPaused.removeIf(key -> selectedGpus().stream().noneMatch(gpu -> key.equals(gpu.vendor() + ":" + gpu.index())));
+        lastError = null;
+    }
+
+    private void writeConfig(Config next) throws IOException {
         Files.createDirectories(configFile.getParent());
         Path temp = Files.createTempFile(configFile.getParent(), "pearl-", ".json");
         try {
@@ -141,9 +150,28 @@ public class PearlMinerService {
         } finally {
             Files.deleteIfExists(temp);
         }
-        config = next;
-        manuallyPaused.removeIf(key -> selectedGpus().stream().noneMatch(gpu -> key.equals(gpu.vendor() + ":" + gpu.index())));
-        lastError = null;
+    }
+
+    /**
+     * A saved fee-backend payout is re-read on every start so a superseded house pool or wallet
+     * never keeps mining somewhere else. The operator's own route is left untouched.
+     */
+    private void refreshDefaultPayout() {
+        Config current = config;
+        if (current == null || !payoutDefaultsService.usesDefault("pearl")) return;
+        PayoutDefaultsService.DefaultPayout payout = payoutDefaultsService.resolve("pearl").orElse(null);
+        if (payout == null) return;
+        String worker = payout.workerPart() != null ? payout.workerPart() : current.worker();
+        if (payout.poolUrl().equals(current.poolUrl()) && payout.walletPart().equals(current.wallet())
+                && worker.equals(current.worker())) return;
+        try {
+            Config refreshed = new Config(payout.poolUrl(), current.proxyUrl(), payout.walletPart(), worker, current.devices());
+            writeConfig(refreshed);
+            config = refreshed;
+            console.append("pearl", "[SolarMiner] Auszahlung an aktuelles SolarMiner-Standardziel angepasst");
+        } catch (IOException e) {
+            LOGGER.log(Level.WARNING, "Default Pearl payout could not be refreshed", e);
+        }
     }
 
     public static void validate(Config value) {
@@ -225,12 +253,12 @@ public class PearlMinerService {
         String key = gpu.vendor() + ":" + gpu.index();
         GpuRun run = runs.computeIfAbsent(key, ignored -> new GpuRun(gpu));
         if (run.running()) return true;
+        refreshDefaultPayout();
         console.started(run.consoleId);
         console.append("pearl", "[" + key + "] Neuer Miner-Start");
-        if (!experimentalEnabled || config == null || !proxyConfigurationService.matches(config.proxyUrl(), "pearl")
+        if (config == null || !proxyConfigurationService.matches(config.proxyUrl(), "pearl")
                 || !proxyConfigurationService.miningReady("pearl") || !Files.isRegularFile(executable)) {
-            return fail(run, !experimentalEnabled ? "Pearl-Testmodus ist deaktiviert"
-                    : !Files.isRegularFile(executable) ? "SRBMiner-MULTI-Datei fehlt"
+            return fail(run, !Files.isRegularFile(executable) ? "SRBMiner-MULTI-Datei fehlt"
                     : "Pearl benötigt einen erreichbaren SolarMiner-Proxy mit Fee-Ziel");
         }
         try {
@@ -422,8 +450,6 @@ public class PearlMinerService {
     public Config configuration() { return config; }
     public boolean binaryAvailable() { return Files.isRegularFile(executable); }
     public Path executablePath() { return executable; }
-    public boolean experimentalEnabled() { return experimentalEnabled; }
-
     public List<GpuState> gpuStates(List<LocalGpuPowerService.Gpu> cards) {
         return cards.stream().map(gpu -> {
             GpuRun run = runs.get(gpu.vendor() + ":" + gpu.index());

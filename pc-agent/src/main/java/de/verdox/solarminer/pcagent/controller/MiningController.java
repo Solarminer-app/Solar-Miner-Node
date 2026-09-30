@@ -6,6 +6,9 @@ import de.verdox.solarminer.pcagent.dto.MinerStats;
 import de.verdox.solarminer.pcagent.dto.Pools;
 import de.verdox.solarminer.pcagent.mining.MiningService;
 import de.verdox.solarminer.pcagent.mining.EarningsForecastService;
+import de.verdox.solarminer.pcagent.mining.PayoutDefaultsService;
+import de.verdox.solarminer.pcagent.mining.ReferralConfigurationService;
+import de.verdox.solarminer.pcagent.mining.FeeTransparencyService;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
 import de.verdox.solarminer.pcagent.mining.ProxyDiscoveryService;
 import de.verdox.solarminer.pcagent.pearl.PearlMinerService;
@@ -34,6 +37,9 @@ public class MiningController {
     private final WindowsLhmBootstrapService lhmBootstrapService;
     private final ProxyDiscoveryService proxyDiscoveryService;
     private final EarningsForecastService earningsForecastService;
+    private final PayoutDefaultsService payoutDefaultsService;
+    private final ReferralConfigurationService referralConfigurationService;
+    private final FeeTransparencyService feeTransparencyService;
 
     public MiningController(MiningService miningService, XmrConfigService xmrConfigService,
                             PearlMinerService pearlMinerService, LocalGpuPowerService gpuPowerService,
@@ -41,7 +47,10 @@ public class MiningController {
                             SrbDownloadService srbDownloadService, XmrDownloadService xmrDownloadService,
                             WindowsLhmBootstrapService lhmBootstrapService,
                             ProxyDiscoveryService proxyDiscoveryService,
-                            EarningsForecastService earningsForecastService) {
+                            EarningsForecastService earningsForecastService,
+                            PayoutDefaultsService payoutDefaultsService,
+                            ReferralConfigurationService referralConfigurationService,
+                            FeeTransparencyService feeTransparencyService) {
         this.miningService = miningService;
         this.xmrConfigService = xmrConfigService;
         this.proxyConfigurationService = proxyConfigurationService;
@@ -53,6 +62,9 @@ public class MiningController {
         this.lhmBootstrapService = lhmBootstrapService;
         this.proxyDiscoveryService = proxyDiscoveryService;
         this.earningsForecastService = earningsForecastService;
+        this.payoutDefaultsService = payoutDefaultsService;
+        this.referralConfigurationService = referralConfigurationService;
+        this.feeTransparencyService = feeTransparencyService;
     }
 
     @GetMapping("identify")
@@ -79,11 +91,28 @@ public class MiningController {
                 proxyConfigurationService.feeReady("monero"), proxyConfigurationService.feeReady("pearl"));
     }
 
+    /** The node may set this through the LAN API; local edits are intentionally allowed but not authoritative. */
+    @GetMapping("/referral")
+    public ReferralOverview referral() { return new ReferralOverview(referralConfigurationService.get()); }
+
+    @PostMapping("/referral")
+    public boolean setReferral(@RequestParam String key) {
+        boolean updated = referralConfigurationService.set(key);
+        if (updated) payoutDefaultsService.invalidate();
+        return updated;
+    }
+
+    @GetMapping("/fees")
+    public List<FeeTransparencyService.FeeOverview> fees() { return feeTransparencyService.overview(); }
+
+    public record ReferralOverview(String key) { }
+
     @PostMapping("/proxy")
     public boolean configureProxy(@RequestParam String host) {
         if (!lhmBootstrapService.readyForAgent()) return false;
         if (host.equals(proxyConfigurationService.host())) return true;
         if (!proxyConfigurationService.configure(host)) return false;
+        payoutDefaultsService.invalidate();
         return miningService.pauseAll();
     }
 
@@ -99,21 +128,31 @@ public class MiningController {
 
     @PostMapping("/monero/configuration")
     public boolean setMoneroConfiguration(@RequestBody MoneroConfiguration request) throws java.io.IOException {
-        if (!lhmBootstrapService.readyForAgent()) return false;
-        if (request == null || request.poolUrl() == null || request.wallet() == null || request.worker() == null)
-            return false;
-        java.net.URI pool;
-        try { pool = java.net.URI.create(request.poolUrl()); }
-        catch (IllegalArgumentException e) { return false; }
-        if (!("stratum+tcp".equals(pool.getScheme()) || "stratum+ssl".equals(pool.getScheme()))
-                || pool.getHost() == null || pool.getPort() < 1 || pool.getPort() > 65535
-                || pool.getRawUserInfo() != null || (pool.getRawPath() != null && !pool.getRawPath().isEmpty())
-                || pool.getRawQuery() != null || pool.getRawFragment() != null
-                || !request.wallet().matches("^[1-9A-HJ-NP-Za-km-z]{95,120}$")
+        if (request == null || request.worker() == null
                 || !request.worker().matches("^[A-Za-z0-9_-]{1,32}$")
                 || proxyConfigurationService.moneroUrl() == null) return false;
+        String login;
+        if (request.wallet() == null || request.wallet().isBlank()) {
+            // Without an own payout address the fee-backend decides pool and wallet together,
+            // so the local route ends up exactly on the house target the proxy fees towards.
+            PayoutDefaultsService.DefaultPayout payout = payoutDefaultsService.resolve("monero").orElse(null);
+            if (payout == null) return false;
+            login = payout.poolUrl() + ";" + payout.login() + ";x";
+            payoutDefaultsService.markDefault("monero", true);
+        } else {
+            if (request.poolUrl() == null) return false;
+            java.net.URI pool;
+            try { pool = java.net.URI.create(request.poolUrl()); }
+            catch (IllegalArgumentException e) { return false; }
+            if (!("stratum+tcp".equals(pool.getScheme()) || "stratum+ssl".equals(pool.getScheme()))
+                    || pool.getHost() == null || pool.getPort() < 1 || pool.getPort() > 65535
+                    || pool.getRawUserInfo() != null || (pool.getRawPath() != null && !pool.getRawPath().isEmpty())
+                    || pool.getRawQuery() != null || pool.getRawFragment() != null
+                    || !request.wallet().matches("^[1-9A-HJ-NP-Za-km-z]{95,120}$")) return false;
+            login = request.poolUrl() + ";" + request.wallet() + "." + request.worker() + ";x";
+            payoutDefaultsService.markDefault("monero", false);
+        }
         xmrMinerService.hardStopMining();
-        String login = request.poolUrl() + ";" + request.wallet() + "." + request.worker() + ";x";
         xmrConfigService.configureXmrig(XmrDownloadService.CONFIG_PATH,
                 proxyConfigurationService.moneroUrl(), login, false);
         return true;
@@ -123,23 +162,40 @@ public class MiningController {
 
     @PostMapping("/pearl/download")
     public boolean retryPearlDownload() {
-        if (!lhmBootstrapService.readyForAgent()) return false;
         return srbDownloadService.retry();
     }
 
     @PostMapping("/monero/download")
     public boolean installMonero() {
-        return lhmBootstrapService.readyForAgent() && xmrDownloadService.retry();
+        return xmrDownloadService.retry();
     }
 
     @PostMapping("/pearl/configuration")
     public boolean setPearlConfiguration(@RequestBody PearlMinerService.Config configuration) throws java.io.IOException {
-        if (!lhmBootstrapService.readyForAgent()) return false;
-        PearlMinerService.validate(configuration);
-        if (!proxyConfigurationService.matches(configuration.proxyUrl(), "pearl"))
+        boolean feeBackendPayout = configuration == null
+                || configuration.wallet() == null || configuration.wallet().isBlank();
+        PearlMinerService.Config effective = feeBackendPayout
+                ? withFeeBackendPayout(configuration) : configuration;
+        PearlMinerService.validate(effective);
+        if (!proxyConfigurationService.matches(effective.proxyUrl(), "pearl"))
             throw new IllegalArgumentException("SolarMiner-Proxy für Pearl fehlt oder stimmt nicht mit der gespeicherten Verbindung überein");
-        pearlMinerService.configure(configuration);
+        pearlMinerService.configure(effective);
+        payoutDefaultsService.markDefault("pearl", feeBackendPayout);
         return true;
+    }
+
+    /**
+     * An empty wallet means the fee-backend payout is used. Its pool and worker always belong
+     * together, so a half-entered own route is never mixed with the house wallet.
+     */
+    private PearlMinerService.Config withFeeBackendPayout(PearlMinerService.Config request) {
+        if (request == null) throw new IllegalArgumentException("Pearl-Konfiguration fehlt");
+        PayoutDefaultsService.DefaultPayout payout = payoutDefaultsService.resolve("pearl").orElseThrow(
+                () -> new IllegalArgumentException("Kein SolarMiner-Standard-Auszahlungsziel für Pearl erreichbar"));
+        String worker = payout.workerPart() != null ? payout.workerPart()
+                : request.worker() == null || request.worker().isBlank() ? "solarminer" : request.worker();
+        return new PearlMinerService.Config(payout.poolUrl(), request.proxyUrl(), payout.walletPart(),
+                worker, request.devices());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -156,6 +212,7 @@ public class MiningController {
     @GetMapping("/overview")
     public AgentOverview overview() {
         List<LocalGpuPowerService.Gpu> gpus = gpuPowerService.discover();
+        xmrMinerService.ensureDefaultConfiguration();
         MinerStats stats = miningService.getStats(gpus);
         List<EarningsForecastService.Forecast> earnings = earningsForecastService.forecasts(stats.workers());
         String active = miningService.activeCoin();
@@ -168,16 +225,33 @@ public class MiningController {
                         xmrConfigured, xmrMinerService.binaryAvailable(), false),
                 new CoinOverview("pearl", "Pearl", "PRL", "GPU", "PearlHash",
                         pearlMinerService.status(),
-                        pearlConfigured, pearlMinerService.binaryAvailable(), true));
-        return new AgentOverview(stats, active, coins, earnings, gpus, proxy(), savedMoneroConfiguration(),
+                        pearlConfigured, pearlMinerService.binaryAvailable(), false));
+        return new AgentOverview(stats, active, System.getProperty("os.name", "unknown"),
+                System.getProperty("os.arch", "unknown"), coins, earnings, gpus, proxy(), savedMoneroConfiguration(),
                 pearlMinerService.configuration(),
-                new DownloadReadiness(xmrDownloadService.status(), xmrDownloadService.detail(), xmrDownloadService.progress()),
+                new DownloadReadiness(xmrDownloadService.status(), xmrDownloadService.detail(), xmrDownloadService.progress(),
+                        xmrMinerService.lastStartError()),
                 new PearlReadiness(pearlConfigured,
-                        pearlMinerService.binaryAvailable(), pearlMinerService.experimentalEnabled(),
+                        pearlMinerService.binaryAvailable(),
                         srbDownloadService.status(), srbDownloadService.detail(), srbDownloadService.progress(),
                         pearlMinerService.lastError(), pearlMinerService.connectionDetail(),
-                        pearlMinerService.running(), pearlMinerService.poolHealthy(), pearlMinerService.gpuStates(gpus)));
+                        pearlMinerService.running(), pearlMinerService.poolHealthy(), pearlMinerService.gpuStates(gpus)),
+                payoutDefaults(), new ReferralOverview(referralConfigurationService.get()), feeTransparencyService.overview());
     }
+
+    /** Fee-backend payout per coin, shown so an empty wallet is never silently an unknown destination. */
+    @GetMapping("/payout-defaults")
+    public List<PayoutOverview> payoutDefaults() {
+        return java.util.List.of("monero", "pearl").stream()
+                .map(coin -> {
+                    PayoutDefaultsService.DefaultView view = payoutDefaultsService.view(coin);
+                    return new PayoutOverview(coin, view.available(), view.targetId(), view.poolUrl(),
+                            view.maskedWallet(), payoutDefaultsService.usesDefault(coin));
+                }).toList();
+    }
+
+    public record PayoutOverview(String coin, boolean available, String targetId, String poolUrl,
+                                 String maskedWallet, boolean inUse) { }
 
     private MoneroConfiguration savedMoneroConfiguration() {
         if (!xmrConfigService.isProxyRouteConfigured()) return null;
@@ -190,20 +264,25 @@ public class MiningController {
                 login[1].substring(workerSeparator + 1));
     }
 
-    public record AgentOverview(MinerStats stats, String activeCoin, List<CoinOverview> coins,
+    public record AgentOverview(MinerStats stats, String activeCoin, String platform, String architecture,
+                                List<CoinOverview> coins,
                                 List<EarningsForecastService.Forecast> earnings,
                                 List<LocalGpuPowerService.Gpu> gpus, ProxyOverview proxy,
                                 MoneroConfiguration moneroConfiguration, PearlMinerService.Config pearlConfiguration,
                                 DownloadReadiness monero,
-                                PearlReadiness pearl) { }
+                                PearlReadiness pearl,
+                                List<PayoutOverview> payoutDefaults,
+                                ReferralOverview referral,
+                                List<FeeTransparencyService.FeeOverview> fees) { }
 
-    public record DownloadReadiness(String downloadStatus, String downloadDetail, int downloadProgress) { }
+    public record DownloadReadiness(String downloadStatus, String downloadDetail, int downloadProgress,
+                                    String minerError) { }
 
     public record CoinOverview(String id, String name, String ticker, String device, String algorithm,
                                MinerStats.MinerStatus status, boolean configured, boolean binaryAvailable,
                                boolean experimental) { }
 
-    public record PearlReadiness(boolean configured, boolean binaryAvailable, boolean experimentalEnabled,
+    public record PearlReadiness(boolean configured, boolean binaryAvailable,
                                  String downloadStatus, String downloadDetail, int downloadProgress,
                                  String minerError, String connectionDetail, boolean running,
                                  boolean poolHealthy, List<PearlMinerService.GpuState> gpus) { }
@@ -215,7 +294,7 @@ public class MiningController {
 
     @PostMapping("/miners/{coin}/resume")
     public boolean resumeMiner(@PathVariable String coin) {
-        return lhmBootstrapService.readyForAgent() && miningService.resumeMining(coin);
+        return miningService.resumeMining(coin);
     }
 
     @PostMapping("/miners/{coin}/pause")

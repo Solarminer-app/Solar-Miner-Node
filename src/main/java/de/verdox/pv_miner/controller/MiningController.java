@@ -367,7 +367,7 @@ public class MiningController {
         if (request == null || request.poolUrl() == null || request.wallet() == null || request.worker() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pearl pool, wallet and worker are required");
         }
-        if (!minerApiClient.configurePearl(miner.getDetails(), request.poolUrl(), request.wallet(), request.worker(), request.devices())) {
+        if (!minerApiClient.configurePearl(miner.getDetails(), request.poolUrl(), request.wallet(), request.worker(), request.devices(), site.getReferralCode())) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Pearl agent configuration failed");
         }
         miner.setCurrentMiningPoolTarget(request.poolUrl());

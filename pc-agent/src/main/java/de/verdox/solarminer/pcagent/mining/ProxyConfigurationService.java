@@ -25,13 +25,14 @@ public class ProxyConfigurationService {
     private final boolean standalone;
     private final ObjectMapper mapper;
     private final ManagedProxyService managedProxy;
+    private final ReferralConfigurationService referralConfigurationService;
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
     private volatile String host;
     private volatile long feeCheckedAt;
     private final java.util.concurrent.ConcurrentHashMap<String, Boolean> feeCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     public ProxyConfigurationService(
-            ObjectMapper mapper, ManagedProxyService managedProxy,
+            ObjectMapper mapper, ManagedProxyService managedProxy, ReferralConfigurationService referralConfigurationService,
             @Value("${solarminer.agent.proxy-file:./solarminer-agent/proxy-host.txt}") String configPath,
             @Value("${solarminer.agent.proxy.monero-port:3335}") int moneroPort,
             @Value("${solarminer.agent.proxy.pearl-port:3334}") int pearlPort,
@@ -39,6 +40,7 @@ public class ProxyConfigurationService {
             @Value("${solarminer.agent.standalone:false}") boolean standalone) {
         this.mapper = mapper;
         this.managedProxy = managedProxy;
+        this.referralConfigurationService = referralConfigurationService;
         this.configFile = Path.of(configPath).toAbsolutePath().normalize();
         this.moneroPort = moneroPort;
         this.pearlPort = pearlPort;
@@ -126,8 +128,9 @@ public class ProxyConfigurationService {
             if (now - feeCheckedAt < 3000) return feeCache.getOrDefault(coin, false);
             for (String name : java.util.List.of("monero", "pearl")) {
                 try {
+                    String referralQuery = referralConfigurationService.get().isBlank() ? "" : "?referral=" + referralConfigurationService.get();
                     HttpRequest request = HttpRequest.newBuilder(URI.create("http://" + host + ":" + apiPort
-                                    + "/api/v1/fees/" + name + "/targets?referral=solarminer"))
+                                    + "/api/v1/fees/" + name + "/targets" + referralQuery))
                             .timeout(Duration.ofSeconds(3)).GET().build();
                     HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
                     boolean ready = false;
