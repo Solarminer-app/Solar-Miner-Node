@@ -47,7 +47,7 @@ public class BraiinsPoolQueryStrategy implements MiningPoolQueryStrategy<Braiins
                 long calcDate = dailyReward.calculation_date() * 1000;
                 rewards.put(calcDate, dailyReward.total_reward() * Math.pow(10, 8));
             }
-            BraiinsPoolEntity.BraiinsPoolData miningPoolData = new BraiinsPoolEntity.BraiinsPoolData(fetchedUsername, todayReward, currentBalance, payPerShare, profileData.estimatedReward(), workers.entrySet().stream().map(stringWorkerDataEntry -> new BraiinsPoolEntity.BraiinsPoolData.WorkerData(stringWorkerDataEntry.getKey(), stringWorkerDataEntry.getValue().shares_24h())).toList(), rewards);
+            BraiinsPoolEntity.BraiinsPoolData miningPoolData = new BraiinsPoolEntity.BraiinsPoolData(fetchedUsername, currentBalance, todayReward, payPerShare, profileData.estimatedReward(), workers.entrySet().stream().map(stringWorkerDataEntry -> new BraiinsPoolEntity.BraiinsPoolData.WorkerData(stringWorkerDataEntry.getKey(), stringWorkerDataEntry.getValue().shares_24h())).toList(), rewards);
 
             //LOGGER.info("Received "+rewards.size()+" payout data from braiins pool");
             cachedResults.put(entity.getId(), miningPoolData);

@@ -70,21 +70,10 @@ public class BraiinsPoolEntity extends MiningPoolEntity<BraiinsPoolEntity.Braiin
 
         @Override
         public double calculateSatoshiRewardToday() {
-            GlobalConstantsService globalConstantsService = SpringContextHelper.getBean(GlobalConstantsService.class);
-
-            double generatedShares = workerData().stream()
-                    .mapToDouble(BraiinsPoolData.WorkerData::generatedSharesToday)
-                    .sum();
-
-            float braiinsPoolFee = 0.02f;
-
-            return brainsPayoutEstimator.calculateRewardForDay(
-                    globalConstantsService.getTodayMiningDifficulty(),
-                    globalConstantsService.getTodayBlockSubsidy(),
-                    globalConstantsService.getTodayAverageTxPrice24h(),
-                    generatedShares,
-                    braiinsPoolFee
-            );
+            // Braiins defines today_reward as the confirmed reward of the current
+            // calendar day. Worker shares_24h are a rolling 24-hour window and would
+            // therefore include shares from the previous calendar day.
+            return todayReward * Math.pow(10, 8);
         }
 
         public record WorkerData(String workerName, double generatedSharesToday) {
