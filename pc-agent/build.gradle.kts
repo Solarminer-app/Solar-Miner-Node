@@ -59,10 +59,6 @@ tasks.withType<Test> {
     useJUnitPlatform()
 }
 
-tasks.named<BootJar>("bootJar") {
-    archiveFileName.set("solarminer-pc-agent.jar")
-}
-
 tasks.register<BootJar>("standaloneJar") {
     group = "distribution"
     description = "Builds one executable PC-Agent JAR with the embedded Stratum proxy"

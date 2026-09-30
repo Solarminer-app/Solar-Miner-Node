@@ -116,6 +116,16 @@ public class MiningController {
         return miningService.pauseAll();
     }
 
+    @PostMapping("/proxy/mode")
+    public boolean configureProxyMode(@RequestParam String mode) {
+        if (!lhmBootstrapService.readyForAgent()) return false;
+        if (!"local".equals(mode) && !"external".equals(mode)) return false;
+        if (!miningService.pauseAll()) return false;
+        if (!proxyConfigurationService.setMode(mode)) return false;
+        payoutDefaultsService.invalidate();
+        return true;
+    }
+
     @PostMapping("/proxy/discover")
     public List<ProxyDiscoveryService.ProxyCandidate> discoverProxy() throws java.io.IOException {
         if (!lhmBootstrapService.readyForAgent() || proxyConfigurationService.standalone()) return List.of();

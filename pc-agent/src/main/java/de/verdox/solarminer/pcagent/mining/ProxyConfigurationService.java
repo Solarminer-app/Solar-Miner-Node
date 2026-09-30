@@ -3,6 +3,8 @@ package de.verdox.solarminer.pcagent.mining;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -22,12 +24,13 @@ public class ProxyConfigurationService {
     private final int moneroPort;
     private final int pearlPort;
     private final int apiPort;
-    private final boolean standalone;
+    private final Path modeFile;
     private final ObjectMapper mapper;
     private final ManagedProxyService managedProxy;
     private final ReferralConfigurationService referralConfigurationService;
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
     private volatile String host;
+    private volatile boolean standalone;
     private volatile long feeCheckedAt;
     private final java.util.concurrent.ConcurrentHashMap<String, Boolean> feeCache = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -37,6 +40,7 @@ public class ProxyConfigurationService {
             @Value("${solarminer.agent.proxy.monero-port:3335}") int moneroPort,
             @Value("${solarminer.agent.proxy.pearl-port:3334}") int pearlPort,
             @Value("${solarminer.agent.proxy.api-port:8090}") int apiPort,
+            @Value("${solarminer.agent.proxy-mode-file:./solarminer-agent/proxy-mode.txt}") String modePath,
             @Value("${solarminer.agent.standalone:false}") boolean standalone) {
         this.mapper = mapper;
         this.managedProxy = managedProxy;
@@ -45,15 +49,17 @@ public class ProxyConfigurationService {
         this.moneroPort = moneroPort;
         this.pearlPort = pearlPort;
         this.apiPort = apiPort;
-        this.standalone = standalone;
-        if (standalone) {
-            host = "127.0.0.1";
-            return;
-        }
+        this.modeFile = Path.of(modePath).toAbsolutePath().normalize();
+        this.standalone = readMode(standalone);
         try {
             String saved = Files.readString(configFile).strip();
             if (validHost(saved)) host = saved;
         } catch (IOException ignored) { }
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void activateStoredMode() {
+        managedProxy.setStandalone(standalone);
     }
 
     public synchronized boolean configure(String nextHost) {
@@ -79,24 +85,41 @@ public class ProxyConfigurationService {
         }
     }
 
-    public boolean configured() { return host != null; }
+    /** Persists the operator's routing choice; local mode never overwrites the saved external host. */
+    public synchronized boolean setMode(String mode) {
+        boolean local = "local".equals(mode);
+        if (!local && !"external".equals(mode)) return false;
+        if (local == standalone) return !local || managedProxy.setStandalone(true);
+        if (local && !managedProxy.setStandalone(true)) return false;
+        if (!writeMode(local)) {
+            if (local) managedProxy.setStandalone(false);
+            return false;
+        }
+        standalone = local;
+        if (!local) managedProxy.setStandalone(false);
+        return true;
+    }
+
+    public boolean configured() { return standalone || host != null; }
     public boolean standalone() { return standalone; }
     public String managedStatus() { return managedProxy.status(); }
     public String managedDetail() { return managedProxy.detail(); }
-    public String host() { return host; }
+    public String host() { return standalone ? "127.0.0.1" : host; }
     public String moneroUrl() { return url(moneroPort); }
     public String pearlUrl() { return url(pearlPort); }
 
     private String url(int port) {
-        return host == null ? null : "stratum+tcp://" + host + ":" + port;
+        String currentHost = host();
+        return currentHost == null ? null : "stratum+tcp://" + currentHost + ":" + port;
     }
 
     public boolean matches(String stratumUrl, String coin) {
-        if (host == null || stratumUrl == null) return false;
+        String currentHost = host();
+        if (currentHost == null || stratumUrl == null) return false;
         try {
             URI uri = URI.create(stratumUrl);
             int expectedPort = "monero".equals(coin) ? moneroPort : "pearl".equals(coin) ? pearlPort : -1;
-            return "stratum+tcp".equals(uri.getScheme()) && host.equalsIgnoreCase(uri.getHost())
+            return "stratum+tcp".equals(uri.getScheme()) && currentHost.equalsIgnoreCase(uri.getHost())
                     && uri.getPort() == expectedPort && uri.getRawUserInfo() == null
                     && (uri.getRawPath() == null || uri.getRawPath().isEmpty())
                     && uri.getRawQuery() == null && uri.getRawFragment() == null;
@@ -106,9 +129,10 @@ public class ProxyConfigurationService {
     }
 
     public boolean isReachable() {
-        if (host == null) return false;
+        String currentHost = host();
+        if (currentHost == null) return false;
         try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create("http://" + host + ":" + apiPort + "/api/network/ip"))
+            HttpRequest request = HttpRequest.newBuilder(URI.create("http://" + currentHost + ":" + apiPort + "/api/network/ip"))
                     .timeout(Duration.ofSeconds(3)).GET().build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             return response.statusCode() == 200 && !response.body().isBlank();
@@ -120,7 +144,8 @@ public class ProxyConfigurationService {
 
     /** The standalone miner may start only after the local proxy has a real fee target. */
     public boolean feeReady(String coin) {
-        if (host == null || !java.util.Set.of("monero", "pearl").contains(coin)) return false;
+        String currentHost = host();
+        if (currentHost == null || !java.util.Set.of("monero", "pearl").contains(coin)) return false;
         long now = System.currentTimeMillis();
         if (now - feeCheckedAt < 3000) return feeCache.getOrDefault(coin, false);
         synchronized (this) {
@@ -129,7 +154,7 @@ public class ProxyConfigurationService {
             for (String name : java.util.List.of("monero", "pearl")) {
                 try {
                     String referralQuery = referralConfigurationService.get().isBlank() ? "" : "?referral=" + referralConfigurationService.get();
-                    HttpRequest request = HttpRequest.newBuilder(URI.create("http://" + host + ":" + apiPort
+                    HttpRequest request = HttpRequest.newBuilder(URI.create("http://" + currentHost + ":" + apiPort
                                     + "/api/v1/fees/" + name + "/targets" + referralQuery))
                             .timeout(Duration.ofSeconds(3)).GET().build();
                     HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
@@ -160,5 +185,34 @@ public class ProxyConfigurationService {
     private static boolean validHost(String value) {
         return value != null && value.length() <= 253 && value.matches("^[A-Za-z0-9][A-Za-z0-9.-]*$")
                 && !value.endsWith(".") && !value.contains("..");
+    }
+
+    private boolean readMode(boolean legacyStandalone) {
+        try {
+            String saved = Files.readString(modeFile).strip();
+            if ("local".equals(saved)) return true;
+            if ("external".equals(saved)) return false;
+        } catch (IOException ignored) { }
+        return legacyStandalone;
+    }
+
+    private boolean writeMode(boolean local) {
+        try {
+            Files.createDirectories(modeFile.getParent());
+            Path temp = Files.createTempFile(modeFile.getParent(), "proxy-mode-", ".tmp");
+            try {
+                Files.writeString(temp, local ? "local" : "external");
+                try {
+                    Files.move(temp, modeFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                    Files.move(temp, modeFile, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                Files.deleteIfExists(temp);
+            }
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
     }
 }

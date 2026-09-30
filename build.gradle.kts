@@ -21,7 +21,6 @@ val frontendImage = providers.gradleProperty("frontendImage")
 val coreImage = providers.gradleProperty("coreImage")
 val currencyRatesImage = providers.gradleProperty("currencyRatesImage")
 val pcAgentImage = providers.gradleProperty("pcAgentImage")
-val pcAgentStandaloneImage = providers.gradleProperty("pcAgentStandaloneImage")
 
 allprojects {
     group = projectGroup.get()
@@ -348,14 +347,5 @@ tasks.register("printPcAgentImage") {
 
     doLast {
         println(pcAgentImage.get())
-    }
-}
-
-tasks.register("printPcAgentStandaloneImage") {
-    group = "versioning"
-    description = "Prints the standalone PC-Agent Docker image repository."
-
-    doLast {
-        println(pcAgentStandaloneImage.get())
     }
 }

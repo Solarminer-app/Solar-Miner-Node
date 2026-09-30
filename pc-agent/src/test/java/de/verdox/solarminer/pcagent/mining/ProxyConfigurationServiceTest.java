@@ -41,9 +41,26 @@ class ProxyConfigurationServiceTest {
                 "stratum+tcp://pool.example:9200", "pool.example:9200;wallet;x", false));
     }
 
+    @Test
+    void externalModeOverridesAndPersistsTheLegacyStandaloneDefault() {
+        Path file = directory.resolve("proxy-host.txt");
+        ProxyConfigurationService proxy = proxy(file, true);
+        assertTrue(proxy.standalone());
+
+        assertTrue(proxy.setMode("external"));
+        assertFalse(proxy.standalone());
+
+        ProxyConfigurationService reloaded = proxy(file, true);
+        assertFalse(reloaded.standalone());
+    }
+
     private static ProxyConfigurationService proxy(Path file) {
+        return proxy(file, false);
+    }
+
+    private static ProxyConfigurationService proxy(Path file, boolean standalone) {
         return new ProxyConfigurationService(new ObjectMapper(), new ManagedProxyService(false, "./lib/proxy.jar"),
                 new ReferralConfigurationService(file.resolveSibling("referral-key.txt").toString()),
-                file.toString(), 3335, 3334, 8090, false);
+                file.toString(), 3335, 3334, 8090, file.resolveSibling("proxy-mode.txt").toString(), standalone);
     }
 }

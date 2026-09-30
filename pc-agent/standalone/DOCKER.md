@@ -1,12 +1,12 @@
-# SolarMiner PC-Agent containers for Linux
+# SolarMiner PC-Agent container for Linux
 
-Two images are released from the same version tag:
+`verdox/solar-miner-pc-agent` always includes the Stratum proxy. In the local
+Mining UI choose whether to use that local proxy or a reachable external
+SolarMiner proxy. The choice is stored under the persistent data volume and
+switching mode pauses active miners first. The local proxy binds only inside the
+container, so it is not exposed to the LAN.
 
-- `verdox/solar-miner-pc-agent` is the normal agent. It has **no embedded
-  proxy** and must be configured with a reachable external SolarMiner proxy.
-- `verdox/solar-miner-pc-agent-standalone` embeds the local Stratum proxy.
-
-Neither image contains a miner or mines automatically. Install XMRig or
+The image contains no miner and does not mine automatically. Install XMRig or
 SRBMiner from the local Mining UI after startup; the agent downloads only the
 official release and verifies its release metadata.
 
@@ -22,10 +22,6 @@ The setup script configures persistent 2-MiB huge pages for RandomX and creates
 `/opt/solarminer-pc-agent/data`. Run the compose command from
 `/opt/solarminer-pc-agent` after copying the compose files there, or replace
 `./data` in the base compose file with `/opt/solarminer-pc-agent/data`.
-
-For the standalone image, use `docker-compose.pc-agent.standalone.yml` instead
-of the base compose file. It uses host networking because it runs the embedded
-proxy and LAN UDP discovery.
 
 For NVIDIA add the NVIDIA overlay after installing NVIDIA Container Toolkit:
 
@@ -45,6 +41,9 @@ current PearlHash support matrix lists AMD and NVIDIA, not Intel. A verified
 Intel PearlHash miner and end-to-end pool test are required before enabling
 that route.
 
-The standalone image exposes port `8084` on the host LAN and must not be
-exposed to the public internet. Do not run another standalone agent or proxy on
-ports `8084`, `8090`, `3334`, `3335`, or UDP `8091` on the same host.
+The agent UI on port `8084` must not be exposed to the public internet. When
+using an external proxy, enter its LAN host/IP in the UI; Docker bridge networks
+do not forward LAN UDP discovery broadcasts. The retained
+`docker-compose.pc-agent.standalone.yml` is a host-network compatibility
+profile for existing deployments; it uses the same image and the same UI mode
+selection.

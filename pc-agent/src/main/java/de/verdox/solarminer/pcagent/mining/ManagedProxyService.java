@@ -4,20 +4,18 @@ import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/** Starts the embedded Stratum proxy in a separate Spring context for standalone distributions. */
+/** Starts the bundled Stratum proxy only when the operator selects local proxy mode. */
 @Service
 public class ManagedProxyService {
     private static final Logger LOGGER = Logger.getLogger(ManagedProxyService.class.getName());
-    private final boolean standalone;
+    private volatile boolean standalone;
     private volatile ConfigurableApplicationContext proxyContext;
     private volatile String status = "external";
     private volatile String detail = "";
@@ -33,9 +31,6 @@ public class ManagedProxyService {
     public ManagedProxyService(boolean standalone, String ignoredProxyJar) {
         this(standalone);
     }
-
-    @EventListener(ApplicationReadyEvent.class)
-    public void onReady() { startIfNeeded(); }
 
     @Scheduled(fixedDelay = 15_000)
     public void keepRunning() { startIfNeeded(); }
@@ -64,12 +59,35 @@ public class ManagedProxyService {
         }
     }
 
+    /** Switches the bundled proxy at runtime. The caller must pause miners before changing mode. */
+    public synchronized boolean setStandalone(boolean enabled) {
+        if (!enabled) {
+            standalone = false;
+            stopContext();
+            status = "external";
+            detail = "";
+            return true;
+        }
+        standalone = true;
+        lastAttempt = 0;
+        status = "starting";
+        detail = "";
+        startIfNeeded();
+        return running();
+    }
+
+    public boolean standalone() { return standalone; }
     public boolean running() { return proxyContext != null && proxyContext.isActive(); }
     public String status() { return running() ? "running" : status; }
     public String detail() { return detail; }
 
     @PreDestroy
     public synchronized void stop() {
+        standalone = false;
+        stopContext();
+    }
+
+    private void stopContext() {
         ConfigurableApplicationContext current = proxyContext;
         proxyContext = null;
         if (current != null && current.isActive()) current.close();
