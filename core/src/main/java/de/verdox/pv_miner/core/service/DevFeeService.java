@@ -12,11 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import java.util.List;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Locale;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -38,7 +34,9 @@ public class DevFeeService {
     private final Map<String, CachedFeeTargets> feeTargetCache = new ConcurrentHashMap<>();
     private final ProxyDiscoveryService proxyDiscoveryService;
     private final RestClient restClient;
-    /** Last referral the stratum proxy was told to enforce (see {@link #syncProxyReferral}). */
+    /**
+     * Last referral the stratum proxy was told to enforce (see {@link #syncProxyReferral}).
+     */
     private volatile String activeProxyReferral;
     private volatile long lastProxyReferralSync;
 
@@ -60,7 +58,12 @@ public class DevFeeService {
         // Stratum-routed miners get their dev-fee split decided INSIDE the proxy,
         // which only knows a single configured referral — point it at the site's
         // saved referral (house when unset) so the referrer share routes to them.
-        syncProxyReferral(referralCode);
+        // The PC agent owns its embedded/local proxy and receives the referral below.
+        // Do not also contact the Node-wide proxy, which may not exist on that LAN host.
+        if (miningOS != MiningOS.AGENT) {
+            syncProxyReferral(referralCode);
+        }
+        minerService.syncAgentReferral(miningOS, minerDetails, referralCode);
 
         if (miningOS.supportsNativeSplitting()) {
             enforceNativeDevFee(coin, minerIdentity, minerService, miningOS, minerDetails, referralCode);
@@ -135,9 +138,7 @@ public class DevFeeService {
      */
     public void syncProxyReferral(String referralCode) {
         String target = normalizeReferral(referralCode);
-        if (target == null) {
-            target = "solarminer";
-        }
+        if (target == null) target = "";
         long now = System.currentTimeMillis();
         boolean changed = !target.equalsIgnoreCase(activeProxyReferral);
         // Re-push periodically even when unchanged: if the proxy container restarts
@@ -192,7 +193,8 @@ public class DevFeeService {
                             .queryParamIfPresent("referral", java.util.Optional.ofNullable(normalizedReferral))
                             .build(coin))
                     .retrieve()
-                    .body(new ParameterizedTypeReference<>() {});
+                    .body(new ParameterizedTypeReference<>() {
+                    });
             List<FeeTarget> result = targets == null ? List.of() : List.copyOf(targets);
             feeTargetCache.put(cacheKey, new CachedFeeTargets(result, now));
             return result;
@@ -295,7 +297,7 @@ public class DevFeeService {
     }
 
     private static boolean equalsIgnoreCase(String left, String right) {
-        return left != null && right != null && left.equalsIgnoreCase(right);
+        return left != null && left.equalsIgnoreCase(right);
     }
 
     private static String firstNonBlank(String... values) {
@@ -320,7 +322,7 @@ public class DevFeeService {
             String referralCode
     ) {
         public FeeTarget withWorkerName(MinerStats.MinerIdentity minerIdentity) {
-            return new FeeTarget(targetId, poolAddress, workerName+sanitizeWorkerName(minerIdentity.minerModel() + " " + minerIdentity.macAddress()), password, percentage, beneficiaryType, beneficiaryName, referralCode);
+            return new FeeTarget(targetId, poolAddress, workerName + sanitizeWorkerName(minerIdentity.minerModel() + " " + minerIdentity.macAddress()), password, percentage, beneficiaryType, beneficiaryName, referralCode);
         }
     }
 

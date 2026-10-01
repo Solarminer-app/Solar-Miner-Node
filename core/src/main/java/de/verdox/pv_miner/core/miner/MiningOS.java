@@ -2,6 +2,8 @@ package de.verdox.pv_miner.core.miner;
 
 public enum MiningOS {
     AGENT(false, true),
+    /** 21energy heaters are SHA-256 miners controlled through the local 21control API. */
+    TWENTY_ONE_ENERGY(false, true),
     ANTMINER_STOCK_OS,
     CANAAN_STOCK_OS,
     WHATSMINER_STOCK_OS(false, true),

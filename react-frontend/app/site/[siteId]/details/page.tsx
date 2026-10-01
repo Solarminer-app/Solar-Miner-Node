@@ -693,18 +693,12 @@ export default function PVSiteDetailsPage() {
                     ))}
                 </section>
 
-                <nav aria-label={t['details.navigation.label']} className="sticky top-[72px] z-20 flex gap-1 overflow-x-auto rounded-2xl border border-white/[0.07] bg-[#111114]/95 p-1.5 shadow-xl shadow-black/10 backdrop-blur">
-                    {[
-                        ['#site-configuration', t['details.navigation.site']],
-                        ['#panel-groups', t['details.navigation.panels']],
-                        ['#pv-devices', t['details.navigation.pv_devices']],
-                        ['#mining-hardware', t['details.navigation.hardware']],
-                        ['#energy-prices', t['details.navigation.prices']],
-                        ['#data-sharing', t['details.navigation.data_sharing']],
-                    ].map(([href, label]) => (
-                        <a className="shrink-0 rounded-xl px-3.5 py-2 text-xs font-semibold text-[#aaaab4] transition hover:bg-white/[0.06] hover:text-white" href={href} key={href}>{label}</a>
-                    ))}
-                </nav>
+                <section className="rounded-2xl border border-white/[0.07] bg-[#111114] px-5 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div><p className="text-sm font-semibold text-white">{locale === 'de' ? 'Anlagenkonfiguration' : 'Site configuration'}</p><p className="mt-1 text-xs text-[#85858f]">{locale === 'de' ? 'Grunddaten, PV-Erzeugung und verbundene Geräte zuerst. Weitere Einstellungen sind darunter zusammengefasst.' : 'Start with the site, PV generation and connected devices. Further settings are grouped below.'}</p></div>
+                        <span className="rounded-full bg-white/[0.06] px-3 py-1.5 text-xs text-[#aaaab4]">{completedChecks}/{completenessChecks.length} {locale === 'de' ? 'Grundlagen vollständig' : 'basics complete'}</span>
+                    </div>
+                </section>
 
                 <div className="grid gap-6 xl:grid-cols-12">
                     <section className="scroll-mt-32 rounded-2xl border border-white/[0.07] bg-[#151518] p-5 xl:col-span-4" id="site-configuration">
@@ -785,19 +779,26 @@ export default function PVSiteDetailsPage() {
                     </section>
                 </div>
 
-                <section className="scroll-mt-32 overflow-hidden rounded-2xl border border-white/[0.07] bg-[#151518]" id="pv-devices">
-                    <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-4">
+                <details className="scroll-mt-32 overflow-hidden rounded-2xl border border-white/[0.07] bg-[#151518]" id="pv-devices" open>
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 hover:bg-white/[0.025] [&::-webkit-details-marker]:hidden">
                         <div className="flex items-center gap-3"><Server className="text-cyan-400" size={20}/><div><h2 className="text-lg font-semibold">{t['details.pv_devices.title']}</h2><p className="mt-1 text-xs text-[#777781]">{t['details.pv_devices.description']}</p></div></div>
-                        <button className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400/20" onClick={() => void openPvDeviceEditor(null)} type="button"><Plus size={14}/>{t['details.pv_devices.add']}</button>
+                        <span className="text-xs text-[#85858f]">{details.pvDevices.length} {locale === 'de' ? 'verbunden' : 'connected'}</span>
+                    </summary>
+                    <div className="border-t border-white/[0.07]">
+                        <div className="flex justify-end px-4 pt-4"><button className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400/20" onClick={() => void openPvDeviceEditor(null)} type="button"><Plus size={14}/>{t['details.pv_devices.add']}</button></div>
+                        {details.pvDevices.length === 0 ? <p className="px-5 py-8 text-sm text-[#85858f]">{t['details.pv_devices.empty']}</p> : <div className="space-y-2 p-4">{details.pvDevices.map((device) => <article className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-white/[0.07] bg-[#0f0f12] px-3 py-2.5" key={device.id}><span className="rounded-md bg-cyan-400/10 px-2 py-1 text-[10px] font-semibold uppercase text-cyan-200">{t[`setup.source.type.${device.deviceType.toLowerCase()}`]}</span><div className="min-w-[10rem] flex-1"><h3 className="truncate text-sm font-semibold">{device.name}</h3><p className="mt-0.5 truncate text-xs text-[#777781]">{device.profileName} · {device.sectionKey}</p></div><p className="min-w-[9rem] truncate font-mono text-xs text-[#a3a3ad]">{device.host}:{device.port}</p>{device.providerId !== 'SMARTFOX' ? <button className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/10 hover:text-emerald-200" onClick={() => void openPvDeviceEditor(device)} type="button"><Plus size={13}/>{t['details.pv_devices.add_from_same']}</button> : null}<button aria-label={t['details.action.delete']} className="grid h-8 w-8 place-items-center rounded-lg text-[#777781] transition hover:bg-red-500/10 hover:text-red-400" onClick={() => deletePvDevice(device)} type="button"><Trash2 size={14}/></button></article>)}</div>}
                     </div>
-                    {details.pvDevices.length === 0 ? <p className="px-5 py-8 text-sm text-[#85858f]">{t['details.pv_devices.empty']}</p> : <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">{details.pvDevices.map((device) => <article className="rounded-xl border border-white/[0.07] bg-[#0f0f12] p-4" key={device.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><span className="rounded-md bg-cyan-400/10 px-2 py-1 text-[10px] font-semibold uppercase text-cyan-200">{t[`setup.source.type.${device.deviceType.toLowerCase()}`]}</span><h3 className="mt-3 truncate font-semibold">{device.name}</h3><p className="mt-1 truncate font-mono text-xs text-[#85858f]">{device.host}:{device.port}</p></div><button aria-label={t['details.action.delete']} className="grid h-8 w-8 place-items-center rounded-lg text-[#777781] transition hover:bg-red-500/10 hover:text-red-400" onClick={() => deletePvDevice(device)} type="button"><Trash2 size={14}/></button></div><div className="mt-4 border-t border-white/5 pt-3"><p className="truncate text-xs text-[#777781]">{device.profileName} · {device.sectionKey}</p>{device.providerId !== 'SMARTFOX' ? <button className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-300 hover:text-emerald-200" onClick={() => void openPvDeviceEditor(device)} type="button"><Plus size={13}/>{t['details.pv_devices.add_from_same']}</button> : null}</div></article>)}</div>}
-                </section>
+                </details>
 
-                <section className="scroll-mt-32 overflow-hidden rounded-2xl border border-white/[0.07] bg-[#151518]" id="mining-hardware">
-                    <div className="flex items-center gap-3 border-b border-white/[0.07] px-5 py-4">
+                <details className="scroll-mt-32 overflow-hidden rounded-2xl border border-white/[0.07] bg-[#151518]" id="mining-hardware">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 hover:bg-white/[0.025] [&::-webkit-details-marker]:hidden">
+                        <div className="flex items-center gap-3">
                         <Cpu className="text-orange-400" size={20}/>
                         <h2 className="text-lg font-semibold">{t['details.hardware.title']}</h2>
-                    </div>
+                        </div>
+                        <span className="text-xs text-[#85858f]">{details.miners.length} {locale === 'de' ? 'Miner' : 'miners'}</span>
+                    </summary>
+                    <div className="border-t border-white/[0.07]">
                     {details.miners.length === 0 ? (
                         <p className="px-5 py-8 text-sm text-[#85858f]">{t['details.hardware.empty']}</p>
                     ) : (
@@ -839,14 +840,18 @@ export default function PVSiteDetailsPage() {
                         </div>
                         </>
                     )}
-                </section>
+                    </div>
+                </details>
 
-                <section className="scroll-mt-32" id="energy-prices">
-                    <div className="mb-4 flex items-center gap-3">
+                <details className="scroll-mt-32 rounded-2xl border border-white/[0.07] bg-[#151518]" id="energy-prices">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 hover:bg-white/[0.025] [&::-webkit-details-marker]:hidden">
+                        <div className="flex items-center gap-3">
                         <CircleDollarSign className="text-emerald-400" size={20}/>
                         <h2 className="text-lg font-semibold">{t['details.prices.title']}</h2>
-                    </div>
-                    <div className="grid gap-6 lg:grid-cols-2">
+                        </div>
+                        <span className="text-xs text-[#85858f]">{details.electricityPrices.length + details.feedInTariffs.length} {locale === 'de' ? 'Einträge' : 'entries'}</span>
+                    </summary>
+                    <div className="grid gap-6 border-t border-white/[0.07] p-5 lg:grid-cols-2">
                         <PriceTable
                             addLabel={t['details.prices.add']}
                             amountLabel={t['details.prices.amount']}
@@ -872,17 +877,20 @@ export default function PVSiteDetailsPage() {
                             validFromLabel={t['details.prices.valid_from']}
                         />
                     </div>
-                </section>
+                </details>
 
-                <section className="scroll-mt-32 rounded-2xl border border-white/[0.07] bg-[#151518] p-5" id="data-sharing">
-                    <div className="mb-4 flex items-center gap-3">
+                <details className="scroll-mt-32 rounded-2xl border border-white/[0.07] bg-[#151518]" id="data-sharing">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 hover:bg-white/[0.025] [&::-webkit-details-marker]:hidden">
+                        <div className="flex items-center gap-3">
                         <Radio className="text-sky-400" size={20}/>
                         <div>
                             <h2 className="text-lg font-semibold">{t['details.telemetry.title']}</h2>
                             <p className="mt-1 max-w-3xl text-xs leading-5 text-[#777781]">{t['details.telemetry.description']}</p>
                         </div>
-                    </div>
-                    <div className="grid gap-5">
+                        </div>
+                        <span className={`rounded-full px-2.5 py-1 text-xs ${telemetry.enabled ? 'bg-emerald-400/10 text-emerald-300' : 'bg-white/[0.06] text-[#85858f]'}`}>{telemetry.enabled ? (locale === 'de' ? 'Aktiv' : 'Enabled') : (locale === 'de' ? 'Inaktiv' : 'Disabled')}</span>
+                    </summary>
+                    <div className="grid gap-5 border-t border-white/[0.07] p-5">
                         <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-white/[0.07] bg-[#0f0f12] px-4 py-3.5 transition hover:border-white/20">
                             <span>
                                 <span className="block text-sm font-semibold text-white">{t['details.telemetry.enabled']}</span>
@@ -955,7 +963,7 @@ export default function PVSiteDetailsPage() {
                             {telemetryNotice ? <p className={telemetryNotice.kind === 'saved' ? 'text-sm text-emerald-300' : 'text-sm text-red-300'}>{telemetryNotice.message}</p> : null}
                         </div>
                     </div>
-                </section>
+                </details>
             </div>
 
             {dialog?.kind === 'site' && (

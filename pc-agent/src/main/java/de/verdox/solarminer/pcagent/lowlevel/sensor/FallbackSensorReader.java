@@ -17,7 +17,7 @@ public class FallbackSensorReader implements HardwareSensorReader {
 
     @Override
     public double getCpuTemperatureCelsius() {
-        return 40.0;
+        return -1.0;
     }
 
     @Override

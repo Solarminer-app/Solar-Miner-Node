@@ -1,136 +1,131 @@
 package de.verdox.solarminer.pcagent.xmr.download;
 
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.springframework.stereotype.Service;
-import oshi.SystemInfo;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.Optional;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.io.*;
+import java.net.URI;
+import java.net.URLConnection;
+import java.nio.file.*;
+import java.security.*;
+import java.util.HexFormat;
+import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.*;
+import java.util.zip.*;
 
 @Service
 public class XmrDownloadService {
     public static final Path MAIN_PATH = Path.of("./solarminer-agent/xmrig/");
-    public static final Path CONFIG_PATH = Path.of(MAIN_PATH+"/config.json");
-
+    public static final Path CONFIG_PATH = MAIN_PATH.resolve("config.json");
     private static final Logger LOGGER = Logger.getLogger(XmrDownloadService.class.getName());
-
+    private static final long MAX_BYTES = 300L * 1024 * 1024;
     private final XMRigApiClient apiClient;
+    private final AtomicBoolean downloading = new AtomicBoolean();
+    private volatile String status = "PENDING", detail = "";
+    private volatile int progress;
 
-    public XmrDownloadService(XMRigApiClient apiClient) {
-        this.apiClient = apiClient;
+    public XmrDownloadService(XMRigApiClient apiClient) { this.apiClient = apiClient; }
+    public String status() { return status; }
+    public String detail() { return detail; }
+    public int progress() { return progress; }
+
+    public boolean retry() {
+        if (binaryAvailable()) { status = "READY"; progress = 100; return true; }
+        if (!downloading.compareAndSet(false, true)) return false;
+        status = "DOWNLOADING"; detail = ""; progress = 0;
+        Thread.ofVirtual().name("xmrig-download").start(() -> {
+            try { install(); status = "READY"; progress = 100; }
+            catch (Exception e) {
+                status = e instanceof UnsupportedOperationException ? "UNSUPPORTED" : "FAILED";
+                detail = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                LOGGER.log(Level.WARNING, "XMRig installation failed", e);
+            } finally { downloading.set(false); }
+        });
+        return true;
     }
 
-    @EventListener(ApplicationReadyEvent.class)
-    public void detectOSAndDownloadXMRig() {
-        SystemInfo systemInfo = new SystemInfo();
-        String osFamily = systemInfo.getOperatingSystem().getFamily();
-        String osArch = System.getProperty("os.arch").toLowerCase();
+    private boolean binaryAvailable() {
+        String name = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "xmrig.exe" : "xmrig";
+        return Files.isRegularFile(MAIN_PATH.resolve(name));
+    }
 
-        String xmrigOsString = mapToXmrigOsString(osFamily, osArch);
-
-        if (xmrigOsString == null) {
-            LOGGER.warning("Could not map detected OS family '" + osFamily + "' and architecture '" + osArch + "' to a supported XMRig target.");
-            return;
-        }
-
-        LOGGER.info("Detected target system for XMRig: " + xmrigOsString);
-
+    private void install() throws Exception {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
+        String platform = os.contains("win") ? "windows" : os.contains("linux") ? "linux" : os.contains("mac") ? "macos" : null;
+        String cpu = arch.equals("amd64") || arch.equals("x86_64") ? "x64" : arch.equals("aarch64") || arch.equals("arm64") ? "arm64" : null;
+        if (platform == null || cpu == null) throw new UnsupportedOperationException("Unsupported XMRig operating system or architecture");
+        String binaryName = platform.equals("windows") ? "xmrig.exe" : "xmrig";
+        XMRigRelease release = apiClient.getLatestXmrigRelease(); progress = 5;
+        if (release == null || release.assets() == null) throw new IOException("XMRig release metadata missing");
+        XMRigAssetObject asset = release.assets().stream().filter(a -> (platform + "-" + cpu).equals(a.os()) || (platform + "-" + cpu).equals(a.id()))
+                .filter(a -> a.name() != null && (a.name().endsWith(".zip") || a.name().endsWith(".tar.gz")))
+                .findFirst().orElseThrow(() -> new UnsupportedOperationException("No XMRig archive for " + platform + "-" + cpu));
+        if (asset.size() <= 0 || asset.size() > MAX_BYTES || asset.hash() == null || !asset.hash().matches("(?i)(sha256:)?[0-9a-f]{64}"))
+            throw new IOException("XMRig release has no usable size or SHA-256 digest");
+        URI uri = URI.create(asset.url());
+        if (!"https".equals(uri.getScheme()) || !"github.com".equalsIgnoreCase(uri.getHost())
+                || !uri.getPath().startsWith("/xmrig/xmrig/releases/download/"))
+            throw new IOException("XMRig download URL must point to the official GitHub release");
+        Path directory = MAIN_PATH.toAbsolutePath().normalize(); Files.createDirectories(directory);
+        Path archive = Files.createTempFile(directory, "xmrig-", ".part");
+        Path pending = Files.createTempFile(directory, "xmrig-bin-", ".part");
         try {
-            LOGGER.info("Fetching the latest XMRig release info...");
-            XMRigRelease release = apiClient.getLatestXmrigRelease();
-            System.out.println(release);
-
-            Optional<XMRigAssetObject> targetAsset = release.assets().stream()
-                    .filter(asset -> asset.os().equals(xmrigOsString))
-                    .findFirst();
-
-            if (targetAsset.isPresent()) {
-                downloadFile(targetAsset.get());
-            } else {
-                LOGGER.warning("No suitable download asset found for target '" + xmrigOsString + "' in release version " + release.version() + ".");
+            URLConnection connection = uri.toURL().openConnection();
+            connection.setConnectTimeout(15000); connection.setReadTimeout(30000);
+            MessageDigest sha = MessageDigest.getInstance("SHA-256"); long count = 0;
+            try (InputStream input = new DigestInputStream(connection.getInputStream(), sha); OutputStream output = Files.newOutputStream(archive)) {
+                byte[] buffer = new byte[65536]; int read;
+                while ((read = input.read(buffer)) != -1) {
+                    count += read;
+                    if (count > MAX_BYTES || count > asset.size()) throw new IOException("XMRig archive exceeds expected size");
+                    output.write(buffer, 0, read);
+                    progress = 5 + (int) Math.min(75, count * 75 / asset.size());
+                }
             }
-
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "An error occurred while fetching or downloading XMRig: " + e.getMessage(), e);
-        }
+            if (count != asset.size() || !HexFormat.of().formatHex(sha.digest()).equalsIgnoreCase(asset.hash().replaceFirst("(?i)^sha256:", "")))
+                throw new IOException("XMRig archive size or SHA-256 mismatch");
+            extractBinary(archive, pending, asset.name(), binaryName); progress = 95;
+            if (!platform.equals("windows") && !pending.toFile().setExecutable(true, false)) throw new IOException("Cannot make XMRig executable");
+            Files.move(pending, directory.resolve(binaryName), StandardCopyOption.REPLACE_EXISTING);
+        } finally { Files.deleteIfExists(archive); Files.deleteIfExists(pending); }
     }
 
-    private String mapToXmrigOsString(String family, String arch) {
-        String os = family.toLowerCase();
-        String mappedOs;
-
-        if (os.contains("windows")) mappedOs = "windows";
-        else if (os.contains("linux")) mappedOs = "linux";
-        else if (os.contains("macos") || os.contains("mac")) mappedOs = "macos";
-        else if (os.contains("freebsd")) mappedOs = "freebsd";
-        else return null;
-
-        String mappedArch;
-        if (arch.contains("amd64") || arch.contains("x86_64")) mappedArch = "x64";
-        else if (arch.contains("aarch64") || arch.contains("arm64")) mappedArch = "arm64";
-        else return null;
-
-        return mappedOs + "-" + mappedArch;
-    }
-
-    private void downloadFile(XMRigAssetObject asset) throws Exception {
-        long sizeInMb = asset.size() / 1024 / 1024;
-
-        if (!asset.name().toLowerCase().endsWith(".zip")) {
-            LOGGER.warning("The asset " + asset.name() + " is not a .zip file! Standard Java cannot extract .tar.gz files without external libraries.");
-            return;
-        }
-
-        LOGGER.info("Starting download and specific extraction: " + asset.name() + " (" + sizeInMb + " MB)");
-
-        Path targetDir = Paths.get("./solarminer-agent/xmrig/").toAbsolutePath().normalize();
-        Files.createDirectories(targetDir);
-
-        int extractedFilesCount = 0;
-
-        try (InputStream in = new URL(asset.url()).openStream();
-             ZipInputStream zis = new ZipInputStream(in)) {
-
-            ZipEntry zipEntry = zis.getNextEntry();
-
-            while (zipEntry != null) {
-                if (!zipEntry.isDirectory()) {
-                    String fileName = Paths.get(zipEntry.getName()).getFileName().toString();
-
-                    if (fileName.equals("xmrig.exe") || fileName.equals("xmrig")) {
-
-                        Path newPath = targetDir.resolve(fileName).toAbsolutePath().normalize();
-
-                        if (!newPath.startsWith(targetDir)) {
-                            throw new IOException("Bad zip entry trying to escape target directory: " + zipEntry.getName());
-                        }
-
-                        Files.copy(zis, newPath, StandardCopyOption.REPLACE_EXISTING);
-                        LOGGER.info("Successfully extracted: " + fileName);
-                        extractedFilesCount++;
+    private void extractBinary(Path archive, Path target, String archiveName, String binaryName) throws IOException {
+        boolean found = false;
+        if (archiveName.endsWith(".zip")) {
+            try (ZipInputStream zip = new ZipInputStream(Files.newInputStream(archive))) {
+                ZipEntry entry;
+                while ((entry = zip.getNextEntry()) != null) {
+                    if (!entry.isDirectory() && Path.of(entry.getName().replace('\\', '/')).getFileName().toString().equals(binaryName)) {
+                        copyBounded(zip, target); found = true; break;
+                    }
+                    zip.closeEntry();
+                }
+            }
+        } else {
+            try (TarArchiveInputStream tar = new TarArchiveInputStream(new GZIPInputStream(Files.newInputStream(archive)))) {
+                TarArchiveEntry entry;
+                while ((entry = tar.getNextEntry()) != null) {
+                    if (entry.isFile() && Path.of(entry.getName().replace('\\', '/')).getFileName().toString().equals(binaryName)) {
+                        copyBounded(tar, target); found = true; break;
                     }
                 }
-
-                zis.closeEntry();
-                zipEntry = zis.getNextEntry();
             }
         }
+        if (!found) throw new IOException("XMRig executable missing from archive");
+    }
 
-        if (extractedFilesCount > 0) {
-            LOGGER.info("Extraction completed! Saved " + extractedFilesCount + " specific files to: " + targetDir.toAbsolutePath());
-        } else {
-            LOGGER.warning("Extraction finished, but neither xmrig.exe nor config.json were found in the zip archive.");
+    private void copyBounded(InputStream source, Path target) throws IOException {
+        try (OutputStream output = Files.newOutputStream(target)) {
+            byte[] buffer = new byte[65536]; long count = 0; int read;
+            while ((read = source.read(buffer)) != -1) {
+                count += read;
+                if (count > MAX_BYTES) throw new IOException("XMRig executable exceeds size limit");
+                output.write(buffer, 0, read);
+            }
+            if (count == 0) throw new IOException("XMRig executable is empty");
         }
     }
 }

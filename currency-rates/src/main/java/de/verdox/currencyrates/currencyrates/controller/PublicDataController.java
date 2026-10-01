@@ -3,6 +3,7 @@ package de.verdox.currencyrates.currencyrates.controller;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import de.verdox.currencyrates.currencyrates.service.DataQueryService;
+import de.verdox.currencyrates.currencyrates.service.CoinGeckoPriceService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,9 +19,11 @@ import java.util.Map;
 public class PublicDataController {
 
     private final DataQueryService queryService;
+    private final CoinGeckoPriceService coinPrices;
 
-    public PublicDataController(DataQueryService queryService) {
+    public PublicDataController(DataQueryService queryService, CoinGeckoPriceService coinPrices) {
         this.queryService = queryService;
+        this.coinPrices = coinPrices;
     }
 
     @GetMapping("/bitcoin-stats")
@@ -56,6 +59,13 @@ public class PublicDataController {
         return queryService.getConversionRate(baseCurrency, targetCurrency, date, timezone)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** Current or historic USD prices. Coin IDs are SolarMiner's btc, xmr and prl. */
+    @GetMapping("/coin-prices")
+    public ResponseEntity<Map<String, Double>> coinPrices(@RequestParam(name = "date", required = false) LocalDate date) {
+        return coinPrices.prices(date == null ? LocalDate.now(java.time.ZoneOffset.UTC) : date)
+                .map(prices -> ResponseEntity.ok(prices.getPrices())).orElse(ResponseEntity.notFound().build());
     }
 
     public record BitcoinNetworkStatsDTO(

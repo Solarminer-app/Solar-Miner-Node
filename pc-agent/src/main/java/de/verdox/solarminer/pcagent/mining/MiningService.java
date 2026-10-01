@@ -3,9 +3,16 @@ package de.verdox.solarminer.pcagent.mining;
 import de.verdox.solarminer.pcagent.dto.MinerStats;
 import de.verdox.solarminer.pcagent.dto.Pools;
 import de.verdox.solarminer.pcagent.lowlevel.HardwareIdentityService;
+import de.verdox.solarminer.pcagent.pearl.PearlMinerService;
+import de.verdox.solarminer.pcagent.pearl.LocalGpuPowerService;
 import de.verdox.solarminer.pcagent.xmr.XmrMinerService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,13 +24,26 @@ public class MiningService {
     private final HardwareIdentityService hardwareIdentityService;
 
     //TODO: Save desired global power target to disk or smth
+    private long desiredCpuPowerTarget;
+    private long desiredGpuPowerTarget;
     private long desiredGlobalPowerTarget;
+    private volatile boolean cpuManuallyPaused;
     private final XmrMinerService xmrMinerService;
+    private final PearlMinerService pearlMinerService;
+    private final LocalGpuPowerService gpuPowerService;
+    private final Path coinSelectionFile;
+    private volatile String activeCoin = "monero";
     private final MinerStats.MinerIdentity minerIdentity;
     private final MinerStats.MinerStatus status = MinerStats.MinerStatus.PAUSED;
 
-    public MiningService(XmrMinerService xmrMinerService, HardwareIdentityService hardwareIdentityService) {
+    public MiningService(XmrMinerService xmrMinerService, PearlMinerService pearlMinerService,
+                         LocalGpuPowerService gpuPowerService, HardwareIdentityService hardwareIdentityService,
+                         @Value("${solarminer.agent.coin-selection-file:./solarminer-agent/active-coin.txt}") String coinSelectionPath) {
         this.xmrMinerService = xmrMinerService;
+        this.pearlMinerService = pearlMinerService;
+        this.gpuPowerService = gpuPowerService;
+        this.coinSelectionFile = Path.of(coinSelectionPath).toAbsolutePath().normalize();
+        this.activeCoin = readSelectedCoin();
         minerUID = "";
         macAddress = "";
         minerModel = "";
@@ -31,37 +51,180 @@ public class MiningService {
         this.hardwareIdentityService = hardwareIdentityService;
     }
 
-    public boolean setTarget(long powerTarget) {
-        this.desiredGlobalPowerTarget = powerTarget;
-        xmrMinerService.setDesiredPowerUsage(powerTarget);
+    /** Allocates the legacy PV-wide budget across CPU and selected GPUs. */
+    public synchronized boolean setTarget(long powerTarget) {
+        if (powerTarget <= 0) {
+            desiredGlobalPowerTarget = 0;
+            desiredCpuPowerTarget = 0;
+            desiredGpuPowerTarget = 0;
+            return pauseAll();
+        }
+        long cpuMax = !cpuManuallyPaused && xmrMinerService.readyForStart() ? xmrMinerService.getEstimatedMaxCpuWattage() : 0;
+        List<LocalGpuPowerService.Gpu> cards = pearlMinerService.eligibleGpus().stream()
+                .filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling).toList();
+        long gpuMinimum = cards.stream().mapToLong(LocalGpuPowerService.Gpu::minWatts).sum();
+        long gpuMaximum = cards.stream().mapToLong(LocalGpuPowerService.Gpu::maxWatts).sum();
+        long minimum = cpuMax > 0 ? xmrMinerService.getMinimumControllablePowerWatts() : gpuMinimum;
+        long maximum = cpuMax + gpuMaximum;
+        if (powerTarget < minimum) return setTarget(0);
+        powerTarget = Math.min(powerTarget, maximum);
+        long cpuTarget = Math.min(cpuMax, powerTarget);
+        long gpuTarget = 0;
+        if (!cards.isEmpty() && powerTarget >= gpuMinimum) {
+            cpuTarget = Math.min(cpuMax, powerTarget - gpuMinimum);
+            gpuTarget = Math.min(gpuMaximum, powerTarget - cpuTarget);
+        }
+        if (cpuTarget == 0 && gpuTarget == 0) return setTarget(0);
+        if (gpuTarget > 0 && !gpuPowerService.setTotalPowerTarget(gpuTarget, cards)) {
+            if (!pearlMinerService.stop()) return failGlobalBudget();
+            gpuTarget = 0;
+            cpuTarget = Math.min(cpuMax, powerTarget);
+        }
+        if (gpuTarget == 0 && !pearlMinerService.stop()) return failGlobalBudget();
+        xmrMinerService.setDesiredPowerUsage(cpuTarget);
+        if (cpuTarget > 0) xmrMinerService.startMining();
+        if (gpuTarget > 0) pearlMinerService.startForBudget();
+        desiredGlobalPowerTarget = powerTarget;
+        desiredCpuPowerTarget = cpuTarget;
+        desiredGpuPowerTarget = gpuTarget;
+        return xmrMinerService.isMiningProcessAlive() || pearlMinerService.running();
+    }
+
+    private boolean failGlobalBudget() {
+        desiredGlobalPowerTarget = 0;
+        desiredCpuPowerTarget = 0;
+        desiredGpuPowerTarget = 0;
+        pauseAll();
         return false;
+    }
+
+    public synchronized boolean setTarget(String coin, long powerTarget) {
+        if ("pearl".equals(coin)) {
+            if (powerTarget <= 0) {
+                desiredGpuPowerTarget = 0;
+                desiredGlobalPowerTarget = desiredCpuPowerTarget;
+                return pearlMinerService.pauseSelectedManually();
+            }
+            if (!gpuPowerService.setTotalPowerTarget(powerTarget, pearlMinerService.selectedGpus())) return false;
+            desiredGpuPowerTarget = powerTarget;
+            desiredGlobalPowerTarget = desiredCpuPowerTarget + desiredGpuPowerTarget;
+            return pearlMinerService.start();
+        }
+        if (!"monero".equals(coin)) return false;
+        this.desiredCpuPowerTarget = Math.max(0, powerTarget);
+        desiredGlobalPowerTarget = desiredCpuPowerTarget + desiredGpuPowerTarget;
+        xmrMinerService.setDesiredPowerUsage(desiredCpuPowerTarget);
+        cpuManuallyPaused = desiredCpuPowerTarget == 0;
+        if (desiredCpuPowerTarget > 0) xmrMinerService.startMining();
+        return desiredCpuPowerTarget == 0 || xmrMinerService.isMiningProcessAlive();
     }
 
     public boolean pauseMining() {
+        return pauseMining(activeCoin);
+    }
+
+    public boolean pauseMining(String coin) {
+        if ("pearl".equals(coin)) return pearlMinerService.pauseSelectedManually();
+        if (!"monero".equals(coin)) return false;
+        cpuManuallyPaused = true;
         xmrMinerService.hardStopMining();
-        return false;
+        return true;
+    }
+
+    public boolean pauseAll() {
+        boolean gpuStopped = pearlMinerService.stop();
+        xmrMinerService.hardStopMining();
+        return gpuStopped;
     }
 
     public boolean resumeMining() {
+        return resumeMining(activeCoin);
+    }
+
+    public synchronized boolean resumeAll() {
+        if (desiredGlobalPowerTarget > 0) return setTarget(desiredGlobalPowerTarget);
+        return resumeMining(activeCoin);
+    }
+
+    public boolean resumeMining(String coin) {
+        if ("pearl".equals(coin)) return pearlMinerService.start();
+        if (!"monero".equals(coin)) return false;
+        cpuManuallyPaused = false;
         xmrMinerService.startMining();
-        return false;
+        return xmrMinerService.isMiningProcessAlive();
+    }
+
+    public synchronized void usePearl(PearlMinerService.Config config) throws IOException {
+        pearlMinerService.configure(config);
+        if (!switchCoin("pearl")) throw new IOException("Could not select Pearl after configuration");
+    }
+
+    public synchronized boolean useMonero() {
+        return switchCoin("monero");
+    }
+
+    public String activeCoin() { return activeCoin; }
+
+    public synchronized boolean switchCoin(String coin) {
+        if (!"monero".equals(coin) && !"pearl".equals(coin)) return false;
+        if (coin.equals(activeCoin)) return true;
+        try {
+            persistSelectedCoin(coin);
+        } catch (IOException e) {
+            return false;
+        }
+        activeCoin = coin;
+        return true;
+    }
+
+    private String readSelectedCoin() {
+        try {
+            String selected = Files.readString(coinSelectionFile).strip();
+            if ("monero".equals(selected) || "pearl".equals(selected)) return selected;
+        } catch (IOException ignored) { }
+        return pearlMinerService.configuration() == null ? "monero" : "pearl";
+    }
+
+    private void persistSelectedCoin(String coin) throws IOException {
+        Files.createDirectories(coinSelectionFile.getParent());
+        Path temp = Files.createTempFile(coinSelectionFile.getParent(), "coin-", ".tmp");
+        try {
+            Files.writeString(temp, coin);
+            try {
+                Files.move(temp, coinSelectionFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                Files.move(temp, coinSelectionFile, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temp);
+        }
     }
 
     public boolean increasePowerTarget(long powerTarget) {
-        return setTarget(this.desiredGlobalPowerTarget + powerTarget);
+        return setTarget(desiredGlobalPowerTarget + powerTarget);
     }
 
     public boolean decreasePowerTarget(long powerTarget) {
-        return setTarget(this.desiredGlobalPowerTarget - powerTarget);
+        return setTarget(desiredGlobalPowerTarget - powerTarget);
     }
 
     public long calculateMinPowerTargetFromComponents() {
-        return xmrMinerService.getEstimatedMaxCpuWattage();
+        long cpu = !cpuManuallyPaused && xmrMinerService.readyForStart()
+                ? xmrMinerService.getMinimumControllablePowerWatts() : 0;
+        long gpu = pearlMinerService.eligibleGpus().stream().filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling)
+                .mapToLong(LocalGpuPowerService.Gpu::minWatts).sum();
+        return cpu > 0 ? cpu : gpu;
     }
 
     public long calculateMaxPowerTargetFromComponents() {
-        return 0;
+        long cpu = !cpuManuallyPaused && xmrMinerService.readyForStart() ? xmrMinerService.getEstimatedMaxCpuWattage() : 0;
+        long gpu = pearlMinerService.eligibleGpus().stream().filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling)
+                .mapToLong(LocalGpuPowerService.Gpu::maxWatts).sum();
+        return cpu + gpu;
     }
+
+    public long desiredGlobalPowerTarget() { return desiredGlobalPowerTarget; }
+    public long desiredCpuPowerTarget() { return desiredCpuPowerTarget; }
 
     public long approximatePowerUsageSystem() {
         return 0;
@@ -76,12 +239,23 @@ public class MiningService {
     }
 
     public List<MinerStats.Worker> getWorkerStats() {
-        return List.of(xmrMinerService.getWorkerStats());
+        return getWorkerStats(null);
+    }
+
+    private List<MinerStats.Worker> getWorkerStats(List<LocalGpuPowerService.Gpu> discoveredGpus) {
+        List<MinerStats.Worker> workers = new ArrayList<>();
+        workers.add(xmrMinerService.getWorkerStats());
+        workers.addAll(pearlMinerService.workerStats(discoveredGpus == null ? gpuPowerService.discover() : discoveredGpus));
+        return workers;
     }
 
     public MinerStats getStats() {
+        return getStats(null);
+    }
+
+    public MinerStats getStats(List<LocalGpuPowerService.Gpu> discoveredGpus) {
         List<MinerStats.Worker> workers = new ArrayList<>();
-        workers.add(xmrMinerService.getWorkerStats());
+        workers.addAll(getWorkerStats(discoveredGpus));
         long totalPowerTarget = 0;
         long totalMinPowerTarget = 0;
         long totalDefaultPowerTarget = 0;

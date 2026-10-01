@@ -35,15 +35,17 @@ public class DataGathererService {
     private final BitcoinNetworkStatsRepository bitcoinRepository;
     private final DailyUsdRatesRepository ratesRepository;
     private final ObjectMapper objectMapper;
+    private final CoinGeckoPriceService coinPrices;
 
     private BitcoinMiningDataFetcher bitcoinMiningDataFetcher;
 
     public DataGathererService(BitcoinNetworkStatsRepository bitcoinRepository,
                                DailyUsdRatesRepository ratesRepository,
-                               ObjectMapper objectMapper) {
+                               ObjectMapper objectMapper, CoinGeckoPriceService coinPrices) {
         this.bitcoinRepository = bitcoinRepository;
         this.ratesRepository = ratesRepository;
         this.objectMapper = objectMapper;
+        this.coinPrices = coinPrices;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -53,6 +55,7 @@ public class DataGathererService {
         LOGGER.log(Level.INFO, "Fetching global constants...");
         collectGlobalConstants();
         saveDailyStatsToDatabase();
+        coinPrices.fetch(LocalDate.now(ZoneOffset.UTC));
         LOGGER.log(Level.INFO, "Done...");
     }
 
@@ -71,6 +74,7 @@ public class DataGathererService {
         LOGGER.log(Level.INFO, "Starting scheduled daily UTC database backup...");
         collectGlobalConstants();
         saveDailyStatsToDatabase();
+        coinPrices.fetch(LocalDate.now(ZoneOffset.UTC));
     }
 
     @Transactional

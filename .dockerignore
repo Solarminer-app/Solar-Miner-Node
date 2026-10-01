@@ -1,0 +1,11 @@
+.git
+.github
+.gradle
+.idea
+**/build
+**/node_modules
+app
+solarminer-agent
+storage
+target
+embedded-proxy-src/.git

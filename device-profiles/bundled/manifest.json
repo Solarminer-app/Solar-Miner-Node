@@ -5118,6 +5118,37 @@
         "urlExtension": "/properties/report",
         "dataPath": "$.properties.solarInputPower"
       }
+    },
+    {
+      "profile": "smartfox-pro-2",
+      "protocol": "MODBUS_TCP",
+      "source": "SolarMiner custom profile",
+      "output": "modbus/smartfox-pro-2.json",
+      "products": [
+        "Smartfox Pro 2"
+      ],
+      "sections": [
+        {
+          "key": "battery_1",
+          "type": "battery"
+        },
+        {
+          "key": "inverter_1",
+          "type": "inverter"
+        },
+        {
+          "key": "smart_meter_main",
+          "type": "smart_meter"
+        }
+      ],
+      "defaults": {
+        "port": 502,
+        "slaveId": 1
+      },
+      "detection": {
+        "status": "MANUAL_PROFILE_SELECTION_REQUIRED",
+        "reason": "Custom profile; device fingerprint has not been verified against hardware."
+      }
     }
   ]
 }

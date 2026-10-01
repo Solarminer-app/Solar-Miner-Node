@@ -27,8 +27,12 @@ export default function MiningPage() {
     const [showAssignment, setShowAssignment] = useState(false);
     const [section, setSection] = useState<'inventory' | 'clusters'>('inventory');
     const [showMinerConnection, setShowMinerConnection] = useState(false);
-    const [showPoolConnection, setShowPoolConnection] = useState(false);
     const [powerTargetMiner, setPowerTargetMiner] = useState<MinerDto | null>(null);
+    const [pearlMiner, setPearlMiner] = useState<MinerDto | null>(null);
+    const [pearlPool, setPearlPool] = useState('stratum+ssl://prl.kryptex.network:8048');
+    const [pearlWallet, setPearlWallet] = useState('');
+    const [pearlWorker, setPearlWorker] = useState('solarminer');
+    const [pearlDevices, setPearlDevices] = useState('all');
     const [minimumPowerWatts, setMinimumPowerWatts] = useState(0);
     const [maximumPowerWatts, setMaximumPowerWatts] = useState(0);
     const [electricalRiskAcknowledged, setElectricalRiskAcknowledged] = useState(false);
@@ -37,7 +41,6 @@ export default function MiningPage() {
     const [selectedDiscoveredMiner, setSelectedDiscoveredMiner] = useState<DiscoveredMinerDto | null>(null);
     const [username, setUsername] = useState('root');
     const [password, setPassword] = useState('root');
-    const [poolToken, setPoolToken] = useState('');
     const [referralInput, setReferralInput] = useState('');
     const [savingReferral, setSavingReferral] = useState(false);
     const [showReferralCatalog, setShowReferralCatalog] = useState(false);
@@ -220,22 +223,21 @@ export default function MiningPage() {
         }
     };
 
-    const connectPool = async () => {
+    const savePearlConfiguration = async () => {
+        if (!pearlMiner) return;
         setSaving(true);
         setError(null);
         try {
-            const response = await fetch(`/api/pv-site/${siteId}/mining/pools`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({type: 'BRAIINS', accessToken: poolToken}),
+            const response = await fetch(`/api/pv-site/${siteId}/mining/miners/${pearlMiner.id}/pearl`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({poolUrl: pearlPool, wallet: pearlWallet, worker: pearlWorker, devices: pearlDevices}),
             });
-            if (!response.ok) throw new Error(String(response.status));
+            if (!response.ok) throw new Error(await response.text());
             await loadData();
-            setShowPoolConnection(false);
-            setPoolToken('');
+            setPearlMiner(null);
+            setPearlWallet('');
         } catch (reason) {
-            console.error('Failed to connect pool', reason);
-            setError(t['mining.error.connect_pool']);
+            setError(reason instanceof Error ? reason.message : String(reason));
         } finally {
             setSaving(false);
         }
@@ -399,6 +401,8 @@ export default function MiningPage() {
                         <h1 className="text-2xl font-bold tracking-tight">{t['mining.title']}</h1>
                         <p className="mt-1 text-sm text-[#9c9ca5]">{t['mining.subtitle']}</p>
                     </div>
+                    <div className="flex flex-wrap gap-2">
+                    <Link className="inline-flex items-center justify-center gap-2 rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-4 py-2 text-sm font-semibold text-yellow-300 hover:bg-yellow-400/20" href={`/site/${siteId}/mining/targets`}><WalletCards size={16}/>{locale === 'de' ? 'Mining-Ziele' : 'Mining targets'}</Link>
                     <button
                         type="button"
                         onClick={() => void loadData()}
@@ -406,6 +410,7 @@ export default function MiningPage() {
                     >
                         <RefreshCw size={16}/> {t['mining.action.refresh']}
                     </button>
+                    </div>
                 </header>
 
                 {error ? <div className="rounded-lg border border-red-900/60 bg-red-950/30 px-4 py-3 text-sm text-red-200">{error}</div> : null}
@@ -427,18 +432,16 @@ export default function MiningPage() {
                     ))}
                 </section>
 
+                <AlgorithmOverview miners={data?.connectedMiners ?? []} siteId={siteId} locale={locale}/>
+
                 {data?.devFee ? (
-                    <section className="grid gap-5 rounded-xl border border-[#25252b] bg-[#111113] p-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
-                        <div className="min-w-0">
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div>
-                                    <div className="flex items-center gap-2"><Gauge className="text-yellow-400" size={18}/><h2 className="font-semibold">{t['mining.fee.title']}</h2></div>
-                                    <p className="mt-1 text-xs text-[#92929c]">{t['mining.fee.subtitle']}</p>
-                                </div>
-                                <span className={`rounded-full px-2.5 py-1 text-xs ${data.devFee.backendAvailable ? 'bg-emerald-400/10 text-emerald-300' : 'bg-amber-400/10 text-amber-300'}`}>
-                                    {data.devFee.backendAvailable ? t['mining.fee.verified'] : t['mining.fee.unavailable']}
-                                </span>
-                            </div>
+                    <details className="group rounded-xl border border-[#25252b] bg-[#111113]">
+                        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 hover:bg-white/[0.025] [&::-webkit-details-marker]:hidden">
+                            <span className="flex min-w-0 items-center gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-yellow-400/10 text-yellow-300"><Gauge size={18}/></span><span><strong className="block text-sm">{t['mining.fee.title']}</strong><span className="mt-0.5 block text-xs text-[#92929c]">{t['mining.fee.subtitle']}</span></span></span>
+                            <span className={`rounded-full px-2.5 py-1 text-xs ${data.devFee.backendAvailable ? 'bg-emerald-400/10 text-emerald-300' : 'bg-amber-400/10 text-amber-300'}`}>{data.devFee.backendAvailable ? t['mining.fee.verified'] : t['mining.fee.unavailable']}</span>
+                        </summary>
+                        <div className="grid gap-5 border-t border-[#25252b] p-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
+                            <div className="min-w-0">
 
                             <div className="mt-5 flex h-4 overflow-hidden rounded-full bg-white/[0.05]" aria-label={t['mining.fee.distribution']}>
                                 <div className="bg-yellow-400" style={{width: `${Math.max(0, data.devFee.userPercentage)}%`}}/>
@@ -453,7 +456,7 @@ export default function MiningPage() {
                             </div>
                         </div>
 
-                        <div className="rounded-xl border border-white/[0.07] bg-[#17171b] p-4">
+                            <div className="rounded-xl border border-white/[0.07] bg-[#17171b] p-4">
                             <h3 className="text-sm font-semibold">{t['mining.fee.referral_title']}</h3>
                             <p className="mt-1 text-xs leading-5 text-[#92929c]">{t['mining.fee.referral_hint']}</p>
                             <label className="mt-4 block text-xs text-[#b7b7c0]">
@@ -469,8 +472,9 @@ export default function MiningPage() {
                             </div>
                             {data.devFee.referralCode && data.devFee.referralValid ? <p className="mt-3 flex items-center gap-2 text-xs text-emerald-300"><CheckCircle2 size={14}/>{t['mining.fee.referral_active'].replace('{code}', data.devFee.referralCode)}</p> : null}
                             {data.devFee.referralCode && !data.devFee.referralValid ? <p className="mt-3 flex items-center gap-2 text-xs text-red-300"><AlertTriangle size={14}/>{t['mining.fee.referral_no_longer_valid']}</p> : null}
+                            </div>
                         </div>
-                    </section>
+                    </details>
                 ) : null}
 
                 <nav className="grid gap-2 rounded-xl border border-[#25252b] bg-[#111113] p-2 sm:grid-cols-2" aria-label={t['mining.section.navigation']}>
@@ -493,7 +497,7 @@ export default function MiningPage() {
                 </nav>
 
                 {section === 'inventory' ? (
-                    <div className="grid gap-6 xl:grid-cols-2">
+                    <div className="grid gap-6">
                         <section className="overflow-hidden rounded-xl border border-[#25252b] bg-[#111113]">
                             <div className="flex items-center justify-between gap-4 border-b border-[#25252b] p-5">
                                 <div>
@@ -519,6 +523,7 @@ export default function MiningPage() {
                                                 {clusterByMinerId.get(miner.id) ?? t['mining.inventory.unassigned']}
                                             </span>
                                         </Link>
+                                        {miner.os === 'AGENT' && <button className="rounded-lg border border-violet-400/30 px-2 py-1.5 text-xs text-violet-200" onClick={() => setPearlMiner(miner)} type="button">Pearl GPU</button>}
                                         <button aria-label={t['mining.inventory.delete_miner'].replace('{name}', minerName)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[#777781] transition hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-40" disabled={deletingItem !== null} onClick={() => void deleteInventoryItem('miner', miner.id, minerName)} title={t['mining.inventory.delete_miner'].replace('{name}', minerName)} type="button">
                                             {deletingItem === itemKey ? <LoaderCircle className="animate-spin" size={16}/> : <Trash2 size={16}/>}
                                         </button>
@@ -528,34 +533,6 @@ export default function MiningPage() {
                             </div>
                         </section>
 
-                        <section className="overflow-hidden rounded-xl border border-[#25252b] bg-[#111113]">
-                            <div className="flex items-center justify-between gap-4 border-b border-[#25252b] p-5">
-                                <div>
-                                    <div className="flex items-center gap-2"><WalletCards className="text-emerald-400" size={18}/><h2 className="font-semibold">{t['mining.inventory.pools']}</h2></div>
-                                    <p className="mt-1 text-xs text-[#92929c]">{t['mining.inventory.pools_hint']}</p>
-                                </div>
-                                <button className="inline-flex items-center gap-2 rounded-lg bg-emerald-400 px-3 py-2 text-xs font-semibold text-black hover:bg-emerald-300" onClick={() => setShowPoolConnection(true)} type="button">
-                                    <Plus size={15}/>{t['mining.inventory.add_pool']}
-                                </button>
-                            </div>
-                            <div className="grid gap-3 p-4 sm:grid-cols-2">
-                                {data?.connectedPools.map((pool) => {
-                                    const poolName = pool.name || pool.type;
-                                    const itemKey = `pool:${pool.id}`;
-                                    return <article className="flex items-start gap-3 rounded-lg border border-[#2b2b32] bg-[#17171b] p-4" key={pool.id}>
-                                        <div className="min-w-0 flex-1">
-                                            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-400">{pool.type}</span>
-                                            <strong className="mt-2 block truncate text-sm">{poolName}</strong>
-                                            <span className="mt-1 block truncate text-xs text-[#92929c]" title={pool.stratumUrl}>{pool.stratumUrl}</span>
-                                        </div>
-                                        <button aria-label={t['mining.inventory.delete_pool'].replace('{name}', poolName)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[#777781] transition hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-40" disabled={deletingItem !== null} onClick={() => void deleteInventoryItem('pool', pool.id, poolName)} title={t['mining.inventory.delete_pool'].replace('{name}', poolName)} type="button">
-                                            {deletingItem === itemKey ? <LoaderCircle className="animate-spin" size={16}/> : <Trash2 size={16}/>}
-                                        </button>
-                                    </article>;
-                                })}
-                                {!data?.connectedPools.length ? <p className="col-span-full p-8 text-center text-sm text-[#92929c]">{t['mining.inventory.no_pools']}</p> : null}
-                            </div>
-                        </section>
                     </div>
                 ) : (
                 <div className="grid gap-6 lg:grid-cols-[minmax(240px,0.28fr)_minmax(0,1fr)]">
@@ -678,8 +655,11 @@ export default function MiningPage() {
                                             <span className={`rounded-full px-2 py-1 text-xs font-semibold ${miner.status === 'MINING' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}>
                                                 {t[`mining.miner_status.${miner.status.toLowerCase()}`] ?? miner.status}
                                             </span>
+                                            {miner.agentControlStatus === 'EXTERNAL_CONTROL_DISABLED' ? <p className="mt-2 max-w-56 text-xs leading-5 text-amber-300">{miner.agentControlDetail}</p> : null}
                                         </td>
-                                        <td className="px-3 py-4 font-mono text-yellow-300">{miner.hashrateThs.toFixed(2)} TH/s</td>
+                                        <td className="px-3 py-4 font-mono text-yellow-300">
+                                            {miner.os === 'AGENT' && miner.algorithmHashrates?.length ? <AgentAlgorithmRates locale={locale} rates={miner.algorithmHashrates}/> : `${miner.hashrateThs.toFixed(2)} TH/s`}
+                                        </td>
                                         <td className="px-3 py-4">
                                             <span className="block font-medium">{miner.powerWatts} W</span>
                                             <button
@@ -723,10 +703,11 @@ export default function MiningPage() {
                                                 <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${miner.status === 'MINING' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}>{t[`mining.miner_status.${miner.status.toLowerCase()}`] ?? miner.status}</span>
                                             </div>
                                             <div className="mt-4 grid grid-cols-3 gap-2">
-                                                <MiniMetric label={t['mining.grid.hashrate']} value={`${miner.hashrateThs.toFixed(2)} TH/s`}/>
+                                                <MiniMetric label={t['mining.grid.hashrate']} value={miner.os === 'AGENT' && miner.algorithmHashrates?.length ? <AgentAlgorithmRates locale={locale} rates={miner.algorithmHashrates}/> : `${miner.hashrateThs.toFixed(2)} TH/s`}/>
                                                 <MiniMetric label={t['mining.grid.power']} value={`${miner.powerWatts} W`}/>
                                                 <MiniMetric label={t['mining.grid.temperature']} tone={miner.temperatureCelsius >= 80 ? 'text-orange-300' : undefined} value={`${miner.temperatureCelsius.toFixed(1)} °C`}/>
                                             </div>
+                                            {miner.agentControlStatus === 'EXTERNAL_CONTROL_DISABLED' ? <p className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-[11px] leading-5 text-amber-200">{miner.agentControlDetail}</p> : null}
                                             <div className="mt-3 rounded-lg bg-black/20 px-3 py-2 text-[11px] leading-5 text-[#9999a3]"><span className="block">{t['mining.grid.hardware']}: {miner.hardwareMinPowerWatts}–{miner.hardwareMaxPowerWatts} W</span><span className="block text-yellow-300">{t['mining.grid.configured']}: {miner.configuredMinPowerWatts}–{miner.configuredMaxPowerWatts} W</span></div>
                                             <button className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-yellow-400/20 bg-yellow-400/10 px-3 py-2 text-xs font-semibold text-yellow-300 disabled:border-white/5 disabled:bg-white/[0.03] disabled:text-[#666670]" disabled={!miner.supportsDynamicPowerScaling} onClick={() => openPowerTargetEditor(miner)} type="button"><Bolt size={13}/>{t['mining.power_targets.edit']}</button>
                                         </div>
@@ -740,6 +721,17 @@ export default function MiningPage() {
                 </div>
                 )}
             </div>
+
+            {pearlMiner && <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-label="Pearl GPU">
+                <div className="w-full max-w-lg space-y-4 rounded-2xl border border-[#34343d] bg-[#151519] p-5">
+                    <div className="flex justify-between"><h2 className="font-semibold">Pearl GPU · {pearlMiner.name || pearlMiner.ipAddress}</h2><button type="button" onClick={() => setPearlMiner(null)}><X size={18}/></button></div>
+                    <label className="block text-sm">Pool-URL<input className={inputClassName} value={pearlPool} onChange={e => setPearlPool(e.target.value)}/></label>
+                    <label className="block text-sm">PRL Wallet<input className={inputClassName} value={pearlWallet} onChange={e => setPearlWallet(e.target.value)} placeholder="prl1…"/></label>
+                    <label className="block text-sm">Worker<input className={inputClassName} value={pearlWorker} onChange={e => setPearlWorker(e.target.value)}/></label>
+                    <label className="block text-sm">GPU indices<input className={inputClassName} value={pearlDevices} onChange={e => setPearlDevices(e.target.value)} placeholder="all or 0,1"/></label>
+                    <button type="button" className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50" disabled={saving || !pearlWallet.startsWith('prl1')} onClick={() => void savePearlConfiguration()}>{locale === 'de' ? 'Agent vorbereiten' : 'Prepare agent'}</button>
+                </div>
+            </div>}
 
             {powerTargetMiner ? (
                 <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={t['mining.power_targets.title']}>
@@ -845,6 +837,7 @@ export default function MiningPage() {
                                                 <div className="mt-1 text-xs text-[#b7b7c0]">
                                                     {t['mining.fee.referral_catalog_col_fee']}: <span className="font-semibold text-white">{entry.totalFee.toFixed(1)}%</span> · {t['mining.fee.referral']} {entry.referralShare.toFixed(1)}% · SolarMiner {entry.solarMinerShare.toFixed(1)}%
                                                 </div>
+                                                <div className="mt-1 text-xs text-[#92929c]">{(entry.supportedCoins ?? []).join(', ') || '—'}</div>
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-[#b7b7c0]">{t['mining.fee.referral_catalog_users'].replace('{count}', String(entry.userCount))}</span>
@@ -909,26 +902,6 @@ export default function MiningPage() {
                 </div>
             ) : null}
 
-            {showPoolConnection ? (
-                <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={t['mining.connect_pool.title']}>
-                    <div className="w-full max-w-xl overflow-hidden rounded-xl border border-[#303038] bg-[#17171b] shadow-2xl">
-                        <div className="flex items-start justify-between border-b border-[#29292f] p-5">
-                            <div><h2 className="font-semibold">{t['mining.connect_pool.title']}</h2><p className="mt-1 text-xs leading-5 text-[#92929c]">{t['mining.connect_pool.description']}</p></div>
-                            <button type="button" aria-label={t['mining.action.close']} onClick={() => setShowPoolConnection(false)} className="rounded-lg p-2 hover:bg-white/5"><X size={19}/></button>
-                        </div>
-                        <div className="space-y-4 p-5">
-                            <label className="text-sm text-[#b7b7c0]">{t['mining.connect_pool.type']}<input className={`${inputClassName} text-[#92929c]`} disabled value={t['mining.connect_pool.braiins']}/></label>
-                            <label className="text-sm text-[#b7b7c0]">{t['mining.connect_pool.token']}<input autoComplete="off" className={inputClassName} onChange={(event) => setPoolToken(event.target.value)} type="password" value={poolToken}/></label>
-                            <p className="rounded-lg border border-sky-500/20 bg-sky-500/[0.07] px-4 py-3 text-xs leading-5 text-sky-200">{t['mining.connect_pool.separation_hint']}</p>
-                        </div>
-                        <div className="flex justify-end gap-2 border-t border-[#29292f] p-4">
-                            <button className="rounded-lg px-4 py-2 text-sm text-gray-300 hover:bg-white/5" onClick={() => setShowPoolConnection(false)} type="button">{t['mining.action.cancel']}</button>
-                            <button className="rounded-lg bg-emerald-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-40" disabled={!poolToken.trim() || saving} onClick={() => void connectPool()} type="button">{t['mining.connect_pool.connect']}</button>
-                        </div>
-                    </div>
-                </div>
-            ) : null}
-
             {showAssignment ? (
                 <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label={t['mining.assign.title']}>
                     <div className="w-full max-w-2xl rounded-xl border border-[#303038] bg-[#17171b] shadow-2xl">
@@ -984,7 +957,57 @@ function FeeAllocationRow({color, label, percentage, totalHashrate}: {color: str
     return <div className="flex items-center gap-2 rounded-lg bg-white/[0.025] px-3 py-2.5"><span className={`h-2.5 w-2.5 shrink-0 rounded-full ${color}`}/><span className="min-w-0 flex-1"><strong className="block truncate text-xs">{label}</strong><span className="text-[11px] text-[#777781]">{percentage.toFixed(2)} %</span></span><strong className="font-mono text-xs">{hashrate.toFixed(2)} TH/s</strong></div>;
 }
 
-function MiniMetric({label, value, tone = 'text-white'}: {label: string; value: string; tone?: string}) {
+function AgentAlgorithmRates({rates, locale}: {rates: Array<{algorithm: string; hashrateThs: number}>; locale: 'de' | 'en'}) {
+    return <details className="group max-w-64 font-sans text-xs text-white">
+        <summary className="cursor-pointer list-none rounded-md px-1 py-1 hover:bg-white/[0.05] [&::-webkit-details-marker]:hidden">
+            <span className="font-medium">{rates.length} {locale === 'de' ? (rates.length === 1 ? 'Algorithmus' : 'Algorithmen') : (rates.length === 1 ? 'algorithm' : 'algorithms')}</span>
+            <span className="ml-1 text-[10px] text-[#92929c]">· {locale === 'de' ? 'anzeigen' : 'show'}</span>
+        </summary>
+        <div className="mt-1 space-y-1 rounded-lg border border-white/[0.08] bg-[#101013] p-2">
+            {rates.map(rate => <div className="flex items-center justify-between gap-3" key={rate.algorithm}>
+                <span className="truncate text-[#b8b8c1]">{rate.algorithm}</span>
+                <span className="shrink-0 font-mono text-yellow-300">{formatAgentHashrate(rate.hashrateThs)}</span>
+            </div>)}
+        </div>
+    </details>;
+}
+
+function AlgorithmOverview({miners, siteId, locale}: {miners: MinerDto[]; siteId: string; locale: 'de' | 'en'}) {
+    const de = locale === 'de';
+    const groups = [
+        {algorithm: 'SHA256', coin: 'BTC', workers: miners.filter(miner => miner.os === 'BRAIINS' || miner.os === 'ANTMINER_STOCK_OS')
+            .map(miner => ({key: miner.id, miner, name: miner.name || miner.model, status: miner.status, hashrateThs: miner.hashrateThs}))},
+        ...([{algorithm: 'RandomX', coin: 'XMR'}, {algorithm: 'PearlHash', coin: 'PRL'}].map(group => ({...group,
+            workers: miners.filter(miner => miner.os === 'AGENT').flatMap(miner => (miner.algorithmWorkers ?? [])
+                .filter(worker => worker.algorithm === group.algorithm)
+                .map((worker, index) => ({key: `${miner.id}:${group.algorithm}:${index}`, miner, name: worker.name,
+                    status: worker.status, hashrateThs: worker.hashrateThs})))})))
+    ];
+    return <section aria-label={de ? 'Miner nach Algorithmus' : 'Miners by algorithm'}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-sm font-semibold">{de ? 'Miner nach Algorithmus' : 'Miners by algorithm'}</h2><p className="mt-1 text-xs text-[#92929c]">{de ? 'Ein PC-Agent kann CPU- und GPU-Worker gleichzeitig melden.' : 'A PC agent can report CPU and GPU workers at the same time.'}</p></div><Link className="text-xs font-semibold text-yellow-300 hover:underline" href={`/site/${siteId}/mining/targets`}>{de ? 'Ziele verwalten' : 'Manage targets'}</Link></div>
+        <div className="grid gap-3 lg:grid-cols-3">{groups.map(group => <div className="rounded-xl border border-white/[.08] bg-[#141418] p-4" key={group.algorithm}>
+            <div className="flex items-center justify-between gap-2"><strong className="text-sm">{group.coin} · {group.algorithm}</strong><span className="text-xs text-[#92929c]">{group.workers.length} {de ? 'Worker' : 'workers'}</span></div>
+            <div className="mt-3 space-y-2">{group.workers.map(worker => <Link className="block rounded-lg bg-black/20 px-3 py-2 hover:bg-white/[.05]" href={`/site/${siteId}/mining/miners/${worker.miner.id}`} key={worker.key}>
+                <span className="flex items-center justify-between gap-2"><span className="truncate text-xs font-medium text-white">{worker.name}</span><span className={`shrink-0 text-[11px] ${worker.status === 'MINING' ? 'text-emerald-300' : worker.status === 'ERROR' ? 'text-red-300' : 'text-[#92929c]'}`}>{worker.status}</span></span>
+                <span className="mt-1 flex items-center justify-between gap-2 text-[11px] text-[#888894]"><span className="truncate">{worker.miner.name || worker.miner.ipAddress}</span><span className="shrink-0 font-mono text-yellow-300">{formatAgentHashrate(worker.hashrateThs)}</span></span>
+            </Link>)}{group.workers.length === 0 && <p className="py-3 text-xs text-[#777781]">{de ? 'Kein Worker gemeldet.' : 'No worker reported.'}</p>}</div>
+        </div>)}</div>
+    </section>;
+}
+
+function formatAgentHashrate(terahashesPerSecond: number) {
+    const hashesPerSecond = Math.max(0, terahashesPerSecond) * 1e12;
+    const units = ['H/s', 'kH/s', 'MH/s', 'GH/s', 'TH/s', 'PH/s'];
+    let value = hashesPerSecond;
+    let unitIndex = 0;
+    while (value >= 1000 && unitIndex < units.length - 1) {
+        value /= 1000;
+        unitIndex++;
+    }
+    return `${value.toLocaleString(undefined, {maximumFractionDigits: 2})} ${units[unitIndex]}`;
+}
+
+function MiniMetric({label, value, tone = 'text-white'}: {label: string; value: React.ReactNode; tone?: string}) {
     return <div className="min-w-0 rounded-lg bg-white/[0.035] px-2.5 py-2"><span className="block truncate text-[10px] text-[#777781]">{label}</span><strong className={`mt-1 block truncate text-xs ${tone}`}>{value}</strong></div>;
 }
 

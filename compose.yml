@@ -155,6 +155,8 @@ services:
     image: verdox/solar-miner-stratum-proxy:latest-amd64
     container_name: stratum-proxy
     network_mode: "host"
+    environment:
+      - PROXY_PEARL_ENABLED=${PROXY_PEARL_ENABLED:-true}
     restart: unless-stopped
 
   core:

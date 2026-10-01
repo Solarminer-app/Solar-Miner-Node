@@ -4,11 +4,14 @@ import de.verdox.pv_miner.dto.FinanceKpiDto;
 import de.verdox.pv_miner.dto.FinanceInsightsDto;
 import de.verdox.pv_miner.dto.MoneyDto;
 import de.verdox.pv_miner.dto.PVStatisticDto;
+import de.verdox.pv_miner.dto.CoinMiningDayDto;
 import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.miningpool.MiningPoolStatisticsAccumulator;
 import de.verdox.pv_miner.miningpool.MiningPoolStatisticsPerDay;
+import de.verdox.pv_miner.miningpool.KryptexRewardService;
+import de.verdox.pv_miner.miningpool.MiningCoinDailyReward;
 import de.verdox.pv_miner.pvsite.*;
 import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
@@ -26,6 +29,7 @@ public class PVFinanceService {
 
     private final DailyStatisticService dailyStatisticService;
     private final GlobalConstantsService globalConstantsService;
+    private final KryptexRewardService kryptexRewards;
 
     private final Map<UUID, HistoricalBtcCache> allTimeHistoricalBtcCache = new ConcurrentHashMap<>();
     private final Map<UUID, Object> entityLocks = new ConcurrentHashMap<>();
@@ -33,9 +37,11 @@ public class PVFinanceService {
     private record HistoricalBtcCache(LocalDate cachedDate, double historicalBtcAmount) {
     }
 
-    public PVFinanceService(DailyStatisticService dailyStatisticService, GlobalConstantsService globalConstantsService) {
+    public PVFinanceService(DailyStatisticService dailyStatisticService, GlobalConstantsService globalConstantsService,
+                            KryptexRewardService kryptexRewards) {
         this.dailyStatisticService = dailyStatisticService;
         this.globalConstantsService = globalConstantsService;
+        this.kryptexRewards = kryptexRewards;
     }
 
     public List<PVStatisticDto> getFinanceData(PVSiteEntity pvSiteEntity, LocalDate filterDateFrom, LocalDate filterDateTo, ZoneId zoneId, CustomCurrency targetCurrency) {
@@ -74,6 +80,10 @@ public class PVFinanceService {
                     Long::sum
             ));
 
+            KryptexRewardService.Snapshot coinSnapshot = kryptexRewards.snapshot(pvSiteEntity.getId(), filterDateFrom, filterDateTo);
+            Map<LocalDate, List<MiningCoinDailyReward>> coinRewardsPerDay = coinSnapshot.rows().stream()
+                    .collect(Collectors.groupingBy(MiningCoinDailyReward::getDate));
+
             Map<LocalDate, Double> minerConsumptionPerDay = pvStatsByDate.entrySet().stream().collect(Collectors.toMap(
                     Map.Entry::getKey,
                     entry -> entry.getValue().getConsumptionKwhMining()
@@ -82,11 +92,13 @@ public class PVFinanceService {
             Set<LocalDate> allAvailableDays = new HashSet<>();
             allAvailableDays.addAll(rewardsPerDay.keySet());
             allAvailableDays.addAll(pvStatsByDate.keySet());
+            allAvailableDays.addAll(coinRewardsPerDay.keySet());
 
             return allAvailableDays.stream()
                     .filter(date -> !date.isBefore(filterDateFrom) && !date.isAfter(filterDateTo))
                     .sorted(Comparator.reverseOrder())
-                    .map(currentDay -> calculateDailyStatistic(currentDay, pvSiteEntity, minerConsumptionPerDay, rewardsPerDay, pvStatsByDate, targetCurrency))
+                    .map(currentDay -> calculateDailyStatistic(currentDay, pvSiteEntity, minerConsumptionPerDay,
+                            rewardsPerDay, pvStatsByDate, coinRewardsPerDay, coinSnapshot.activeRoutes(), targetCurrency))
                     .toList();
         }
     }
@@ -135,7 +147,13 @@ public class PVFinanceService {
         return historicalBtc + (todaySats / 100_000_000.0);
     }
 
-    private PVStatisticDto calculateDailyStatistic(LocalDate currentDay, PVSiteEntity pvSiteEntity, Map<LocalDate, Double> minerConsumptionPerDay, Map<LocalDate, Long> rewardsPerDay, Map<LocalDate, PVStatisticPerDay> pvStatsByDate, CustomCurrency targetCurrency) {
+    private PVStatisticDto calculateDailyStatistic(LocalDate currentDay, PVSiteEntity pvSiteEntity,
+                                                  Map<LocalDate, Double> minerConsumptionPerDay,
+                                                  Map<LocalDate, Long> rewardsPerDay,
+                                                  Map<LocalDate, PVStatisticPerDay> pvStatsByDate,
+                                                  Map<LocalDate, List<MiningCoinDailyReward>> coinRewardsPerDay,
+                                                  Set<KryptexRewardService.Route> activeRoutes,
+                                                  CustomCurrency targetCurrency) {
         double minerConsumption = minerConsumptionPerDay.getOrDefault(currentDay, 0.0);
         long btcEarningsSats = rewardsPerDay.getOrDefault(currentDay, 0L);
         double btcAmount = btcEarningsSats / 100_000_000.0;
@@ -193,7 +211,32 @@ public class PVFinanceService {
         Money btcLiveValue = new Money(btcLiveFiat, targetCurrency);
         Money btcHistoricValue = new Money(btcHistoricFiat, targetCurrency);
 
-        double effYield = minerConsumption > 0 ? (btcHistoricFiat / minerConsumption) : 0.0;
+        List<CoinMiningDayDto> coinLines = new ArrayList<>();
+        coinLines.add(new CoinMiningDayDto("bitcoin", "BTC", null, btcAmount, MoneyDto.from(btcHistoricValue),
+                "MINING_POOL_DAILY", "AVAILABLE"));
+        double otherRevenue = 0;
+        boolean revenueComplete = true;
+        Set<KryptexRewardService.Route> observedRoutes = new HashSet<>();
+        for (MiningCoinDailyReward reward : coinRewardsPerDay.getOrDefault(currentDay, List.of())) {
+            observedRoutes.add(new KryptexRewardService.Route(reward.getCoin(), reward.getPayoutAddress()));
+            double amount = reward.getAmount().doubleValue();
+            double converted = reward.getPriceUsd() == null ? -1 : globalConstantsService.convertHistorical(
+                    amount * reward.getPriceUsd().doubleValue(), CustomCurrency.getInstance("USD"), targetCurrency, currentDay);
+            boolean valued = amount == 0 || converted >= 0;
+            if (!valued) revenueComplete = false;
+            if (converted > 0) otherRevenue += converted;
+            coinLines.add(new CoinMiningDayDto(reward.getCoin(), "monero".equals(reward.getCoin()) ? "XMR" : "PRL",
+                    reward.getPayoutAddress(), amount, valued ? money(Math.max(0, converted), targetCurrency) : null,
+                    "KRYPTEX_REWARD_CHART", valued ? "AVAILABLE" : "PRICE_UNAVAILABLE"));
+        }
+        for (KryptexRewardService.Route route : activeRoutes) if (!observedRoutes.contains(route)) {
+            revenueComplete = false;
+            coinLines.add(new CoinMiningDayDto(route.coin(), "monero".equals(route.coin()) ? "XMR" : "PRL",
+                    route.address(), null, null, "KRYPTEX_REWARD_CHART", "HISTORY_UNAVAILABLE"));
+        }
+        double totalMiningRevenue = btcHistoricFiat + otherRevenue;
+
+        double effYield = minerConsumption > 0 ? (totalMiningRevenue / minerConsumption) : 0.0;
 
         Money effectiveYield = new Money(effYield, targetCurrency);
 
@@ -216,7 +259,11 @@ public class PVFinanceService {
                 MoneyDto.from(btcHistoricValue),
                 MoneyDto.from(householdSavings),
                 MoneyDto.from(feedInRevenue),
-                MoneyDto.from(histFeedIn)
+                MoneyDto.from(histFeedIn),
+                money(totalMiningRevenue, targetCurrency),
+                money(btcLiveFiat + otherRevenue, targetCurrency),
+                revenueComplete,
+                List.copyOf(coinLines)
         );
     }
 
@@ -225,8 +272,8 @@ public class PVFinanceService {
                                                 FinanceKpiDto kpis,
                                                 CustomCurrency targetCurrency,
                                                 ZoneId zoneId) {
-        double miningRevenueHistoric = statistics.stream().mapToDouble(day -> day.btcHistoricValue().getRawMoneyAmount()).sum();
-        double miningRevenueLive = statistics.stream().mapToDouble(day -> day.btcLiveValue().getRawMoneyAmount()).sum();
+        double miningRevenueHistoric = statistics.stream().mapToDouble(day -> day.miningRevenueHistoric().getRawMoneyAmount()).sum();
+        double miningRevenueLive = statistics.stream().mapToDouble(day -> day.miningRevenueLive().getRawMoneyAmount()).sum();
         double miningEnergyCost = statistics.stream().mapToDouble(day -> day.miningCost().getRawMoneyAmount()).sum();
         double miningGridCost = statistics.stream().mapToDouble(day -> day.miningGridCost().getRawMoneyAmount()).sum();
         double miningOpportunityCost = statistics.stream().mapToDouble(day -> day.miningOpportunityCost().getRawMoneyAmount()).sum();
@@ -246,7 +293,7 @@ public class PVFinanceService {
         double breakEvenBtcPrice = costPerMinedBtc;
         double gridShare = miningEnergyKwh > 0 ? Math.max(0, Math.min(100, miningGridKwh / miningEnergyKwh * 100)) : 0;
         int profitableMiningDays = (int) statistics.stream()
-                .filter(day -> day.btcHistoricValue().getRawMoneyAmount() >= day.miningCost().getRawMoneyAmount())
+                .filter(day -> day.miningRevenueComplete() && day.miningRevenueHistoric().getRawMoneyAmount() >= day.miningCost().getRawMoneyAmount())
                 .count();
 
         Comparator<PVStatisticDto> byOperatingResult = Comparator.comparingDouble(this::dailyOperatingResult);
@@ -255,6 +302,7 @@ public class PVFinanceService {
 
         double totalCapitalValue = kpis.realizedProfit().getRawMoneyAmount()
                 + kpis.unrealizedValue().getRawMoneyAmount()
+                + kpis.otherMiningRevenue().getRawMoneyAmount()
                 + kpis.totalHouseholdSavings().getRawMoneyAmount()
                 + kpis.totalFeedInRevenue().getRawMoneyAmount();
         double totalCapitalCost = kpis.totalInvestment().getRawMoneyAmount() + kpis.totalOpex().getRawMoneyAmount();
@@ -297,7 +345,7 @@ public class PVFinanceService {
     }
 
     private double dailyOperatingResult(PVStatisticDto day) {
-        return day.btcHistoricValue().getRawMoneyAmount()
+        return day.miningRevenueHistoric().getRawMoneyAmount()
                 + day.householdSavings().getRawMoneyAmount()
                 + day.feedInRevenue().getRawMoneyAmount()
                 - day.miningCost().getRawMoneyAmount();
@@ -325,6 +373,8 @@ public class PVFinanceService {
 
         double allTimeHouseholdSavings = currentStats.stream().mapToDouble(s -> s.householdSavings().getRawMoneyAmount()).sum();
         double allTimeFeedInRevenue = currentStats.stream().mapToDouble(s -> s.feedInRevenue().getRawMoneyAmount()).sum();
+        double otherMiningRevenue = currentStats.stream().mapToDouble(s ->
+                s.miningRevenueHistoric().getRawMoneyAmount() - s.btcHistoricValue().getRawMoneyAmount()).sum();
 
         double totalRealizedFiat = btcSalesFiat;
 
@@ -333,7 +383,8 @@ public class PVFinanceService {
 
         double allTimeOpex = currentStats.stream().mapToDouble(s -> s.miningCost().getRawMoneyAmount()).sum();
 
-        double totalValue = totalRealizedFiat + unrealizedFiat + allTimeHouseholdSavings + allTimeFeedInRevenue;
+        double totalValue = totalRealizedFiat + unrealizedFiat + otherMiningRevenue
+                + allTimeHouseholdSavings + allTimeFeedInRevenue;
         double totalCosts = totalInvestment + allTimeOpex;
 
         double roiProgress = totalCosts > 0 ? (totalValue / totalCosts) * 100.0 : 100.0;
@@ -356,7 +407,8 @@ public class PVFinanceService {
                 MoneyDto.of(allTimeOpex, targetCurrency),
                 MoneyDto.of(allTimeHouseholdSavings, targetCurrency),
                 MoneyDto.of(allTimeFeedInRevenue, targetCurrency),
-                estimatedBreakEvenDate
+                estimatedBreakEvenDate,
+                money(otherMiningRevenue, targetCurrency)
         );
     }
 

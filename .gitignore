@@ -73,6 +73,11 @@ mvnw
 tsconfig.json
 types.d.ts
 index.html
+!pc-agent/src/main/resources/static/index.html
 /app/storage/
 /mariadb_data/
 /app/
+/solarminer-agent/logs/
+
+# Local miner binaries, configs, and runtime files
+/solarminer-agent/

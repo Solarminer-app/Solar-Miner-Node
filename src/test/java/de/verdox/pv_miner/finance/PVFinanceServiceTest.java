@@ -4,6 +4,7 @@ import de.verdox.pv_miner.dto.FinanceKpiDto;
 import de.verdox.pv_miner.dto.MoneyDto;
 import de.verdox.pv_miner.dto.PVStatisticDto;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
+import de.verdox.pv_miner.miningpool.KryptexRewardService;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.statistic.daily.DailyStatisticService;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
@@ -42,7 +43,8 @@ class PVFinanceServiceTest {
         CustomCurrency eur = CustomCurrency.getInstance("EUR");
         PVFinanceService service = new PVFinanceService(
                 mock(DailyStatisticService.class),
-                mock(GlobalConstantsService.class)
+                mock(GlobalConstantsService.class),
+                mock(KryptexRewardService.class)
         );
         PVSiteEntity site = mock(PVSiteEntity.class);
         when(site.getSetupDate()).thenReturn(TODAY);

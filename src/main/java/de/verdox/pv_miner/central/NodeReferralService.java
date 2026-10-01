@@ -117,6 +117,6 @@ public class NodeReferralService {
 
     /** One row of the admin referral catalogue (field names mirror the admin DTO). */
     public record ReferralCode(String code, String name, double totalFee, double referralShare,
-                               double solarMinerShare, long userCount) {
+                               double solarMinerShare, long userCount, List<String> supportedCoins) {
     }
 }

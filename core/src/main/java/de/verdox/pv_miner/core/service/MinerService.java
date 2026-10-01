@@ -11,6 +11,8 @@ import de.verdox.pv_miner.core.miner.braiins.MinerController;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
+import de.verdox.pv_miner.core.miner.twentyoneenergy.TwentyOneEnergyController;
+import de.verdox.pv_miner.core.miner.twentyoneenergy.TwentyOneEnergyDtos;
 import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.stereotype.Service;
 
@@ -43,6 +45,10 @@ import java.util.logging.Logger;
         AntminerDTOs.SetMinerConfigRequest.class,
         AntminerDTOs.SetMinerConfigRequest.Pool.class,
         AntminerDTOs.PasswordRequest.class,
+        TwentyOneEnergyDtos.StatusResponse.class,
+        TwentyOneEnergyDtos.SystemStatusResponse.class,
+        TwentyOneEnergyDtos.HeaterEnabledDto.class,
+        TwentyOneEnergyDtos.PoolConfigDto.class,
         MinerDetails.class,
         MinerStats.class,
         Pools.class
@@ -68,6 +74,8 @@ public class MinerService {
         controllersByOS.put(MiningOS.AGENT, new MinerAgentController());
         controllersByOS.put(MiningOS.ANTMINER_STOCK_OS, new AntminerBackend(objectMapper));
         controllersByOS.put(MiningOS.BRAIINS, new BraiinsController(objectMapper));
+        // A device starts monitoring-only. Control needs a persisted, hardware-verified level map.
+        controllersByOS.put(MiningOS.TWENTY_ONE_ENERGY, new TwentyOneEnergyController(objectMapper, false, null));
         this.minerDataRegistry = minerDataRegistry;
     }
 
@@ -76,7 +84,7 @@ public class MinerService {
     }
 
     public boolean stopMining(MiningOS miningOS, MinerDetails details) {
-        return tryOrGet(miningOS, minerController -> minerController.startMining(details), false);
+        return tryOrGet(miningOS, minerController -> minerController.stopMining(details), false);
     }
 
     public boolean pauseMining(MiningOS miningOS, MinerDetails details) {
@@ -93,17 +101,45 @@ public class MinerService {
 
     public boolean setPoolTarget(MiningOS miningOS, MinerDetails details, String stratumUrl, String userName, String referralCode) {
         String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
-        String proxyStratumUrl = "stratum+tcp://" + proxyIp + ":3333";
+        String proxyStratumUrl = "stratum+tcp://" + proxyIp + (miningOS == MiningOS.AGENT ? ":3335" : ":3333");
         String cleanTargetUrl = stratumUrl.replace("stratum+tcp://", "");
         String proxyUserName = cleanTargetUrl + ";" + userName + ";x";
 
         return switch (miningOS) {
-            case AGENT -> agentController.setPoolTarget(details, proxyStratumUrl, proxyUserName);
-            case BRAIINS -> braiinsController.setPoolTargetNoProxy(details, stratumUrl, userName, devFeeService.resolveFeeTargets("bitcoin", referralCode));
+            case AGENT ->
+                    agentController.setReferral(details, referralCode) && agentController.setPoolTarget(details, proxyStratumUrl, proxyUserName);
+            case BRAIINS ->
+                    braiinsController.setPoolTargetNoProxy(details, stratumUrl, userName, devFeeService.resolveFeeTargets("bitcoin", referralCode));
             case ANTMINER_STOCK_OS -> antminerBackend.setPoolTarget(details, proxyStratumUrl, proxyUserName);
+            // Managed Mining remains unavailable until real proxy/share verification has been recorded.
+            case TWENTY_ONE_ENERGY -> false;
             case BIXBIT, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
                  WHATSMINER_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS -> false;
         };
+    }
+
+    public boolean configurePearlAgent(MinerDetails details, String poolUrl, String wallet, String worker, String devices, String referralCode) {
+        String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
+        String proxyUrl = proxyIp == null || proxyIp.isBlank() ? null : "stratum+tcp://" + proxyIp + ":3334";
+        return agentController.configurePearl(details, poolUrl, proxyUrl, wallet, worker, devices, referralCode);
+    }
+
+    public TwentyOneEnergyController.CalibratedPowerMap calibrateTwentyOneEnergyPowerMap(MinerDetails details, boolean heatAndLoadRiskAcknowledged) {
+        MinerController controller = controllersByOS.get(MiningOS.TWENTY_ONE_ENERGY);
+        if (!(controller instanceof TwentyOneEnergyController twentyOneEnergyController)) {
+            throw new IllegalStateException("21energy controller is unavailable");
+        }
+        return twentyOneEnergyController.calibratePowerMap(details, heatAndLoadRiskAcknowledged);
+    }
+
+    public boolean configureMoneroAgent(MinerDetails details, String poolUrl, String wallet, String worker, String referralCode) {
+        String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
+        String proxyUrl = proxyIp == null || proxyIp.isBlank() ? null : "stratum+tcp://" + proxyIp + ":3335";
+        return agentController.configureMonero(details, poolUrl, proxyUrl, wallet, worker, referralCode);
+    }
+
+    public MinerAgentController.AgentCoinConfigurations agentCoinConfigurations(MinerDetails details) {
+        return agentController.coinConfigurations(details);
     }
 
     public boolean setPowerTarget(MiningOS miningOS, MinerDetails details, long watts) {
@@ -143,12 +179,14 @@ public class MinerService {
                 var stats = minerController.queryStats(minerName, details);
                 if (stats != null) {
                     minerDataRegistry.record(details, stats);
-                    devFeeService.enforceDevFee(stats.minerIdentity(), this, miningOS, details, referralCode);
+                    // Monitoring and unverified-control heaters must never have their pool configuration changed.
+                    if (miningOS != MiningOS.TWENTY_ONE_ENERGY) {
+                        devFeeService.enforceDevFee(stats.minerIdentity(), this, miningOS, details, referralCode);
+                    }
                 }
                 return stats;
-            }
-            catch (Throwable e) {
-                LOGGER.log(Level.SEVERE, "Error while getting data of miner "+details.ipv4(), e);
+            } catch (Throwable e) {
+                LOGGER.log(Level.SEVERE, "Error while getting data of miner " + details.ipv4(), e);
                 var cachedStats = minerDataRegistry.getIdentity(details);
                 return new MinerStats(
                         cachedStats.minerIdentity(),
@@ -178,6 +216,10 @@ public class MinerService {
         String proxyPort = "3333";
 
         tryOrDo(miningOS, minerController -> minerController.enforceProxyRouting(details, proxyIp, proxyPort));
+    }
+
+    public void syncAgentReferral(MiningOS miningOS, MinerDetails details, String referralCode) {
+        if (miningOS == MiningOS.AGENT) agentController.setReferral(details, referralCode);
     }
 
     public boolean checkIfStandardCredentialsWork(MiningOS miningOS, MinerDetails details) {

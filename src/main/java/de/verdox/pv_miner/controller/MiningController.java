@@ -20,6 +20,7 @@ import de.verdox.pv_miner.pvsite.PVSiteRepository;
 import de.verdox.pv_miner_extensions.miner.AgentMinerEntity;
 import de.verdox.pv_miner_extensions.miner.AntminerEntity;
 import de.verdox.pv_miner_extensions.miner.BraiinsOSAsicMinerEntity;
+import de.verdox.pv_miner_extensions.miner.TwentyOneEnergyHeaterEntity;
 import de.verdox.pv_miner_extensions.pools.braiins.BraiinsPoolEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.CacheControl;
@@ -201,8 +202,9 @@ public class MiningController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported mining operating system");
         }
 
-        String username = request.username() == null || request.username().isBlank() ? "root" : request.username().trim();
-        String password = request.password() == null || request.password().isBlank() ? "root" : request.password();
+        // 21energy documents no authentication; never send the generic root/root defaults to it.
+        String username = operatingSystem == MiningOS.TWENTY_ONE_ENERGY ? "" : (request.username() == null || request.username().isBlank() ? "root" : request.username().trim());
+        String password = operatingSystem == MiningOS.TWENTY_ONE_ENERGY ? "" : (request.password() == null || request.password().isBlank() ? "root" : request.password());
         MinerEntity<?> miner = createMiner(operatingSystem, ipAddress, username, password);
         miner.setName(request.model() == null || request.model().isBlank() ? ipAddress : request.model().trim());
 
@@ -213,12 +215,14 @@ public class MiningController {
             }
         }
 
-        try {
-            MinerStats stats = entityQueryService.query(miner);
-            miner.setMinPowerTarget(stats.minPowerTarget() > 0 ? stats.minPowerTarget() : 800);
-            miner.setMaxPowerTarget(stats.defaultPowerTarget() > 0 ? stats.defaultPowerTarget() : 1200);
-        } catch (Throwable ignored) {
-            // The monitoring service will populate the technical limits after the miner was persisted.
+        if (operatingSystem != MiningOS.TWENTY_ONE_ENERGY) {
+            try {
+                MinerStats stats = entityQueryService.query(miner);
+                miner.setMinPowerTarget(stats.minPowerTarget() > 0 ? stats.minPowerTarget() : 800);
+                miner.setMaxPowerTarget(stats.defaultPowerTarget() > 0 ? stats.defaultPowerTarget() : 1200);
+            } catch (Throwable ignored) {
+                // The monitoring service will populate the technical limits after the miner was persisted.
+            }
         }
 
         entityService.save(miner, site);
@@ -263,6 +267,7 @@ public class MiningController {
         entityService.delete(pool);
         return ResponseEntity.noContent().build();
     }
+
 
     @PostMapping("/clusters/{clusterName}/start")
     public ResponseEntity<Void> startCluster(@PathVariable UUID siteId, @PathVariable String clusterName) throws Exception {
@@ -354,6 +359,29 @@ public class MiningController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/miners/{minerId}/pearl")
+    public ResponseEntity<Void> configurePearl(@PathVariable UUID siteId, @PathVariable UUID minerId,
+                                               @RequestBody PearlAgentRequest request) {
+        PVSiteEntity site = findSite(siteId);
+        MinerEntity<?> miner = site.getMiners().stream()
+                .filter(candidate -> minerId.equals(candidate.getId())).findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Miner not found on this PV site"));
+        if (miner.getOS() != MiningOS.AGENT) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Pearl requires a SolarMiner PC agent");
+        }
+        if (request == null || request.poolUrl() == null || request.wallet() == null || request.worker() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pearl pool, wallet and worker are required");
+        }
+        if (!minerApiClient.configurePearl(miner.getDetails(), request.poolUrl(), request.wallet(), request.worker(), request.devices(), site.getReferralCode())) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Pearl agent configuration failed");
+        }
+        miner.setCurrentMiningPoolTarget(request.poolUrl());
+        entityService.save(miner, site);
+        return ResponseEntity.noContent().build();
+    }
+
+    public record PearlAgentRequest(String poolUrl, String wallet, String worker, String devices) { }
+
     private PVSiteEntity findSite(UUID siteId) {
         return pvSiteRepository.findById(siteId).orElseThrow(() -> new IllegalArgumentException("PV-Site nicht gefunden"));
     }
@@ -371,6 +399,8 @@ public class MiningController {
             AntminerEntity miner = new AntminerEntity();
             miner.setHost(ipAddress);
             miner.setPort(80);
+            miner.setMinPowerTarget(0);
+            miner.setMaxPowerTarget(0);
             miner.setUsername(username);
             miner.setPassword(password);
             return miner;
@@ -379,6 +409,14 @@ public class MiningController {
             AgentMinerEntity miner = new AgentMinerEntity();
             miner.setHost(ipAddress);
             miner.setPort(8084);
+            return miner;
+        }
+        if (operatingSystem == MiningOS.TWENTY_ONE_ENERGY) {
+            TwentyOneEnergyHeaterEntity miner = new TwentyOneEnergyHeaterEntity();
+            miner.setHost(ipAddress);
+            miner.setPort(80);
+            // New heaters are intentionally monitoring-only until a real-device capability record exists.
+            miner.setIntegrationMode(TwentyOneEnergyHeaterEntity.IntegrationMode.MONITORING);
             return miner;
         }
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported mining operating system");
@@ -409,6 +447,24 @@ public class MiningController {
             stats = MinerStats.DEFAULT;
         }
 
-        return new MiningPageDto.MinerDto(miner.getId(), miner.getName(), miner.getIP(), stats.minerIdentity().minerModel(), stats.miningStatus().name(), stats.terahashPerSecond(), stats.approximatedPowerUsageWatts(), stats.temperatureCelsius(), miner.getCurrentMiningPoolTarget(), stats.minPowerTarget(), stats.defaultPowerTarget() > 0 ? stats.defaultPowerTarget() : stats.maxPowerTarget(), stats.maxPowerTarget(), miner.getMinPowerTarget(), miner.getMaxPowerTarget(), miner.getOS().supportsDynamicPowerScaling(), miner.getPowerStepSizeWatts(), miner.getMinRunTimeMinutes(), miner.getMinIdleTimeMinutes(), miner.getPowerChangeLockTimeMinutes());
+        boolean agentControlDisabled = miner.getOS() == MiningOS.AGENT
+                && stats.minPowerTarget() == 0 && stats.maxPowerTarget() == 0;
+        String agentControlStatus = agentControlDisabled ? "EXTERNAL_CONTROL_DISABLED" : "AVAILABLE";
+        String agentControlDetail = agentControlDisabled
+                ? "Node-Steuerung ist im PC-Agent lokal deaktiviert. Aktiviere sie unter Hardware > Node-Steuerung."
+                : null;
+
+        List<MiningPageDto.AlgorithmHashrateDto> algorithmHashrates = stats.workers() == null ? List.of() : stats.workers().stream()
+                .filter(worker -> worker.currentAlgorithm() != null && !worker.currentAlgorithm().isBlank())
+                .collect(java.util.stream.Collectors.groupingBy(MinerStats.Worker::currentAlgorithm, java.util.LinkedHashMap::new,
+                        java.util.stream.Collectors.summingDouble(MinerStats.Worker::terahashPerSecond)))
+                .entrySet().stream().map(entry -> new MiningPageDto.AlgorithmHashrateDto(entry.getKey(), entry.getValue())).toList();
+        List<MiningPageDto.AlgorithmWorkerDto> algorithmWorkers = miner.getOS() != MiningOS.AGENT || stats.workers() == null
+                ? List.of() : stats.workers().stream()
+                .filter(worker -> worker.currentAlgorithm() != null && !worker.currentAlgorithm().isBlank())
+                .map(worker -> new MiningPageDto.AlgorithmWorkerDto(worker.currentAlgorithm(), worker.workerDisplayName(),
+                        worker.miningStatus().name(), worker.terahashPerSecond(), worker.approximatedPowerUsageWatts()))
+                .toList();
+        return new MiningPageDto.MinerDto(miner.getId(), miner.getOS().name(), miner.getName(), miner.getIP(), stats.minerIdentity().minerModel(), stats.miningStatus().name(), stats.terahashPerSecond(), stats.approximatedPowerUsageWatts(), stats.temperatureCelsius(), miner.getCurrentMiningPoolTarget(), stats.minPowerTarget(), stats.defaultPowerTarget() > 0 ? stats.defaultPowerTarget() : stats.maxPowerTarget(), stats.maxPowerTarget(), miner.getMinPowerTarget(), miner.getMaxPowerTarget(), miner.getOS().supportsDynamicPowerScaling(), algorithmHashrates, algorithmWorkers, agentControlStatus, agentControlDetail, miner.getPowerStepSizeWatts(), miner.getMinRunTimeMinutes(), miner.getMinIdleTimeMinutes(), miner.getPowerChangeLockTimeMinutes());
     }
 }

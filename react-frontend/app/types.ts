@@ -50,6 +50,13 @@ export interface DailyEnergySummaryDto {
     miningRevenue: number;
     miningNetResult: number;
     currencySymbol: string;
+    miningRevenueEuro: number;
+    miningRevenueByCoin: Array<{
+        coin: string;
+        symbol: string;
+        amount: number;
+        euroValue: number | null;
+    }>;
 }
 
 export interface MiningOverviewDto {
@@ -244,6 +251,7 @@ export interface FinanceKpiDto {
     totalHouseholdSavings: MoneyDto;
     totalFeedInRevenue: MoneyDto;
     estimatedBreakEvenDate: string | null;
+    otherMiningRevenue: MoneyDto;
 }
 
 export interface FinanceInsightsDto {
@@ -295,6 +303,20 @@ export interface PVStatisticDto {
     householdSavings: MoneyDto;
     feedInRevenue: MoneyDto;
     feedInPricePerKwh: MoneyDto;
+    miningRevenueHistoric: MoneyDto;
+    miningRevenueLive: MoneyDto;
+    miningRevenueComplete: boolean;
+    miningCoins: CoinMiningDayDto[];
+}
+
+export interface CoinMiningDayDto {
+    coin: string;
+    symbol: string;
+    payoutAddress: string | null;
+    amount: number | null;
+    historicValue: MoneyDto | null;
+    source: string;
+    status: string;
 }
 
 export interface BitcoinSaleDto {
@@ -317,6 +339,7 @@ export interface FinancePageDto {
 
 export interface MinerDto {
     id: string;
+    os: string;
     name: string;
     ipAddress: string;
     model: string;
@@ -331,6 +354,10 @@ export interface MinerDto {
     configuredMinPowerWatts: number;
     configuredMaxPowerWatts: number;
     supportsDynamicPowerScaling: boolean;
+    algorithmHashrates?: Array<{ algorithm: string; hashrateThs: number }>;
+    algorithmWorkers?: Array<{ algorithm: string; name: string; status: string; hashrateThs: number; powerWatts: number }>;
+    agentControlStatus: 'AVAILABLE' | 'EXTERNAL_CONTROL_DISABLED' | string;
+    agentControlDetail: string | null;
     powerStepWatts: number | null;
     minimumRunMinutes: number | null;
     minimumIdleMinutes: number | null;
@@ -402,6 +429,7 @@ export interface ReferralCodeDto {
     referralShare: number;
     solarMinerShare: number;
     userCount: number;
+    supportedCoins?: string[];
 }
 
 export interface ClusterConditionDto {
