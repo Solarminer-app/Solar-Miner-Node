@@ -121,7 +121,7 @@ public class XmrMinerService {
                 estimatedMaxCpuWattage,
                 estimatedMaxCpuWattage,
                 getWattage(),
-                List.of(configService.readUserPoolFromConfig()));
+                List.of(configService.readUserPoolFromConfig()), "CPU", processorName, "cpu");
     }
 
     public boolean readyForStart() {

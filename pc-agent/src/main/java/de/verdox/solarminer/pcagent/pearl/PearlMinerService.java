@@ -495,7 +495,8 @@ public class PearlMinerService {
                     "SRBMiner " + gpu.model() + " (" + gpu.vendor() + ":" + gpu.index() + ")", "PearlHash",
                     run == null ? 0.0 : run.hashesPerSecond / 1_000_000_000_000.0, 0.0,
                     gpuPowerService.appliedTarget(gpu), gpu.minWatts(), gpu.maxWatts(), gpu.maxWatts(),
-                    gpu.currentWatts() == null ? 0 : Math.round(gpu.currentWatts()), pools);
+                    gpu.currentWatts() == null ? 0 : Math.round(gpu.currentWatts()), pools,
+                    "GPU", gpu.model(), gpu.deviceId());
         }).toList();
     }
 

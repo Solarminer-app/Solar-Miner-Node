@@ -184,16 +184,33 @@ public class TelemetryReporter {
             String model = stats.minerIdentity() == null ? null : stats.minerIdentity().minerModel();
             String rawKey = stats.minerIdentity() == null ? null : stats.minerIdentity().minerUID();
             if (model == null || model.isBlank() || rawKey == null || rawKey.isBlank()) return java.util.stream.Stream.empty();
-            String key = UUID.nameUUIDFromBytes((ensureIdentity(site) + ":" + rawKey).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
-            String type = miner.getOS().name().equals("AGENT") ? "PC" : "ASIC";
+            String legacyType = legacyHardwareType(miner.getOS().name());
             if (stats.workers() == null || stats.workers().isEmpty()) {
-                return java.util.stream.Stream.of(new BenchmarkSample(key, type, model, stats.getSingleAlgorithmMined(), miner.getOS().name(), null,
+                if (legacyType == null) return java.util.stream.Stream.empty();
+                String key = UUID.nameUUIDFromBytes((ensureIdentity(site) + ":" + rawKey).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+                return java.util.stream.Stream.of(new BenchmarkSample(key, legacyType, model, stats.getSingleAlgorithmMined(), miner.getOS().name(), null,
                         round(stats.terahashPerSecond() * 1_000_000_000_000d), (double) stats.approximatedPowerUsageWatts(), (double) stats.powerTargetWatts()));
             }
             return stats.workers().stream().filter(w -> w.miningStatus() == MinerStats.MinerStatus.MINING && w.currentAlgorithm() != null && !w.currentAlgorithm().isBlank())
-                    .map(w -> new BenchmarkSample(key + ":" + w.workerDisplayName(), type, model, w.currentAlgorithm(), miner.getOS().name(), null,
-                            round(w.terahashPerSecond() * 1_000_000_000_000d), (double) w.approximatedPowerUsageWatts(), (double) w.powerTargetWatts()));
+                    .map(w -> {
+                        String deviceId = w.deviceId() == null || w.deviceId().isBlank() ? w.workerDisplayName() : w.deviceId();
+                        String key = UUID.nameUUIDFromBytes((ensureIdentity(site) + ":" + rawKey + ":" + deviceId).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+                        String type = w.hardwareType() == null || w.hardwareType().isBlank() ? legacyType : w.hardwareType();
+                        String hardwareModel = w.hardwareModel() == null || w.hardwareModel().isBlank()
+                                ? (legacyType == null ? null : model) : w.hardwareModel();
+                        if (type == null || hardwareModel == null || hardwareModel.isBlank()) return null;
+                        return new BenchmarkSample(key, type, hardwareModel, w.currentAlgorithm(), miner.getOS().name(), null,
+                                round(w.terahashPerSecond() * 1_000_000_000_000d), (double) w.approximatedPowerUsageWatts(), (double) w.powerTargetWatts());
+                    }).filter(java.util.Objects::nonNull);
         }).filter(b -> b.hashrateHs() > 0 && b.algorithm() != null && !b.algorithm().isBlank() && !"-".equals(b.algorithm())).toList();
+    }
+
+    /** Legacy fallback is limited to the two known direct ASIC miner backends. */
+    private static String legacyHardwareType(String minerOs) {
+        return switch (minerOs) {
+            case "ANTMINER_STOCK_OS", "BRAIINS" -> "ASIC";
+            default -> null;
+        };
     }
 
     /**

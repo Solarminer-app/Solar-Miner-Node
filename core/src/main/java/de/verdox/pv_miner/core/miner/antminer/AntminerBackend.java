@@ -281,7 +281,7 @@ public class AntminerBackend implements MinerController {
             int defaultPowerTarget = Math.toIntExact(getCurrentPowerTarget(minerDetails));
             int maxPowerTarget = Math.toIntExact(getCurrentPowerTarget(minerDetails));
             long approximatePowerUsageWatts = getApproximatePowerUsage(minerDetails);
-            return new MinerStats(identity, minerName, apiStatus, currentPowerTarget, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatePowerUsageWatts, terahashPerSecond, temperatureInDegreeC, pools, List.of(new MinerStats.Worker(apiStatus, identity.minerModel(), "SHA256", terahashPerSecond, temperatureInDegreeC, currentPowerTarget, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatePowerUsageWatts, pools)));
+            return new MinerStats(identity, minerName, apiStatus, currentPowerTarget, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatePowerUsageWatts, terahashPerSecond, temperatureInDegreeC, pools, List.of(new MinerStats.Worker(apiStatus, identity.minerModel(), "SHA256", terahashPerSecond, temperatureInDegreeC, currentPowerTarget, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatePowerUsageWatts, pools, "ASIC", identity.minerModel(), identity.minerUID())));
         }
         catch (BosminerUnavailableException e) {
             return new MinerStats(

@@ -50,7 +50,10 @@ public record MinerStats(
             long defaultPowerTarget,
             long maxPowerTarget,
             long approximatedPowerUsageWatts,
-            List<Pools> pools
+            List<Pools> pools,
+            String hardwareType,
+            String hardwareModel,
+            String deviceId
     ) {
     }
 
