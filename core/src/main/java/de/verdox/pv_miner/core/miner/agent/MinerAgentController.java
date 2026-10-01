@@ -1,5 +1,6 @@
 package de.verdox.pv_miner.core.miner.agent;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import de.verdox.pv_miner.core.miner.DevFeeConstants;
 import de.verdox.pv_miner.core.miner.braiins.MinerController;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
@@ -106,19 +107,68 @@ public class MinerAgentController implements MinerController {
     public boolean configurePearl(MinerDetails details, String poolUrl, String proxyUrl, String wallet, String worker, String devices, String referral) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            String proxyHost = java.net.URI.create(proxyUrl).getHost();
-            if (proxyHost == null || !Boolean.TRUE.equals(restClient.post()
-                    .uri(uriBuilder -> uriBuilder.path("/api/agent/proxy").queryParam("host", proxyHost).build())
-                    .retrieve().body(Boolean.class))) return false;
+            String effectiveProxy = prepareProxy(restClient, proxyUrl, "pearlUrl");
+            if (effectiveProxy == null) return false;
             if (!setReferral(details, referral)) return false;
             return Boolean.TRUE.equals(restClient.post().uri("/api/agent/pearl/configuration")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("poolUrl", poolUrl, "proxyUrl", proxyUrl, "wallet", wallet, "worker", worker, "devices", devices == null ? "all" : devices))
+                    .body(Map.of("poolUrl", poolUrl, "proxyUrl", effectiveProxy, "wallet", wallet, "worker", worker, "devices", devices == null ? "all" : devices))
                     .retrieve().body(Boolean.class));
         } catch (Exception e) {
             return false;
         }
     }
+
+    public boolean configureMonero(MinerDetails details, String poolUrl, String proxyUrl, String wallet, String worker, String referral) {
+        try {
+            var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
+            if (prepareProxy(restClient, proxyUrl, "moneroUrl") == null) return false;
+            if (!setReferral(details, referral)) return false;
+            return Boolean.TRUE.equals(restClient.post().uri("/api/agent/monero/configuration")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("poolUrl", poolUrl, "wallet", wallet, "worker", worker))
+                    .retrieve().body(Boolean.class));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static String prepareProxy(RestClient restClient, String externalProxyUrl, String urlField) {
+        JsonNode current = restClient.get().uri("/api/agent/proxy").retrieve().body(JsonNode.class);
+        if (current == null) return null;
+        if (!"standalone".equals(current.path("mode").asText())) {
+            if (externalProxyUrl == null || externalProxyUrl.isBlank()) return null;
+            String proxyHost = java.net.URI.create(externalProxyUrl).getHost();
+            if (proxyHost == null || !Boolean.TRUE.equals(restClient.post()
+                    .uri(uriBuilder -> uriBuilder.path("/api/agent/proxy").queryParam("host", proxyHost).build())
+                    .retrieve().body(Boolean.class))) return null;
+            current = restClient.get().uri("/api/agent/proxy").retrieve().body(JsonNode.class);
+        }
+        String effectiveUrl = current == null ? null : current.path(urlField).asText(null);
+        return effectiveUrl == null || effectiveUrl.isBlank() ? null : effectiveUrl;
+    }
+
+    /** The agent is the source of truth; a saved Node assignment alone does not prove the route. */
+    public AgentCoinConfigurations coinConfigurations(MinerDetails details) {
+        try {
+            var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
+            JsonNode overview = restClient.get().uri("/api/agent/overview").retrieve().body(JsonNode.class);
+            if (overview == null) return null;
+            return new AgentCoinConfigurations(route(overview.path("moneroConfiguration")),
+                    route(overview.path("pearlConfiguration")));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static CoinRoute route(JsonNode node) {
+        if (node.isMissingNode() || node.isNull()) return null;
+        return new CoinRoute(node.path("poolUrl").asText(null), node.path("wallet").asText(null),
+                node.path("worker").asText(null), node.path("devices").asText(null));
+    }
+
+    public record AgentCoinConfigurations(CoinRoute monero, CoinRoute pearl) { }
+    public record CoinRoute(String poolUrl, String wallet, String worker, String devices) { }
 
     @Override
     public MinerStats queryStats(String minerName, MinerDetails details) {
@@ -134,13 +184,19 @@ public class MinerAgentController implements MinerController {
             long standard = number(range.get("defaultPowerWatts"), stats.defaultPowerTarget());
             boolean dynamicEnabled = Boolean.TRUE.equals(range.get("dynamicPowerScalingEnabled"));
             boolean externalEnabled = Boolean.TRUE.equals(range.get("externalControlEnabled"));
-            // The agent publishes this every monitoring tick (normally one second). Zero limits
-            // make the Node treat locally withdrawn permission as unavailable capacity.
-            if (!dynamicEnabled || !externalEnabled) {
+            // Zero limits make the Node treat locally withdrawn permission as unavailable
+            // capacity. Dynamic regulation is optional: a permitted agent may still be used
+            // as a fixed-power start/stop miner.
+            if (!externalEnabled) {
                 min = 0;
                 max = 0;
                 standard = 0;
                 target = 0;
+            } else if (!dynamicEnabled) {
+                long fixedPower = standard > 0 ? standard : max;
+                min = fixedPower;
+                max = fixedPower;
+                target = fixedPower;
             }
             return new MinerStats(stats.minerIdentity(), stats.name(), stats.miningStatus(), target, min, standard, max,
                     usage, stats.terahashPerSecond(), stats.temperatureCelsius(), stats.pools(), stats.workers());

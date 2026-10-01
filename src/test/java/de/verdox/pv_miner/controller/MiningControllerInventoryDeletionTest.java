@@ -43,7 +43,8 @@ class MiningControllerInventoryDeletionTest {
                 mock(EntityQueryService.class),
                 entityService,
                 mock(DiscoveryService.class),
-                mock(MinerApiClient.class)
+                mock(MinerApiClient.class),
+                mock(de.verdox.pv_miner.central.NodeReferralService.class)
         );
         when(siteRepository.findById(siteId)).thenReturn(Optional.of(site));
         when(site.getMiners()).thenReturn(Set.of(miner));

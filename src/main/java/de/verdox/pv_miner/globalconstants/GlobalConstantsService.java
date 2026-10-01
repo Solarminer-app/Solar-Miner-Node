@@ -31,6 +31,7 @@ public class GlobalConstantsService {
     private final Map<LocalDate, CurrencyMicroServiceRestClient.BitcoinNetworkStatsDTO> historicalBtcCache = new ConcurrentHashMap<>();
     private Map<String, Double> currentExchangeRates = new ConcurrentHashMap<>();
     private CurrencyMicroServiceRestClient.BitcoinNetworkStatsDTO currentBitcoinStats;
+    private Map<String, Double> currentCoinPrices = new ConcurrentHashMap<>();
 
     public GlobalConstantsService(@Value("${solarmining.currency-service.url}") String url) {
         if (url == null) {
@@ -79,11 +80,14 @@ public class GlobalConstantsService {
             restClient.getAllExchangeRates(todayUtc, "UTC").ifPresent(rates -> this.currentExchangeRates = rates);
 
             restClient.getBitcoinStats(todayUtc, "UTC").ifPresent(stats -> this.currentBitcoinStats = stats);
+            restClient.getCoinPrices(todayUtc).ifPresent(prices -> this.currentCoinPrices = prices);
 
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Could not fetch latest data from Microservice: " + e.getMessage());
         }
     }
+
+    public Map<String, Double> getCurrentCoinPrices() { return Map.copyOf(currentCoinPrices); }
 
     private double getHistoricalRateInUsd(String currencyCode, LocalDate date) {
         if (!historicalRatesCache.containsKey(date)) {

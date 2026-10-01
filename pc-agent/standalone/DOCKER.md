@@ -4,7 +4,9 @@
 Mining UI choose whether to use that local proxy or a reachable external
 SolarMiner proxy. The choice is stored under the persistent data volume and
 switching mode pauses active miners first. The local proxy binds only inside the
-container, so it is not exposed to the LAN.
+container, so it is not exposed to the LAN. On the first start the agent first
+searches the LAN for an external proxy and falls back to the local proxy when
+none responds. The prominent Proxy card on the Overview switches modes later.
 
 The image contains no miner and does not mine automatically. Install XMRig or
 SRBMiner from the local Mining UI after startup; the agent downloads only the

@@ -3,6 +3,7 @@ package de.verdox.pv_miner.finance;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import de.verdox.pv_miner.dto.FinanceKpiDto;
 import de.verdox.pv_miner.dto.PVStatisticDto;
+import de.verdox.pv_miner.dto.CoinMiningDayDto;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.pvsite.BitcoinSale;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
@@ -112,11 +113,10 @@ public class TaxReportService {
         try {
             List<PVStatisticDto> statistics = pvFinanceService.getFinanceData(pvSite, from, to, context.getZoneId(), context.getCurrency());
             StringBuilder sb = new StringBuilder();
-            sb.append("Date;Total PV (kWh);Household Usage (kWh);Grid Export (kWh);Household Savings;Feed-In Revenue;BTC Mined;BTC Price (Historical);BTC Value (Historical);Mining Cost;Net Profit\n");
+            sb.append("Date;Total PV (kWh);Household Usage (kWh);Grid Export (kWh);Household Savings;Feed-In Revenue;BTC Reward;XMR Reward;PRL Reward;Mining Revenue (Historical);Revenue Complete;Mining Cost;Net Profit\n");
 
             for (PVStatisticDto stat : statistics) {
-                HistoricalFinanceData histData = calculateHistoricalValues(stat, context.getCurrency());
-                double netProfitRaw = histData.historicalBtcFiatValue().getRawMoneyAmount() - stat.miningCost().getRawMoneyAmount();
+                double netProfitRaw = stat.miningRevenueHistoric().getRawMoneyAmount() - stat.miningCost().getRawMoneyAmount();
                 Money netProfit = new Money(netProfitRaw, context.getCurrency());
 
                 sb.append(stat.date()).append(";")
@@ -125,9 +125,11 @@ public class TaxReportService {
                         .append(FormatUtil.formatNumber(stat.exportedKwh())).append(";")
                         .append(stat.householdSavings().getRawMoneyAmount()).append(";")
                         .append(stat.feedInRevenue().getRawMoneyAmount()).append(";")
-                        .append(FormatUtil.formatBitcoin(stat.minedBtc())).append(";")
-                        .append(histData.btcPrice().getRawMoneyAmount()).append(";") // NEU: Tageskurs
-                        .append(histData.historicalBtcFiatValue().getRawMoneyAmount()).append(";")
+                        .append(rewardAmount(stat, "bitcoin")).append(";")
+                        .append(rewardAmount(stat, "monero")).append(";")
+                        .append(rewardAmount(stat, "pearl")).append(";")
+                        .append(stat.miningRevenueHistoric().getRawMoneyAmount()).append(";")
+                        .append(stat.miningRevenueComplete()).append(";")
                         .append(stat.miningCost().getRawMoneyAmount()).append(";")
                         .append(netProfit.getRawMoneyAmount()).append("\n");
             }
@@ -298,12 +300,11 @@ public class TaxReportService {
         String generationDate = LocalDate.now(context.getZoneId()).format(dateFormatter);
         String dateRange = getRangeString(statistics, dateFormatter);
 
-        double totalHistBtcValue = 0;
+        double totalMiningValue = 0;
         double totalNetProfit = 0;
         for (PVStatisticDto stat : statistics) {
-            HistoricalFinanceData hData = calculateHistoricalValues(stat, context.getCurrency());
-            totalHistBtcValue += hData.historicalBtcFiatValue().getRawMoneyAmount();
-            totalNetProfit += (hData.historicalBtcFiatValue().getRawMoneyAmount() - stat.miningCost().getRawMoneyAmount());
+            totalMiningValue += stat.miningRevenueHistoric().getRawMoneyAmount();
+            totalNetProfit += (stat.miningRevenueHistoric().getRawMoneyAmount() - stat.miningCost().getRawMoneyAmount());
         }
 
         StringBuilder html = new StringBuilder();
@@ -317,12 +318,12 @@ public class TaxReportService {
 
         html.append("<div class='kpi-container'>")
                 .append("<div class='kpi-box'>")
-                .append("<div class='kpi-title'>Total Mined BTC</div>")
-                .append("<p class='kpi-value'>").append(FormatUtil.formatBitcoin(kpis.allTimeMinedBtc())).append("</p>")
+                .append("<div class='kpi-title'>Total Mined BTC / XMR / PRL</div>")
+                .append("<p class='kpi-value'>").append(escape(coinTotals(statistics))).append("</p>")
                 .append("</div>")
                 .append("<div class='kpi-box'>")
-                .append("<div class='kpi-title'>Historical BTC Value</div>")
-                .append("<p class='kpi-value'>").append(new Money(totalHistBtcValue, context.getCurrency())).append("</p>")
+                .append("<div class='kpi-title'>Historical Mining Value</div>")
+                .append("<p class='kpi-value'>").append(new Money(totalMiningValue, context.getCurrency())).append("</p>")
                 .append("</div>")
                 .append("<div class='kpi-box'>")
                 .append("<div class='kpi-title'>Total Net Profit</div>")
@@ -336,9 +337,8 @@ public class TaxReportService {
                 .append("<th class='text-right'>PV Usage</th>")
                 .append("<th class='text-right'> Power Cost (" + context.getCurrency().getSymbol() + "/kwh)</th>")
                 .append("<th class='text-right'>Grid Import</th>")
-                .append("<th class='text-right'>BTC Mined</th>")
-                .append("<th class='text-right'>BTC Price</th>")
-                .append("<th class='text-right'>BTC Value</th>")
+                .append("<th class='text-right'>Coin Rewards</th>")
+                .append("<th class='text-right'>Mining Value</th>")
                 .append("<th class='text-right'>Total Cost</th>")
                 .append("<th class='text-right'>Net Profit</th>")
                 .append("</tr></thead><tbody>");
@@ -350,16 +350,14 @@ public class TaxReportService {
             List<PVStatisticDto> monthStats = groupedStats.get(month);
             monthStats.sort((a, b) -> b.date().compareTo(a.date()));
 
-            double mPvUsage = 0, mGridUsage = 0, mBtcMined = 0, mBtcVal = 0, mCost = 0, mProfit = 0;
+            double mPvUsage = 0, mGridUsage = 0, mRevenue = 0, mCost = 0, mProfit = 0;
 
             for (PVStatisticDto stat : monthStats) {
-                HistoricalFinanceData histData = calculateHistoricalValues(stat, context.getCurrency());
-                double netProfitRaw = histData.historicalBtcFiatValue().getRawMoneyAmount() - stat.miningCost().getRawMoneyAmount();
+                double netProfitRaw = stat.miningRevenueHistoric().getRawMoneyAmount() - stat.miningCost().getRawMoneyAmount();
 
                 mPvUsage += stat.miningPvUsage();
                 mGridUsage += stat.miningGridUsage();
-                mBtcMined += stat.minedBtc();
-                mBtcVal += histData.historicalBtcFiatValue().getRawMoneyAmount();
+                mRevenue += stat.miningRevenueHistoric().getRawMoneyAmount();
                 mCost += stat.miningCost().getRawMoneyAmount();
                 mProfit += netProfitRaw;
 
@@ -371,9 +369,8 @@ public class TaxReportService {
                         .append("<td class='text-right'>").append(FormatUtil.formatNumber(stat.miningPvUsage())).append(" kWh</td>")
                         .append("<td class='text-right'>").append(FormatUtil.formatNumber(stat.feedInPricePerKwh().getRawMoneyAmount())).append(" " + context.getCurrency().getSymbol() + "</td>")
                         .append("<td class='text-right'>").append(FormatUtil.formatNumber(stat.miningGridUsage())).append(" kWh</td>")
-                        .append("<td class='text-right'>").append(FormatUtil.formatBitcoin(stat.minedBtc())).append("</td>")
-                        .append("<td class='text-right'>").append(histData.btcPrice().toString()).append("</td>") // TAGESKURS
-                        .append("<td class='text-right'>").append(histData.historicalBtcFiatValue()).append("</td>")
+                        .append("<td class='text-right'>").append(escape(coinRewards(stat))).append(stat.miningRevenueComplete() ? "" : " *").append("</td>")
+                        .append("<td class='text-right'>").append(stat.miningRevenueHistoric()).append("</td>")
                         .append("<td class='text-right'>").append(stat.miningCost()).append("</td>")
                         .append("<td class='text-right ").append(profitClass).append("'>").append(netProfit).append("</td>")
                         .append("</tr>");
@@ -384,15 +381,14 @@ public class TaxReportService {
                     .append("<td class='text-right'>").append(FormatUtil.formatNumber(mPvUsage)).append(" kWh</td>")
                     .append("<td class='text-right'>-</td>")
                     .append("<td class='text-right'>").append(FormatUtil.formatNumber(mGridUsage)).append(" kWh</td>")
-                    .append("<td class='text-right'>").append(FormatUtil.formatBitcoin(mBtcMined)).append("</td>")
-                    .append("<td class='text-right'>-</td>")
-                    .append("<td class='text-right'>").append(new Money(mBtcVal, context.getCurrency())).append("</td>")
+                    .append("<td class='text-right'>").append(escape(coinTotals(monthStats))).append("</td>")
+                    .append("<td class='text-right'>").append(new Money(mRevenue, context.getCurrency())).append("</td>")
                     .append("<td class='text-right'>").append(new Money(mCost, context.getCurrency())).append("</td>")
                     .append("<td class='text-right ").append(mProfitClass).append("'>").append(new Money(mProfit, context.getCurrency())).append("</td>")
                     .append("</tr>");
         }
 
-        html.append("</tbody></table><div class='footer'>This document does not constitute legally binding tax advice.</div></body></html>");
+        html.append("</tbody></table><div class='footer'>* Kryptex reward history was unavailable for at least one configured XMR/PRL target on that day. Pool balance and wallet balance are not counted as income. This document does not constitute legally binding tax advice.</div></body></html>");
         return html.toString();
     }
 
@@ -402,6 +398,7 @@ public class TaxReportService {
         String generationDate = LocalDate.now(context.getZoneId()).format(dateFormatter);
         String dateRange = getRangeString(statistics, dateFormatter);
         String breakEvenText = kpis.estimatedBreakEvenDate() != null ? kpis.estimatedBreakEvenDate().format(dateFormatter) : "N/A";
+        double miningRevenue = statistics.stream().mapToDouble(stat -> stat.miningRevenueHistoric().getRawMoneyAmount()).sum();
 
         StringBuilder html = new StringBuilder();
         html.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<html><head>").append(getBaseCss()).append("</head><body>");
@@ -416,6 +413,11 @@ public class TaxReportService {
                 .append("<div class='kpi-box'><div class='kpi-title'>Total Household Savings</div><p class='kpi-value positive'>").append(kpis.totalHouseholdSavings().toString()).append("</p></div>")
                 .append("<div class='kpi-box'><div class='kpi-title'>Estimated Break-Even</div><p class='kpi-value'>").append(breakEvenText).append("</p></div>")
                 .append("</div>");
+
+        html.append("<h3>Mining revenue (BTC / XMR / PRL)</h3><p>")
+                .append(escape(coinTotals(statistics))).append(" · ")
+                .append(new Money(miningRevenue, context.getCurrency()))
+                .append(". Daily XMR/PRL values come from Kryptex reward history; holdings and unpaid pool balances are excluded.</p>");
 
         html.append("<h3>Daily PV Performance</h3><table><thead><tr><th>Date</th><th class='text-right'>Total PV Prod.</th><th class='text-right'>Household Usage</th><th class='text-right'>Grid Export</th><th class='text-right'>Savings</th><th class='text-right'>Feed-In Revenue</th></tr></thead><tbody>");
 
@@ -476,6 +478,30 @@ public class TaxReportService {
                 new Money(histEffYield, targetCurrency),
                 new Money(btcPriceRate, targetCurrency)
         );
+    }
+
+    private static String rewardAmount(PVStatisticDto stat, String coin) {
+        return stat.miningCoins().stream().filter(line -> coin.equals(line.coin()) && line.amount() != null)
+                .map(line -> Double.toString(line.amount())).collect(Collectors.joining("+"));
+    }
+
+    private static String coinRewards(PVStatisticDto stat) {
+        return stat.miningCoins().stream().filter(line -> line.amount() != null && line.amount() != 0)
+                .map(line -> FormatUtil.formatNumber(line.amount()) + " " + line.symbol())
+                .collect(Collectors.joining(", "));
+    }
+
+    private static String coinTotals(List<PVStatisticDto> statistics) {
+        Map<String, Double> totals = statistics.stream().flatMap(stat -> stat.miningCoins().stream())
+                .filter(line -> line.amount() != null)
+                .collect(Collectors.groupingBy(CoinMiningDayDto::symbol, Collectors.summingDouble(CoinMiningDayDto::amount)));
+        return totals.entrySet().stream().sorted(Map.Entry.comparingByKey())
+                .map(entry -> FormatUtil.formatNumber(entry.getValue()) + " " + entry.getKey())
+                .collect(Collectors.joining(" · "));
+    }
+
+    private static String escape(String value) {
+        return value == null ? "" : value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     private String getRangeString(List<PVStatisticDto> statistics, DateTimeFormatter formatter) {

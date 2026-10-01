@@ -47,8 +47,13 @@ public class AgentPowerController {
     @PostMapping("/external/target")
     public PowerStatus externalTarget(@RequestParam long watts) {
         requireExternalControl();
-        if (watts > 0 && !controls.get().dynamicPowerScalingEnabled())
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Dynamische Leistungsregelung wurde lokal deaktiviert");
+        // Dynamic GPU regulation is optional. When it is off, a positive target
+        // still means that the Node may start this fixed-power miner.
+        if (watts > 0 && !controls.get().dynamicPowerScalingEnabled()) {
+            if (!mining.resumeAll())
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Miner konnte nicht gestartet werden");
+            return status();
+        }
         if (!mining.setTarget(watts)) throw new ResponseStatusException(HttpStatus.CONFLICT, "Leistungsziel konnte nicht sicher angewendet werden");
         return status();
     }

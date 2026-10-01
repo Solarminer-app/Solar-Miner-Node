@@ -78,3 +78,6 @@ index.html
 /mariadb_data/
 /app/
 /solarminer-agent/logs/
+
+# Local miner binaries, configs, and runtime files
+/solarminer-agent/

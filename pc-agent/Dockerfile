@@ -5,15 +5,9 @@ FROM eclipse-temurin:21-jdk-jammy AS builder
 WORKDIR /workspace
 COPY . .
 
-FROM builder AS standalone-builder
-RUN chmod +x gradlew \
-    && ./gradlew :pc-agent:standaloneJar \
-        -Psolarminer.proxy.project-dir=embedded-proxy-src \
-        --no-daemon
-
 FROM builder AS agent-builder
 RUN chmod +x gradlew \
-    && ./gradlew :pc-agent:bootJar \
+    && ./gradlew :pc-agent:standaloneJar \
         -Psolarminer.proxy.project-dir=embedded-proxy-src \
         --no-daemon
 
@@ -41,11 +35,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
 
 ENTRYPOINT ["/usr/bin/tini", "--", "java", "-jar", "/opt/solarminer/solarminer-pc-agent.jar"]
 
-FROM runtime AS standalone
-COPY --from=standalone-builder /workspace/pc-agent/build/distributions/solarminer-pc-agent-standalone.jar /opt/solarminer/solarminer-pc-agent.jar
+FROM runtime
+COPY --from=agent-builder /workspace/pc-agent/build/distributions/solarminer-pc-agent-standalone.jar /opt/solarminer/solarminer-pc-agent.jar
 EXPOSE 8090 3334 3335
-CMD ["--solarminer.agent.standalone=true"]
-
-FROM runtime AS agent
-COPY --from=agent-builder /workspace/pc-agent/build/libs/solarminer-pc-agent.jar /opt/solarminer/solarminer-pc-agent.jar
 CMD ["--solarminer.agent.standalone=false"]

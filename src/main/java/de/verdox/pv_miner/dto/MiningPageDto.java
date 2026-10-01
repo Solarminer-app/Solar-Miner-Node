@@ -41,12 +41,19 @@ public record MiningPageDto(
             long configuredMinPowerWatts,
             long configuredMaxPowerWatts,
             boolean supportsDynamicPowerScaling,
+            List<AlgorithmHashrateDto> algorithmHashrates,
+            List<AlgorithmWorkerDto> algorithmWorkers,
+            String agentControlStatus,
+            String agentControlDetail,
             Integer powerStepWatts,
             Integer minimumRunMinutes,
             Integer minimumIdleMinutes,
             Integer powerChangeLockMinutes
     ) {
     }
+
+    public record AlgorithmHashrateDto(String algorithm, double hashrateThs) { }
+    public record AlgorithmWorkerDto(String algorithm, String name, String status, double hashrateThs, long powerWatts) { }
 
     public record PoolDto(
             UUID id,

@@ -20,7 +20,9 @@ public class ReactFrontendController {
             "/site/{siteId}/repair-profiles",
             "/site/{siteId}/details",
             "/site/{siteId}/finance",
+            "/site/{siteId}/finance/wallets",
             "/site/{siteId}/mining",
+            "/site/{siteId}/mining/targets",
             "/site/{siteId}/mining/clusters/{clusterName}/config",
             "/site/{siteId}/mining/miners/{minerId}"
     })

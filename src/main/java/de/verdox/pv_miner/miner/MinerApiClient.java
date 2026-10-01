@@ -60,6 +60,28 @@ public class MinerApiClient {
         }
     }
 
+    public boolean configureMonero(MinerDetails details, String poolUrl, String wallet, String worker, String referralCode) {
+        try {
+            Boolean result = restClient.post().uri("/monero/configuration")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new MoneroConfigurationRequest(details, poolUrl, wallet, worker, normalizeReferral(referralCode)))
+                    .retrieve().body(Boolean.class);
+            return Boolean.TRUE.equals(result);
+        } catch (RestClientException e) {
+            return false;
+        }
+    }
+
+    public AgentCoinConfigurations getAgentCoinConfigurations(MinerDetails details) {
+        try {
+            return restClient.post().uri("/agent/coin-configurations")
+                    .contentType(MediaType.APPLICATION_JSON).body(details)
+                    .retrieve().body(AgentCoinConfigurations.class);
+        } catch (RestClientException e) {
+            return null;
+        }
+    }
+
     public boolean setPowerTarget(MiningOS os, MinerDetails details, long watts) {
         return executePowerCommand("/power-target", new PowerTargetRequest(os, details, watts));
     }
@@ -223,6 +245,10 @@ public class MinerApiClient {
 
     public record PearlConfigurationRequest(MinerDetails minerDetails, String poolUrl, String wallet, String worker, String devices, String referralCode) {
     }
+
+    public record MoneroConfigurationRequest(MinerDetails minerDetails, String poolUrl, String wallet, String worker, String referralCode) { }
+    public record AgentCoinConfigurations(CoinRoute monero, CoinRoute pearl) { }
+    public record CoinRoute(String poolUrl, String wallet, String worker, String devices) { }
 
     private static String normalizeReferral(String referralCode) {
         return referralCode == null || referralCode.isBlank() ? null : referralCode.trim();

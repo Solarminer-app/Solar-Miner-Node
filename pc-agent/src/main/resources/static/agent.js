@@ -431,34 +431,21 @@ function renderGpuProcesses(data) {
 function renderProxy(proxy) {
   const standalone = proxy?.mode === 'standalone';
   document.body.classList.toggle('standalone', standalone);
-  $('proxy-panel').hidden = false;
-  $('api-docs').hidden = false;
-  let modeForm = $('proxy-mode-form');
-  if (!modeForm) {
-    modeForm = node('form', 'form-block'); modeForm.id = 'proxy-mode-form';
-    modeForm.innerHTML = '<label for="proxy-mode-select">Proxy-Modus</label><div class="input-row"><select id="proxy-mode-select"><option value="external">Externer SolarMiner-Proxy</option><option value="local">Lokalen Proxy verwenden</option></select><button id="proxy-mode-submit" class="button" type="submit">Übernehmen</button></div><p class="muted">Beim Wechsel werden laufende Miner pausiert. Der lokale Proxy ist nur auf diesem Gerät erreichbar.</p>';
-    $('proxy-description').after(modeForm);
-    modeForm.addEventListener('submit', event => {
-      event.preventDefault();
-      action('/api/agent/proxy/mode', 'Proxy-Modus geändert. Laufende Miner wurden pausiert.', {mode: $('proxy-mode-select').value});
-    });
-  }
+  $('proxy-panel').hidden = standalone;
+  $('api-docs').hidden = standalone;
   $('monero-help').textContent = standalone
     ? 'Pool-Adresse und Wallet werden für den Mining-Start verwendet.'
     : 'Der Miner verbindet sich über den SolarMiner-Proxy; die Pool-Adresse wird dort als Ziel verwendet.';
-  set('proxy-mode', standalone ? 'LOKAL' : 'EXTERN');
-  set('proxy-description', standalone
-    ? 'Der im Agent enthaltene SolarMiner-Proxy läuft nur auf diesem Gerät.'
-    : 'Der Agent nutzt einen SolarMiner-Proxy in deinem Netzwerk.');
-  set('proxy-state', standalone ? (proxy?.managedStatus === 'running' ? 'Lokal aktiv' : 'Start fehlgeschlagen') : (proxy?.reachable ? 'Erreichbar' : 'Nicht erreichbar'));
+  if (standalone) return;
+  set('proxy-mode', 'EXTERN');
+  set('proxy-description', 'Der Agent nutzt einen SolarMiner-Proxy in deinem Netzwerk.');
+  set('proxy-state', proxy?.reachable ? 'Erreichbar' : 'Nicht erreichbar');
   set('proxy-xmr', proxy?.moneroUrl || '—'); set('proxy-pearl', proxy?.pearlUrl || '—');
   set('fee-monero', proxy?.moneroFeeReady ? 'Verfügbar' : 'Nicht verfügbar');
   set('fee-pearl', proxy?.pearlFeeReady ? 'Verfügbar' : 'Nicht verfügbar');
-  set('proxy-detail', standalone ? (proxy?.managedDetail || '') : '');
-  $('proxy-form').hidden = standalone;
-  $('proxy-discovery').hidden = standalone;
-  if (document.activeElement !== $('proxy-mode-select')) $('proxy-mode-select').value = standalone ? 'local' : 'external';
-  $('proxy-mode-submit').disabled = busy;
+  set('proxy-detail', '');
+  $('proxy-form').hidden = false;
+  $('proxy-discovery').hidden = false;
   if (document.activeElement !== $('proxy-host')) $('proxy-host').value = proxy?.host || '';
   $('proxy-submit').disabled = busy;
 }

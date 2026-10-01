@@ -15,6 +15,8 @@ import DashboardPage from '../app/site/[siteId]/dashboard/page';
 import DetailsPage from '../app/site/[siteId]/details/page';
 import FinancePage from '../app/site/[siteId]/finance/page';
 import MiningPage from '../app/site/[siteId]/mining/page';
+import MiningTargetsPage from '../app/site/[siteId]/mining/targets/page';
+import WalletOverviewPage from '../app/site/[siteId]/finance/wallets/page';
 import ClusterConfigPage from '../app/site/[siteId]/mining/clusters/[clusterName]/config/page';
 import MinerDetailsPage from '../app/site/[siteId]/mining/miners/[minerId]/page';
 import RepairProfilesPage from '../app/site/[siteId]/repair-profiles/page';
@@ -44,6 +46,8 @@ function Application() {
                         <Route element={<DetailsPage/>} path="details"/>
                         <Route element={<FinancePage/>} path="finance"/>
                         <Route element={<MiningPage/>} path="mining"/>
+                        <Route element={<MiningTargetsPage/>} path="mining/targets"/>
+                        <Route element={<WalletOverviewPage/>} path="finance/wallets"/>
                         <Route element={<ClusterConfigPage/>} path="mining/clusters/:clusterName/config"/>
                         <Route element={<MinerDetailsPage/>} path="mining/miners/:minerId"/>
                     </Route>

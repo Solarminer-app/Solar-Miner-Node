@@ -71,9 +71,9 @@ tasks.register<BootJar>("standaloneJar") {
     classpath = mainSourceSet.runtimeClasspath + embeddedProxy.runtimeClasspath
 }
 
-tasks.register<BootRun>("standaloneBootRun") {
+tasks.named<BootRun>("bootRun") {
     group = "application"
-    description = "Runs the PC-Agent and embedded Stratum proxy directly from compiled classes"
+    description = "Runs the PC-Agent with the bundled proxy available for local proxy mode"
     dependsOn(tasks.named("classes"), tasks.named(embeddedProxy.classesTaskName))
     mainClass.set("de.verdox.solarminer.pcagent.PcAgentApplication")
     classpath = mainSourceSet.runtimeClasspath + embeddedProxy.runtimeClasspath

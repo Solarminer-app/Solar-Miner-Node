@@ -3,8 +3,8 @@ services:
     image: verdox/solar-miner-pc-agent:latest
     container_name: solarminer-pc-agent
     restart: unless-stopped
-    # This image deliberately has no embedded proxy. Configure a reachable
-    # SolarMiner proxy through the local agent UI after startup.
+    # The image includes a local proxy. The UI defaults to an external proxy;
+    # operators can switch to the bundled loopback-only proxy at any time.
     ports:
       - "8084:8084"
       - "8091:8091/udp"

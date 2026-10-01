@@ -169,7 +169,9 @@ function SiteLayoutContent({children}: PropsWithChildren) {
 
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
-    const [walletBalance, setWalletBalance] = useState<{btc: number; fiat: number} | null>(null);
+    const [walletBalance, setWalletBalance] = useState<{btc: number; formatted: string} | null>(null);
+    const [watchedWallets, setWatchedWallets] = useState<Array<{id: string; label: string; coin: string; confirmedBalance: number | null; balanceStatus: string}>>([]);
+    const [poolBalances, setPoolBalances] = useState<Array<{id: string; name: string; coin: string; balanceCoin: string; balance: number | null}>>([]);
     const {
         locale, setLocale, currency, setCurrency, timeZone, setTimeZone,
     } = useSitePreferences();
@@ -223,16 +225,26 @@ function SiteLayoutContent({children}: PropsWithChildren) {
 
     useEffect(() => {
         const load = async () => {
-            try {
-                const response = await fetch(`/api/lightning-wallet?currency=USD&locale=${locale}`, {cache: "no-store"});
-                if (!response.ok) return;
-                const data = await response.json() as { balanceSat?: number; balanceFormatted?: string };
-                const match = data.balanceFormatted?.match(/[$]([0-9,.]+)/);
-                setWalletBalance({btc: (data.balanceSat ?? 0) / 100_000_000, fiat: match ? Number(match[1].replace(/,/g, "")) : 0});
-            } catch { /* Wallet service can be offline during setup. */ }
+            const results = await Promise.allSettled([
+                fetch(`/api/lightning-wallet?currency=${currency}&locale=${locale}`, {cache: "no-store"}),
+                fetch(`/api/pv-site/${siteId}/watched-wallets`, {cache: "no-store"}),
+                fetch(`/api/pv-site/${siteId}/mining/pools/overview`, {cache: "no-store"}),
+            ]);
+            const [lightning, watched, pools] = results;
+            if (lightning.status === 'fulfilled' && lightning.value.ok) {
+                const data = await lightning.value.json() as {balanceSat?: number; balanceFormatted?: string};
+                const formatted = data.balanceFormatted ?? '—';
+                setWalletBalance({btc: (data.balanceSat ?? 0) / 100_000_000, formatted: formatted.match(/\((.*)\)$/)?.[1] ?? formatted});
+            } else setWalletBalance(null);
+            if (watched.status === 'fulfilled' && watched.value.ok) setWatchedWallets(await watched.value.json());
+            if (pools.status === 'fulfilled' && pools.value.ok) setPoolBalances(await pools.value.json());
         };
         void load();
-    }, [locale]);
+        const refresh = () => void load();
+        window.addEventListener('solarminer:balances-changed', refresh);
+        const interval = window.setInterval(refresh, 60_000);
+        return () => {window.removeEventListener('solarminer:balances-changed', refresh); window.clearInterval(interval);};
+    }, [currency, locale, siteId]);
 
     const changeCurrency = (nextCurrency: CurrencyCode) => {
         setCurrency(nextCurrency);
@@ -250,6 +262,18 @@ function SiteLayoutContent({children}: PropsWithChildren) {
             detail: {timeZone: nextTimeZone},
         }),);
     };
+
+    const balanceGroups = useMemo(() => {
+        const entries: Array<{coin: string; symbol: string; label: string; amount: number | null; source: string}> = [];
+        if (walletBalance) entries.push({coin: 'bitcoin', symbol: 'BTC', label: 'Lightning', amount: walletBalance.btc, source: locale === 'de' ? 'Lightning-Wallet' : 'Lightning wallet'});
+        watchedWallets.forEach(wallet => entries.push({coin: wallet.coin, symbol: wallet.coin === 'bitcoin' ? 'BTC' : wallet.coin === 'monero' ? 'XMR' : 'PRL', label: wallet.label, amount: wallet.confirmedBalance, source: locale === 'de' ? 'Wallet' : 'Wallet'}));
+        poolBalances.filter(pool => pool.balance != null).forEach(pool => entries.push({coin: pool.coin, symbol: pool.balanceCoin, label: pool.name, amount: pool.balance, source: 'Pool'}));
+        return [...new Set(entries.map(entry => entry.coin))].map(coin => {
+            const members = entries.filter(entry => entry.coin === coin);
+            const available = members.filter(entry => entry.amount != null) as Array<typeof entries[number] & {amount: number}>;
+            return {coin, symbol: members[0].symbol, members, amount: available.reduce((sum, entry) => sum + entry.amount, 0), incomplete: available.length !== members.length};
+        });
+    }, [locale, poolBalances, walletBalance, watchedWallets]);
 
     const isActive = (href: string, exact = false) => exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 
@@ -325,9 +349,10 @@ function SiteLayoutContent({children}: PropsWithChildren) {
         </header>
         <section aria-label={t("wallet.strip.label")} className="wallet-strip">
             <div className="wallet-strip__items">
-                {walletBalance ? <div className="wallet-chip"><span aria-hidden="true">₿</span><strong>{walletBalance.btc.toFixed(8)} BTC</strong><small>${walletBalance.fiat.toLocaleString(undefined, {maximumFractionDigits: 2})}</small></div> : <div className="wallet-chip wallet-chip--loading"><span aria-hidden="true">₿</span><strong>Bitcoin Wallet</strong><small>{t("wallet.strip.loading")}</small></div>}
+                {balanceGroups.map(group => <details className="wallet-chip wallet-chip--group" key={group.coin}><summary><span aria-hidden="true">{group.symbol === 'BTC' ? '₿' : '◉'}</span><strong>{group.symbol} · {group.amount.toFixed(8)} {group.symbol}</strong><small>{group.incomplete ? (locale === 'de' ? 'Teilweise verfügbar' : 'Partially available') : `${group.members.length} ${locale === 'de' ? 'Positionen' : 'entries'}`}</small></summary><div className="wallet-chip__details">{group.members.map((entry, index) => <div key={`${entry.source}-${entry.label}-${index}`}><span>{entry.label} · {entry.source}</span><strong>{entry.amount == null ? '—' : `${entry.amount.toFixed(8)} ${entry.symbol}`}</strong></div>)}</div></details>)}
+                <details className="wallet-chip wallet-chip--total"><summary><span aria-hidden="true">Σ</span><strong>{locale === 'de' ? 'Gesamt' : 'Total'} · {currency}</strong><small>{locale === 'de' ? 'Nach Coin aufgeschlüsselt' : 'Broken down by coin'}</small></summary><div className="wallet-chip__details">{balanceGroups.map(group => <div key={group.coin}><span>{group.symbol}</span><strong>{group.amount.toFixed(8)} {group.symbol}</strong></div>)}<p>{locale === 'de' ? `Der Gesamtwert in ${currency} wird erst angezeigt, wenn für alle Coins ein aktueller Kurs verfügbar ist.` : `The ${currency} total appears once a current price is available for every coin.`}</p></div></details>
             </div>
-            <strong className="wallet-strip__total">{t("wallet.strip.total")} <span>${(walletBalance?.fiat ?? 0).toLocaleString(undefined, {maximumFractionDigits: 2})}</span></strong>
+            <Link className="wallet-strip__total" href={`${basePath}/finance/wallets`}>{locale === 'de' ? 'Alle Guthaben' : 'All balances'} →</Link>
         </section>
 
         <main className="content">{children}</main>
@@ -690,9 +715,18 @@ function SiteLayoutContent({children}: PropsWithChildren) {
                 }
             }
 
-            .wallet-strip { display:flex; align-items:center; justify-content:space-between; gap:1rem; min-height:52px; padding:8px clamp(1rem,3vw,2.5rem); border-bottom:1px solid var(--border); background:#0d0d10; }
-            .wallet-strip__items { display:flex; min-width:0; gap:.6rem; overflow-x:auto; }
-            .wallet-chip { display:inline-flex; align-items:center; gap:.55rem; flex:0 0 auto; padding:.45rem .65rem; border:1px solid #ffffff12; border-radius:.6rem; background:#17171b; font-size:.78rem; }
+            .wallet-strip { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem 1rem; min-height:52px; padding:8px clamp(1rem,3vw,2.5rem); border-bottom:1px solid var(--border); background:#0d0d10; }
+            .wallet-strip__items { display:flex; flex:1 1 420px; flex-wrap:wrap; min-width:0; gap:.6rem; overflow:visible; }
+            .wallet-chip--group, .wallet-chip--total { position:relative; cursor:pointer; }
+            .wallet-chip--group[open], .wallet-chip--total[open] { z-index:40; }
+            .wallet-chip summary { display:grid; grid-template-columns:auto 1fr; column-gap:.45rem; list-style:none; }
+            .wallet-chip summary::-webkit-details-marker { display:none; }
+            .wallet-chip summary small { grid-column:2; }
+            .wallet-chip__details { position:absolute; z-index:41; top:calc(100% + .5rem); left:0; width:min(340px, calc(100vw - 2rem)); padding:.7rem; border:1px solid var(--border); border-radius:.65rem; background:#18181d; box-shadow:0 14px 35px rgba(0,0,0,.4); }
+            .wallet-chip__details div { display:flex; justify-content:space-between; gap:.8rem; padding:.35rem 0; color:var(--muted); font-size:.73rem; }
+            .wallet-chip__details strong { color:var(--text); font-variant-numeric:tabular-nums; }
+            .wallet-chip__details p { margin:.55rem 0 0; color:var(--muted); font-size:.7rem; line-height:1.35; }
+            .wallet-chip { display:inline-flex; align-items:center; gap:.55rem; flex:0 1 auto; min-width:142px; padding:.45rem .65rem; border:1px solid #ffffff12; border-radius:.6rem; background:#17171b; font-size:.78rem; }
             .wallet-chip > span { color:#ffca28; font-size:1.15rem; }.wallet-chip small,.wallet-strip__total { color:var(--muted); }.wallet-chip--loading { opacity:.7; }.wallet-strip__total { flex:0 0 auto; font-size:.78rem; }.wallet-strip__total span { margin-left:.35rem; color:var(--text); }
 
             @media (max-width: 1180px) {
@@ -706,6 +740,9 @@ function SiteLayoutContent({children}: PropsWithChildren) {
             }
 
             @media (max-width: 760px) {
+                .wallet-strip { align-items:flex-start; }
+                .wallet-strip__items { flex-basis:100%; }
+                .wallet-strip__total { margin-left:auto; }
                 .navbar {
                     min-height: 64px;
                     padding: 0 16px;

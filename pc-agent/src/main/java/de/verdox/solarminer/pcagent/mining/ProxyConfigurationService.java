@@ -3,8 +3,6 @@ package de.verdox.solarminer.pcagent.mining;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -31,6 +29,7 @@ public class ProxyConfigurationService {
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
     private volatile String host;
     private volatile boolean standalone;
+    private volatile boolean modeStored;
     private volatile long feeCheckedAt;
     private final java.util.concurrent.ConcurrentHashMap<String, Boolean> feeCache = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -50,14 +49,15 @@ public class ProxyConfigurationService {
         this.pearlPort = pearlPort;
         this.apiPort = apiPort;
         this.modeFile = Path.of(modePath).toAbsolutePath().normalize();
-        this.standalone = readMode(standalone);
+        String savedMode = readMode();
+        this.modeStored = savedMode != null;
+        this.standalone = savedMode == null ? standalone : "local".equals(savedMode);
         try {
             String saved = Files.readString(configFile).strip();
             if (validHost(saved)) host = saved;
         } catch (IOException ignored) { }
     }
 
-    @EventListener(ApplicationReadyEvent.class)
     public void activateStoredMode() {
         managedProxy.setStandalone(standalone);
     }
@@ -89,18 +89,25 @@ public class ProxyConfigurationService {
     public synchronized boolean setMode(String mode) {
         boolean local = "local".equals(mode);
         if (!local && !"external".equals(mode)) return false;
-        if (local == standalone) return !local || managedProxy.setStandalone(true);
+        if (local == standalone) {
+            if (local && !managedProxy.setStandalone(true)) return false;
+            if (!writeMode(local)) return false;
+            modeStored = true;
+            return true;
+        }
         if (local && !managedProxy.setStandalone(true)) return false;
         if (!writeMode(local)) {
             if (local) managedProxy.setStandalone(false);
             return false;
         }
         standalone = local;
+        modeStored = true;
         if (!local) managedProxy.setStandalone(false);
         return true;
     }
 
     public boolean configured() { return standalone || host != null; }
+    public boolean hasStoredMode() { return modeStored; }
     public boolean standalone() { return standalone; }
     public String managedStatus() { return managedProxy.status(); }
     public String managedDetail() { return managedProxy.detail(); }
@@ -187,13 +194,12 @@ public class ProxyConfigurationService {
                 && !value.endsWith(".") && !value.contains("..");
     }
 
-    private boolean readMode(boolean legacyStandalone) {
+    private String readMode() {
         try {
             String saved = Files.readString(modeFile).strip();
-            if ("local".equals(saved)) return true;
-            if ("external".equals(saved)) return false;
+            if ("local".equals(saved) || "external".equals(saved)) return saved;
         } catch (IOException ignored) { }
-        return legacyStandalone;
+        return null;
     }
 
     private boolean writeMode(boolean local) {

@@ -6,6 +6,8 @@ import de.verdox.pv_miner.core.miner.MiningOS;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.service.MinerDiscoveryService;
+import de.verdox.pv_miner.core.miner.agent.MinerAgentController;
+import de.verdox.pv_miner.core.miner.twentyoneenergy.TwentyOneEnergyController;
 import de.verdox.pv_miner.core.service.MinerService;
 import de.verdox.pv_miner.core.service.DevFeeService;
 import de.verdox.pv_miner.shared.dto.DevFeeOverviewDto;
@@ -88,6 +90,17 @@ public class MinerController {
         return minerService.configurePearlAgent(request.minerDetails(), request.poolUrl(), request.wallet(), request.worker(), request.devices(), request.referralCode());
     }
 
+    @PostMapping("/monero/configuration")
+    public boolean configureMonero(@RequestBody MoneroConfigurationRequest request) {
+        return minerService.configureMoneroAgent(request.minerDetails(), request.poolUrl(), request.wallet(),
+                request.worker(), request.referralCode());
+    }
+
+    @PostMapping("/agent/coin-configurations")
+    public MinerAgentController.AgentCoinConfigurations agentCoinConfigurations(@RequestBody MinerDetails details) {
+        return minerService.agentCoinConfigurations(details);
+    }
+
     @PostMapping("/power-target")
     public boolean setPowerTarget(@RequestBody PowerTargetRequest request) {
         return minerService.setPowerTarget(request.os(), request.minerDetails(), request.watts());
@@ -101,6 +114,14 @@ public class MinerController {
     @PostMapping("/power-target/decrement")
     public boolean decrementPowerTarget(@RequestBody PowerTargetRequest request) {
         return minerService.decrementPowerTarget(request.os(), request.minerDetails(), request.watts());
+    }
+
+    @PostMapping("/twentyone/calibrate-power-map")
+    public TwentyOneEnergyController.CalibratedPowerMap calibrateTwentyOneEnergyPowerMap(@RequestBody TwentyOneEnergyCalibrationRequest request) {
+        if (request == null || request.minerDetails() == null || !request.heatAndLoadRiskAcknowledged()) {
+            throw new IllegalArgumentException("Explicit heat and electrical-load acknowledgement is required");
+        }
+        return minerService.calibrateTwentyOneEnergyPowerMap(request.minerDetails(), true);
     }
 
     @PostMapping("/stats")
@@ -127,9 +148,15 @@ public class MinerController {
     public record PowerTargetRequest(MiningOS os, MinerDetails minerDetails, long watts) {
     }
 
+    /** This endpoint changes each discrete target temporarily; it must be invoked only from an explicit commissioning flow. */
+    public record TwentyOneEnergyCalibrationRequest(MinerDetails minerDetails, boolean heatAndLoadRiskAcknowledged) { }
+
     public record SetPoolRequest(MiningOS os, MinerDetails minerDetails, String stratumUrl, String userName, String referralCode) {
     }
 
     public record PearlConfigurationRequest(MinerDetails minerDetails, String poolUrl, String wallet, String worker, String devices, String referralCode) {
+    }
+
+    public record MoneroConfigurationRequest(MinerDetails minerDetails, String poolUrl, String wallet, String worker, String referralCode) {
     }
 }

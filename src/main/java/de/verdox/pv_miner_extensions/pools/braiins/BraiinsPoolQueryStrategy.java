@@ -67,7 +67,7 @@ public class BraiinsPoolQueryStrategy implements MiningPoolQueryStrategy<Braiins
         String fetchedUsername = BraiinsPoolAPIClient.getUsername(entity.getAuthToken(), CryptoCurrency.BITCOIN);
 
         if (fetchedUsername != null && !fetchedUsername.isBlank()) {
-
+            entity.setUserNameOfAccount(fetchedUsername);
         } else {
             throw new Exception("Ping successful but could not find the brains username");
         }

@@ -60,7 +60,11 @@ public class DevFeeService {
         // Stratum-routed miners get their dev-fee split decided INSIDE the proxy,
         // which only knows a single configured referral — point it at the site's
         // saved referral (house when unset) so the referrer share routes to them.
-        syncProxyReferral(referralCode);
+        // The PC agent owns its embedded/local proxy and receives the referral below.
+        // Do not also contact the Node-wide proxy, which may not exist on that LAN host.
+        if (miningOS != MiningOS.AGENT) {
+            syncProxyReferral(referralCode);
+        }
         minerService.syncAgentReferral(miningOS, minerDetails, referralCode);
 
         if (miningOS.supportsNativeSplitting()) {

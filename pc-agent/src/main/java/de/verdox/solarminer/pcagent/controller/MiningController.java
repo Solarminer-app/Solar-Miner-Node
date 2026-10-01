@@ -9,6 +9,7 @@ import de.verdox.solarminer.pcagent.mining.EarningsForecastService;
 import de.verdox.solarminer.pcagent.mining.PayoutDefaultsService;
 import de.verdox.solarminer.pcagent.mining.ReferralConfigurationService;
 import de.verdox.solarminer.pcagent.mining.FeeTransparencyService;
+import de.verdox.solarminer.pcagent.mining.WalletBalanceService;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
 import de.verdox.solarminer.pcagent.mining.ProxyDiscoveryService;
 import de.verdox.solarminer.pcagent.pearl.PearlMinerService;
@@ -40,6 +41,7 @@ public class MiningController {
     private final PayoutDefaultsService payoutDefaultsService;
     private final ReferralConfigurationService referralConfigurationService;
     private final FeeTransparencyService feeTransparencyService;
+    private final WalletBalanceService walletBalanceService;
 
     public MiningController(MiningService miningService, XmrConfigService xmrConfigService,
                             PearlMinerService pearlMinerService, LocalGpuPowerService gpuPowerService,
@@ -50,7 +52,8 @@ public class MiningController {
                             EarningsForecastService earningsForecastService,
                             PayoutDefaultsService payoutDefaultsService,
                             ReferralConfigurationService referralConfigurationService,
-                            FeeTransparencyService feeTransparencyService) {
+                            FeeTransparencyService feeTransparencyService,
+                            WalletBalanceService walletBalanceService) {
         this.miningService = miningService;
         this.xmrConfigService = xmrConfigService;
         this.proxyConfigurationService = proxyConfigurationService;
@@ -65,6 +68,7 @@ public class MiningController {
         this.payoutDefaultsService = payoutDefaultsService;
         this.referralConfigurationService = referralConfigurationService;
         this.feeTransparencyService = feeTransparencyService;
+        this.walletBalanceService = walletBalanceService;
     }
 
     @GetMapping("identify")
@@ -128,7 +132,7 @@ public class MiningController {
 
     @PostMapping("/proxy/discover")
     public List<ProxyDiscoveryService.ProxyCandidate> discoverProxy() throws java.io.IOException {
-        if (!lhmBootstrapService.readyForAgent() || proxyConfigurationService.standalone()) return List.of();
+        if (!lhmBootstrapService.readyForAgent()) return List.of();
         return proxyDiscoveryService.discover();
     }
 
@@ -272,6 +276,15 @@ public class MiningController {
         if (workerSeparator < 1 || workerSeparator == login[1].length() - 1) return null;
         return new MoneroConfiguration(login[0], login[1].substring(0, workerSeparator),
                 login[1].substring(workerSeparator + 1));
+    }
+
+    @GetMapping("/wallet-balances")
+    public List<WalletBalanceService.Balance> walletBalances() {
+        MoneroConfiguration monero = savedMoneroConfiguration();
+        PearlMinerService.Config pearl = pearlMinerService.configuration();
+        return walletBalanceService.balances(
+                monero == null ? null : monero.poolUrl(), monero == null ? null : monero.wallet(),
+                pearl == null ? null : pearl.poolUrl(), pearl == null ? null : pearl.wallet());
     }
 
     public record AgentOverview(MinerStats stats, String activeCoin, String platform, String architecture,
