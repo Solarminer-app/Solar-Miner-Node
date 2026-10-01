@@ -184,6 +184,18 @@ public class MiningController {
         return xmrDownloadService.retry();
     }
 
+    @PostMapping("/pearl/remove")
+    public boolean removePearlMiner() {
+        if ("DOWNLOADING".equals(srbDownloadService.status()) || !pearlMinerService.stop()) return false;
+        return srbDownloadService.remove();
+    }
+
+    @PostMapping("/monero/remove")
+    public boolean removeMoneroMiner() {
+        if ("DOWNLOADING".equals(xmrDownloadService.status()) || !miningService.pauseMining("monero")) return false;
+        return xmrDownloadService.remove();
+    }
+
     @PostMapping("/pearl/configuration")
     public boolean setPearlConfiguration(@RequestBody PearlMinerService.Config configuration) throws java.io.IOException {
         boolean feeBackendPayout = configuration == null
@@ -373,6 +385,6 @@ public class MiningController {
 
     @GetMapping
     public MinerStats getMiningStats() {
-        return miningService.getStats();
+        return miningService.getExternalStats();
     }
 }

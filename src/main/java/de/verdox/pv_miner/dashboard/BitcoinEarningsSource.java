@@ -18,16 +18,24 @@ public class BitcoinEarningsSource implements MiningEarningsSource {
 
     @Override public List<MiningEarningsService.CoinEstimate> forecast(MinerEntity<?> miner, MinerStats stats) {
         double hashrate = Math.max(0, stats.terahashPerSecond()) * 1e12;
-        if (hashrate <= 0) return List.of();
         double watts = Math.max(0, stats.approximatedPowerUsageWatts());
         double difficulty = constants.getTodayMiningDifficulty();
         double reward = constants.getTodayBlockSubsidy() / 100_000_000.0;
         MiningCoin coin = MiningCoin.BITCOIN;
         double usdPrice = constants.getCurrentCoinPrices().getOrDefault(coin.symbol().toLowerCase(java.util.Locale.ROOT), 0.0);
         double amount = difficulty > 0 && reward > 0 ? hashrate * 86400.0 / (difficulty * 4294967296.0) * reward : 0;
-        boolean available = watts > 0 && difficulty > 0 && reward > 0 && usdPrice > 0 && constants.hasFreshBitcoinStats();
+        List<String> diagnostics = new java.util.ArrayList<>();
+        if (hashrate <= 0) diagnostics.add("BTC-Hashrate fehlt oder ist 0 H/s");
+        if (watts <= 0) diagnostics.add("ASIC-Leistungsmessung fehlt oder ist 0 W");
+        if (difficulty <= 0 || reward <= 0) diagnostics.add("Bitcoin-Schwierigkeit oder Blocksubsidy fehlt");
+        if (usdPrice <= 0) diagnostics.add("BTC/USD-Kurs fehlt");
+        if (!constants.hasFreshCoinPrices()) diagnostics.add("Coin-Preise sind veraltet");
+        if (!constants.hasFreshBitcoinStats()) diagnostics.add("Bitcoin-Chain-Daten sind veraltet");
+        boolean available = diagnostics.isEmpty();
         return List.of(new MiningEarningsService.CoinEstimate(coin.key(), coin.symbol(), available,
-                available ? "" : "Chain-, Preis- oder Leistungsdaten fehlen", amount, amount * usdPrice,
-                watts, hashrate, Instant.now().toString()));
+                available ? "" : String.join("; ", diagnostics), amount, amount * usdPrice,
+                watts, hashrate, Instant.now().toString(),
+                List.of("Solar-Miner-Node Miner-Statistik", "Solar-Miner-Node GlobalConstantsService (Bitcoin-Chain, BTC/USD)"),
+                List.copyOf(diagnostics)));
     }
 }

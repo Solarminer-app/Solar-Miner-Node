@@ -30,6 +30,19 @@ public class XmrDownloadService {
     public String detail() { return detail; }
     public int progress() { return progress; }
 
+    public boolean remove() {
+        if (!downloading.compareAndSet(false, true)) return false;
+        try {
+            String name = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "xmrig.exe" : "xmrig";
+            Files.deleteIfExists(MAIN_PATH.toAbsolutePath().normalize().resolve(name));
+            status = "PENDING"; detail = "XMRig entfernt; die Pool-Konfiguration bleibt gespeichert."; progress = 0;
+            return true;
+        } catch (IOException e) {
+            status = "FAILED"; detail = "XMRig konnte nicht entfernt werden: " + e.getMessage();
+            return false;
+        } finally { downloading.set(false); }
+    }
+
     public boolean retry() {
         if (binaryAvailable()) { status = "READY"; progress = 100; return true; }
         if (!downloading.compareAndSet(false, true)) return false;

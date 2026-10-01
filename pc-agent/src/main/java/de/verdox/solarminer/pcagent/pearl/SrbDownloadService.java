@@ -19,8 +19,11 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.List;
+import com.fasterxml.jackson.core.type.TypeReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -81,6 +84,34 @@ public class SrbDownloadService {
     public String detail() { return detail; }
     public int progress() { return progress; }
 
+    public boolean remove() {
+        if (!downloading.compareAndSet(false, true)) return false;
+        try {
+            Path executable = miner.executablePath().toAbsolutePath().normalize();
+            Path target = executable.getParent();
+            Path manifest = target.resolve(".solarminer-srbminer-files.json");
+            if (Files.isRegularFile(manifest)) {
+                List<String> files = mapper.readValue(manifest.toFile(), new TypeReference<>() { });
+                Path realTarget = target.toRealPath();
+                for (String relative : files) {
+                    Path file = target.resolve(relative).normalize();
+                    if (!file.startsWith(target) || file.equals(miner.configurationPath())) continue;
+                    Path parent = file.getParent();
+                    if (Files.exists(parent) && !parent.toRealPath().startsWith(realTarget))
+                        throw new IOException("Tracked package path escapes the SRBMiner directory");
+                    Files.deleteIfExists(file);
+                }
+            }
+            Files.deleteIfExists(executable);
+            Files.deleteIfExists(manifest);
+            status = "PENDING"; detail = "SRBMiner entfernt; die Pearl-Konfiguration bleibt gespeichert."; progress = 0;
+            return true;
+        } catch (IOException e) {
+            status = "FAILED"; detail = "SRBMiner konnte nicht vollständig entfernt werden: " + e.getMessage();
+            return false;
+        } finally { downloading.set(false); }
+    }
+
     private void install() throws Exception {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
@@ -139,6 +170,7 @@ public class SrbDownloadService {
                         .findFirst().orElseThrow(() -> new IOException("SRBMiner executable missing from archive"));
             }
             Path packageRoot = binary.getParent();
+            List<String> installedFiles = new ArrayList<>();
             try (var files = Files.walk(packageRoot)) {
                 for (Path file : files.filter(Files::isRegularFile).toList()) {
                     Path destination = target.resolve(packageRoot.relativize(file)).normalize();
@@ -147,6 +179,7 @@ public class SrbDownloadService {
                         continue;
                     Files.createDirectories(destination.getParent());
                     Files.copy(file, destination, StandardCopyOption.REPLACE_EXISTING);
+                    installedFiles.add(target.relativize(destination).toString());
                 }
             }
             if (!miner.binaryAvailable()) {
@@ -164,6 +197,17 @@ public class SrbDownloadService {
                     Files.deleteIfExists(pending);
                 }
             }
+            installedFiles.add(target.relativize(executable).toString());
+            Path manifest = target.resolve(".solarminer-srbminer-files.json");
+            Path manifestTemp = Files.createTempFile(target, "srbminer-manifest-", ".tmp");
+            try {
+                mapper.writeValue(manifestTemp.toFile(), installedFiles);
+                try {
+                    Files.move(manifestTemp, manifest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                    Files.move(manifestTemp, manifest, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally { Files.deleteIfExists(manifestTemp); }
             LOGGER.info("SRBMiner-MULTI " + tag + " installed at " + executable);
         } finally {
             Files.deleteIfExists(archive);

@@ -350,7 +350,14 @@ function renderWorkspace(data) {
     button.addEventListener('click', () => {
       if (coin.binaryAvailable) showView(coin.id);
       else installMiner(coin.id);
-    }); card.append(button); grid.append(card);
+    }); card.append(button);
+    if (coin.binaryAvailable) {
+      const remove = node('button', 'button subtle', 'Miner entfernen');
+      remove.type = 'button'; remove.disabled = busy || status === 'DOWNLOADING';
+      remove.addEventListener('click', () => removeMiner(coin.id));
+      card.append(remove);
+    }
+    grid.append(card);
   }
   if (!grid.children.length) grid.append(node('p', 'muted', 'Für diesen Hardware-Filter ist kein Miner verfügbar.'));
   if (pendingInstall) {
@@ -368,6 +375,11 @@ async function installMiner(coin) {
   await action(`/api/agent/${coin}/download`, `${coin === 'monero' ? 'XMRig' : 'SRBMiner-MULTI'}-Download gestartet.`);
   const readiness = latest?.[coin];
   if (readiness?.downloadStatus === 'FAILED' || readiness?.downloadStatus === 'UNSUPPORTED') pendingInstall = null;
+}
+async function removeMiner(coin) {
+  const name = coin === 'monero' ? 'XMRig' : 'SRBMiner-MULTI';
+  if (!window.confirm(`${name} wird gestoppt und entfernt. Die gespeicherte Pool-/Wallet-Konfiguration bleibt erhalten. Fortfahren?`)) return;
+  await action(`/api/agent/${coin}/remove`, `${name} wurde entfernt.`);
 }
 function coinBlockers(coin, data) {
   const blocked = [];

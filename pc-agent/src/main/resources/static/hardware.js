@@ -39,13 +39,25 @@ function renderSettings(data) {
     const row = node('label', 'control-setting'); const input = document.createElement('input'); input.type = 'checkbox'; input.checked = Boolean(data[key]);
     const copy = node('span', ''); copy.append(node('strong', '', title), node('small', '', detail)); const toggle = node('span', 'toggle'); row.append(input, copy, toggle);
     input.addEventListener('change', async () => {
-      const value = {dynamicPowerScalingEnabled: key === 'dynamicPowerScalingEnabled' ? input.checked : Boolean(data.dynamicPowerScalingEnabled), externalControlEnabled: key === 'externalControlEnabled' ? input.checked : Boolean(data.externalControlEnabled)};
+      const value = {dynamicPowerScalingEnabled: key === 'dynamicPowerScalingEnabled' ? input.checked : Boolean(data.dynamicPowerScalingEnabled), externalControlEnabled: key === 'externalControlEnabled' ? input.checked : Boolean(data.externalControlEnabled), workerExternalControl: data.workerExternalControl || {}};
       const response = await fetch('/api/agent/power-control/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(value)});
       if (!response.ok) { input.checked = !input.checked; return notice('Die lokale Einstellung konnte nicht gespeichert werden.', true); }
       notice('Lokale Steuerfreigabe sofort aktualisiert.'); await refresh();
     });
     list.append(row);
   }
+  const workerToggle = (id, title, detail, enabled) => {
+    const row = node('label', 'control-setting'); const input = document.createElement('input'); input.type = 'checkbox'; input.checked = enabled;
+    const copy = node('span', ''); copy.append(node('strong', '', title), node('small', '', detail)); row.append(input, copy, node('span', 'toggle'));
+    input.addEventListener('change', async () => {
+      const response = await fetch(`/api/agent/power-control/workers/${encodeURIComponent(id)}/external-control?enabled=${input.checked}`, {method:'POST'});
+      if (!response.ok) { input.checked = !input.checked; return notice('Die Worker-Freigabe konnte nicht gespeichert werden.', true); }
+      notice(`${title}: externe Steuerung ${input.checked ? 'freigegeben' : 'deaktiviert'}.`); await refresh();
+    });
+    list.append(row);
+  };
+  workerToggle('cpu', 'CPU-Worker', 'Monero / RandomX für den Node sichtbar machen', data.workerExternalControl?.cpu !== false);
+  for (const gpu of data.gpus || []) workerToggle(gpu.deviceId, `GPU-Worker · ${gpu.model}`, `${gpu.vendor} ${gpu.index} für externe Steuerung freigeben`, gpu.externalControlEnabled !== false);
 }
 function render(data) {
   renderSettings(data);

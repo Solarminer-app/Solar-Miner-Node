@@ -6,7 +6,6 @@ import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.MiningOS;
 import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.miningpool.MiningCoin;
-import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import org.springframework.stereotype.Component;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -21,12 +20,10 @@ import java.util.List;
 @Component
 public class AgentEarningsSource implements MiningEarningsSource {
     private final ObjectMapper mapper;
-    private final GlobalConstantsService constants;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
 
-    public AgentEarningsSource(ObjectMapper mapper, GlobalConstantsService constants) {
+    public AgentEarningsSource(ObjectMapper mapper) {
         this.mapper = mapper;
-        this.constants = constants;
     }
     @Override public boolean supports(MinerEntity<?> miner) { return miner.getOS() == MiningOS.AGENT; }
 
@@ -47,25 +44,44 @@ public class AgentEarningsSource implements MiningEarningsSource {
                     continue;
                 }
                 double hashrate = forecast.path("hashrateHps").asDouble();
-                if (hashrate <= 0) continue;
+                boolean minerActive = stats.workers() != null && stats.workers().stream()
+                        .anyMatch(worker -> coin.algorithm().equals(worker.currentAlgorithm())
+                                && worker.miningStatus() == MinerStats.MinerStatus.MINING);
+                if (hashrate <= 0 && !minerActive) continue;
                 double watts = stats.workers() == null ? 0 : stats.workers().stream()
-                        .filter(worker -> coin.algorithm().equals(worker.currentAlgorithm()))
+                        .filter(worker -> coin.algorithm().equals(worker.currentAlgorithm())
+                                && worker.miningStatus() == MinerStats.MinerStatus.MINING)
                         .mapToDouble(MinerStats.Worker::approximatedPowerUsageWatts).sum();
-                double priceUsd = constants.getCurrentCoinPrices().getOrDefault(coin.symbol().toLowerCase(java.util.Locale.ROOT), 0.0);
+                double priceUsd = forecast.path("priceUsd").asDouble();
                 double coinsPerDay = forecast.path("coinsPerDay").asDouble();
                 String updatedAt = forecast.path("updatedAt").asText("");
+                List<String> sources = new ArrayList<>();
+                forecast.path("sources").forEach(value -> sources.add(value.asText()));
+                if (sources.isEmpty()) sources.add("PC-Agent Netzwerk-/Preisdaten");
+                List<String> diagnostics = new ArrayList<>();
+                if (!forecast.path("available").asBoolean() || forecast.path("stale").asBoolean()) {
+                    String reason = forecast.path("unavailableReason").asText("");
+                    if (!reason.isBlank()) diagnostics.add(reason);
+                    else if (!forecast.path("available").asBoolean()) diagnostics.add("PC-Agent hat keine Prognose geliefert");
+                }
+                if (forecast.path("stale").asBoolean()) diagnostics.add("PC-Agent-Daten sind als veraltet markiert");
                 boolean fresh;
                 try { fresh = Instant.parse(updatedAt).plus(Duration.ofMinutes(20)).isAfter(Instant.now()); }
                 catch (Exception ignored) { fresh = false; }
-                boolean available = forecast.path("available").asBoolean() && !forecast.path("stale").asBoolean()
-                        && fresh && watts > 0 && coinsPerDay > 0 && priceUsd > 0;
+                if (!fresh) diagnostics.add("PC-Agent-Prognose fehlt oder ist älter als 20 Minuten");
+                if (watts <= 0) diagnostics.add("Gemessene Miner-Leistung fehlt oder ist 0 W");
+                if (coinsPerDay <= 0) diagnostics.add("Prognostizierte Coins pro Tag fehlen oder sind 0");
+                if (priceUsd <= 0) diagnostics.add(coin.symbol() + "/USD-Kurs fehlt in den PC-Agent-Daten");
+                boolean available = diagnostics.isEmpty();
                 result.add(new MiningEarningsService.CoinEstimate(coin.key(), coin.symbol(), available,
-                        available ? "" : forecast.path("unavailableReason").asText("Prognose oder Leistung fehlt"),
+                        available ? "" : String.join("; ", diagnostics),
                         coinsPerDay, coinsPerDay * priceUsd,
-                        watts, hashrate, updatedAt));
+                        watts, hashrate, updatedAt, sources, List.copyOf(diagnostics)));
             }
         } catch (Exception ignored) {
-            result.add(MiningEarningsService.CoinEstimate.unavailable("agent", "—", "PC-Agent nicht erreichbar"));
+            String detail = "PC-Agent-Abruf fehlgeschlagen (" + ignored.getClass().getSimpleName() + ")";
+            result.add(new MiningEarningsService.CoinEstimate("agent", "—", false, detail, 0, 0, 0, 0, "",
+                    List.of("PC-Agent API :8084/api/agent/earnings"), List.of(detail)));
         }
         return result;
     }

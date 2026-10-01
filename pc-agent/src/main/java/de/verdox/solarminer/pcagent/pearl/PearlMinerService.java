@@ -466,6 +466,7 @@ public class PearlMinerService {
     public Config configuration() { return config; }
     public boolean binaryAvailable() { return Files.isRegularFile(executable); }
     public Path executablePath() { return executable; }
+    public Path configurationPath() { return configFile; }
     public List<GpuState> gpuStates(List<LocalGpuPowerService.Gpu> cards) {
         return cards.stream().map(gpu -> {
             GpuRun run = runs.get(gpu.vendor() + ":" + gpu.index());

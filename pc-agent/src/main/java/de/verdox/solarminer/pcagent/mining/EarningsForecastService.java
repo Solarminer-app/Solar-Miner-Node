@@ -78,7 +78,8 @@ public class EarningsForecastService {
             return Forecast.unavailable(coin, ticker, hashrate, network.error());
         }
         double coinsPerDay = hashrate > 0 ? estimateDailyCoins(hashrate, network) : 0.0;
-        return new Forecast(coin, ticker, hashrate > 0, hashrate > 0 ? null : "Miner liefert noch keine Hashrate",
+        String reason = network.stale() ? network.error() : hashrate > 0 ? null : "Miner liefert noch keine Hashrate";
+        return new Forecast(coin, ticker, hashrate > 0, reason,
                 hashrate, network.networkHashrateHps(), network.difficulty(), network.targetBlockSeconds(),
                 network.blockReward(), network.priceUsd(), coinsPerDay, coinsPerDay * network.priceUsd(),
                 network.collectedAt(), network.stale(), network.sources());
@@ -114,9 +115,17 @@ public class EarningsForecastService {
             LOGGER.log(Level.WARNING, "Could not update " + coin + " earnings forecast", exception);
             NetworkSnapshot previous = snapshots.get(coin);
             snapshots.put(coin, previous == null
-                    ? NetworkSnapshot.unavailable("Netzwerk- oder Preisdaten sind derzeit nicht erreichbar")
-                    : previous.asStale());
+                    ? NetworkSnapshot.unavailable("Datenabruf fehlgeschlagen (" + exception.getClass().getSimpleName() + ")", sourcesFor(coin))
+                    : previous.asStale("Letzter Datenabruf fehlgeschlagen (" + exception.getClass().getSimpleName() + ")"));
         }
+    }
+
+    private static List<String> sourcesFor(String coin) {
+        return switch (coin) {
+            case "monero" -> List.of("xmrchain.net (Netzwerk und letzter Block)", "Kraken (XMR/USD)");
+            case "pearl" -> List.of("pearlchain.live (Netzwerkdaten, Blockreward und Preis)");
+            default -> List.of();
+        };
     }
 
     private NetworkSnapshot fetchMonero() throws Exception {
@@ -178,12 +187,12 @@ public class EarningsForecastService {
     record NetworkSnapshot(boolean available, String error, double networkHashrateHps, double difficulty,
                            double targetBlockSeconds, double blockReward, double priceUsd, Instant collectedAt,
                            boolean stale, List<String> sources) {
-        static NetworkSnapshot unavailable(String error) {
-            return new NetworkSnapshot(false, error, 0, 0, 0, 0, 0, Instant.now(), false, List.of());
+        static NetworkSnapshot unavailable(String error, List<String> sources) {
+            return new NetworkSnapshot(false, error, 0, 0, 0, 0, 0, Instant.now(), false, sources);
         }
 
-        NetworkSnapshot asStale() {
-            return new NetworkSnapshot(available, error, networkHashrateHps, difficulty, targetBlockSeconds,
+        NetworkSnapshot asStale(String refreshError) {
+            return new NetworkSnapshot(available, refreshError, networkHashrateHps, difficulty, targetBlockSeconds,
                     blockReward, priceUsd, collectedAt, true, sources);
         }
     }

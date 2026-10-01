@@ -175,7 +175,7 @@ public class MinerAgentController implements MinerController {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
             MinerStats stats = restClient.get().uri(uriBuilder -> uriBuilder.path("/api/agent").build()).retrieve().body(MinerStats.class);
-            Map<?, ?> range = restClient.get().uri("/api/agent/power-control").retrieve().body(Map.class);
+            Map<?, ?> range = restClient.get().uri("/api/agent/power-control/external-status").retrieve().body(Map.class);
             if (stats == null || range == null) return stats;
             long measuredHostUsage = readMeasuredHostPower(restClient, stats);
             double hardwareTemperature = readHardwareTemperature(restClient);

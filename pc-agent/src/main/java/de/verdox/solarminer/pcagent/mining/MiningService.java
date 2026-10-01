@@ -31,6 +31,7 @@ public class MiningService {
     private final XmrMinerService xmrMinerService;
     private final PearlMinerService pearlMinerService;
     private final LocalGpuPowerService gpuPowerService;
+    private final AgentControlSettingsService controls;
     private final Path coinSelectionFile;
     private volatile String activeCoin = "monero";
     private final MinerStats.MinerIdentity minerIdentity;
@@ -38,10 +39,12 @@ public class MiningService {
 
     public MiningService(XmrMinerService xmrMinerService, PearlMinerService pearlMinerService,
                          LocalGpuPowerService gpuPowerService, HardwareIdentityService hardwareIdentityService,
+                         AgentControlSettingsService controls,
                          @Value("${solarminer.agent.coin-selection-file:./solarminer-agent/active-coin.txt}") String coinSelectionPath) {
         this.xmrMinerService = xmrMinerService;
         this.pearlMinerService = pearlMinerService;
         this.gpuPowerService = gpuPowerService;
+        this.controls = controls;
         this.coinSelectionFile = Path.of(coinSelectionPath).toAbsolutePath().normalize();
         this.activeCoin = readSelectedCoin();
         minerUID = "";
@@ -53,20 +56,34 @@ public class MiningService {
 
     /** Allocates the legacy PV-wide budget across CPU and selected GPUs. */
     public synchronized boolean setTarget(long powerTarget) {
+        return setTarget(powerTarget, false);
+    }
+
+    public synchronized boolean setExternalTarget(long powerTarget) {
+        if (powerTarget <= 0) return pauseExternally();
+        if (!controls.get().dynamicPowerScalingEnabled()) return resumeExternally();
+        return setTarget(powerTarget, true);
+    }
+
+    private boolean setTarget(long powerTarget, boolean external) {
         if (powerTarget <= 0) {
+            if (external) return pauseExternally();
             desiredGlobalPowerTarget = 0;
             desiredCpuPowerTarget = 0;
             desiredGpuPowerTarget = 0;
             return pauseAll();
         }
-        long cpuMax = !cpuManuallyPaused && xmrMinerService.readyForStart() ? xmrMinerService.getEstimatedMaxCpuWattage() : 0;
-        List<LocalGpuPowerService.Gpu> cards = pearlMinerService.eligibleGpus().stream()
+        long cpuMax = (!external || controls.workerEnabled("cpu")) && !cpuManuallyPaused && xmrMinerService.readyForStart() ? xmrMinerService.getEstimatedMaxCpuWattage() : 0;
+        List<LocalGpuPowerService.Gpu> allowedGpus = pearlMinerService.eligibleGpus().stream()
+                .filter(gpu -> !external || controls.workerEnabled(gpu.deviceId()))
+                .toList();
+        List<LocalGpuPowerService.Gpu> cards = allowedGpus.stream()
                 .filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling).toList();
         long gpuMinimum = cards.stream().mapToLong(LocalGpuPowerService.Gpu::minWatts).sum();
         long gpuMaximum = cards.stream().mapToLong(LocalGpuPowerService.Gpu::maxWatts).sum();
         long minimum = cpuMax > 0 ? xmrMinerService.getMinimumControllablePowerWatts() : gpuMinimum;
         long maximum = cpuMax + gpuMaximum;
-        if (powerTarget < minimum) return setTarget(0);
+        if (powerTarget < minimum) return external ? pauseExternally() : setTarget(0);
         powerTarget = Math.min(powerTarget, maximum);
         long cpuTarget = Math.min(cpuMax, powerTarget);
         long gpuTarget = 0;
@@ -74,27 +91,72 @@ public class MiningService {
             cpuTarget = Math.min(cpuMax, powerTarget - gpuMinimum);
             gpuTarget = Math.min(gpuMaximum, powerTarget - cpuTarget);
         }
-        if (cpuTarget == 0 && gpuTarget == 0) return setTarget(0);
+        if (cpuTarget == 0 && gpuTarget == 0) return external ? pauseExternally() : setTarget(0);
         if (gpuTarget > 0 && !gpuPowerService.setTotalPowerTarget(gpuTarget, cards)) {
-            if (!pearlMinerService.stop()) return failGlobalBudget();
+            if (!(external ? stopGpus(allowedGpus) : pearlMinerService.stop())) return failGlobalBudget(external);
             gpuTarget = 0;
             cpuTarget = Math.min(cpuMax, powerTarget);
         }
-        if (gpuTarget == 0 && !pearlMinerService.stop()) return failGlobalBudget();
-        xmrMinerService.setDesiredPowerUsage(cpuTarget);
-        if (cpuTarget > 0) xmrMinerService.startMining();
-        if (gpuTarget > 0) pearlMinerService.startForBudget();
+        if (gpuTarget == 0 && !(external ? stopGpus(allowedGpus) : pearlMinerService.stop())) return failGlobalBudget(external);
+        if (!external || controls.workerEnabled("cpu")) {
+            xmrMinerService.setDesiredPowerUsage(cpuTarget);
+            if (cpuTarget > 0) xmrMinerService.startMining();
+        }
+        boolean gpuStartSucceeded = false;
+        if (gpuTarget > 0) {
+            if (external) {
+                for (LocalGpuPowerService.Gpu gpu : cards)
+                    gpuStartSucceeded = pearlMinerService.startGpu(gpu.vendor(), gpu.index()) || gpuStartSucceeded;
+            } else gpuStartSucceeded = pearlMinerService.startForBudget();
+        }
         desiredGlobalPowerTarget = powerTarget;
         desiredCpuPowerTarget = cpuTarget;
         desiredGpuPowerTarget = gpuTarget;
-        return xmrMinerService.isMiningProcessAlive() || pearlMinerService.running();
+        return external
+                ? (cpuTarget > 0 && xmrMinerService.isMiningProcessAlive()) || gpuStartSucceeded
+                : xmrMinerService.isMiningProcessAlive() || pearlMinerService.running();
     }
 
-    private boolean failGlobalBudget() {
+    public synchronized boolean resumeExternally() {
+        boolean anyAllowed = false;
+        if (controls.workerEnabled("cpu") && !cpuManuallyPaused && xmrMinerService.readyForStart()) {
+            xmrMinerService.startMining();
+            anyAllowed |= xmrMinerService.isMiningProcessAlive();
+        }
+        for (LocalGpuPowerService.Gpu gpu : pearlMinerService.eligibleGpus()) {
+            if (controls.workerEnabled(gpu.deviceId()))
+                anyAllowed = pearlMinerService.startGpu(gpu.vendor(), gpu.index()) || anyAllowed;
+        }
+        return anyAllowed;
+    }
+
+    public synchronized boolean pauseExternally() {
         desiredGlobalPowerTarget = 0;
         desiredCpuPowerTarget = 0;
         desiredGpuPowerTarget = 0;
-        pauseAll();
+        boolean success = true;
+        if (controls.workerEnabled("cpu")) {
+            xmrMinerService.hardStopMining();
+        }
+        for (LocalGpuPowerService.Gpu gpu : pearlMinerService.selectedGpus()) {
+            if (controls.workerEnabled(gpu.deviceId()))
+                success = pearlMinerService.stopGpu(gpu.vendor(), gpu.index()) && success;
+        }
+        return success;
+    }
+
+    private boolean stopGpus(List<LocalGpuPowerService.Gpu> cards) {
+        boolean success = true;
+        for (LocalGpuPowerService.Gpu gpu : cards)
+            success = pearlMinerService.stopGpu(gpu.vendor(), gpu.index()) && success;
+        return success;
+    }
+
+    private boolean failGlobalBudget(boolean external) {
+        desiredGlobalPowerTarget = 0;
+        desiredCpuPowerTarget = 0;
+        desiredGpuPowerTarget = 0;
+        if (external) pauseExternally(); else pauseAll();
         return false;
     }
 
@@ -209,16 +271,16 @@ public class MiningService {
     }
 
     public long calculateMinPowerTargetFromComponents() {
-        long cpu = !cpuManuallyPaused && xmrMinerService.readyForStart()
+        long cpu = controls.workerEnabled("cpu") && !cpuManuallyPaused && xmrMinerService.readyForStart()
                 ? xmrMinerService.getMinimumControllablePowerWatts() : 0;
-        long gpu = pearlMinerService.eligibleGpus().stream().filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling)
+        long gpu = pearlMinerService.eligibleGpus().stream().filter(g -> controls.workerEnabled(g.deviceId())).filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling)
                 .mapToLong(LocalGpuPowerService.Gpu::minWatts).sum();
         return cpu > 0 ? cpu : gpu;
     }
 
     public long calculateMaxPowerTargetFromComponents() {
-        long cpu = !cpuManuallyPaused && xmrMinerService.readyForStart() ? xmrMinerService.getEstimatedMaxCpuWattage() : 0;
-        long gpu = pearlMinerService.eligibleGpus().stream().filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling)
+        long cpu = controls.workerEnabled("cpu") && !cpuManuallyPaused && xmrMinerService.readyForStart() ? xmrMinerService.getEstimatedMaxCpuWattage() : 0;
+        long gpu = pearlMinerService.eligibleGpus().stream().filter(g -> controls.workerEnabled(g.deviceId())).filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling)
                 .mapToLong(LocalGpuPowerService.Gpu::maxWatts).sum();
         return cpu + gpu;
     }
@@ -242,6 +304,10 @@ public class MiningService {
         return getWorkerStats(null);
     }
 
+    public List<MinerStats.Worker> getExternallyVisibleWorkerStats() {
+        return getWorkerStats().stream().filter(worker -> controls.workerEnabled(worker.deviceId())).toList();
+    }
+
     private List<MinerStats.Worker> getWorkerStats(List<LocalGpuPowerService.Gpu> discoveredGpus) {
         List<MinerStats.Worker> workers = new ArrayList<>();
         workers.add(xmrMinerService.getWorkerStats());
@@ -253,9 +319,19 @@ public class MiningService {
         return getStats(null);
     }
 
+    public MinerStats getExternalStats() {
+        List<MinerStats.Worker> visible = controls.get().externalControlEnabled()
+                ? getExternallyVisibleWorkerStats() : List.of();
+        return getStatsFromWorkers(visible);
+    }
+
     public MinerStats getStats(List<LocalGpuPowerService.Gpu> discoveredGpus) {
         List<MinerStats.Worker> workers = new ArrayList<>();
         workers.addAll(getWorkerStats(discoveredGpus));
+        return getStatsFromWorkers(workers);
+    }
+
+    private MinerStats getStatsFromWorkers(List<MinerStats.Worker> workers) {
         long totalPowerTarget = 0;
         long totalMinPowerTarget = 0;
         long totalDefaultPowerTarget = 0;
