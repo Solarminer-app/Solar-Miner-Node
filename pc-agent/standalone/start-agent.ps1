@@ -14,13 +14,24 @@ $jarAsset = $release.assets | Where-Object name -eq 'solarminer-pc-agent-standal
 $hashAsset = $release.assets | Where-Object name -eq 'solarminer-pc-agent-standalone.jar.sha256' | Select-Object -First 1
 if (-not $jarAsset -or -not $hashAsset) { throw 'The latest release is missing the Agent JAR or its SHA-256 file.' }
 
-$expectedHash = (Invoke-WebRequest -Headers $headers -Uri $hashAsset.browser_download_url).Content.Trim().Split(' ')[0].ToLowerInvariant()
+$tempHash = Join-Path $installDir 'solarminer-pc-agent-standalone.jar.sha256.download'
+try {
+    Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $hashAsset.browser_download_url -OutFile $tempHash
+    $hashText = (Get-Content -LiteralPath $tempHash -Raw).Trim()
+    $hashMatch = [regex]::Match($hashText, '^([0-9a-fA-F]{64})\s+\*?solarminer-pc-agent-standalone\.jar$')
+    if (-not $hashMatch.Success) {
+        throw 'The PC-Agent SHA-256 file has an invalid format.'
+    }
+    $expectedHash = $hashMatch.Groups[1].Value.ToLowerInvariant()
+} finally {
+    Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath $tempHash
+}
 $currentHash = if (Test-Path -LiteralPath $jarPath) { (Get-FileHash -Algorithm SHA256 -LiteralPath $jarPath).Hash.ToLowerInvariant() } else { '' }
 if ($currentHash -ne $expectedHash) {
     Write-Host "Downloading PC-Agent $($release.tag_name)..."
     $tempJar = "$jarPath.download"
     try {
-        Invoke-WebRequest -Headers $headers -Uri $jarAsset.browser_download_url -OutFile $tempJar
+        Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $jarAsset.browser_download_url -OutFile $tempJar
         $downloadHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $tempJar).Hash.ToLowerInvariant()
         if ($downloadHash -ne $expectedHash) { throw 'PC-Agent JAR SHA-256 validation failed.' }
         Move-Item -Force -LiteralPath $tempJar -Destination $jarPath
@@ -40,7 +51,7 @@ if (-not (Test-Path -LiteralPath $javaExe)) {
     $runtimeZip = Join-Path $installDir $package.name
     $runtimeTemp = "$runtimeZip.download"
     try {
-        Invoke-WebRequest -Headers $headers -Uri $package.link -OutFile $runtimeTemp
+        Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri $package.link -OutFile $runtimeTemp
         $runtimeHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $runtimeTemp).Hash.ToLowerInvariant()
         if ($runtimeHash -ne $package.checksum.ToLowerInvariant()) { throw 'Java runtime SHA-256 validation failed.' }
         Move-Item -Force -LiteralPath $runtimeTemp -Destination $runtimeZip
