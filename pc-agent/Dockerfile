@@ -20,6 +20,7 @@ RUN apt-get update \
         libdrm2 \
         ocl-icd-libopencl1 \
         tini \
+        util-linux \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /data

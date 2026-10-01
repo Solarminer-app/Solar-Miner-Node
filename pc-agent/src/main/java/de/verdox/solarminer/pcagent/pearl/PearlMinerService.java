@@ -380,7 +380,13 @@ public class PearlMinerService {
     }
 
     private int mappedGpuId(LocalGpuPowerService.Gpu gpu) throws IOException {
-        Process listing = new ProcessBuilder(executable.toString(), "--list-devices")
+        // On Linux SRBMiner can return an empty device list when stdout is a pipe,
+        // even though the same CUDA devices are listed on a terminal.
+        List<String> command = System.getProperty("os.name", "").toLowerCase().contains("linux")
+                ? List.of("script", "-q", "-e", "-c",
+                        "exec '" + executable.toString().replace("'", "'\\''") + "' --list-devices", "/dev/null")
+                : List.of(executable.toString(), "--list-devices");
+        Process listing = new ProcessBuilder(command)
                 .directory(executable.getParent().toFile()).redirectErrorStream(true).start();
         try {
             if (!listing.waitFor(15, TimeUnit.SECONDS)) {
@@ -393,7 +399,8 @@ public class PearlMinerService {
             throw new IOException("SRBMiner GPU listing interrupted", e);
         }
         String output = new String(listing.getInputStream().readNBytes(65536), StandardCharsets.UTF_8);
-        if (listing.exitValue() != 0) throw new IOException("SRBMiner GPU listing failed");
+        if (listing.exitValue() != 0) throw new IOException("SRBMiner GPU listing failed (Exit-Code " + listing.exitValue() + "): " + output.strip());
+        if (output.isBlank()) throw new IOException("SRBMiner hat keine GPU-Geräteliste ausgegeben");
         Matcher matcher = (gpu.vendor().equals("NVIDIA") ? NVIDIA : AMD).matcher(output);
         while (matcher.find()) {
             if (Integer.parseInt(matcher.group(2)) == gpu.index() && !matcher.group().contains("disabled by default"))
