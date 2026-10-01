@@ -177,11 +177,14 @@ public class MinerAgentController implements MinerController {
             MinerStats stats = restClient.get().uri(uriBuilder -> uriBuilder.path("/api/agent").build()).retrieve().body(MinerStats.class);
             Map<?, ?> range = restClient.get().uri("/api/agent/power-control").retrieve().body(Map.class);
             if (stats == null || range == null) return stats;
+            long measuredHostUsage = readMeasuredHostPower(restClient, stats);
             double hardwareTemperature = readHardwareTemperature(restClient);
             long min = number(range.get("minPowerWatts"), stats.minPowerTarget());
             long max = number(range.get("maxPowerWatts"), stats.maxPowerTarget());
             long target = number(range.get("currentTargetWatts"), stats.powerTargetWatts());
-            long usage = number(range.get("currentUsageWatts"), stats.approximatedPowerUsageWatts());
+            long usage = measuredHostUsage > 0
+                    ? measuredHostUsage
+                    : number(range.get("currentUsageWatts"), stats.approximatedPowerUsageWatts());
             long standard = number(range.get("defaultPowerWatts"), stats.defaultPowerTarget());
             boolean dynamicEnabled = Boolean.TRUE.equals(range.get("dynamicPowerScalingEnabled"));
             boolean externalEnabled = Boolean.TRUE.equals(range.get("externalControlEnabled"));
@@ -204,6 +207,22 @@ public class MinerAgentController implements MinerController {
                     stats.pools(), stats.workers());
         } catch (Throwable e) {
             return MinerStats.DEFAULT;
+        }
+    }
+
+    /** Prefer the agent's combined CPU/GPU power reading for the miner card total. */
+    private static long readMeasuredHostPower(RestClient restClient, MinerStats stats) {
+        if (stats.miningStatus() != MinerStats.MinerStatus.MINING) return 0;
+        try {
+            JsonNode telemetry = restClient.get().uri("/api/agent/telemetry").retrieve().body(JsonNode.class);
+            JsonNode metric = telemetry == null ? null : telemetry.path("metrics").path("system.total_power");
+            if (metric == null || !metric.path("available").asBoolean(false)
+                    || !"W".equals(metric.path("unit").asText())) return 0;
+            double watts = metric.path("value").asDouble(Double.NaN);
+            return Double.isFinite(watts) && watts > 0 && watts <= 100_000 ? Math.round(watts) : 0;
+        } catch (Throwable ignored) {
+            // Older agents or hosts without readable power sensors use worker estimates.
+            return 0;
         }
     }
 

@@ -109,7 +109,10 @@ public class DashboardFacadeService {
         double batteryPower = pvSiteData.getBatteryPower();
         double batteryCapacityKwh = Math.max(0, pvSiteEntity.getBatteryCapacityWh()) / 1000.0;
         Double batteryRuntimeHours = batteryPower < -0.01 && batteryCapacityKwh > 0 ? batteryCapacityKwh * clamp(pvSiteData.getBatterySoC(), 0, 100) / 100.0 / Math.abs(batteryPower) : null;
-        LiveEnergyDto energyDto = new LiveEnergyDto(finitePositive(pvSiteData.getPvPower()), finitePositive(pvSiteData.getLoadPowerKw() - pvSiteData.getTotalMinerPowerKw()), finitePositive(pvSiteData.getTotalMinerPowerKw()), finitePositive(pvSiteData.getLoadPowerKw()), finitePositive(pvSiteData.getImportPowerKw()), finitePositive(pvSiteData.getExportPowerKw()), Double.isFinite(batteryPower) ? batteryPower : 0, clamp(pvSiteData.getBatterySoC(), 0, 100), batteryCapacityKwh, batteryRuntimeHours, batteryPower > 0.01 ? "CHARGING" : batteryPower < -0.01 ? "DISCHARGING" : "IDLE");
+        // Use the same fresh miner stats as the Mining overview. PVSiteData is a
+        // separately sampled aggregate and can lag behind when miner readings change.
+        double minerPowerKw = actualMinerPowerWatts / 1000.0;
+        LiveEnergyDto energyDto = new LiveEnergyDto(finitePositive(pvSiteData.getPvPower()), finitePositive(pvSiteData.getLoadPowerKw() - minerPowerKw), finitePositive(minerPowerKw), finitePositive(pvSiteData.getLoadPowerKw()), finitePositive(pvSiteData.getImportPowerKw()), finitePositive(pvSiteData.getExportPowerKw()), Double.isFinite(batteryPower) ? batteryPower : 0, clamp(pvSiteData.getBatterySoC(), 0, 100), batteryCapacityKwh, batteryRuntimeHours, batteryPower > 0.01 ? "CHARGING" : batteryPower < -0.01 ? "DISCHARGING" : "IDLE");
 
         DailyEnergySummaryDto dayDto = new DailyEnergySummaryDto(production, totalConsumption, pureHouseholdConsumption, totalConsumptionMiners, totalImported, totalExported, selfConsumedProduction, selfConsumptionPercent, autarkyPercent, miningEigenverbrauch, miningImport, revenue, totalImportCosts, householdSavings, miningOpportunityCosts, minedSats, miningRevenue, miningNetResult, currencySymbol, miningRevenueSummary.totalEuro(), miningRevenueSummary.byCoin());
 
