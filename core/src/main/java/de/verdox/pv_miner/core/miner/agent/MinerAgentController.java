@@ -177,6 +177,7 @@ public class MinerAgentController implements MinerController {
             MinerStats stats = restClient.get().uri(uriBuilder -> uriBuilder.path("/api/agent").build()).retrieve().body(MinerStats.class);
             Map<?, ?> range = restClient.get().uri("/api/agent/power-control").retrieve().body(Map.class);
             if (stats == null || range == null) return stats;
+            double hardwareTemperature = readHardwareTemperature(restClient);
             long min = number(range.get("minPowerWatts"), stats.minPowerTarget());
             long max = number(range.get("maxPowerWatts"), stats.maxPowerTarget());
             long target = number(range.get("currentTargetWatts"), stats.powerTargetWatts());
@@ -199,9 +200,34 @@ public class MinerAgentController implements MinerController {
                 target = fixedPower;
             }
             return new MinerStats(stats.minerIdentity(), stats.name(), stats.miningStatus(), target, min, standard, max,
-                    usage, stats.terahashPerSecond(), stats.temperatureCelsius(), stats.pools(), stats.workers());
+                    usage, stats.terahashPerSecond(), Math.max(stats.temperatureCelsius(), hardwareTemperature),
+                    stats.pools(), stats.workers());
         } catch (Throwable e) {
             return MinerStats.DEFAULT;
+        }
+    }
+
+    /** The agent's hardware sensors are a separate endpoint from its mining-worker statistics. */
+    private static double readHardwareTemperature(RestClient restClient) {
+        try {
+            JsonNode telemetry = restClient.get().uri("/api/agent/telemetry").retrieve().body(JsonNode.class);
+            JsonNode metrics = telemetry == null ? null : telemetry.path("metrics");
+            if (metrics == null || !metrics.isObject()) return 0;
+            double maximum = 0;
+            var fields = metrics.fields();
+            while (fields.hasNext()) {
+                var entry = fields.next();
+                JsonNode metric = entry.getValue();
+                if (!entry.getKey().toLowerCase(java.util.Locale.ROOT).contains("temperature")
+                        || !metric.path("available").asBoolean(false)
+                        || !"°C".equals(metric.path("unit").asText())) continue;
+                double value = metric.path("value").asDouble(Double.NaN);
+                if (Double.isFinite(value) && value >= -20 && value <= 150) maximum = Math.max(maximum, value);
+            }
+            return maximum;
+        } catch (Throwable ignored) {
+            // Older agents may not expose hardware telemetry; retain their worker temperature.
+            return 0;
         }
     }
 
