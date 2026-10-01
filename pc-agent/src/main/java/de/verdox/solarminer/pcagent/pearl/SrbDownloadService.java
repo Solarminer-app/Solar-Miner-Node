@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.springframework.stereotype.Service;
+import de.verdox.solarminer.pcagent.mining.WindowsAntivirusBlock;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,7 +36,8 @@ import java.util.zip.ZipInputStream;
 @Service
 public class SrbDownloadService {
     private static final Logger LOGGER = Logger.getLogger(SrbDownloadService.class.getName());
-    private static final URI RELEASE_API = URI.create("https://api.github.com/repos/doktor83/SRBMiner-Multi/releases/latest");
+    private static final String WINDOWS_VERSION = "3.7.0";
+    private static final URI LINUX_RELEASE_API = URI.create("https://api.github.com/repos/doktor83/SRBMiner-Multi/releases/latest");
     private static final long MAX_ARCHIVE_BYTES = 300L * 1024 * 1024;
     private static final long MAX_EXTRACTED_BYTES = 1024L * 1024 * 1024;
     private final HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
@@ -70,8 +72,10 @@ public class SrbDownloadService {
                 status = "READY";
                 detail = "";
             } catch (Exception e) {
-                status = e instanceof UnsupportedOperationException ? "UNSUPPORTED" : "FAILED";
-                detail = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                status = WindowsAntivirusBlock.causedBy(e) ? "BLOCKED_BY_ANTIVIRUS"
+                        : e instanceof UnsupportedOperationException ? "UNSUPPORTED" : "FAILED";
+                detail = "BLOCKED_BY_ANTIVIRUS".equals(status) ? WindowsAntivirusBlock.DETAIL
+                        : e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
                 LOGGER.log(Level.WARNING, "SRBMiner-MULTI installation failed", e);
             } finally {
                 downloading.set(false);
@@ -83,6 +87,7 @@ public class SrbDownloadService {
     public String status() { return status; }
     public String detail() { return detail; }
     public int progress() { return progress; }
+    public Path installDirectory() { return miner.executablePath().getParent().toAbsolutePath().normalize(); }
 
     public boolean remove() {
         if (!downloading.compareAndSet(false, true)) return false;
@@ -121,7 +126,10 @@ public class SrbDownloadService {
         if (!windows && !os.contains("linux"))
             throw new UnsupportedOperationException("No official SRBMiner package for this operating system");
 
-        HttpRequest releaseRequest = HttpRequest.newBuilder(RELEASE_API).timeout(Duration.ofSeconds(20))
+        URI releaseApi = windows
+                ? URI.create("https://api.github.com/repos/doktor83/SRBMiner-Multi/releases/tags/" + WINDOWS_VERSION)
+                : LINUX_RELEASE_API;
+        HttpRequest releaseRequest = HttpRequest.newBuilder(releaseApi).timeout(Duration.ofSeconds(20))
                 .header("Accept", "application/vnd.github+json")
                 .header("User-Agent", "SolarMiner-PC-Agent").GET().build();
         HttpResponse<InputStream> releaseResponse = http.send(releaseRequest, HttpResponse.BodyHandlers.ofInputStream());
@@ -137,9 +145,9 @@ public class SrbDownloadService {
             release = mapper.readTree(json);
         }
         if (release.path("prerelease").asBoolean() || release.path("draft").asBoolean())
-            throw new IOException("Latest release is not stable");
+            throw new IOException("SRBMiner release is not stable");
         String tag = release.path("tag_name").asText();
-        if (!tag.matches("[0-9]+\\.[0-9]+\\.[0-9]+"))
+        if (windows ? !tag.equals(WINDOWS_VERSION) : !tag.matches("[0-9]+\\.[0-9]+\\.[0-9]+"))
             throw new IOException("Unexpected SRBMiner release tag");
         String name = "SRBMiner-Multi-" + tag.replace('.', '-') + (windows ? "-win64.zip" : "-Linux.tar.gz");
         JsonNode asset = null;

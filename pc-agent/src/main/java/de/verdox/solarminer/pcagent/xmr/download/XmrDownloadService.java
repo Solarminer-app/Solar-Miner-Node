@@ -3,6 +3,7 @@ package de.verdox.solarminer.pcagent.xmr.download;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.springframework.stereotype.Service;
+import de.verdox.solarminer.pcagent.mining.WindowsAntivirusBlock;
 import java.io.*;
 import java.net.URI;
 import java.net.URLConnection;
@@ -29,6 +30,7 @@ public class XmrDownloadService {
     public String status() { return status; }
     public String detail() { return detail; }
     public int progress() { return progress; }
+    public Path installDirectory() { return MAIN_PATH.toAbsolutePath().normalize(); }
 
     public boolean remove() {
         if (!downloading.compareAndSet(false, true)) return false;
@@ -50,8 +52,10 @@ public class XmrDownloadService {
         Thread.ofVirtual().name("xmrig-download").start(() -> {
             try { install(); status = "READY"; progress = 100; }
             catch (Exception e) {
-                status = e instanceof UnsupportedOperationException ? "UNSUPPORTED" : "FAILED";
-                detail = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                status = WindowsAntivirusBlock.causedBy(e) ? "BLOCKED_BY_ANTIVIRUS"
+                        : e instanceof UnsupportedOperationException ? "UNSUPPORTED" : "FAILED";
+                detail = "BLOCKED_BY_ANTIVIRUS".equals(status) ? WindowsAntivirusBlock.DETAIL
+                        : e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
                 LOGGER.log(Level.WARNING, "XMRig installation failed", e);
             } finally { downloading.set(false); }
         });

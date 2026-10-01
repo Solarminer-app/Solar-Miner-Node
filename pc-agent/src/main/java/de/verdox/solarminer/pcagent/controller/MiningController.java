@@ -256,12 +256,13 @@ public class MiningController {
                 System.getProperty("os.arch", "unknown"), coins, earnings, gpus, proxy(), savedMoneroConfiguration(),
                 pearlMinerService.configuration(),
                 new DownloadReadiness(xmrDownloadService.status(), xmrDownloadService.detail(), xmrDownloadService.progress(),
-                        xmrMinerService.lastStartError()),
+                        xmrMinerService.lastStartError(), xmrDownloadService.installDirectory().toString()),
                 new PearlReadiness(pearlConfigured,
                         pearlMinerService.binaryAvailable(),
                         srbDownloadService.status(), srbDownloadService.detail(), srbDownloadService.progress(),
                         pearlMinerService.lastError(), pearlMinerService.connectionDetail(),
-                        pearlMinerService.running(), pearlMinerService.poolHealthy(), pearlMinerService.gpuStates(gpus)),
+                        pearlMinerService.running(), pearlMinerService.poolHealthy(), pearlMinerService.gpuStates(gpus),
+                        srbDownloadService.installDirectory().toString()),
                 payoutDefaults(), new ReferralOverview(referralConfigurationService.get()), feeTransparencyService.overview());
     }
 
@@ -311,7 +312,7 @@ public class MiningController {
                                 List<FeeTransparencyService.FeeOverview> fees) { }
 
     public record DownloadReadiness(String downloadStatus, String downloadDetail, int downloadProgress,
-                                    String minerError) { }
+                                    String minerError, String installDirectory) { }
 
     public record CoinOverview(String id, String name, String ticker, String device, String algorithm,
                                MinerStats.MinerStatus status, boolean configured, boolean binaryAvailable,
@@ -320,7 +321,8 @@ public class MiningController {
     public record PearlReadiness(boolean configured, boolean binaryAvailable,
                                  String downloadStatus, String downloadDetail, int downloadProgress,
                                  String minerError, String connectionDetail, boolean running,
-                                 boolean poolHealthy, List<PearlMinerService.GpuState> gpus) { }
+                                 boolean poolHealthy, List<PearlMinerService.GpuState> gpus,
+                                 String installDirectory) { }
 
     @GetMapping("/earnings")
     public List<EarningsForecastService.Forecast> earnings() {

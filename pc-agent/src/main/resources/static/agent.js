@@ -339,13 +339,47 @@ function renderWorkspace(data) {
     const header = node('div', 'coin-top'); header.append(icon, badge);
     const title = node('h2', '', coin.name); const meta = node('p', 'muted', `${coin.algorithm} · ${coin.device} Mining · ${coin.id === 'monero' ? 'XMRig' : 'SRBMiner-MULTI'}`);
     const readiness = data[coin.id] || {}; const status = readiness.downloadStatus || 'PENDING';
-    const state = node('p', 'catalog-state', coin.binaryAvailable ? `${coin.id === 'pearl' && data.pearl?.running ? 'Läuft auf GPU(s)' : coin.status === 'MINING' ? 'Mining aktiv' : 'Installiert'}` : status === 'DOWNLOADING' ? `Download ${readiness.downloadProgress || 0} %` : status === 'FAILED' || status === 'UNSUPPORTED' ? readiness.downloadDetail || 'Installation fehlgeschlagen' : 'Noch nicht installiert');
+    const blockedByAntivirus = status === 'BLOCKED_BY_ANTIVIRUS';
+    const state = node('p', 'catalog-state', coin.binaryAvailable ? `${coin.id === 'pearl' && data.pearl?.running ? 'Läuft auf GPU(s)' : coin.status === 'MINING' ? 'Mining aktiv' : 'Installiert'}` : status === 'DOWNLOADING' ? `Download ${readiness.downloadProgress || 0} %` : blockedByAntivirus ? 'Windows-Sicherheit hat den Miner blockiert.' : status === 'FAILED' || status === 'UNSUPPORTED' ? readiness.downloadDetail || 'Installation fehlgeschlagen' : 'Noch nicht installiert');
     card.append(header, title, meta, state);
+    if (blockedByAntivirus && !coin.binaryAvailable) {
+      const guidance = node('p', 'muted', 'Öffne Windows-Sicherheit → Viren- & Bedrohungsschutz → Schutzverlauf. Prüfe den Erkennungsnamen und die Datei. Gib nur eine verifizierte Datei frei. Danach kannst du den Download erneut starten.');
+      const help = node('a', 'muted', 'Microsoft: Schutzverlauf ↗');
+      help.href = 'https://support.microsoft.com/en-us/windows/security/windows-security/protection-history-in-the-windows-security-app';
+      help.target = '_blank'; help.rel = 'noopener noreferrer';
+      const exclusion = node('p', 'muted', 'Wird derselbe geprüfte Miner weiter blockiert, kann ein Administrator gezielt seinen Installationsordner ausnehmen. Alle Dateien dort bleiben dann ungeprüft; verwende keine Ausnahme für den ganzen PC-Agent oder Dateityp.');
+      const exclusionHelp = node('a', 'muted', 'Microsoft: Ausnahmen verwalten ↗');
+      exclusionHelp.href = 'https://learn.microsoft.com/en-us/defender-endpoint/microsoft-defender-antivirus-exclusions-configure';
+      exclusionHelp.target = '_blank'; exclusionHelp.rel = 'noopener noreferrer';
+      card.append(guidance, help, exclusion, exclusionHelp);
+      if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
+        const directory = String(readiness.installDirectory || '');
+        if (/^[A-Za-z]:\\/.test(directory) && !/[\x00-\x1f]/.test(directory)) {
+          const command = `Add-MpPreference -ExclusionPath '${directory.replace(/'/g, "''")}'`;
+          const label = node('label', 'muted defender-command', 'Diesen Befehl nur nach Prüfung in einer PowerShell als Administrator auf diesem PC ausführen:');
+          const field = document.createElement('textarea');
+          field.className = 'defender-command-text'; field.readOnly = true; field.rows = 3; field.value = command;
+          field.setAttribute('aria-label', 'PowerShell-Befehl für die Defender-Ausnahme');
+          const copy = node('button', 'button subtle defender-copy', 'Ausnahme-Befehl kopieren');
+          copy.type = 'button';
+          copy.addEventListener('click', async () => {
+            try {
+              if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(command);
+              else { field.select(); if (!document.execCommand('copy')) throw new Error('copy failed'); }
+              copy.textContent = t('Befehl kopiert');
+            } catch (_) { field.select(); copy.textContent = t('Befehl markieren und kopieren'); }
+          });
+          label.append(field); card.append(label, copy);
+        }
+      } else {
+        card.append(node('p', 'muted', 'Öffne diese Seite auf dem betroffenen PC unter http://127.0.0.1:8084/mining.html, um den passenden Ausnahme-Befehl zu kopieren.'));
+      }
+    }
     if (status === 'DOWNLOADING') {
       const bar = node('progress', 'download-progress'); bar.max = 100; bar.value = readiness.downloadProgress || 0;
       bar.setAttribute('aria-label', `${coin.name} Downloadfortschritt`); card.append(bar);
     }
-    const button = node('button', `button ${coin.binaryAvailable ? '' : 'primary'}`, coin.binaryAvailable ? 'Miner öffnen' : status === 'DOWNLOADING' ? 'Wird installiert …' : status === 'FAILED' ? 'Erneut versuchen' : 'Herunterladen & installieren');
+    const button = node('button', `button ${coin.binaryAvailable ? '' : 'primary'}`, coin.binaryAvailable ? 'Miner öffnen' : status === 'DOWNLOADING' ? 'Wird installiert …' : blockedByAntivirus ? 'Nach Prüfung erneut versuchen' : status === 'FAILED' ? 'Erneut versuchen' : 'Herunterladen & installieren');
     button.type = 'button'; button.disabled = busy || status === 'DOWNLOADING';
     button.addEventListener('click', () => {
       if (coin.binaryAvailable) showView(coin.id);
@@ -363,7 +397,7 @@ function renderWorkspace(data) {
   if (pendingInstall) {
     const coin = data.coins?.find(c => c.id === pendingInstall);
     if (coin?.binaryAvailable) { const installedId = pendingInstall; pendingInstall = null; showView(installedId); }
-    else if (['FAILED', 'UNSUPPORTED'].includes(data[pendingInstall]?.downloadStatus)) pendingInstall = null;
+    else if (['FAILED', 'UNSUPPORTED', 'BLOCKED_BY_ANTIVIRUS'].includes(data[pendingInstall]?.downloadStatus)) pendingInstall = null;
   }
   if (selectedView !== 'catalog') {
     const coin = data.coins?.find(c => c.id === selectedView);
@@ -374,7 +408,7 @@ async function installMiner(coin) {
   pendingInstall = coin;
   await action(`/api/agent/${coin}/download`, `${coin === 'monero' ? 'XMRig' : 'SRBMiner-MULTI'}-Download gestartet.`);
   const readiness = latest?.[coin];
-  if (readiness?.downloadStatus === 'FAILED' || readiness?.downloadStatus === 'UNSUPPORTED') pendingInstall = null;
+  if (['FAILED', 'UNSUPPORTED', 'BLOCKED_BY_ANTIVIRUS'].includes(readiness?.downloadStatus)) pendingInstall = null;
 }
 async function removeMiner(coin) {
   const name = coin === 'monero' ? 'XMRig' : 'SRBMiner-MULTI';

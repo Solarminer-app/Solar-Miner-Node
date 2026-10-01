@@ -13,6 +13,20 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - Remaining gaps / hardware or rollout gates:
 - Documentation updated:
 
+### 2026-10-02 — Windows miner antivirus block handling
+
+- Scope and owner: PC-Agent XMRig/SRBMiner installers and Mining catalog; no cross-repository API contract changed. The existing `downloadStatus` field gains `BLOCKED_BY_ANTIVIRUS`.
+- Implemented behavior: `WindowsAntivirusBlock` identifies a Windows file-access error caused by antivirus/PUA detection. Both installers report a dedicated status and safe guidance; the catalog shows Protection history instructions and offers only a user-triggered retry. No antivirus setting is changed. SRBMiner Windows uses the documented 3.7.0 release tag; Linux release selection remains unchanged.
+- Evidence and verification: source paths are `WindowsAntivirusBlock`, both download services, `agent.js`, and `WindowsAntivirusBlockTest`. The official GitHub SRBMiner 3.7.0 tag exists; archive size and SHA-256 checks remain in the installer. Both JavaScript syntax checks, Java 21 compilation of the new classifier, and `git diff --check` passed. The focused Gradle test could not run offline: the wrapper attempted a blocked distribution download; the locally installed Gradle then could not resolve the Foojay settings plugin from its sandbox cache.
+- Open rollout gate: inspect the exact Defender detection on an affected Windows host, submit any confirmed false positive to Microsoft, and verify the pinned asset's installation and mining on that host. A checked digest or a pinned version does not prove Defender acceptance.
+
+### 2026-10-02 — User-controlled Defender folder exclusion guidance
+
+- Scope and owner: PC-Agent Mining catalog and local overview. Monero and Pearl readiness now include `installDirectory`, derived from the same path used by their installers, so custom Pearl binary locations are reflected.
+- Implemented behavior: after a Windows antivirus block, the catalog displays the exact folder and a copyable Microsoft `Add-MpPreference -ExclusionPath` command only when opened on the affected PC via loopback. It escapes PowerShell single quotes and rejects control characters. The operator must inspect Defender's finding and execute the command in an elevated PowerShell; SolarMiner makes no antivirus setting changes.
+- Verification: JavaScript syntax checks and repository diff check passed. Java/Gradle verification remains blocked by unavailable offline Foojay settings dependency. No real Defender configuration was changed or verified.
+- Open gate: run on an affected Windows host and verify that Defender accepts the chosen folder exclusion and the official miner archive. Managed policies or other antivirus products may override a local Defender exception.
+
 ### 2026-10-01 — mining PDF coin reward precision
 
 - Scope and owner: Node mining PDF generation in `TaxReportService`.
@@ -72,3 +86,17 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - `ClusterController` checks controller action results before writing state locks for start and power-target actions. Failed commands emit a tick warning and remain eligible for a later controller retry.
 - Added a Miner entfernen action to the installed miner detail view; catalog removal remains available too.
 - Evidence: source review of `MiningService`, `ClusterController` and static PC-Agent UI. JavaScript syntax and repository diff checks run after editing; Gradle compilation remains unavailable because the wrapper distribution cannot be downloaded in this restricted network environment.
+
+## 2026-10-01 — benchmark publication threshold contract
+
+- Producer behavior is unchanged: `TelemetryReporter` sends opted-in active-device observations with positive hashrate. Its comment now reflects the admin service's one-sample public threshold.
+- Contract evidence: admin `BenchmarkService` defaults to one sample per 14-day hardware group; `admin-portal/docs/encyclopedia/08-contracts.md` records that a group with `sampleCount=1` exposes that device's metrics.
+- Verification: source and diff checks only; no live telemetry or Java build was available in this network-restricted environment.
+
+## 2026-10-02 — Windows PC-Agent release launcher
+
+- Scope and owner: `pc-agent/standalone/start-agent.bat` and `start-agent.ps1` in Solar-Miner-Node. No cross-repository contract changed.
+- The batch launcher now requests its matching PowerShell release asset with basic parsing and explicit TLS 1.2/User-Agent settings. The PowerShell launcher downloads the SHA-256 asset to a temporary file, reads it as text, validates the expected JAR checksum format, and uses basic parsing for all downloads. This avoids Windows PowerShell 5.1 treating the response content as a byte array before `Trim()`.
+- Verification: Windows PowerShell 5.1 mocked release and download responses; a valid SHA-256 fixture downloaded and verified the JAR, while malformed checksum text was rejected. Live GitHub/Adoptium downloads and a full agent start were not exercised.
+- Rollout gate: publish both updated launcher assets in a new PC-Agent release; the existing release continues serving its old PowerShell script until then.
+- Follow-up: `start-agent.bat` now runs an adjacent `start-agent.ps1` first, so the checked-out source pair works immediately even while the latest published release still contains the old script. The standalone download path remains the fallback when no adjacent script exists. A Windows `cmd.exe` test with a local fixture confirmed the adjacent-script branch; live release download and agent startup remain unverified.
