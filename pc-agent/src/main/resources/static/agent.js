@@ -47,7 +47,7 @@ function renderOptimizationChecklist(coin, data) {
     if (tip.control) {
       const input = document.createElement('input'); input.type = 'checkbox'; input.checked = active;
       input.disabled = optimizationBusy;
-      input.setAttribute('aria-label', `${tip.title} über SolarMiner aktivieren`);
+      input.setAttribute('aria-label', `${t(tip.title)} ${t('über SolarMiner aktivieren')}`);
       input.addEventListener('change', () => setRandomXOptimization(tip, input.checked));
       label.prepend(input);
     } else {
@@ -56,7 +56,7 @@ function renderOptimizationChecklist(coin, data) {
     const description = node('p', 'muted', tip.action);
     const source = node('a', '', 'Dokumentation öffnen ↗'); source.href = tip.source; source.target = '_blank'; source.rel = 'noopener noreferrer';
     item.append(label, description);
-    if (tip.risk) item.append(node('p', 'optimization-risk', `Risiko: ${tip.risk}`));
+    if (tip.risk) item.append(node('p', 'optimization-risk', `${t('Risiko:')} ${t(tip.risk)}`));
     item.append(source); list.append(item);
   }
   const statusMessage = $('optimization-message');
@@ -93,11 +93,14 @@ async function setRandomXOptimization(tip, enabled) {
       throw new Error(body?.message || `HTTP ${response.status}`);
     }
     randomXOptimization = await response.json();
+    const enabledStatus = tip.id === 'huge-pages' ? randomXOptimization.hugePagesActive : randomXOptimization.oneGbPagesActive;
     const message = randomXOptimization.restartRequired
       ? 'Neustart erforderlich: Windows hat die Berechtigung eingerichtet. Starte den PC neu; danach wird Huge Pages hier als aktiv angezeigt.'
       : !enabled && platformKey(latest?.platform) === 'windows'
         ? 'Huge Pages sind in XMRig deaktiviert. Windows übernimmt Änderungen an Benutzerrechten bei einer neuen Anmeldung; vorhandene Sitzungen können das alte Recht bis dahin behalten.'
-        : 'XMRig-Einstellung wurde aktualisiert.';
+        : enabled && !enabledStatus
+          ? 'Einstellung wurde gespeichert, ist auf diesem System aber noch nicht aktiv.'
+          : enabled ? 'Funktion wurde aktiviert.' : 'Funktion wurde deaktiviert.';
     $('optimization-message').classList.remove('error');
     $('optimization-message').hidden = false;
     set('optimization-message', message);
@@ -550,7 +553,7 @@ async function refresh() {
     $('notice').dataset.kind = 'connection'; notice(`Daten konnten nicht geladen werden: ${error.message}`, true);
   }
 }
-async function action(path, success, params, body) {
+async function action(path, success, params, body, feedbackId = null) {
   if (busy) return;
   busy = true; $('resume').disabled = true; $('pause').disabled = true;
   try {
@@ -563,9 +566,12 @@ async function action(path, success, params, body) {
     }
     if (await response.json() !== true) throw new Error('Der Agent hat die Konfiguration abgelehnt');
     $('notice').dataset.kind = 'action'; notice(success);
+    if (feedbackId) { const feedback = $(feedbackId); feedback.classList.remove('error'); feedback.hidden = false; feedback.textContent = t(success); }
   } catch (error) {
     $('notice').dataset.kind = 'action';
-    notice(error.message.startsWith('HTTP ') ? `${error.message}. Bitte Agent-Logs prüfen.` : error.message, true);
+    const message = error.message.startsWith('HTTP ') ? `${error.message}. Bitte Agent-Logs prüfen.` : error.message;
+    notice(message, true);
+    if (feedbackId) { const feedback = $(feedbackId); feedback.classList.add('error'); feedback.hidden = false; feedback.textContent = t(message); }
   }
   finally { busy = false; await refresh(); }
 }
@@ -623,8 +629,8 @@ $('proxy-discover').addEventListener('click', async () => {
     button.disabled = false; button.textContent = 'Erneut im Netzwerk suchen';
   }
 });
-$('monero-form').addEventListener('submit', event => { event.preventDefault(); if (!$('monero-form').reportValidity()) return; if (!latest?.proxy?.moneroUrl) return notice('SolarMiner-Proxy für Monero fehlt. Verbinde zuerst den Proxy.', true); if (!payoutAvailable('monero')) return; const standard = usesStandardPayout('monero'); action('/api/agent/monero/configuration', standard ? 'Monero gespeichert: Auszahlung an das SolarMiner-Standardziel.' : 'Monero-Konfiguration gespeichert.', null, { poolUrl: standard ? '' : selectedPool('monero'), wallet: standard ? '' : $('monero-wallet').value.trim(), worker: $('monero-worker').value.trim() }); });
-$('pearl-form').addEventListener('submit', event => { event.preventDefault(); if (!$('pearl-form').reportValidity()) return; const indices = [...selectedGpuIndices].filter(index => latest?.gpus?.some(gpu => gpuKey(gpu) === index)).sort(); if (!indices.length) return notice('Wähle mindestens eine erkannte GPU.', true); if (!latest?.proxy?.pearlUrl) return notice('SolarMiner-Proxy für Pearl fehlt. Verbinde zuerst den Proxy.', true); if (!payoutAvailable('pearl')) return; const standard = usesStandardPayout('pearl'); action('/api/agent/pearl/configuration', standard ? 'Pearl gespeichert: Auszahlung an das SolarMiner-Standardziel.' : 'Pearl-Konfiguration und GPU-Auswahl gespeichert.', null, { poolUrl: standard ? '' : selectedPool('pearl'), proxyUrl: latest.proxy.pearlUrl, wallet: standard ? '' : $('pearl-wallet').value.trim(), worker: $('pearl-worker').value.trim(), devices: indices.join(',') }); });
+$('monero-form').addEventListener('submit', event => { event.preventDefault(); if (!$('monero-form').reportValidity()) return; if (!latest?.proxy?.moneroUrl) return notice('SolarMiner-Proxy für Monero fehlt. Verbinde zuerst den Proxy.', true); if (!payoutAvailable('monero')) return; const standard = usesStandardPayout('monero'); action('/api/agent/monero/configuration', standard ? 'Monero gespeichert: Auszahlung an das SolarMiner-Standardziel.' : 'Monero-Konfiguration gespeichert.', null, { poolUrl: standard ? '' : selectedPool('monero'), wallet: standard ? '' : $('monero-wallet').value.trim(), worker: $('monero-worker').value.trim() }, 'monero-save-feedback'); });
+$('pearl-form').addEventListener('submit', event => { event.preventDefault(); if (!$('pearl-form').reportValidity()) return; const indices = [...selectedGpuIndices].filter(index => latest?.gpus?.some(gpu => gpuKey(gpu) === index)).sort(); if (!indices.length) return notice('Wähle mindestens eine erkannte GPU.', true); if (!latest?.proxy?.pearlUrl) return notice('SolarMiner-Proxy für Pearl fehlt. Verbinde zuerst den Proxy.', true); if (!payoutAvailable('pearl')) return; const standard = usesStandardPayout('pearl'); action('/api/agent/pearl/configuration', standard ? 'Pearl gespeichert: Auszahlung an das SolarMiner-Standardziel.' : 'Pearl-Konfiguration und GPU-Auswahl gespeichert.', null, { poolUrl: standard ? '' : selectedPool('pearl'), proxyUrl: latest.proxy.pearlUrl, wallet: standard ? '' : $('pearl-wallet').value.trim(), worker: $('pearl-worker').value.trim(), devices: indices.join(',') }, 'pearl-save-feedback'); });
 $('power-form').addEventListener('submit', event => { event.preventDefault(); if ($('power-form').reportValidity()) action('/api/agent/miners/pearl/power-target', 'GPU-Leistungsziel übernommen.', { powerTarget: $('power-input').value }); });
 let lastPoll = Date.now();
 refresh(); setInterval(pollConsole, 2000); setInterval(() => {

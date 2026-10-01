@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -70,6 +71,7 @@ public class HardwareTelemetryService {
         add(metrics, "agent.jvm.memory.max", Runtime.getRuntime().maxMemory(), "B", "JVM", true);
 
         if (isLinux()) addLinuxHwmon(metrics);
+        if (isLinux()) addLinuxGpuTemperatures(metrics);
         double cpuWatts = sensorReader.getCpuPowerWatts();
         double gpuWatts = gpuPowerTotal(metrics, gpus);
         int powerComponents = (Double.isFinite(cpuWatts) && cpuWatts > 0 ? 1 : 0)
@@ -196,6 +198,70 @@ public class HardwareTelemetryService {
         } catch (Exception ignored) {
             // Some containers expose no host hwmon devices or deny sensor permissions.
         }
+    }
+
+    /** Reads GPU temperatures from driver interfaces that are not exposed as generic hwmon sensors. */
+    private void addLinuxGpuTemperatures(Map<String, Metric> metrics) {
+        addNvidiaGpuTemperatures(metrics);
+        addAmdGpuTemperatures(metrics);
+    }
+
+    private void addNvidiaGpuTemperatures(Map<String, Metric> metrics) {
+        try {
+            Process process = new ProcessBuilder("nvidia-smi", "--query-gpu=index,temperature.gpu",
+                    "--format=csv,noheader,nounits").redirectErrorStream(true).start();
+            if (!process.waitFor(Duration.ofSeconds(3).toMillis(), TimeUnit.MILLISECONDS)) {
+                process.destroyForcibly();
+                return;
+            }
+            if (process.exitValue() != 0) return;
+            try (var output = process.getInputStream()) {
+                for (String line : new String(output.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).lines().toList()) {
+                    String[] columns = line.split(",", -1);
+                    if (columns.length != 2) continue;
+                    try {
+                        int index = Integer.parseInt(columns[0].trim());
+                        double temperature = Double.parseDouble(columns[1].trim());
+                        if (index >= 0 && temperature >= -20 && temperature <= 150)
+                            add(metrics, "gpu.nvidia." + index + ".temperature", temperature, "°C", "nvidia-smi", true);
+                    } catch (NumberFormatException ignored) { }
+                }
+            }
+        } catch (Exception ignored) { }
+    }
+
+    /** AMD exposes edge/junction readings under each DRM card's hwmon directory. */
+    private void addAmdGpuTemperatures(Map<String, Metric> metrics) {
+        Path drm = Path.of("/sys/class/drm");
+        try (Stream<Path> cards = Files.list(drm)) {
+            for (Path card : cards.filter(path -> path.getFileName().toString().matches("card\\d+")).toList()) {
+                String cardName = card.getFileName().toString();
+                Path hwmon = card.resolve("device/hwmon");
+                try (Stream<Path> devices = Files.list(hwmon)) {
+                    for (Path device : devices.toList()) {
+                        try (Stream<Path> inputs = Files.list(device)) {
+                            for (Path input : inputs.filter(path -> path.getFileName().toString().matches("temp\\d+_input")).toList()) {
+                                Double value = readHwmonTemperature(input);
+                                if (value == null) continue;
+                                String filename = input.getFileName().toString();
+                                String number = filename.substring(4, filename.indexOf('_'));
+                                String label = readText(input.resolveSibling("temp" + number + "_label"), "edge");
+                                add(metrics, "gpu.amd." + cardName + "." + safe(label) + ".temperature",
+                                        value, "°C", "Linux DRM hwmon", true);
+                            }
+                        } catch (Exception ignored) { }
+                    }
+                } catch (Exception ignored) { }
+            }
+        } catch (Exception ignored) { }
+    }
+
+    private static Double readHwmonTemperature(Path path) {
+        try {
+            double raw = Double.parseDouble(Files.readString(path).trim());
+            double celsius = raw > 1000 ? raw / 1000.0 : raw;
+            return Double.isFinite(celsius) && celsius >= -20 && celsius <= 150 ? celsius : null;
+        } catch (Exception ignored) { return null; }
     }
 
     private static String sensorLabel(Path input, String filename) {
