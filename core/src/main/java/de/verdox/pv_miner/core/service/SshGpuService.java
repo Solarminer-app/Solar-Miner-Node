@@ -14,7 +14,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Typed, key-only SSH access to Linux GPU tools. No arbitrary command endpoint. */
+/**
+ * Typed, key-only SSH access to Linux GPU tools. No arbitrary command endpoint.
+ */
 @Service
 public class SshGpuService {
     private static final Pattern HOST = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$");
@@ -23,22 +25,28 @@ public class SshGpuService {
     private static final Pattern AMD_MAX = Pattern.compile("MAX_POWER_LIMIT:\\s*([0-9]+(?:\\.[0-9]+)?)", Pattern.CASE_INSENSITIVE);
     private final Path identityFile;
     private final Path knownHostsFile;
-    public SshGpuService(@Value("${solarminer.gpu.ssh.identity-file:}") String identityFile,
-                         @Value("${solarminer.gpu.ssh.known-hosts-file:}") String knownHostsFile) {
+
+    public SshGpuService(@Value("${solarminer.gpu.ssh.identity-file:}") String identityFile, @Value("${solarminer.gpu.ssh.known-hosts-file:}") String knownHostsFile) {
         this.identityFile = identityFile.isBlank() ? null : Path.of(identityFile).toAbsolutePath().normalize();
         this.knownHostsFile = knownHostsFile.isBlank() ? null : Path.of(knownHostsFile).toAbsolutePath().normalize();
     }
 
-    public record Target(String host, String user, int gpuIndex) { }
-    public record Inventory(String nvidia, String amd) { }
-    public record PowerLimits(double minWatts, double maxWatts) { }
+    public record Target(String host, String user, int gpuIndex) {
+    }
+
+    public record Inventory(String nvidia, String amd) {
+    }
+
+    public record PowerLimits(double minWatts, double maxWatts) {
+    }
 
     public Inventory inventory(String host, String user) throws IOException, InterruptedException {
         Target target = new Target(host, user, 0);
         validateTarget(target);
         String nvidia = tryRun(target, "nvidia-smi --query-gpu=index,name,uuid,power.draw,power.limit,temperature.gpu,clocks.gr --format=csv,noheader,nounits");
         String amd = tryRun(target, "amd-smi metric --json");
-        if (nvidia.isBlank() && amd.isBlank()) throw new IOException("Neither nvidia-smi nor amd-smi is available on the remote host");
+        if (nvidia.isBlank() && amd.isBlank())
+            throw new IOException("Neither nvidia-smi nor amd-smi is available on the remote host");
         return new Inventory(nvidia, amd);
     }
 
@@ -85,7 +93,9 @@ public class SshGpuService {
         }
     }
 
-    /** Clocks are bounded by the driver's supported list; voltage is never set directly. */
+    /**
+     * Clocks are bounded by the driver's supported list; voltage is never set directly.
+     */
     public void lockNvidiaCoreClock(Target target, int mhz) throws IOException, InterruptedException {
         validateTarget(target);
         if (mhz < 100 || mhz > 5000) throw new IllegalArgumentException("Invalid GPU clock");
@@ -101,7 +111,9 @@ public class SshGpuService {
         run(target, "sudo -n nvidia-smi -i " + target.gpuIndex() + " -rgc");
     }
 
-    /** Controls only the fixed SolarMiner Pearl systemd unit on an enrolled Linux rig. */
+    /**
+     * Controls only the fixed SolarMiner Pearl systemd unit on an enrolled Linux rig.
+     */
     public String pearlServiceStatus(String host, String user) throws IOException, InterruptedException {
         Target target = new Target(host, user, 0);
         validateTarget(target);
@@ -115,13 +127,15 @@ public class SshGpuService {
     }
 
     private String tryRun(Target target, String command) throws InterruptedException {
-        try { return run(target, command); } catch (IOException e) { return ""; }
+        try {
+            return run(target, command);
+        } catch (IOException e) {
+            return "";
+        }
     }
 
     private void validateTarget(Target target) {
-        if (target == null || target.host() == null || !HOST.matcher(target.host()).matches() ||
-                target.user() == null || !USER.matcher(target.user()).matches() ||
-                target.gpuIndex() < 0 || target.gpuIndex() > 63) {
+        if (target == null || target.host() == null || !HOST.matcher(target.host()).matches() || target.user() == null || !USER.matcher(target.user()).matches() || target.gpuIndex() < 0 || target.gpuIndex() > 63) {
             throw new IllegalArgumentException("Invalid SSH host, user or GPU index");
         }
     }
@@ -130,14 +144,10 @@ public class SshGpuService {
         if (identityFile == null || knownHostsFile == null || !Files.isRegularFile(identityFile) || !Files.isRegularFile(knownHostsFile)) {
             throw new IOException("GPU SSH identity and known_hosts must be configured on solarminer-core");
         }
-        List<String> args = new ArrayList<>(List.of("ssh", "-F", "none", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",
-                "-o", "ConnectTimeout=5", "-o", "ConnectionAttempts=1", "-o", "IdentitiesOnly=yes",
-                "-o", "UserKnownHostsFile=" + knownHostsFile, "-i", identityFile.toString(), "--",
-                target.user() + "@" + target.host(), command));
+        List<String> args = new ArrayList<>(List.of("ssh", "-F", "none", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=5", "-o", "ConnectionAttempts=1", "-o", "IdentitiesOnly=yes", "-o", "UserKnownHostsFile=" + knownHostsFile, "-i", identityFile.toString(), "--", target.user() + "@" + target.host(), command));
         Path outputFile = Files.createTempFile("solarminer-gpu-ssh-", ".log");
         try {
-            Process process = new ProcessBuilder(args).redirectErrorStream(true)
-                    .redirectOutput(outputFile.toFile()).start();
+            Process process = new ProcessBuilder(args).redirectErrorStream(true).redirectOutput(outputFile.toFile()).start();
             if (!process.waitFor(Duration.ofSeconds(12).toMillis(), TimeUnit.MILLISECONDS)) {
                 process.destroyForcibly();
                 throw new IOException("GPU SSH command timed out");

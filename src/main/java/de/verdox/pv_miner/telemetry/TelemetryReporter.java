@@ -21,6 +21,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -166,8 +167,33 @@ public class TelemetryReporter {
                 round(solarTodayKwh),
                 round(solarTotalKwh),
                 round(miningTodayKwh),
+                benchmarksFor(site),
                 geoGridFor(site),
                 nodeIdFor());
+    }
+
+    /**
+     * Current observations, normalized to H/s. The device key is a locally
+     * derived pseudonym (not a serial number or MAC); the central service uses
+     * it only to avoid double-counting and publishes k-anonymous medians only.
+     */
+    private List<BenchmarkSample> benchmarksFor(PVSiteEntity site) {
+        return site.getMiners().stream().flatMap(miner -> {
+            MinerStats stats = queryService.getLastResult(miner, MinerStats.DEFAULT);
+            if (stats == null || stats.miningStatus() != MinerStats.MinerStatus.MINING) return java.util.stream.Stream.empty();
+            String model = stats.minerIdentity() == null ? null : stats.minerIdentity().minerModel();
+            String rawKey = stats.minerIdentity() == null ? null : stats.minerIdentity().minerUID();
+            if (model == null || model.isBlank() || rawKey == null || rawKey.isBlank()) return java.util.stream.Stream.empty();
+            String key = UUID.nameUUIDFromBytes((ensureIdentity(site) + ":" + rawKey).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+            String type = miner.getOS().name().equals("AGENT") ? "PC" : "ASIC";
+            if (stats.workers() == null || stats.workers().isEmpty()) {
+                return java.util.stream.Stream.of(new BenchmarkSample(key, type, model, stats.getSingleAlgorithmMined(), miner.getOS().name(), null,
+                        round(stats.terahashPerSecond() * 1_000_000_000_000d), (double) stats.approximatedPowerUsageWatts(), (double) stats.powerTargetWatts()));
+            }
+            return stats.workers().stream().filter(w -> w.miningStatus() == MinerStats.MinerStatus.MINING && w.currentAlgorithm() != null && !w.currentAlgorithm().isBlank())
+                    .map(w -> new BenchmarkSample(key + ":" + w.workerDisplayName(), type, model, w.currentAlgorithm(), miner.getOS().name(), null,
+                            round(w.terahashPerSecond() * 1_000_000_000_000d), (double) w.approximatedPowerUsageWatts(), (double) w.powerTargetWatts()));
+        }).filter(b -> b.hashrateHs() > 0 && b.algorithm() != null && !b.algorithm().isBlank() && !"-".equals(b.algorithm())).toList();
     }
 
     /**
@@ -271,7 +297,12 @@ public class TelemetryReporter {
             Double solarKwhToday,
             Double solarKwhTotal,
             Double miningKwhToday,
+            List<BenchmarkSample> benchmarks,
             String locationGrid,
             String nodeId) {
     }
+
+    public record BenchmarkSample(String deviceKey, String hardwareType, String hardwareModel, String algorithm,
+                                  String minerOs, String processorArchitecture, Double hashrateHs,
+                                  Double powerWatts, Double powerTargetWatts) { }
 }

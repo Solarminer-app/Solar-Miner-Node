@@ -189,6 +189,8 @@ Controller source: [`MinerController`](../core/src/main/java/de/verdox/pv_miner/
 | `GET` | `/api/miners/dev-fee/overview` | Return the current developer-fee and referral hashrate distribution. |
 | `GET` | `/api/miners/dev-fee/referral/validate` | Validate a referral code against the public SolarMiner backend. |
 
+`TWENTY_ONE_ENERGY` is a local 21energy heater adapter. It is registered in Core and can be discovered and monitored through the same miner lifecycle. A newly connected heater is always monitoring-only: Core rejects start, pause, resume, power and pool-write requests until a model/firmware-specific capability record and measured level-to-watt map have been verified. This is intentional; a successful network probe is not permission to produce heat or replace a pool configuration.
+
 ## Currency Rates API
 
 The Currency Rates API is read-only and already versioned under `/api/v1`. Base URL in the default deployment: `http://<node>:8081`.

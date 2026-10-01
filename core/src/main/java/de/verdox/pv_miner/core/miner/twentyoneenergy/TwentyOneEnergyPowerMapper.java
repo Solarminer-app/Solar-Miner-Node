@@ -4,7 +4,9 @@ import java.util.Map;
 import java.util.OptionalInt;
 import java.util.TreeMap;
 
-/** Maps a PV budget to a verified discrete heater level without ever exceeding it. */
+/**
+ * Maps a PV budget to a verified discrete heater level without ever exceeding it.
+ */
 public final class TwentyOneEnergyPowerMapper {
     private final Map<Integer, Long> wattsByLevel;
 
@@ -16,11 +18,7 @@ public final class TwentyOneEnergyPowerMapper {
     public OptionalInt levelForBudget(long watts) {
         return new TreeMap<>(wattsByLevel).entrySet().stream()
                 // Level 0 is not assumed to be electrically off; the controller disables the heater below level 1.
-                .filter(entry -> entry.getKey() > 0)
-                .filter(entry -> entry.getValue() <= watts)
-                .max(Map.Entry.comparingByValue())
-                .map(entry -> OptionalInt.of(entry.getKey()))
-                .orElseGet(OptionalInt::empty);
+                .filter(entry -> entry.getKey() > 0).filter(entry -> entry.getValue() <= watts).max(Map.Entry.comparingByValue()).map(entry -> OptionalInt.of(entry.getKey())).orElseGet(OptionalInt::empty);
     }
 
     public long wattsForLevel(int level) {

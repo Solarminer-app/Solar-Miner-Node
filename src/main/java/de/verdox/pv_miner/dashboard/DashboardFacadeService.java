@@ -9,6 +9,8 @@ import de.verdox.pv_miner.miningcontroller.MinerClusterService;
 import de.verdox.pv_miner.miningcontroller.MinerLock;
 import de.verdox.pv_miner.miningpool.MiningPoolData;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
+import de.verdox.pv_miner.miningpool.MiningCoinDailyReward;
+import de.verdox.pv_miner.miningpool.KryptexRewardService;
 import de.verdox.pv_miner.pvsite.PVSiteDataDTO;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVStatisticPerDay;
@@ -22,6 +24,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,13 +45,15 @@ public class DashboardFacadeService {
     private final LightningWalletService walletService;
     private final PVStatisticsAccumulator pvAccumulator = new PVStatisticsAccumulator();
     private final MinerClusterService minerClusterService;
+    private final KryptexRewardService kryptexRewards;
 
-    public DashboardFacadeService(DailyStatisticService dailyStatisticService, EntityQueryService entityQueryService, GlobalConstantsService globalConstantsService, LightningWalletService walletService, MinerClusterService minerClusterService) {
+    public DashboardFacadeService(DailyStatisticService dailyStatisticService, EntityQueryService entityQueryService, GlobalConstantsService globalConstantsService, LightningWalletService walletService, MinerClusterService minerClusterService, KryptexRewardService kryptexRewards) {
         this.dailyStatisticService = dailyStatisticService;
         this.entityQueryService = entityQueryService;
         this.globalConstantsService = globalConstantsService;
         this.walletService = walletService;
         this.minerClusterService = minerClusterService;
+        this.kryptexRewards = kryptexRewards;
     }
 
     public @NonNull LiveDashboardUpdateDto getLiveDashboardData(PVSiteEntity pvSiteEntity, Locale locale, CustomCurrency userCurrency, PVSiteDataDTO pvSiteData) {
@@ -95,13 +104,14 @@ public class DashboardFacadeService {
         double btcRate = globalConstantsService.getExchangeRate(CustomCurrency.getInstance("BTC"), userCurrency);
         double miningRevenue = btcRate > 0 ? minedSats / 100_000_000.0 * btcRate : 0;
         double miningNetResult = miningRevenue - miningGridCost - miningOpportunityCosts;
+        MiningRevenueSummary miningRevenueSummary = calculateMiningRevenueEuro(pvSiteEntity, minedSats);
 
         double batteryPower = pvSiteData.getBatteryPower();
         double batteryCapacityKwh = Math.max(0, pvSiteEntity.getBatteryCapacityWh()) / 1000.0;
         Double batteryRuntimeHours = batteryPower < -0.01 && batteryCapacityKwh > 0 ? batteryCapacityKwh * clamp(pvSiteData.getBatterySoC(), 0, 100) / 100.0 / Math.abs(batteryPower) : null;
         LiveEnergyDto energyDto = new LiveEnergyDto(finitePositive(pvSiteData.getPvPower()), finitePositive(pvSiteData.getLoadPowerKw() - pvSiteData.getTotalMinerPowerKw()), finitePositive(pvSiteData.getTotalMinerPowerKw()), finitePositive(pvSiteData.getLoadPowerKw()), finitePositive(pvSiteData.getImportPowerKw()), finitePositive(pvSiteData.getExportPowerKw()), Double.isFinite(batteryPower) ? batteryPower : 0, clamp(pvSiteData.getBatterySoC(), 0, 100), batteryCapacityKwh, batteryRuntimeHours, batteryPower > 0.01 ? "CHARGING" : batteryPower < -0.01 ? "DISCHARGING" : "IDLE");
 
-        DailyEnergySummaryDto dayDto = new DailyEnergySummaryDto(production, totalConsumption, pureHouseholdConsumption, totalConsumptionMiners, totalImported, totalExported, selfConsumedProduction, selfConsumptionPercent, autarkyPercent, miningEigenverbrauch, miningImport, revenue, totalImportCosts, householdSavings, miningOpportunityCosts, minedSats, miningRevenue, miningNetResult, currencySymbol);
+        DailyEnergySummaryDto dayDto = new DailyEnergySummaryDto(production, totalConsumption, pureHouseholdConsumption, totalConsumptionMiners, totalImported, totalExported, selfConsumedProduction, selfConsumptionPercent, autarkyPercent, miningEigenverbrauch, miningImport, revenue, totalImportCosts, householdSavings, miningOpportunityCosts, minedSats, miningRevenue, miningNetResult, currencySymbol, miningRevenueSummary.totalEuro(), miningRevenueSummary.byCoin());
 
         String clusterName = pvSiteEntity.getMiners().stream().map(miner -> miner.getClusterName()).filter(name -> name != null && !name.isBlank()).findFirst().orElseGet(() -> minerClusterService.getAvailableClusterNames().stream().sorted().findFirst().orElse(""));
         var clusterInstance = clusterName.isBlank() ? null : minerClusterService.getCluster(pvSiteEntity, clusterName);
@@ -158,6 +168,65 @@ public class DashboardFacadeService {
             return Math.max(0, data.calculateSatoshiRewardToday());
         } catch (Exception ignored) {
             return 0;
+        }
+    }
+
+    private MiningRevenueSummary calculateMiningRevenueEuro(PVSiteEntity site, long minedSats) {
+        CustomCurrency euro = CustomCurrency.getInstance("EUR");
+        Map<String, RevenueAccumulator> revenueByCoin = new HashMap<>();
+        double btcAmount = minedSats / 100_000_000.0;
+        double btcEuro = globalConstantsService.getExchangeRate(CustomCurrency.getInstance("BTC"), euro) * btcAmount;
+        revenueByCoin.put("bitcoin", new RevenueAccumulator("bitcoin", "BTC", btcAmount, btcEuro));
+
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        for (MiningCoinDailyReward reward : kryptexRewards.snapshot(site.getId(), today, today).rows()) {
+            double amount = reward.getAmount().doubleValue();
+            Double euroValue = null;
+            if (reward.getPriceUsd() != null) {
+                double converted = globalConstantsService.convert(new Money(amount * reward.getPriceUsd().doubleValue(), CustomCurrency.getInstance("USD")), euro).getRawMoneyAmount();
+                if (Double.isFinite(converted) && converted >= 0) euroValue = converted;
+            }
+            String symbol = "monero".equals(reward.getCoin()) ? "XMR" : "pearl".equals(reward.getCoin()) ? "PRL" : reward.getCoin().toUpperCase(Locale.ROOT);
+            revenueByCoin.computeIfAbsent(reward.getCoin(), key -> new RevenueAccumulator(key, symbol, 0, 0.0))
+                    .add(amount, euroValue);
+        }
+
+        List<MiningRevenueByCoinDto> byCoin = revenueByCoin.values().stream()
+                .map(RevenueAccumulator::toDto)
+                .sorted(Comparator.comparing(MiningRevenueByCoinDto::symbol))
+                .toList();
+        double totalEuro = byCoin.stream().map(MiningRevenueByCoinDto::euroValue)
+                .filter(java.util.Objects::nonNull).mapToDouble(Double::doubleValue).sum();
+        return new MiningRevenueSummary(totalEuro, byCoin);
+    }
+
+    private record MiningRevenueSummary(double totalEuro, List<MiningRevenueByCoinDto> byCoin) {
+    }
+
+    private static final class RevenueAccumulator {
+        private final String coin;
+        private final String symbol;
+        private double amount;
+        private Double euroValue;
+
+        private RevenueAccumulator(String coin, String symbol, double amount, Double euroValue) {
+            this.coin = coin;
+            this.symbol = symbol;
+            this.amount = amount;
+            this.euroValue = euroValue;
+        }
+
+        private void add(double additionalAmount, Double additionalEuroValue) {
+            amount += additionalAmount;
+            if (additionalEuroValue == null) {
+                euroValue = null;
+            } else if (euroValue != null) {
+                euroValue += additionalEuroValue;
+            }
+        }
+
+        private MiningRevenueByCoinDto toDto() {
+            return new MiningRevenueByCoinDto(coin, symbol, amount, euroValue);
         }
     }
 

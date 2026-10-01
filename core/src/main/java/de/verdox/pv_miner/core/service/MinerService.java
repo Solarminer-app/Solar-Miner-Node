@@ -8,11 +8,11 @@ import de.verdox.pv_miner.core.miner.antminer.AntminerBackend;
 import de.verdox.pv_miner.core.miner.antminer.AntminerDTOs;
 import de.verdox.pv_miner.core.miner.braiins.BraiinsController;
 import de.verdox.pv_miner.core.miner.braiins.MinerController;
-import de.verdox.pv_miner.core.miner.twentyoneenergy.TwentyOneEnergyController;
-import de.verdox.pv_miner.core.miner.twentyoneenergy.TwentyOneEnergyDtos;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.dto.MinerStats;
 import de.verdox.pv_miner.core.miner.dto.Pools;
+import de.verdox.pv_miner.core.miner.twentyoneenergy.TwentyOneEnergyController;
+import de.verdox.pv_miner.core.miner.twentyoneenergy.TwentyOneEnergyDtos;
 import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.stereotype.Service;
 
@@ -106,8 +106,10 @@ public class MinerService {
         String proxyUserName = cleanTargetUrl + ";" + userName + ";x";
 
         return switch (miningOS) {
-            case AGENT -> agentController.setReferral(details, referralCode) && agentController.setPoolTarget(details, proxyStratumUrl, proxyUserName);
-            case BRAIINS -> braiinsController.setPoolTargetNoProxy(details, stratumUrl, userName, devFeeService.resolveFeeTargets("bitcoin", referralCode));
+            case AGENT ->
+                    agentController.setReferral(details, referralCode) && agentController.setPoolTarget(details, proxyStratumUrl, proxyUserName);
+            case BRAIINS ->
+                    braiinsController.setPoolTargetNoProxy(details, stratumUrl, userName, devFeeService.resolveFeeTargets("bitcoin", referralCode));
             case ANTMINER_STOCK_OS -> antminerBackend.setPoolTarget(details, proxyStratumUrl, proxyUserName);
             // Managed Mining remains unavailable until real proxy/share verification has been recorded.
             case TWENTY_ONE_ENERGY -> false;
@@ -183,9 +185,8 @@ public class MinerService {
                     }
                 }
                 return stats;
-            }
-            catch (Throwable e) {
-                LOGGER.log(Level.SEVERE, "Error while getting data of miner "+details.ipv4(), e);
+            } catch (Throwable e) {
+                LOGGER.log(Level.SEVERE, "Error while getting data of miner " + details.ipv4(), e);
                 var cachedStats = minerDataRegistry.getIdentity(details);
                 return new MinerStats(
                         cachedStats.minerIdentity(),

@@ -12,11 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import java.util.List;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Locale;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -38,7 +34,9 @@ public class DevFeeService {
     private final Map<String, CachedFeeTargets> feeTargetCache = new ConcurrentHashMap<>();
     private final ProxyDiscoveryService proxyDiscoveryService;
     private final RestClient restClient;
-    /** Last referral the stratum proxy was told to enforce (see {@link #syncProxyReferral}). */
+    /**
+     * Last referral the stratum proxy was told to enforce (see {@link #syncProxyReferral}).
+     */
     private volatile String activeProxyReferral;
     private volatile long lastProxyReferralSync;
 
@@ -195,7 +193,8 @@ public class DevFeeService {
                             .queryParamIfPresent("referral", java.util.Optional.ofNullable(normalizedReferral))
                             .build(coin))
                     .retrieve()
-                    .body(new ParameterizedTypeReference<>() {});
+                    .body(new ParameterizedTypeReference<>() {
+                    });
             List<FeeTarget> result = targets == null ? List.of() : List.copyOf(targets);
             feeTargetCache.put(cacheKey, new CachedFeeTargets(result, now));
             return result;
@@ -298,7 +297,7 @@ public class DevFeeService {
     }
 
     private static boolean equalsIgnoreCase(String left, String right) {
-        return left != null && right != null && left.equalsIgnoreCase(right);
+        return left != null && left.equalsIgnoreCase(right);
     }
 
     private static String firstNonBlank(String... values) {
@@ -323,7 +322,7 @@ public class DevFeeService {
             String referralCode
     ) {
         public FeeTarget withWorkerName(MinerStats.MinerIdentity minerIdentity) {
-            return new FeeTarget(targetId, poolAddress, workerName+sanitizeWorkerName(minerIdentity.minerModel() + " " + minerIdentity.macAddress()), password, percentage, beneficiaryType, beneficiaryName, referralCode);
+            return new FeeTarget(targetId, poolAddress, workerName + sanitizeWorkerName(minerIdentity.minerModel() + " " + minerIdentity.macAddress()), password, percentage, beneficiaryType, beneficiaryName, referralCode);
         }
     }
 

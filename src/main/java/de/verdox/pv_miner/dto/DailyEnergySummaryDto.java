@@ -1,5 +1,7 @@
 package de.verdox.pv_miner.dto;
 
+import java.util.List;
+
 public record DailyEnergySummaryDto(
         double productionKwh,
         double consumptionKwh,
@@ -19,5 +21,7 @@ public record DailyEnergySummaryDto(
         long minedSats,
         double miningRevenue,
         double miningNetResult,
-        String currencySymbol
+        String currencySymbol,
+        double miningRevenueEuro,
+        List<MiningRevenueByCoinDto> miningRevenueByCoin
 ) {}

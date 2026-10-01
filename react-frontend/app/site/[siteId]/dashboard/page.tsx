@@ -24,6 +24,7 @@ import {
     ShieldAlert,
     Sun,
     TriangleAlert,
+    X,
     Zap,
 } from 'lucide-react';
 import {CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
@@ -66,6 +67,7 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [profilesReady, setProfilesReady] = useState(false);
+    const [showMiningRevenueBreakdown, setShowMiningRevenueBreakdown] = useState(false);
 
     useEffect(() => {
         if (!siteId) return;
@@ -217,6 +219,7 @@ export default function DashboardPage() {
     const kw = (value: number) => `${format(value, 2)} kW`;
     const kwh = (value: number) => `${format(value, 2)} kWh`;
     const money = (value: number) => `${format(value, 2)} ${day.currencySymbol}`;
+    const euro = (value: number) => new Intl.NumberFormat(numberLocale, {style: 'currency', currency: 'EUR', maximumFractionDigits: 2}).format(Number.isFinite(value) ? value : 0);
     const percent = (value: number) => `${format(value, 0)} %`;
     const sourceOnline = dataQuality.sourceStatus === 'ONLINE';
     const problems = buildProblems(initData, liveData, t);
@@ -257,7 +260,7 @@ export default function DashboardPage() {
                     <MetricCard icon={<Sun size={18}/>} label={t['dashboard.today.production']} value={kwh(day.productionKwh)} detail={`${kwh(day.selfConsumedKwh)} ${t['dashboard.today.used_locally']}`} tone="yellow"/>
                     <MetricCard icon={<Leaf size={18}/>} label={t['dashboard.today.autarky']} value={percent(day.autarkyPercent)} detail={`${percent(day.selfConsumptionPercent)} ${t['dashboard.today.self_consumption']}`} tone="green"/>
                     <MetricCard icon={<Gauge size={18}/>} label={t['dashboard.mining.efficiency']} value={mining.efficiencyJPerTh > 0 ? `${format(mining.efficiencyJPerTh, 1)} J/TH` : '—'} detail={`${format(mining.totalHashrateThs, 2)} TH/s`} tone="cyan"/>
-                    <MetricCard icon={<CircleDollarSign size={18}/>} label={t['dashboard.today.mining_result']} value={money(day.miningNetResult)} detail={`${format(day.minedSats, 0)} sats`} tone={day.miningNetResult >= 0 ? 'green' : 'red'}/>
+                    <MiningRevenueCard day={day} euro={euro} onOpen={() => setShowMiningRevenueBreakdown(true)} t={t}/>
                 </section>
 
                 <section className="grid gap-4 xl:grid-cols-12">
@@ -296,6 +299,7 @@ export default function DashboardPage() {
                     <PoolCard pools={initData.pools} t={t}/>
                 </section>
             </div>
+            {showMiningRevenueBreakdown ? <MiningRevenueDialog day={day} euro={euro} format={format} locale={locale} onClose={() => setShowMiningRevenueBreakdown(false)} t={t}/> : null}
         </main>
     );
 }
@@ -343,6 +347,29 @@ function FlowNode({active, icon, label, value, tone}: {active: boolean; icon: Re
 function MetricCard({icon, label, value, detail, tone}: {icon: React.ReactNode; label: string; value: string; detail: string; tone: string}) {
     const colors: Record<string, string> = {yellow: 'text-yellow-300 bg-yellow-300/10', green: 'text-emerald-300 bg-emerald-300/10', cyan: 'text-cyan-300 bg-cyan-300/10', red: 'text-red-300 bg-red-300/10'};
     return <article className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-[#131318] p-4"><span className={`grid h-9 w-9 place-items-center rounded-lg ${colors[tone]}`}>{icon}</span><span className="min-w-0"><span className="block text-[11px] text-[#777781]">{label}</span><strong className="block truncate text-xl">{value}</strong><span className="block truncate text-[11px] text-[#666670]">{detail}</span></span></article>;
+}
+
+function MiningRevenueCard({day, euro, onOpen, t}: {day: DailyEnergySummaryDto; euro: (value: number) => string; onOpen: () => void; t: Record<string, string>}) {
+    return <button className="flex w-full items-center gap-3 rounded-2xl border border-emerald-400/15 bg-[#131318] p-4 text-left transition hover:border-emerald-400/30 hover:bg-emerald-400/[0.03]" onClick={onOpen} type="button">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-emerald-300/10 text-emerald-300"><CircleDollarSign size={18}/></span>
+            <span className="min-w-0 flex-1"><span className="block text-[11px] text-[#777781]">{t['dashboard.today.mining_result']}</span><strong className="block truncate text-xl">{euro(day.miningRevenueEuro)}</strong><span className="block text-[11px] text-[#666670]">{t['dashboard.today.mining_revenue_detail']}</span></span>
+    </button>;
+}
+
+function MiningRevenueDialog({day, euro, format, locale, onClose, t}: {day: DailyEnergySummaryDto; euro: (value: number) => string; format: (value: number, digits?: number) => string; locale: 'de' | 'en'; onClose: () => void; t: Record<string, string>}) {
+    const coinAmount = (coin: {coin: string; symbol: string; amount: number}) => coin.coin === 'bitcoin'
+        ? `${format(coin.amount * 100_000_000, 0)} sats`
+        : `${formatCoinAmount(coin.amount, locale)} ${coin.symbol}`;
+    return <div aria-label={t['dashboard.today.mining_result']} aria-modal="true" className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm" onClick={onClose} role="dialog">
+        <div className="w-full max-w-md overflow-hidden rounded-2xl border border-emerald-400/20 bg-[#17171b] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between border-b border-white/[0.07] p-5"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">{locale === 'de' ? 'Heute' : 'Today'}</p><h2 className="mt-1 text-lg font-semibold">{t['dashboard.today.mining_result']}</h2><strong className="mt-2 block text-2xl">{euro(day.miningRevenueEuro)}</strong></div><button aria-label={locale === 'de' ? 'Schließen' : 'Close'} className="rounded-lg p-2 text-[#9797a2] transition hover:bg-white/[0.06] hover:text-white" onClick={onClose} type="button"><X size={18}/></button></div>
+            <div className="space-y-2 p-5">{day.miningRevenueByCoin.map((coin) => <div className="flex items-center justify-between gap-4 rounded-xl bg-black/20 px-4 py-3" key={coin.coin}><span className="min-w-0"><strong className="block text-sm">{coin.symbol}</strong><span className="mt-0.5 block truncate text-xs text-[#85858f]">{coinAmount(coin)}</span></span><strong className={coin.euroValue == null ? 'text-amber-300' : 'text-emerald-300'}>{coin.euroValue == null ? t['dashboard.today.mining_revenue_unvalued'] : euro(coin.euroValue)}</strong></div>)}</div>
+        </div>
+    </div>;
+}
+
+function formatCoinAmount(value: number, locale: 'de' | 'en') {
+    return new Intl.NumberFormat(locale === 'de' ? 'de-DE' : 'en-US', {maximumFractionDigits: 12}).format(Number.isFinite(value) ? value : 0);
 }
 
 function SmallStat({label, value}: {label: string; value: string}) {

@@ -56,8 +56,7 @@ public class MinerDiscoveryService {
             if (!client.status().operational()) return null;
             var system = client.system();
             if (system.productId() == null || system.productId().isBlank()) return null;
-            return new MinerDiscoveryService.DetectedMiner(MiningOS.TWENTY_ONE_ENERGY,
-                    system.model() == null || system.model().isBlank() ? "21energy heater" : system.model());
+            return new MinerDiscoveryService.DetectedMiner(MiningOS.TWENTY_ONE_ENERGY, system.model() == null || system.model().isBlank() ? "21energy heater" : system.model());
         } catch (RuntimeException ignored) {
             return null;
         }
@@ -65,15 +64,9 @@ public class MinerDiscoveryService {
 
     private MinerDiscoveryService.DetectedMiner checkSolarMinerAgent(String ipv4) {
         try {
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofMillis(500))
-                    .build();
+            HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofMillis(500)).build();
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://" + ipv4 + ":8084/api/agent/power-control/identity"))
-                    .timeout(Duration.ofMillis(500))
-                    .GET()
-                    .build();
+            HttpRequest request = HttpRequest.newBuilder().uri(URI.create("http://" + ipv4 + ":8084/api/agent/power-control/identity")).timeout(Duration.ofMillis(500)).GET().build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
@@ -82,8 +75,7 @@ public class MinerDiscoveryService {
                 return new MinerDiscoveryService.DetectedMiner(MiningOS.AGENT, "Solarminer PC Agent");
             }
             // Pre-contract agents expose only the boolean identify endpoint.
-            HttpRequest legacy = HttpRequest.newBuilder().uri(URI.create("http://" + ipv4 + ":8084/api/agent/identify"))
-                    .timeout(Duration.ofMillis(500)).GET().build();
+            HttpRequest legacy = HttpRequest.newBuilder().uri(URI.create("http://" + ipv4 + ":8084/api/agent/identify")).timeout(Duration.ofMillis(500)).GET().build();
             HttpResponse<String> legacyResponse = client.send(legacy, HttpResponse.BodyHandlers.ofString());
             if (legacyResponse.statusCode() == 200 && legacyResponse.body().trim().equalsIgnoreCase("true"))
                 return new MinerDiscoveryService.DetectedMiner(MiningOS.AGENT, "Solarminer PC Agent (legacy API)");
@@ -141,15 +133,9 @@ public class MinerDiscoveryService {
      */
     private MinerDiscoveryService.DetectedMiner checkAntminerStock(String ipv4) {
         try {
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofMillis(500))
-                    .build();
+            HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofMillis(500)).build();
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://" + ipv4 + "/"))
-                    .timeout(Duration.ofMillis(500))
-                    .GET()
-                    .build();
+            HttpRequest request = HttpRequest.newBuilder().uri(URI.create("http://" + ipv4 + "/")).timeout(Duration.ofMillis(500)).GET().build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
