@@ -327,7 +327,13 @@ public class ClusterController {
             }
 
             var controller = controllerService.getController(miner);
-            action.controllerActionType().apply(controller, null);
+            boolean actionSucceeded = Boolean.TRUE.equals(action.controllerActionType().apply(controller, null));
+            if (!actionSucceeded) {
+                String minerName = miner.getName() != null ? miner.getName() : "Miner";
+                LOGGER.warning("Controller action failed for miner " + miner.getId() + "; it will be retried on a later tick.");
+                appendTickEvent("⚠️ Aktion fehlgeschlagen; erneuter Versuch im nächsten Zyklus (" + minerName + ")");
+                continue;
+            }
 
             boolean supportsScaling = miner.getOS().supportsDynamicPowerScaling();
             double expectedPower = isEmergencyPause ? 0.0 : (supportsScaling ? ClusterUtil.getMinPowerTargetForMiner(miner) : ClusterUtil.getMaxPowerForMiner(miner));
@@ -385,12 +391,22 @@ public class ClusterController {
 
         if (powerChanged || forcePush) {
             if (!wasAlreadyMining) {
-                ControllerDSL.ControllerActionType.RESUME.apply((MinerEntityController) controller, null);
+                boolean resumeSucceeded = Boolean.TRUE.equals(ControllerDSL.ControllerActionType.RESUME.apply((MinerEntityController) controller, null));
+                if (!resumeSucceeded) {
+                    LOGGER.warning("Could not start miner " + miner.getId() + "; it will be retried on a later tick.");
+                    appendTickEvent("⚠️ Start fehlgeschlagen; erneuter Versuch im nächsten Zyklus (" + (miner.getName() != null ? miner.getName() : "Miner") + ")");
+                    return;
+                }
             }
-            action.controllerActionType().apply(
+            boolean targetSucceeded = Boolean.TRUE.equals(action.controllerActionType().apply(
                     (MinerEntityController) controller,
                     String.valueOf(targetWattsLong)
-            );
+            ));
+            if (!targetSucceeded) {
+                LOGGER.warning("Could not set power target for miner " + miner.getId() + "; it will be retried on a later tick.");
+                appendTickEvent("⚠️ Leistungsziel fehlgeschlagen; erneuter Versuch im nächsten Zyklus (" + (miner.getName() != null ? miner.getName() : "Miner") + ")");
+                return;
+            }
         }
 
         Instant stateUnlock = wasAlreadyMining && currentLock != null

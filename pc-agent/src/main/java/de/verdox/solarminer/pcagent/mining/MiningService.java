@@ -83,7 +83,10 @@ public class MiningService {
         long gpuMaximum = cards.stream().mapToLong(LocalGpuPowerService.Gpu::maxWatts).sum();
         long minimum = cpuMax > 0 ? xmrMinerService.getMinimumControllablePowerWatts() : gpuMinimum;
         long maximum = cpuMax + gpuMaximum;
-        if (powerTarget < minimum) return external ? pauseExternally() : setTarget(0);
+        if (powerTarget < minimum) {
+            if (external) { pauseExternally(); return false; }
+            return setTarget(0);
+        }
         powerTarget = Math.min(powerTarget, maximum);
         long cpuTarget = Math.min(cpuMax, powerTarget);
         long gpuTarget = 0;
@@ -91,43 +94,54 @@ public class MiningService {
             cpuTarget = Math.min(cpuMax, powerTarget - gpuMinimum);
             gpuTarget = Math.min(gpuMaximum, powerTarget - cpuTarget);
         }
-        if (cpuTarget == 0 && gpuTarget == 0) return external ? pauseExternally() : setTarget(0);
+        if (cpuTarget == 0 && gpuTarget == 0) {
+            if (external) { pauseExternally(); return false; }
+            return setTarget(0);
+        }
         if (gpuTarget > 0 && !gpuPowerService.setTotalPowerTarget(gpuTarget, cards)) {
             if (!(external ? stopGpus(allowedGpus) : pearlMinerService.stop())) return failGlobalBudget(external);
             gpuTarget = 0;
             cpuTarget = Math.min(cpuMax, powerTarget);
         }
         if (gpuTarget == 0 && !(external ? stopGpus(allowedGpus) : pearlMinerService.stop())) return failGlobalBudget(external);
+        boolean cpuStartSucceeded = cpuTarget <= 0;
         if (!external || controls.workerEnabled("cpu")) {
             xmrMinerService.setDesiredPowerUsage(cpuTarget);
-            if (cpuTarget > 0) xmrMinerService.startMining();
+            if (cpuTarget > 0) {
+                xmrMinerService.startMining();
+                cpuStartSucceeded = xmrMinerService.isMiningProcessAlive();
+            }
         }
-        boolean gpuStartSucceeded = false;
+        boolean gpuStartsSucceeded = true;
         if (gpuTarget > 0) {
             if (external) {
                 for (LocalGpuPowerService.Gpu gpu : cards)
-                    gpuStartSucceeded = pearlMinerService.startGpu(gpu.vendor(), gpu.index()) || gpuStartSucceeded;
-            } else gpuStartSucceeded = pearlMinerService.startForBudget();
+                    gpuStartsSucceeded = pearlMinerService.startGpu(gpu.vendor(), gpu.index()) && gpuStartsSucceeded;
+            } else gpuStartsSucceeded = pearlMinerService.startForBudget();
         }
         desiredGlobalPowerTarget = powerTarget;
         desiredCpuPowerTarget = cpuTarget;
         desiredGpuPowerTarget = gpuTarget;
         return external
-                ? (cpuTarget > 0 && xmrMinerService.isMiningProcessAlive()) || gpuStartSucceeded
+                ? (cpuTarget > 0 || gpuTarget > 0) && cpuStartSucceeded && (gpuTarget <= 0 || gpuStartsSucceeded)
                 : xmrMinerService.isMiningProcessAlive() || pearlMinerService.running();
     }
 
     public synchronized boolean resumeExternally() {
-        boolean anyAllowed = false;
+        boolean attempted = false;
+        boolean allStarted = true;
         if (controls.workerEnabled("cpu") && !cpuManuallyPaused && xmrMinerService.readyForStart()) {
+            attempted = true;
             xmrMinerService.startMining();
-            anyAllowed |= xmrMinerService.isMiningProcessAlive();
+            allStarted = xmrMinerService.isMiningProcessAlive() && allStarted;
         }
         for (LocalGpuPowerService.Gpu gpu : pearlMinerService.eligibleGpus()) {
-            if (controls.workerEnabled(gpu.deviceId()))
-                anyAllowed = pearlMinerService.startGpu(gpu.vendor(), gpu.index()) || anyAllowed;
+            if (controls.workerEnabled(gpu.deviceId())) {
+                attempted = true;
+                allStarted = pearlMinerService.startGpu(gpu.vendor(), gpu.index()) && allStarted;
+            }
         }
-        return anyAllowed;
+        return attempted && allStarted;
     }
 
     public synchronized boolean pauseExternally() {

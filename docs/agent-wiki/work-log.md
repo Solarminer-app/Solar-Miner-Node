@@ -13,6 +13,15 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - Remaining gaps / hardware or rollout gates:
 - Documentation updated:
 
+### 2026-10-01 — mining PDF coin reward precision
+
+- Scope and owner: Node mining PDF generation in `TaxReportService`.
+- Implemented behavior and code evidence: daily and monthly/overall coin amounts now use coin precision (up to eight BTC decimals) instead of the two-decimal energy format. The mining value calculation and pool reward source are unchanged.
+- Cross-repository contracts checked: no API or shared contract change; the fix only affects rendered PDF text.
+- Verification performed and result: added `TaxReportServiceTest` for sub-cent BTC daily rewards and their sum; `git diff --check` passed. Gradle test execution was attempted offline but the configured Gradle distribution was unavailable and network access was denied, so the test result remains unverified.
+- Remaining gaps / hardware or rollout gates: run the focused test and inspect an exported PDF in an environment with Gradle and pool data.
+- Documentation updated: this work-log entry.
+
 ## 2026-10-01 — agent wiki baseline
 
 - Scope and owner: repository-wide map and PC-Agent ownership map.
@@ -56,3 +65,10 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - Verification performed and result: source review, JavaScript syntax and diff checks; Java compile and runtime checks are pending.
 - Remaining gaps / hardware or rollout gates: pre-manifest SRBMiner installations have only the executable identified as owned; legacy support files are intentionally not recursively deleted.
 - Documentation updated: PC-Agent ownership map and this work-log entry.
+
+# 2026-10-01 — External start failures and miner removal discoverability
+
+- PC-Agent `MiningService` now reports external start success only when every requested worker starts, preventing a running XMR CPU worker from masking a failed Pearl GPU start.
+- `ClusterController` checks controller action results before writing state locks for start and power-target actions. Failed commands emit a tick warning and remain eligible for a later controller retry.
+- Added a Miner entfernen action to the installed miner detail view; catalog removal remains available too.
+- Evidence: source review of `MiningService`, `ClusterController` and static PC-Agent UI. JavaScript syntax and repository diff checks run after editing; Gradle compilation remains unavailable because the wrapper distribution cannot be downloaded in this restricted network environment.

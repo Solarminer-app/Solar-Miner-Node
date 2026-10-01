@@ -533,6 +533,9 @@ function render(data) {
   const remainingGpus = (data.pearl?.gpus || []).some(gpu => gpu.selected && !gpu.running);
   $('resume').disabled = busy || !coin || coinBlockers(coin, data).length > 0 || (selectedView === 'pearl' ? !remainingGpus : status === 'MINING');
   $('pause').disabled = busy || (selectedView === 'pearl' ? !data.pearl?.running : status !== 'MINING');
+  const selectedMiner = data.coins?.find(item => item.id === selectedView);
+  $('remove-current-miner').hidden = !selectedMiner?.binaryAvailable;
+  $('remove-current-miner').disabled = busy || data[selectedView]?.downloadStatus === 'DOWNLOADING';
   const pearl = selectedView === 'pearl'; $('monero-form').hidden = pearl; $('pearl-form').hidden = !pearl;
   if (pearl) {
     set('pearl-readiness', data.pearl?.minerError || 'SRBMiner nutzt den SolarMiner-Proxy.');
@@ -613,6 +616,7 @@ document.querySelectorAll('.filter-button').forEach(button => button.addEventLis
 }));
 $('resume').addEventListener('click', () => { if (['monero', 'pearl'].includes(selectedView)) action(`/api/agent/miners/${selectedView}/resume`, 'Miner gestartet.'); });
 $('pause').addEventListener('click', () => { if (['monero', 'pearl'].includes(selectedView)) action(`/api/agent/miners/${selectedView}/pause`, 'Miner pausiert.'); });
+$('remove-current-miner').addEventListener('click', () => { if (['monero', 'pearl'].includes(selectedView)) removeMiner(selectedView); });
 $('pearl-download').addEventListener('click', () => action('/api/agent/pearl/download', 'SRBMiner-Download gestartet.'));
 $('proxy-form').addEventListener('submit', event => { event.preventDefault(); if ($('proxy-form').reportValidity()) action('/api/agent/proxy', 'Proxy gespeichert.', { host: $('proxy-host').value.trim() }); });
 $('proxy-discover').addEventListener('click', async () => {

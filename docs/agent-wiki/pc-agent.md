@@ -21,6 +21,7 @@ Checked against `pc-agent/src/main/java` on 2026-10-01. This describes source st
 - `LocalGpuPowerService` currently implements dynamic limits via `nvidia-smi`; its AMD discovery reports unsupported dynamic control without a stable ID. A code path existing is not proof of verified hardware behavior.
 - `MiningService` stores desired power targets in memory and contains a persistence TODO. Check restart behavior before relying on target continuity.
 - The miner catalog exposes install/remove actions. Removal stops the selected miner, deletes its executable and tracked SRBMiner package files, and preserves pool/wallet configuration.
+- The installed miner detail view also exposes removal. External resume/target operations report success only when each requested CPU/GPU worker starts; the Node records a miner state lock only after the controller action succeeds, so failed starts can be retried on a later scheduler tick.
 - The shipped standalone instructions describe a local embedded proxy and explicit miner installation. Verify release assets and actual fee routes during rollout, especially for new coins.
 
 ## Adding a miner

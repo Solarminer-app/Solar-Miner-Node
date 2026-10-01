@@ -20,6 +20,8 @@ import java.time.ZoneId;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -485,19 +487,25 @@ public class TaxReportService {
                 .map(line -> Double.toString(line.amount())).collect(Collectors.joining("+"));
     }
 
-    private static String coinRewards(PVStatisticDto stat) {
+    static String coinRewards(PVStatisticDto stat) {
         return stat.miningCoins().stream().filter(line -> line.amount() != null && line.amount() != 0)
-                .map(line -> FormatUtil.formatNumber(line.amount()) + " " + line.symbol())
+                .map(line -> formatCoinAmount(line.amount(), line.symbol()) + " " + line.symbol())
                 .collect(Collectors.joining(", "));
     }
 
-    private static String coinTotals(List<PVStatisticDto> statistics) {
+    static String coinTotals(List<PVStatisticDto> statistics) {
         Map<String, Double> totals = statistics.stream().flatMap(stat -> stat.miningCoins().stream())
                 .filter(line -> line.amount() != null)
                 .collect(Collectors.groupingBy(CoinMiningDayDto::symbol, Collectors.summingDouble(CoinMiningDayDto::amount)));
         return totals.entrySet().stream().sorted(Map.Entry.comparingByKey())
-                .map(entry -> FormatUtil.formatNumber(entry.getValue()) + " " + entry.getKey())
+                .map(entry -> formatCoinAmount(entry.getValue(), entry.getKey()) + " " + entry.getKey())
                 .collect(Collectors.joining(" · "));
+    }
+
+    private static String formatCoinAmount(double amount, String symbol) {
+        // BTC rewards are recorded in satoshis; retain all eight decimal places when needed.
+        String pattern = "BTC".equals(symbol) ? "#,##0.########" : "#,##0.############";
+        return new DecimalFormat(pattern, DecimalFormatSymbols.getInstance(Locale.US)).format(amount);
     }
 
     private static String escape(String value) {
