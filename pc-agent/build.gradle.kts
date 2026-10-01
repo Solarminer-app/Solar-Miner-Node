@@ -22,15 +22,23 @@ val proxyProjectDir = providers.gradleProperty("solarminer.proxy.project-dir")
     .map { rootProject.file(it) }
     .orElse(rootProject.projectDir.parentFile.resolve("solarminer-stratum-proxy"))
     .get()
-if (!proxyProjectDir.resolve("src/main/java").isDirectory) {
-    throw GradleException("Stratum proxy source is required for PC-Agent builds: $proxyProjectDir")
-}
 
 val mainSourceSet = sourceSets.getByName("main")
 val embeddedProxy = sourceSets.create("embeddedProxy") {
     java.srcDir(proxyProjectDir.resolve("src/main/java"))
     resources.setSrcDirs(emptyList<String>())
     compileClasspath += mainSourceSet.output + mainSourceSet.compileClasspath
+}
+
+val validateEmbeddedProxySource = tasks.register("validateEmbeddedProxySource") {
+    doLast {
+        if (!proxyProjectDir.resolve("src/main/java").isDirectory) {
+            throw GradleException("Stratum proxy source is required for PC-Agent builds: $proxyProjectDir")
+        }
+    }
+}
+tasks.named(embeddedProxy.compileJavaTaskName) {
+    dependsOn(validateEmbeddedProxySource)
 }
 
 configurations[embeddedProxy.implementationConfigurationName].extendsFrom(configurations.implementation.get())
