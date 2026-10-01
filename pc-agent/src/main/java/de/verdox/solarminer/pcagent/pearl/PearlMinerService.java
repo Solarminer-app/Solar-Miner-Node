@@ -45,6 +45,7 @@ public class PearlMinerService {
     private static final Pattern NVIDIA = Pattern.compile("GPU(\\d+)\\s+\\[CUDA]\\[(\\d+)][^\\r\\n]*");
     private static final Pattern AMD = Pattern.compile("GPU(\\d+)\\s+\\[\\d+]\\[(\\d+)][^\\r\\n]*");
     private static final Pattern ANSI_ESCAPE = Pattern.compile("\\u001B\\[[0-?]*[ -/]*[@-~]");
+    private static final Pattern PCI_ADDRESS = Pattern.compile("(?i)([0-9a-f]{4,8}):([0-9a-f]{2}):([0-9a-f]{2}\\.[0-7])");
     private final ObjectMapper mapper;
     private final ProxyConfigurationService proxyConfigurationService;
     private final MinerConsoleService console;
@@ -402,7 +403,9 @@ public class PearlMinerService {
         String output = new String(listing.getInputStream().readNBytes(65536), StandardCharsets.UTF_8);
         if (listing.exitValue() != 0) throw new IOException("SRBMiner GPU listing failed (Exit-Code " + listing.exitValue() + "): " + output.strip());
         if (output.isBlank()) throw new IOException("SRBMiner hat keine GPU-Geräteliste ausgegeben");
-        int id = findGpuId(output, gpu.vendor(), gpu.index());
+        int id = gpu.vendor().equals("NVIDIA")
+                ? findNvidiaGpuId(output, pciAddress(gpu.deviceId()))
+                : findGpuId(output, gpu.vendor(), gpu.index());
         if (id >= 0) return id;
         throw new IOException("GPU " + gpu.vendor() + ":" + gpu.index()
                 + " nicht in der SRBMiner-Geräteliste gefunden: " + ANSI_ESCAPE.matcher(output).replaceAll("").strip());
@@ -416,6 +419,51 @@ public class PearlMinerService {
                 return Integer.parseInt(matcher.group(1));
         }
         return -1;
+    }
+
+    private String pciAddress(String deviceId) throws IOException {
+        Process query = new ProcessBuilder("nvidia-smi", "-i", deviceId,
+                "--query-gpu=pci.bus_id", "--format=csv,noheader")
+                .redirectErrorStream(true).start();
+        try {
+            if (!query.waitFor(5, TimeUnit.SECONDS)) {
+                query.destroyForcibly();
+                throw new IOException("NVIDIA PCI-Adresse konnte nicht rechtzeitig gelesen werden");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            query.destroyForcibly();
+            throw new IOException("NVIDIA PCI-Abfrage unterbrochen", e);
+        }
+        String output = new String(query.getInputStream().readNBytes(4096), StandardCharsets.UTF_8).strip();
+        if (query.exitValue() != 0 || canonicalPciAddress(output) == null)
+            throw new IOException("NVIDIA PCI-Adresse für " + deviceId + " nicht verfügbar");
+        return output;
+    }
+
+    static int findNvidiaGpuId(String output, String pciAddress) {
+        String expected = canonicalPciAddress(pciAddress);
+        if (expected == null) return -1;
+        Matcher matcher = NVIDIA.matcher(ANSI_ESCAPE.matcher(output).replaceAll(""));
+        int match = -1;
+        while (matcher.find()) {
+            String line = matcher.group();
+            Matcher address = PCI_ADDRESS.matcher(line);
+            if (address.find() && expected.equals(canonicalPciAddress(address.group()))
+                    && !line.contains("disabled by default")) {
+                if (match >= 0) return -1;
+                match = Integer.parseInt(matcher.group(1));
+            }
+        }
+        return match;
+    }
+
+    private static String canonicalPciAddress(String value) {
+        if (value == null) return null;
+        Matcher matcher = PCI_ADDRESS.matcher(value.strip());
+        if (!matcher.matches()) return null;
+        return Long.parseLong(matcher.group(1), 16) + ":" + matcher.group(2).toLowerCase()
+                + ":" + matcher.group(3).toLowerCase();
     }
 
     private static String encodedWorker(String poolUrl, String worker) {
