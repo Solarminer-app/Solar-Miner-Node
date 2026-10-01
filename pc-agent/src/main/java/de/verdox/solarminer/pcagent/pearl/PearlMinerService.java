@@ -44,6 +44,7 @@ public class PearlMinerService {
     private static final Logger LOGGER = Logger.getLogger(PearlMinerService.class.getName());
     private static final Pattern NVIDIA = Pattern.compile("GPU(\\d+)\\s+\\[CUDA]\\[(\\d+)][^\\r\\n]*");
     private static final Pattern AMD = Pattern.compile("GPU(\\d+)\\s+\\[\\d+]\\[(\\d+)][^\\r\\n]*");
+    private static final Pattern ANSI_ESCAPE = Pattern.compile("\\u001B\\[[0-?]*[ -/]*[@-~]");
     private final ObjectMapper mapper;
     private final ProxyConfigurationService proxyConfigurationService;
     private final MinerConsoleService console;
@@ -401,12 +402,20 @@ public class PearlMinerService {
         String output = new String(listing.getInputStream().readNBytes(65536), StandardCharsets.UTF_8);
         if (listing.exitValue() != 0) throw new IOException("SRBMiner GPU listing failed (Exit-Code " + listing.exitValue() + "): " + output.strip());
         if (output.isBlank()) throw new IOException("SRBMiner hat keine GPU-Geräteliste ausgegeben");
-        Matcher matcher = (gpu.vendor().equals("NVIDIA") ? NVIDIA : AMD).matcher(output);
+        int id = findGpuId(output, gpu.vendor(), gpu.index());
+        if (id >= 0) return id;
+        throw new IOException("GPU " + gpu.vendor() + ":" + gpu.index()
+                + " nicht in der SRBMiner-Geräteliste gefunden: " + ANSI_ESCAPE.matcher(output).replaceAll("").strip());
+    }
+
+    static int findGpuId(String output, String vendor, int index) {
+        String plain = ANSI_ESCAPE.matcher(output).replaceAll("");
+        Matcher matcher = (vendor.equals("NVIDIA") ? NVIDIA : AMD).matcher(plain);
         while (matcher.find()) {
-            if (Integer.parseInt(matcher.group(2)) == gpu.index() && !matcher.group().contains("disabled by default"))
+            if (Integer.parseInt(matcher.group(2)) == index && !matcher.group().contains("disabled by default"))
                 return Integer.parseInt(matcher.group(1));
         }
-        throw new IOException("GPU " + gpu.vendor() + ":" + gpu.index() + " wird von SRBMiner nicht unterstützt");
+        return -1;
     }
 
     private static String encodedWorker(String poolUrl, String worker) {
