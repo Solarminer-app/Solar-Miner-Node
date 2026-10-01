@@ -2,6 +2,8 @@ package de.verdox.pv_miner.core.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.pv_miner.core.miner.MiningOS;
+import de.verdox.pv_miner.core.miner.dto.MinerDetails;
+import de.verdox.pv_miner.core.miner.twentyoneenergy.TwentyOneEnergyClient;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
@@ -37,12 +39,28 @@ public class MinerDiscoveryService {
             return agent;
         }
 
+        MinerDiscoveryService.DetectedMiner heater = checkTwentyOneEnergy(ipv4);
+        if (heater != null) return heater;
+
         MinerDiscoveryService.DetectedMiner customAsic = checkAsicMiner(ipv4);
         if (customAsic != null) {
             return customAsic;
         }
 
         return checkAntminerStock(ipv4);
+    }
+
+    private MinerDiscoveryService.DetectedMiner checkTwentyOneEnergy(String ipv4) {
+        try {
+            TwentyOneEnergyClient client = new TwentyOneEnergyClient(new MinerDetails(null, ipv4, 80, "", ""), new ObjectMapper());
+            if (!client.status().operational()) return null;
+            var system = client.system();
+            if (system.productId() == null || system.productId().isBlank()) return null;
+            return new MinerDiscoveryService.DetectedMiner(MiningOS.TWENTY_ONE_ENERGY,
+                    system.model() == null || system.model().isBlank() ? "21energy heater" : system.model());
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private MinerDiscoveryService.DetectedMiner checkSolarMinerAgent(String ipv4) {
