@@ -158,7 +158,7 @@ jobs:
 
           chmod +x ./gradlew
           
-          ./gradlew clean --no-daemon
+          ./gradlew :clean --no-daemon
           
           chmod -R 777 .
 

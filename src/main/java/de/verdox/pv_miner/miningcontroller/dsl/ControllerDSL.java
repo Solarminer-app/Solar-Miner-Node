@@ -88,6 +88,13 @@ public class ControllerDSL {
 
     @Getter
     public enum PVSiteVariableType {
+        MINING_MARGIN_CENTS_PER_KWH("Estimated mining revenue minus grid price, cents/kWh") {
+            @Override
+            public double getValueFromPVSite(ControllerValueProvider provider, PVSiteEntity site, ValueAdjustment adjustment) {
+                var snapshot = de.verdox.pv_miner.SpringContextHelper.getBean(de.verdox.pv_miner.dashboard.MiningEarningsService.class).snapshot(site);
+                return snapshot.complete() ? snapshot.centsPerKwh() - snapshot.gridCentsPerKwh() : Double.NEGATIVE_INFINITY;
+            }
+        },
         BATTERY_SOC("Battery SoC in % [0;100]") {
             @Override
             public double getValueFromPVSite(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, ValueAdjustment valueAdjustment) {

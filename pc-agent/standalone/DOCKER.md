@@ -13,15 +13,31 @@ SRBMiner from the local Mining UI after startup; the agent downloads only the
 official release and verifies its release metadata.
 
 The image is Linux `amd64` only. This is intentional: the current official
-SRBMiner Linux package used for Pearl is x64. Start from this directory:
+SRBMiner Linux package used for Pearl is x64. Start from this directory. The
+default reserves 2-MiB HugeTLB pages until the next reboot; it does not change
+the bootloader or kernel command line:
 
 ```sh
-sudo sh ./setup-xmr-linux.sh
+sudo sh ./setup-xmr-linux.sh --temporary
 docker compose -f ../docker-compose.pc-agent.yml up -d
 ```
 
-The setup script configures persistent 2-MiB huge pages for RandomX and creates
-`/opt/solarminer-pc-agent/data`. Run the compose command from
+Use `--persistent` for a persistent 2-MiB reservation; this writes the managed
+`/etc/sysctl.d/99-solarminer-xmrig.conf` setting. Add `--one-gb` to also
+request 1-GiB pages at runtime. That pool is optional and may fail if the
+CPU/kernel does not support it or suitable memory is unavailable. The default
+target is 1280 x 2-MiB pages per NUMA node and, when requested, 3 x 1-GiB pages
+per NUMA node. Both pools reserve host RAM, so enable them only when sufficient
+memory is available. XMRig can use ordinary huge pages without 1-GiB pages.
+
+The Compose service grants `IPC_LOCK` and an unlimited `memlock` limit so the
+containerized miner can lock/use host memory. The pools belong to the host
+kernel. After startup, enable `huge-pages` in the agent's RandomX settings;
+enable `1gb-pages` only if the host was prepared with `--one-gb`. Confirm
+XMRig's log reports `huge pages 100%` and successful 1-GiB allocation; host
+reservation alone does not prove the miner used those pages.
+
+The setup script also creates `/opt/solarminer-pc-agent/data`. Run the compose command from
 `/opt/solarminer-pc-agent` after copying the compose files there, or replace
 `./data` in the base compose file with `/opt/solarminer-pc-agent/data`.
 

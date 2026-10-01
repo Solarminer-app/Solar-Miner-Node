@@ -18,6 +18,7 @@ public class NodeAssessmentService {
     private final ObjectMapper json;
     private final Path file;
     private volatile Assessment assessment;
+    private volatile Instant lastContact;
 
     public NodeAssessmentService(ObjectMapper json,
             @Value("${solarminer.agent.node-assessment-file:./solarminer-agent/node-assessment.json}") String path) {
@@ -27,6 +28,7 @@ public class NodeAssessmentService {
     }
 
     public Assessment get() { return assessment; }
+    public boolean isConnected() { return lastContact != null && lastContact.isAfter(Instant.now().minusSeconds(120)); }
 
     public synchronized boolean update(Assessment incoming) {
         if (incoming == null || incoming.decision() == null || incoming.decision().isBlank()
@@ -44,13 +46,14 @@ public class NodeAssessmentService {
                 catch (java.nio.file.AtomicMoveNotSupportedException e) { Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING); }
             } finally { Files.deleteIfExists(temp); }
             assessment = saved;
+            lastContact = Instant.now();
             return true;
         } catch (Exception ignored) { return false; }
     }
 
     private Assessment load() {
         try { return json.readValue(Files.readString(file), Assessment.class); }
-        catch (Exception ignored) { return new Assessment("UNKNOWN", "Noch keine Bewertung vom SolarMiner Node", "SolarMiner Node", null); }
+        catch (Exception ignored) { return new Assessment("UNKNOWN", null, "SolarMiner Node", null); }
     }
 
     public record Assessment(String decision, String reason, String source, Instant evaluatedAt) { }

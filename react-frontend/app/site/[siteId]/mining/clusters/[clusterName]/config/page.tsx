@@ -39,6 +39,17 @@ const mode = (index: number): ClusterOperatingModeDto => ({
     minRunTimeMinutes: 15, minIdleTimeMinutes: 5, powerChangeLockTimeMinutes: 15,
 });
 
+const profitableGridMode = (): ClusterOperatingModeDto => ({
+    name: 'Profitable grid mining',
+    startCondition: {...predicate(), variable: 'MINING_MARGIN_CENTS_PER_KWH', comparator: 'GREATER', threshold: 0},
+    stopCondition: {...predicate(), variable: 'MINING_MARGIN_CENTS_PER_KWH', comparator: 'LESS_OR_EQUAL', threshold: 0},
+    actions: [
+        {...action(), actionType: 'resume', targetType: 'ALL_MINERS'},
+        {...action(), valueExpression: {...expression(), type: 'CAPACITY_PERCENTAGE', percentage: 1}},
+    ],
+    minRunTimeMinutes: 15, minIdleTimeMinutes: 5, powerChangeLockTimeMinutes: 15,
+});
+
 export default function ClusterConfigPage() {
     const {siteId, clusterName: routeName} = useParams<{siteId: string; clusterName: string}>();
     const router = useRouter();
@@ -151,6 +162,10 @@ export default function ClusterConfigPage() {
                 </section>
 
                 <div className="space-y-4">
+                    <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-5">
+                        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">{tr('cluster.profit.title', 'Bei profitablem Netzstrom weiter minen')}</h2><p className="mt-1 text-sm text-[#a3a3ad]">{tr('cluster.profit.description', 'Vergleicht die geschätzten Bruttoerträge je kWh mit dem aktuellen Netzstrompreis. Nur bei vollständigen, aktuellen Daten aktiv; der Batterieschutz hat Vorrang. Standardmäßig aus.')}</p></div>
+                        <button type="button" className="rounded-lg border border-emerald-400/30 px-4 py-2 text-sm text-emerald-300" onClick={() => setConfig({...config, modes: config.modes.some(entry => entry.name === 'Profitable grid mining') ? config.modes.filter(entry => entry.name !== 'Profitable grid mining') : [...config.modes.slice(0, 1), profitableGridMode(), ...config.modes.slice(1)]})}>{config.modes.some(entry => entry.name === 'Profitable grid mining') ? tr('cluster.profit.disable', 'Deaktivieren') : tr('cluster.profit.enable', 'Aktivieren')}</button></div>
+                    </section>
                     <div className="flex items-center justify-between"><div><h2 className="text-lg font-semibold">{tr('cluster.config.modes', 'Betriebsmodi')}</h2><p className="text-sm text-[#8d8d97]">{tr('cluster.config.priority', 'Die Reihenfolge bestimmt die Priorität der Modi.')}</p></div><button className="inline-flex items-center gap-2 rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-300" onClick={() => setConfig({...config, modes: [...config.modes, mode(config.modes.length)]})} type="button"><Plus size={16}/>{tr('cluster.config.add_mode', 'Modus hinzufügen')}</button></div>
                     {config.modes.map((entry, index) => <ModeEditor config={config} index={index} key={`${index}-${entry.name}`} mode={entry} onChange={next => updateMode(index, next)} onDelete={() => setConfig({...config, modes: config.modes.filter((_, i) => i !== index)})} onMoveDown={() => moveMode(index, 1)} onMoveUp={() => moveMode(index, -1)} tr={tr}/>) }
                 </div>

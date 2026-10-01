@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import de.verdox.pv_miner.dashboard.DashboardChartQueryService;
 import de.verdox.pv_miner.dashboard.DashboardFacadeService;
+import de.verdox.pv_miner.dashboard.MiningEarningsService;
 import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.dto.*;
 import de.verdox.pv_miner.miner.data.MinerStats;
@@ -39,16 +40,25 @@ public class DashboardController {
     private final DashboardFacadeService dashboardFacadeService;
     private final EntityQueryService entityQueryService;
     private final DashboardChartQueryService dashboardChartQueryService;
+    private final MiningEarningsService earningsService;
 
     public DashboardController(PVSiteRepository pvSiteRepository,
                                MinerClusterService clusterService,
                                DashboardFacadeService dashboardFacadeService,
-                               EntityQueryService entityQueryService, DashboardChartQueryService dashboardChartQueryService) {
+                               EntityQueryService entityQueryService, DashboardChartQueryService dashboardChartQueryService,
+                               MiningEarningsService earningsService) {
         this.pvSiteRepository = pvSiteRepository;
         this.clusterService = clusterService;
         this.dashboardFacadeService = dashboardFacadeService;
         this.entityQueryService = entityQueryService;
         this.dashboardChartQueryService = dashboardChartQueryService;
+        this.earningsService = earningsService;
+    }
+
+    @GetMapping("/earnings")
+    public MiningEarningsService.Snapshot earnings(@PathVariable UUID siteId) {
+        PVSiteEntity site = pvSiteRepository.findById(siteId).orElseThrow(() -> new IllegalArgumentException("PV-Site nicht gefunden"));
+        return earningsService.snapshot(site);
     }
 
     @GetMapping("/init")

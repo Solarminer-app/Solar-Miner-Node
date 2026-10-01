@@ -83,6 +83,9 @@ public class ClusterConfigService {
     }
 
     public ClusterSimulationDto simulate(PVSiteEntity site, SimulateClusterConfigRequest request) {
+        if (request.modes() != null && request.modes().stream().anyMatch(mode -> usesLiveEarnings(mode.startCondition()) || usesLiveEarnings(mode.stopCondition()))) {
+            throw new IllegalArgumentException("Historical earnings data is not available for profitability simulation");
+        }
         MinerControllerConfig config = fromDtos(request.modes());
         int intervalMinutes = Math.max(1, Math.min(30, request.intervalMinutes() == null ? 5 : request.intervalMinutes()));
         String sourceType = normalized(request.sourceType(), "PRESET");
@@ -179,6 +182,11 @@ public class ClusterConfigService {
                         modeChanges, activeMinutes, mostActiveMode
                 )
         );
+    }
+
+    private boolean usesLiveEarnings(ClusterConfigDto.ConditionDto condition) {
+        return condition != null && ("MINING_MARGIN_CENTS_PER_KWH".equals(condition.variable())
+                || condition.subConditions() != null && condition.subConditions().stream().anyMatch(this::usesLiveEarnings));
     }
 
     private List<MinerEntity<?>> simulationMiners(PVSiteEntity site, String clusterName) {

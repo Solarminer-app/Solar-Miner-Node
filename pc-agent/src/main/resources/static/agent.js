@@ -306,7 +306,7 @@ function renderWorkspace(data) {
     [true, 'Hardware ansehen und einen CPU- oder GPU-Miner auswählen.'],
     [installedAny, installedAny ? 'Miner installiert – Pool und eigene Wallet einrichten.' : 'Passenden Miner herunterladen und installieren.'],
     [configured, configured ? 'Eigene Auszahlung ist konfiguriert.' : 'Eigene Wallet eintragen oder das SolarMiner-Standardziel bewusst bestätigen.'],
-    [false, 'Optional: SolarMiner Node verbinden für Regeln, PV-Überschuss und Automatisierung.']
+    [Boolean(nodeAssessment?.connected), nodeAssessment?.connected ? 'SolarMiner Node ist verbunden.' : 'Optional: SolarMiner Node verbinden für Regeln, PV-Überschuss und Automatisierung.']
   ];
   for (const [done, text] of stepData) steps.append(node('li', done ? 'done' : '', text));
   let assessment = document.getElementById('node-assessment');
@@ -318,7 +318,7 @@ function renderWorkspace(data) {
   const label = decision === 'PROFITABLE' ? 'Node: Mining ist aktuell wirtschaftlich freigegeben.'
     : decision === 'NOT_PROFITABLE' ? 'Node: Mining ist aktuell nicht wirtschaftlich freigegeben.'
       : 'Node: Noch keine Wirtschaftlichkeitsbewertung.';
-  assessment.textContent = `${label}${nodeAssessment?.reason ? ` ${nodeAssessment.reason}` : ''}`;
+  assessment.textContent = `${t(nodeAssessment?.connected ? 'SolarMiner Node verbunden' : 'SolarMiner Node nicht verbunden')} · ${t(label)}${nodeAssessment?.reason ? ` ${nodeAssessment.reason}` : ''}`;
   const installed = (data.coins || []).filter(c => c.binaryAvailable);
   if (selectedView !== 'catalog' && !installed.some(c => c.id === selectedView)) selectedView = 'catalog';
   $('catalog-view').hidden = selectedView !== 'catalog';

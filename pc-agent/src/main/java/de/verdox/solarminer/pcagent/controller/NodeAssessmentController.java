@@ -23,7 +23,14 @@ public class NodeAssessmentController {
     }
 
     @GetMapping
-    public NodeAssessmentService.Assessment get() { return assessments.get(); }
+    public NodeAssessmentStatus get() {
+        NodeAssessmentService.Assessment assessment = assessments.get();
+        return new NodeAssessmentStatus(assessment.decision(), assessment.reason(), assessment.source(),
+                assessment.evaluatedAt(), assessments.isConnected());
+    }
+
+    public record NodeAssessmentStatus(String decision, String reason, String source,
+                                       java.time.Instant evaluatedAt, boolean connected) { }
 
     @PostMapping
     @ResponseStatus(HttpStatus.NO_CONTENT)

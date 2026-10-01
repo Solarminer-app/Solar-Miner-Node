@@ -236,6 +236,7 @@ Controller source: [`MiningController`](../pc-agent/src/main/java/de/verdox/sola
 | `POST` | `/api/agent/telemetry/restart` | Retry starting LibreHardwareMonitor; Windows may show a UAC prompt. |
 | `GET` | `/api/agent/overview` | Get mining statistics, both coin states, proxy state, discovered GPU limits and Pearl readiness. |
 | `GET` | `/api/agent/earnings` | Get per-coin gross daily earnings forecasts, current hashrates, network inputs, USD prices, timestamps, sources and stale/unavailable state. |
+
 | `GET` | `/api/agent/proxy` | Get proxy mode, status, per-coin Stratum URLs, reachability and fee-target readiness. |
 | `POST` | `/api/agent/proxy?host=...` | Save an external LAN proxy host and pause the active miner; unavailable in standalone mode. |
 | `POST` | `/api/agent/proxy/discover` | Broadcast on local IPv4 subnets to find compatible proxies via UDP 8091, then validate their API over HTTP 8090. |
@@ -263,3 +264,9 @@ When a REST controller or DTO changes:
 5. Treat removal/renaming of fields, enum values, paths, methods, or status codes as a breaking API change. Introduce a versioned path before making such a change for external consumers.
 
 The React route forwarding controller is intentionally excluded because it serves HTML navigation and is not a REST interface. Likewise, internal Java classes whose names end in `Controller` but have no Spring HTTP mapping are not API controllers.
+
+## Node earnings forecast
+
+`GET /api/pv-site/{siteId}/dashboard/earnings` returns per-coin daily gross forecasts and a site total with EUR/day, kWh/day, revenue in cents/kWh, the configured grid tariff in cents/kWh, and a completeness flag. The Node reads the PC-Agent forecast for registered agents and its own cached Bitcoin chain data for native miners. Coin identities and algorithm mapping come from `MiningCoin`; each device/chain forecast is a `MiningEarningsSource` bean. New agent coins require a `MiningCoin` entry, an agent forecast, and a USD price in currency-rates. A new native chain needs its own source bean. The Node uses the currency-rates service for all coin prices and USD/EUR conversion. Unavailable, stale, or missing values block the site profitability comparison.
+
+The controller DSL variable `MINING_MARGIN_CENTS_PER_KWH` is estimated gross mining revenue per kWh minus the current grid tariff. It returns a failing value when data is incomplete. The optional "Profitable grid mining" mode can be added in cluster configuration; it is absent from the standard ruleset. The emergency battery mode retains first priority. Historical simulator runs reject this live-only variable because historical earnings inputs are not stored.

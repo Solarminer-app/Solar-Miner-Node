@@ -188,6 +188,8 @@ function SiteLayoutContent({children}: PropsWithChildren) {
     }, {
         label: t("nav.finance"), href: `${basePath}/finance`, icon: "money" as const,
     }, {
+        label: t("nav.earnings"), href: `${basePath}/earnings`, icon: "money" as const,
+    }, {
         // "Exit" links — reachable from inside any site without having to leave.
         // exact:true so the prefix-based isActive() never marks them active on
         // in-site paths (their hrefs live outside /site/<id>/...).

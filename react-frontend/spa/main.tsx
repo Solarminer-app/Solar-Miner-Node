@@ -14,6 +14,7 @@ import SiteLayout from '../app/site/[siteId]/layout';
 import DashboardPage from '../app/site/[siteId]/dashboard/page';
 import DetailsPage from '../app/site/[siteId]/details/page';
 import FinancePage from '../app/site/[siteId]/finance/page';
+import EarningsPage from '../app/site/[siteId]/earnings/page';
 import MiningPage from '../app/site/[siteId]/mining/page';
 import MiningTargetsPage from '../app/site/[siteId]/mining/targets/page';
 import WalletOverviewPage from '../app/site/[siteId]/finance/wallets/page';
@@ -45,6 +46,7 @@ function Application() {
                         <Route element={<RepairProfilesPage/>} path="repair-profiles"/>
                         <Route element={<DetailsPage/>} path="details"/>
                         <Route element={<FinancePage/>} path="finance"/>
+                        <Route element={<EarningsPage/>} path="earnings"/>
                         <Route element={<MiningPage/>} path="mining"/>
                         <Route element={<MiningTargetsPage/>} path="mining/targets"/>
                         <Route element={<WalletOverviewPage/>} path="finance/wallets"/>

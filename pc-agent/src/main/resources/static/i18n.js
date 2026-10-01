@@ -63,6 +63,8 @@
     'Eigene Auszahlung ist konfiguriert.': 'Your own payout is configured.',
     'Eigene Wallet eintragen oder das SolarMiner-Standardziel bewusst bestätigen.': 'Enter your own wallet or explicitly confirm the SolarMiner standard destination.',
     'Optional: SolarMiner Node verbinden für Regeln, PV-Überschuss und Automatisierung.': 'Optional: connect a SolarMiner Node for rules, PV surplus and automation.',
+    'SolarMiner Node ist verbunden.': 'SolarMiner Node is connected.',
+    'SolarMiner Node verbunden': 'SolarMiner Node connected', 'SolarMiner Node nicht verbunden': 'SolarMiner Node not connected',
     'Node: Mining ist aktuell wirtschaftlich freigegeben.': 'Node: mining is currently approved as economical.',
     'Node: Mining ist aktuell nicht wirtschaftlich freigegeben.': 'Node: mining is currently not approved as economical.',
     'Node: Noch keine Wirtschaftlichkeitsbewertung.': 'Node: no economic assessment yet.',
