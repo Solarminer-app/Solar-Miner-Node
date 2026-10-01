@@ -31,7 +31,7 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: derverdox/solarminer-stratum-proxy
+          repository: Solarminer-app/solarminer-stratum-proxy
           path: embedded-proxy-src
 
       - uses: actions/setup-java@v4
@@ -52,11 +52,11 @@ jobs:
           set -euo pipefail
           chmod +x ./gradlew
 
-          VERSION="$(./gradlew -q printPcAgentVersion)"
-          IMAGE="$(./gradlew -q printPcAgentImage)"
+          VERSION="$(./gradlew -q printPcAgentVersion -Psolarminer.proxy.project-dir=embedded-proxy-src)"
+          IMAGE="$(./gradlew -q printPcAgentImage -Psolarminer.proxy.project-dir=embedded-proxy-src)"
 
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "pcAgentVersion must use x.y.z, got: $VERSION" >&2
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "pcAgentVersion must use x.y or x.y.z, got: $VERSION" >&2
             exit 1
           fi
 
@@ -83,7 +83,7 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: derverdox/solarminer-stratum-proxy
+          repository: Solarminer-app/solarminer-stratum-proxy
           path: embedded-proxy-src
 
       - uses: actions/setup-java@v4
@@ -113,7 +113,7 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: derverdox/solarminer-stratum-proxy
+          repository: Solarminer-app/solarminer-stratum-proxy
           path: embedded-proxy-src
 
       - uses: docker/setup-buildx-action@v3
