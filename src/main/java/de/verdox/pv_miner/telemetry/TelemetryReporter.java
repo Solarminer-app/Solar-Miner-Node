@@ -175,7 +175,7 @@ public class TelemetryReporter {
     /**
      * Current observations, normalized to H/s. The device key is a locally
      * derived pseudonym (not a serial number or MAC); the central service uses
-     * it only to avoid double-counting and publishes k-anonymous medians only.
+     * it only to avoid double-counting. Public groups may contain one sample.
      */
     private List<BenchmarkSample> benchmarksFor(PVSiteEntity site) {
         return site.getMiners().stream().flatMap(miner -> {
