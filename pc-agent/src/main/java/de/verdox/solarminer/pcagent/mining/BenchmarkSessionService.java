@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 
 /** Timed local benchmark; full runs restore the miners that were active beforehand. */
 @Service
@@ -48,6 +49,12 @@ public class BenchmarkSessionService {
                 value.phaseIndex(), value.phaseCount(), value.results(), remaining);
     }
     public synchronized Session cancel() { cancel = true; return status(); }
+
+    /** Serializes Node controls with benchmark admission so a checked command cannot race a new run. */
+    public synchronized <T> T withExternalControl(Supplier<T> command) {
+        if (session.running()) throw new BenchmarkRunningException();
+        return command.get();
+    }
 
     private List<String> installedPhases() {
         List<String> phases = new ArrayList<>();
@@ -155,5 +162,9 @@ public class BenchmarkSessionService {
     public record Session(boolean running, String mode, String phase, Instant startedAt, Instant phaseEndsAt, Instant totalEndsAt,
                           int phaseIndex, int phaseCount, List<Result> results, Long secondsRemaining) {
         static Session idle() { return new Session(false, "", "Idle", null, null, null, 0, 0, List.of(), 0L); }
+    }
+
+    public static final class BenchmarkRunningException extends RuntimeException {
+        public BenchmarkRunningException() { super("Node controls are temporarily locked while a benchmark is running"); }
     }
 }

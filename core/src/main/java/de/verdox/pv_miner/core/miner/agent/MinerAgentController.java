@@ -177,14 +177,17 @@ public class MinerAgentController implements MinerController {
             MinerStats stats = restClient.get().uri(uriBuilder -> uriBuilder.path("/api/agent").build()).retrieve().body(MinerStats.class);
             Map<?, ?> range = restClient.get().uri("/api/agent/power-control/external-status").retrieve().body(Map.class);
             if (stats == null || range == null) return stats;
-            long measuredHostUsage = readMeasuredHostPower(restClient, stats);
             double hardwareTemperature = readHardwareTemperature(restClient);
             long min = number(range.get("minPowerWatts"), stats.minPowerTarget());
             long max = number(range.get("maxPowerWatts"), stats.maxPowerTarget());
             long target = number(range.get("currentTargetWatts"), stats.powerTargetWatts());
-            long usage = measuredHostUsage > 0
-                    ? measuredHostUsage
-                    : number(range.get("currentUsageWatts"), stats.approximatedPowerUsageWatts());
+            List<MinerStats.Worker> workers = stats.workers() == null ? List.of() : stats.workers().stream()
+                    .map(worker -> miningOnlyPower(worker))
+                    .toList();
+            long usage = workers.isEmpty()
+                    ? stats.miningStatus() == MinerStats.MinerStatus.MINING
+                        ? number(range.get("currentUsageWatts"), stats.approximatedPowerUsageWatts()) : 0
+                    : workers.stream().mapToLong(MinerStats.Worker::approximatedPowerUsageWatts).sum();
             long standard = number(range.get("defaultPowerWatts"), stats.defaultPowerTarget());
             boolean dynamicEnabled = Boolean.TRUE.equals(range.get("dynamicPowerScalingEnabled"));
             boolean externalEnabled = Boolean.TRUE.equals(range.get("externalControlEnabled"));
@@ -204,26 +207,19 @@ public class MinerAgentController implements MinerController {
             }
             return new MinerStats(stats.minerIdentity(), stats.name(), stats.miningStatus(), target, min, standard, max,
                     usage, stats.terahashPerSecond(), Math.max(stats.temperatureCelsius(), hardwareTemperature),
-                    stats.pools(), stats.workers());
+                    stats.pools(), workers);
         } catch (Throwable e) {
             return MinerStats.DEFAULT;
         }
     }
 
-    /** Prefer the agent's combined CPU/GPU power reading for the miner card total. */
-    private static long readMeasuredHostPower(RestClient restClient, MinerStats stats) {
-        if (stats.miningStatus() != MinerStats.MinerStatus.MINING) return 0;
-        try {
-            JsonNode telemetry = restClient.get().uri("/api/agent/telemetry").retrieve().body(JsonNode.class);
-            JsonNode metric = telemetry == null ? null : telemetry.path("metrics").path("system.total_power");
-            if (metric == null || !metric.path("available").asBoolean(false)
-                    || !"W".equals(metric.path("unit").asText())) return 0;
-            double watts = metric.path("value").asDouble(Double.NaN);
-            return Double.isFinite(watts) && watts > 0 && watts <= 100_000 ? Math.round(watts) : 0;
-        } catch (Throwable ignored) {
-            // Older agents or hosts without readable power sensors use worker estimates.
-            return 0;
-        }
+    /** Idle worker draw may be real device consumption, but it is not mining consumption. */
+    private static MinerStats.Worker miningOnlyPower(MinerStats.Worker worker) {
+        if (worker.miningStatus() == MinerStats.MinerStatus.MINING) return worker;
+        return new MinerStats.Worker(worker.miningStatus(), worker.workerDisplayName(), worker.currentAlgorithm(),
+                worker.terahashPerSecond(), worker.temperatureCelsius(), worker.powerTargetWatts(),
+                worker.minPowerTarget(), worker.defaultPowerTarget(), worker.maxPowerTarget(), 0,
+                worker.pools(), worker.hardwareType(), worker.hardwareModel(), worker.deviceId());
     }
 
     /** The agent's hardware sensors are a separate endpoint from its mining-worker statistics. */

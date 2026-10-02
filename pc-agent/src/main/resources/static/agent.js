@@ -5,6 +5,7 @@ const statusLabels = { MINING: 'Mining aktiv', PAUSED: 'Pausiert', STOPPED: 'Ges
 let latest = null, busy = false, deviceFilter = 'all';
 let selectedView = ['monero', 'pearl'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'catalog';
 let pendingInstall = null;
+let defenderAction = null, defenderMessage = null;
 let selectedGpuIndices = new Set(), gpuSelectionDirty = false, gpuSelectionVersion = null;
 let consoleState = null;
 let randomXOptimization = null, lastOptimizationLoad = 0, optimizationBusy = false;
@@ -210,6 +211,21 @@ function hydrateConfiguration(formId, configuration, fields) {
   }
   form.dataset.hydrated = version;
 }
+async function addDefenderExclusion(coinId) {
+  defenderAction = coinId; defenderMessage = null;
+  if (latest) render(latest);
+  try {
+    const response = await fetch(`/api/agent/${encodeURIComponent(coinId)}/defender-exclusion`, { method: 'POST' });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.success) throw new Error(result?.message || `HTTP ${response.status}`);
+    defenderMessage = { coinId, success: true, text: result.message };
+  } catch (error) {
+    defenderMessage = { coinId, success: false, text: error.message };
+  } finally {
+    defenderAction = null;
+    await refresh();
+  }
+}
 function renderGpuSelection(data) {
   const gpus = data.gpus || [];
   const version = JSON.stringify({ devices: data.pearlConfiguration?.devices, gpus: gpus.map(g => [g.vendor, g.index, g.model]) });
@@ -347,7 +363,7 @@ function renderWorkspace(data) {
       const help = node('a', 'muted', 'Microsoft: Schutzverlauf ↗');
       help.href = 'https://support.microsoft.com/en-us/windows/security/windows-security/protection-history-in-the-windows-security-app';
       help.target = '_blank'; help.rel = 'noopener noreferrer';
-      const exclusion = node('p', 'muted', 'Wird derselbe geprüfte Miner weiter blockiert, kann ein Administrator gezielt seinen Installationsordner ausnehmen. Alle Dateien dort bleiben dann ungeprüft; verwende keine Ausnahme für den ganzen PC-Agent oder Dateityp.');
+      const exclusion = node('p', 'muted', 'Nur wenn du den Fund geprüft hast und derselbe Miner weiter blockiert wird: Du kannst Windows bitten, genau den Installationsordner auszunehmen. Alle Dateien in diesem Ordner werden dann nicht von Defender geprüft.');
       const exclusionHelp = node('a', 'muted', 'Microsoft: Ausnahmen verwalten ↗');
       exclusionHelp.href = 'https://learn.microsoft.com/en-us/defender-endpoint/microsoft-defender-antivirus-exclusions-configure';
       exclusionHelp.target = '_blank'; exclusionHelp.rel = 'noopener noreferrer';
@@ -355,24 +371,18 @@ function renderWorkspace(data) {
       if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
         const directory = String(readiness.installDirectory || '');
         if (/^[A-Za-z]:\\/.test(directory) && !/[\x00-\x1f]/.test(directory)) {
-          const command = `Add-MpPreference -ExclusionPath '${directory.replace(/'/g, "''")}'`;
-          const label = node('label', 'muted defender-command', 'Diesen Befehl nur nach Prüfung in einer PowerShell als Administrator auf diesem PC ausführen:');
-          const field = document.createElement('textarea');
-          field.className = 'defender-command-text'; field.readOnly = true; field.rows = 3; field.value = command;
-          field.setAttribute('aria-label', 'PowerShell-Befehl für die Defender-Ausnahme');
-          const copy = node('button', 'button subtle defender-copy', 'Ausnahme-Befehl kopieren');
-          copy.type = 'button';
-          copy.addEventListener('click', async () => {
-            try {
-              if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(command);
-              else { field.select(); if (!document.execCommand('copy')) throw new Error('copy failed'); }
-              copy.textContent = t('Befehl kopiert');
-            } catch (_) { field.select(); copy.textContent = t('Befehl markieren und kopieren'); }
-          });
-          label.append(field); card.append(label, copy);
+          const request = node('button', 'button subtle defender-copy', defenderAction === coin.id
+            ? 'Windows-Freigabe wird angefordert …' : 'Installationsordner in Defender ausnehmen');
+          request.type = 'button'; request.disabled = defenderAction !== null;
+          request.addEventListener('click', () => addDefenderExclusion(coin.id));
+          card.append(node('p', 'muted', `Betroffener Ordner: ${directory}`), request);
+          if (defenderMessage?.coinId === coin.id) {
+            const outcome = node('p', defenderMessage.success ? 'muted' : 'error', defenderMessage.text);
+            card.append(outcome);
+          }
         }
       } else {
-        card.append(node('p', 'muted', 'Öffne diese Seite auf dem betroffenen PC unter http://127.0.0.1:8084/mining.html, um den passenden Ausnahme-Befehl zu kopieren.'));
+        card.append(node('p', 'muted', 'Öffne diese Seite auf dem betroffenen PC unter http://127.0.0.1:8084/mining.html, um die Defender-Freigabe lokal anzufordern.'));
       }
     }
     if (status === 'DOWNLOADING') {

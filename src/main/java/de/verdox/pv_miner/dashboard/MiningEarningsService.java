@@ -42,8 +42,7 @@ public class MiningEarningsService {
         List<CoinEstimate> unavailable = new ArrayList<>();
         for (var miner : site.getMiners()) {
             MinerStats stats = queries.getLastResult(miner, MinerStats.DEFAULT);
-            boolean hasObservedRate = stats.terahashPerSecond() > 0 || (stats.workers() != null && stats.workers().stream().anyMatch(worker -> worker.terahashPerSecond() > 0));
-            if (!hasObservedRate && stats.miningStatus() != MinerStats.MinerStatus.MINING) continue;
+            if (stats.miningStatus() != MinerStats.MinerStatus.MINING) continue;
             MiningEarningsSource source = sources.stream().filter(candidate -> candidate.supports(miner)).findFirst().orElse(null);
             if (source == null) {
                 unavailable.add(CoinEstimate.unavailable("unknown", "—", "Keine Prognosequelle für diesen Miner"));

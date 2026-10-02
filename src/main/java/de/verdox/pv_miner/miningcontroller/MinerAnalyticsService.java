@@ -54,7 +54,7 @@ public class MinerAnalyticsService {
         List<MinerDetailsPageDto.MinerHistoryPointDto> history = loadHistory(miner, from, to, intervalMinutes);
         MinerDetailsPageDto.MinerHistorySummaryDto summary = summarize(history, from, to, intervalMinutes);
         double efficiency = stats.terahashPerSecond() > 0
-                ? stats.approximatedPowerUsageWatts() / stats.terahashPerSecond()
+                ? stats.miningPowerWatts() / stats.terahashPerSecond()
                 : 0;
         long estimateTarget = stats.powerTargetWatts() > 0 ? stats.powerTargetWatts() : miner.getMaxPowerTarget();
         MinerEfficiencyLearningService.EfficiencyEstimate estimate = efficiencyLearningService.estimate(miner, estimateTarget);
@@ -75,7 +75,7 @@ public class MinerAnalyticsService {
                 miner.getClusterName(),
                 miner.getCurrentMiningPoolTarget(),
                 new MinerDetailsPageDto.LiveMinerStatsDto(
-                        stats.terahashPerSecond(), stats.approximatedPowerUsageWatts(), stats.powerTargetWatts(),
+                        stats.terahashPerSecond(), stats.miningPowerWatts(), stats.powerTargetWatts(),
                         stats.temperatureCelsius(), efficiency
                 ),
                 new MinerDetailsPageDto.MinerHardwareDto(
@@ -102,7 +102,7 @@ public class MinerAnalyticsService {
                 stats.workers().stream()
                         .map(worker -> new MinerDetailsPageDto.MinerWorkerDto(
                                 worker.workerDisplayName(), worker.currentAlgorithm(), worker.miningStatus().name(),
-                                worker.terahashPerSecond(), worker.temperatureCelsius(), worker.approximatedPowerUsageWatts()
+                                worker.terahashPerSecond(), worker.temperatureCelsius(), worker.miningPowerWatts()
                         ))
                         .toList(),
                 summary,

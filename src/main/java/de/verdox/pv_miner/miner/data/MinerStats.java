@@ -18,6 +18,11 @@ public record MinerStats(
         List<Worker> workers
 ) implements QueryResult {
 
+    /** Power attributable to mining; idle/paused device draw is not mining power. */
+    public long miningPowerWatts() {
+        return miningStatus == MinerStatus.MINING ? approximatedPowerUsageWatts : 0;
+    }
+
     public MinerStats withName(String name) {
         return new MinerStats(minerIdentity, name, miningStatus, powerTargetWatts, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatedPowerUsageWatts, terahashPerSecond, temperatureCelsius, pools, workers);
     }
@@ -55,6 +60,9 @@ public record MinerStats(
             String hardwareModel,
             String deviceId
     ) {
+        public long miningPowerWatts() {
+            return miningStatus == MinerStatus.MINING ? approximatedPowerUsageWatts : 0;
+        }
     }
 
     public enum MinerStatus {

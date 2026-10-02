@@ -2,6 +2,12 @@
 
 Use a short dated entry for changes that affect architecture, contracts, mining support or documentation truth. Link commits/issues when available. Do not paste secrets or raw wallet credentials.
 
+## 2026-10-02 — Exclude idle PC power from mining statistics
+
+- Scope: PC-Agent worker aggregation, Node agent-stat normalization, site/live dashboard power, mining profitability estimates and stored miner power history. No API shape changed.
+- Change: only sum worker power while that worker is `MINING`; zero idle worker power when the Node reads agent stats; don't classify combined host sensor power as mining draw; exclude inactive miners from earnings forecasts and write zero mining power/efficiency for inactive history samples. Site aggregation also ignores non-mining miner statuses.
+- Verification: source inspection and `git diff --check`; tests/build not run. Existing stored historical samples are not rewritten.
+
 ## Entry template
 
 ### YYYY-MM-DD — change
@@ -175,3 +181,16 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - Consent/egress: benchmark sharing is an independent persisted switch, default off. When enabled, active worker observations are sent every 15 minutes and after manual runs. The agent keeps a random participant UUID and sends UUID-derived device pseudonyms. Turning sharing off queues a metrics-free revocation; failed delivery retries on the next interval.
 - Admin: new public POST `/api/telemetry/standalone-benchmarks` only updates benchmark eligibility/samples; standalone participants have no location, PV/energy/hashrate network totals and never enter the location rollup.
 - Verification: `:pc-agent:compileJava` and admin backend `compileJava` both succeeded with Gradle 8.14.5/JDK 21 using repository access; `node --check` passed for the changed JavaScript and `git diff --check` passed. No tests were added or run. Runtime, installed miner timing, Windows/Linux restoration, deployed endpoint reachability, consent revocation and real published comparison remain unverified. Existing UUID-only public write identity remains a security limitation shared with current telemetry.
+
+## 2026-10-02 — Protect active benchmarks from miner control commands
+
+- Scope: PC-Agent benchmark admission and local/Node power-control commands; API shapes unchanged.
+- Change: serialize benchmark start with target, pause and resume commands. While a benchmark is running, commands return HTTP 409 instead of interrupting benchmark workers. The same monitor makes the idle check and command atomic with benchmark start.
+- Verification: source inspection and `git diff --check`; tests/build not run. Live Node/PC-Agent contention remains unverified.
+
+## 2026-10-02 — Request Defender exclusion from local PC-Agent UI
+
+- Scope: Windows Defender handling in the standalone PC-Agent. No Node or cross-repository contract changed.
+- Change: after an antivirus-blocked miner install, the loopback Mining UI offers a button to exclude only the known Monero or Pearl install directory. A new endpoint accepts only loopback requests and only while that coin reports `BLOCKED_BY_ANTIVIRUS`. `WindowsDefenderExclusionService` invokes PowerShell with `-Verb RunAs`; the elevated script applies `Add-MpPreference` and reads `Get-MpPreference` to confirm the path. The UI reports success, UAC cancellation, timeout, or command/policy failure.
+- Limits: all files in the selected install directory become excluded from Defender scanning. This requires a native Windows PC-Agent process; Linux/Docker cannot elevate on a Windows host. Enterprise policy or Defender tamper protection may reject the change.
+- Verification: source inspection only; no tests/builds run. Native Windows UAC approval/cancellation and Defender read-back still require host verification.

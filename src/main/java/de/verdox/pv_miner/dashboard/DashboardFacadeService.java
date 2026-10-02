@@ -84,7 +84,7 @@ public class DashboardFacadeService {
 
         List<MinerStats> currentMinerStats = pvSiteEntity.getMiners().stream().map(miner -> entityQueryService.getLastResult(miner, MinerStats.DEFAULT)).toList();
         double teraHashPerSecond = currentMinerStats.stream().mapToDouble(MinerStats::terahashPerSecond).sum();
-        double actualMinerPowerWatts = currentMinerStats.stream().mapToDouble(MinerStats::approximatedPowerUsageWatts).sum();
+        double actualMinerPowerWatts = currentMinerStats.stream().mapToDouble(MinerStats::miningPowerWatts).sum();
 
         long amountRunningMiners = currentMinerStats.stream().filter(minerStats -> minerStats.terahashPerSecond() > 0).count();
 

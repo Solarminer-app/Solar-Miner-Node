@@ -59,30 +59,33 @@ public class AgentPowerController {
 
     @PostMapping("/target")
     public PowerStatus target(@RequestParam long watts) {
-        if (!mining.setTarget(watts)) throw new ResponseStatusException(HttpStatus.CONFLICT, "Leistungsziel konnte nicht sicher angewendet werden");
-        return status();
+        return withControl(() -> {
+            if (!mining.setTarget(watts)) throw new ResponseStatusException(HttpStatus.CONFLICT, "Leistungsziel konnte nicht sicher angewendet werden");
+            return status();
+        }, false);
     }
 
     /** Node-only command path; local dashboard actions intentionally use their existing endpoints. */
     @PostMapping("/external/target")
     public PowerStatus externalTarget(@RequestParam long watts) {
-        requireExternalControl();
-        // Dynamic GPU regulation is optional. When it is off, a positive target
-        // still means that the Node may start this fixed-power miner.
-        if (watts > 0 && !controls.get().dynamicPowerScalingEnabled()) {
-            if (!mining.resumeExternally())
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Miner konnte nicht gestartet werden");
+        return withControl(() -> {
+            // Dynamic GPU regulation is optional. When it is off, a positive target
+            // still means that the Node may start this fixed-power miner.
+            if (watts > 0 && !controls.get().dynamicPowerScalingEnabled()) {
+                if (!mining.resumeExternally())
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Miner konnte nicht gestartet werden");
+                return externalStatus();
+            }
+            if (!mining.setExternalTarget(watts)) throw new ResponseStatusException(HttpStatus.CONFLICT, "Leistungsziel konnte nicht sicher angewendet werden");
             return externalStatus();
-        }
-        if (!mining.setExternalTarget(watts)) throw new ResponseStatusException(HttpStatus.CONFLICT, "Leistungsziel konnte nicht sicher angewendet werden");
-        return externalStatus();
+        }, true);
     }
 
     @PostMapping("/external/pause")
-    public boolean externalPause() { requireExternalControl(); return mining.pauseExternally(); }
+    public boolean externalPause() { return withControl(mining::pauseExternally, true); }
 
     @PostMapping("/external/resume")
-    public boolean externalResume() { requireExternalControl(); return mining.resumeExternally(); }
+    public boolean externalResume() { return withControl(mining::resumeExternally, true); }
 
     @GetMapping("/settings")
     public AgentControlSettingsService.Settings settings() { return controls.get(); }
@@ -102,8 +105,18 @@ public class AgentPowerController {
         return controls.get();
     }
 
+    private <T> T withControl(java.util.function.Supplier<T> command, boolean external) {
+        try {
+            return benchmarks.withExternalControl(() -> {
+                if (external) requireExternalControl();
+                return command.get();
+            });
+        } catch (BenchmarkSessionService.BenchmarkRunningException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Node-Steuerung ist während eines Benchmarks vorübergehend gesperrt");
+        }
+    }
+
     private void requireExternalControl() {
-        if (benchmarks.status().running()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Node-Steuerung ist während eines Benchmarks vorübergehend gesperrt");
         if (!controls.get().externalControlEnabled()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Externe Steuerung wurde lokal deaktiviert");
     }
 

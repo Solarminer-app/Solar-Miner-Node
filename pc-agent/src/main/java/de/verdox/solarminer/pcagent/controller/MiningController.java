@@ -10,6 +10,7 @@ import de.verdox.solarminer.pcagent.mining.PayoutDefaultsService;
 import de.verdox.solarminer.pcagent.mining.ReferralConfigurationService;
 import de.verdox.solarminer.pcagent.mining.FeeTransparencyService;
 import de.verdox.solarminer.pcagent.mining.WalletBalanceService;
+import de.verdox.solarminer.pcagent.mining.WindowsDefenderExclusionService;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
 import de.verdox.solarminer.pcagent.mining.ProxyDiscoveryService;
 import de.verdox.solarminer.pcagent.pearl.PearlMinerService;
@@ -42,6 +43,7 @@ public class MiningController {
     private final ReferralConfigurationService referralConfigurationService;
     private final FeeTransparencyService feeTransparencyService;
     private final WalletBalanceService walletBalanceService;
+    private final WindowsDefenderExclusionService defenderExclusionService;
 
     public MiningController(MiningService miningService, XmrConfigService xmrConfigService,
                             PearlMinerService pearlMinerService, LocalGpuPowerService gpuPowerService,
@@ -53,7 +55,8 @@ public class MiningController {
                             PayoutDefaultsService payoutDefaultsService,
                             ReferralConfigurationService referralConfigurationService,
                             FeeTransparencyService feeTransparencyService,
-                            WalletBalanceService walletBalanceService) {
+                            WalletBalanceService walletBalanceService,
+                            WindowsDefenderExclusionService defenderExclusionService) {
         this.miningService = miningService;
         this.xmrConfigService = xmrConfigService;
         this.proxyConfigurationService = proxyConfigurationService;
@@ -69,6 +72,7 @@ public class MiningController {
         this.referralConfigurationService = referralConfigurationService;
         this.feeTransparencyService = feeTransparencyService;
         this.walletBalanceService = walletBalanceService;
+        this.defenderExclusionService = defenderExclusionService;
     }
 
     @GetMapping("identify")
@@ -182,6 +186,58 @@ public class MiningController {
     @PostMapping("/monero/download")
     public boolean installMonero() {
         return xmrDownloadService.retry();
+    }
+
+    @PostMapping("/{coin}/defender-exclusion")
+    public ResponseEntity<DefenderExclusionResult> addDefenderExclusion(
+            @PathVariable String coin, jakarta.servlet.http.HttpServletRequest request) {
+        try {
+            if (!java.net.InetAddress.getByName(request.getRemoteAddr()).isLoopbackAddress()
+                    || !isLocalUiRequest(request))
+                return ResponseEntity.status(403).body(new DefenderExclusionResult(false,
+                        "Die Defender-Ausnahme muss von der lokalen PC-Agent-Seite angefordert werden."));
+            if (!defenderExclusionService.isWindows())
+                return ResponseEntity.status(400).body(new DefenderExclusionResult(false,
+                        "Diese Funktion ist nur unter Windows verfügbar."));
+            java.nio.file.Path directory = switch (coin) {
+                case "monero" -> xmrDownloadService.installDirectory();
+                case "pearl" -> srbDownloadService.installDirectory();
+                default -> null;
+            };
+            if (directory == null) return ResponseEntity.status(404)
+                    .body(new DefenderExclusionResult(false, "Unbekannter Miner."));
+            String downloadStatus = "monero".equals(coin)
+                    ? xmrDownloadService.status() : srbDownloadService.status();
+            if (!"BLOCKED_BY_ANTIVIRUS".equals(downloadStatus))
+                return ResponseEntity.status(409).body(new DefenderExclusionResult(false,
+                        "Eine Defender-Ausnahme ist nur nach einer erkannten Blockierung verfügbar."));
+            defenderExclusionService.addMinerDirectory(coin, directory);
+            return ResponseEntity.ok(new DefenderExclusionResult(true,
+                    "Windows Defender hat die Ausnahme für " + directory + " bestätigt."));
+        } catch (Exception failure) {
+            String detail = failure.getMessage() == null ? "Unbekannter Windows-Fehler." : failure.getMessage();
+            return ResponseEntity.status(400).body(new DefenderExclusionResult(false, detail));
+        }
+    }
+
+    public record DefenderExclusionResult(boolean success, String message) { }
+
+    private boolean isLocalUiRequest(jakarta.servlet.http.HttpServletRequest request) {
+        String serverName = request.getServerName().toLowerCase(java.util.Locale.ROOT);
+        if (!(serverName.equals("localhost") || serverName.equals("127.0.0.1") || serverName.equals("::1")))
+            return false;
+        String origin = request.getHeader("Origin");
+        if (origin == null) return false;
+        try {
+            java.net.URI uri = java.net.URI.create(origin);
+            String originHost = uri.getHost();
+            return originHost != null && (originHost.equalsIgnoreCase("localhost")
+                    || originHost.equals("127.0.0.1") || originHost.equals("::1"))
+                    && uri.getPort() == request.getServerPort()
+                    && uri.getScheme().equalsIgnoreCase(request.getScheme());
+        } catch (IllegalArgumentException invalidOrigin) {
+            return false;
+        }
     }
 
     @PostMapping("/pearl/remove")

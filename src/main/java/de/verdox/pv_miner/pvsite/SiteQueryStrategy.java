@@ -35,7 +35,7 @@ public class SiteQueryStrategy implements EntityQueryService.Strategy<PVSiteEnti
         for (MinerEntity<?> miner : pvSiteType.getMiners()) {
             try {
                 var stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
-                cumulated += stats.approximatedPowerUsageWatts();
+                cumulated += stats.miningPowerWatts();
             } catch (Throwable e) {
             }
         }

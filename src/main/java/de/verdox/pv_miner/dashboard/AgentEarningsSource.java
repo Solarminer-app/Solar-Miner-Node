@@ -47,11 +47,11 @@ public class AgentEarningsSource implements MiningEarningsSource {
                 boolean minerActive = stats.workers() != null && stats.workers().stream()
                         .anyMatch(worker -> coin.algorithm().equals(worker.currentAlgorithm())
                                 && worker.miningStatus() == MinerStats.MinerStatus.MINING);
-                if (hashrate <= 0 && !minerActive) continue;
+                if (!minerActive) continue;
                 double watts = stats.workers() == null ? 0 : stats.workers().stream()
                         .filter(worker -> coin.algorithm().equals(worker.currentAlgorithm())
                                 && worker.miningStatus() == MinerStats.MinerStatus.MINING)
-                        .mapToDouble(MinerStats.Worker::approximatedPowerUsageWatts).sum();
+                        .mapToDouble(MinerStats.Worker::miningPowerWatts).sum();
                 double priceUsd = forecast.path("priceUsd").asDouble();
                 double coinsPerDay = forecast.path("coinsPerDay").asDouble();
                 String updatedAt = forecast.path("updatedAt").asText("");

@@ -251,8 +251,9 @@ public class ClusterController {
         MinerEfficiencyLearningService learningService = SpringContextHelper.getBean(MinerEfficiencyLearningService.class);
         List<ClusterUtil.EfficiencyCandidate> candidates = miners.stream().map(miner -> {
             MinerStats stats = queryService.getLastResult(miner, MinerStats.DEFAULT);
-            if (stats != null && stats.terahashPerSecond() > 0 && stats.approximatedPowerUsageWatts() > 0) {
-                double measuredEfficiency = stats.approximatedPowerUsageWatts() / stats.terahashPerSecond();
+            if (stats != null && stats.miningStatus() == MinerStats.MinerStatus.MINING
+                    && stats.terahashPerSecond() > 0 && stats.miningPowerWatts() > 0) {
+                double measuredEfficiency = stats.miningPowerWatts() / stats.terahashPerSecond();
                 if (Double.isFinite(measuredEfficiency) && measuredEfficiency > 0) {
                     lastKnownEfficiencies.put(miner.getId(), measuredEfficiency);
                 }

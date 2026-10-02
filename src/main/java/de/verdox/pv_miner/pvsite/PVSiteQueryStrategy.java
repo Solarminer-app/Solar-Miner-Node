@@ -13,7 +13,7 @@ public interface PVSiteQueryStrategy<PV_SITE_TYPE extends PVSiteEntity> extends 
         for (MinerEntity<?> miner : pvSiteType.getMiners()) {
             try {
                 var stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
-                cumulated += stats.approximatedPowerUsageWatts();
+                cumulated += stats.miningPowerWatts();
             } catch (Throwable e) {}
         }
         return cumulated / 1000d;

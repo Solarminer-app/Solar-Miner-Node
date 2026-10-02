@@ -391,7 +391,9 @@ public class MiningService {
             totalMinPowerTarget += worker.minPowerTarget();
             totalDefaultPowerTarget += worker.defaultPowerTarget();
             totalMaxPowerTarget += worker.maxPowerTarget();
-            totalApproximatedPowerUsage += worker.approximatedPowerUsageWatts();
+            if (worker.miningStatus() == MinerStats.MinerStatus.MINING) {
+                totalApproximatedPowerUsage += worker.approximatedPowerUsageWatts();
+            }
             totalTerahashPerSecond += worker.terahashPerSecond();
 
             if (worker.temperatureCelsius() > maxTemperature) {

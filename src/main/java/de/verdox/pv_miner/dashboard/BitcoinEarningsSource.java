@@ -18,7 +18,7 @@ public class BitcoinEarningsSource implements MiningEarningsSource {
 
     @Override public List<MiningEarningsService.CoinEstimate> forecast(MinerEntity<?> miner, MinerStats stats) {
         double hashrate = Math.max(0, stats.terahashPerSecond()) * 1e12;
-        double watts = Math.max(0, stats.approximatedPowerUsageWatts());
+        double watts = Math.max(0, stats.miningPowerWatts());
         double difficulty = constants.getTodayMiningDifficulty();
         double reward = constants.getTodayBlockSubsidy() / 100_000_000.0;
         MiningCoin coin = MiningCoin.BITCOIN;

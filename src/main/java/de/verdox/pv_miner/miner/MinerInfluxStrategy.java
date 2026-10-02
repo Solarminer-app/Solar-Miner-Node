@@ -24,14 +24,15 @@ public class MinerInfluxStrategy implements InfluxEntityStrategy<MinerEntity<?>,
 
     @Override
     public void writeToInflux(WriteApi writeApi, String bucket, String org, MinerEntity<?> entity, MinerStats dataToWrite, Instant timeOfData) {
+        long miningPowerWatts = dataToWrite.miningPowerWatts();
         double efficiency = 0.0;
-        if (dataToWrite.terahashPerSecond() > 0) {
-            efficiency = dataToWrite.approximatedPowerUsageWatts() / dataToWrite.terahashPerSecond();
+        if (dataToWrite.miningStatus() == MinerStats.MinerStatus.MINING && dataToWrite.terahashPerSecond() > 0) {
+            efficiency = miningPowerWatts / dataToWrite.terahashPerSecond();
         }
 
         InfluxUtil.InfluxRecordBuilder influxRecordBuilder = new InfluxUtil.InfluxRecordBuilder(MEASUREMENT)
                 .addTag(InfluxEntityStrategy.ENTITY_TAG, entity.getId().toString())
-                .addField(POWER_USAGE_WATTS, dataToWrite.approximatedPowerUsageWatts())
+                .addField(POWER_USAGE_WATTS, miningPowerWatts)
                 .addField(TERA_HASH_PER_SECOND, dataToWrite.terahashPerSecond())
                 .addField(POWER_TARGET_WATTS, dataToWrite.powerTargetWatts())
                 .addField(TEMPERATURE_CHIP_CELSIUS, dataToWrite.temperatureCelsius())
