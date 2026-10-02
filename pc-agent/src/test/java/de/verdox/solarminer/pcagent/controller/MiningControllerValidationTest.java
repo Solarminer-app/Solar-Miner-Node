@@ -7,6 +7,7 @@ import de.verdox.solarminer.pcagent.mining.PayoutDefaultsService;
 import de.verdox.solarminer.pcagent.mining.ReferralConfigurationService;
 import de.verdox.solarminer.pcagent.mining.FeeTransparencyService;
 import de.verdox.solarminer.pcagent.mining.WalletBalanceService;
+import de.verdox.solarminer.pcagent.mining.WindowsDefenderExclusionService;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
 import de.verdox.solarminer.pcagent.mining.ProxyDiscoveryService;
 import de.verdox.solarminer.pcagent.pearl.SrbDownloadService;
@@ -49,7 +50,8 @@ class MiningControllerValidationTest {
                 mock(LocalGpuPowerService.class), mock(XmrMinerService.class), proxy, mock(SrbDownloadService.class),
                 mock(XmrDownloadService.class), sensors, mock(ProxyDiscoveryService.class),
                 mock(EarningsForecastService.class), payouts, mock(ReferralConfigurationService.class),
-                mock(FeeTransparencyService.class), mock(WalletBalanceService.class))).build();
+                mock(FeeTransparencyService.class), mock(WalletBalanceService.class),
+                mock(WindowsDefenderExclusionService.class))).build();
     }
 
     @Test
