@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x ./gradlew
-          echo "tag=beta-${GITHUB_SHA:0:12}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "frontend_image=$(./gradlew -q printFrontendImage)" >> "$GITHUB_OUTPUT"
           echo "core_image=$(./gradlew -q printCoreImage)" >> "$GITHUB_OUTPUT"
           echo "currency_rates_image=$(./gradlew -q printCurrencyRatesImage)" >> "$GITHUB_OUTPUT"
@@ -128,7 +128,7 @@ jobs:
           esac
 
           ./gradlew "$CLEAN_TASK" "$TASK" \
-            --imageName="${IMAGE}:${TAG}-${IMAGE_SUFFIX}" \
+            --imageName="${IMAGE}:${TAG}-${IMAGE_SUFFIX}-beta" \
             --publishImage \
             -x test \
             --no-daemon
@@ -161,10 +161,84 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ needs.metadata.outputs.pc_agent_image }}:${{ needs.metadata.outputs.tag }}
-            ${{ needs.metadata.outputs.pc_agent_image }}:beta
+            ${{ needs.metadata.outputs.pc_agent_image }}:${{ needs.metadata.outputs.tag }}-amd64-beta
+            ${{ needs.metadata.outputs.pc_agent_image }}:latest-amd64-beta
+            ${{ needs.metadata.outputs.pc_agent_image }}:latest-beta
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  build-pc-agent-beta-release-assets:
+    name: Build PC-Agent beta release assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Solarminer-app/solarminer-stratum-proxy
+          ref: beta
+          path: embedded-proxy-src
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build standalone PC-Agent JAR
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :pc-agent:test :pc-agent:standaloneJar \
+            -Psolarminer.proxy.project-dir=embedded-proxy-src \
+            --no-daemon
+
+      - name: Prepare beta launcher assets and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp pc-agent/standalone/start-agent-beta.bat pc-agent/build/distributions/
+          cp pc-agent/standalone/start-agent-beta.ps1 pc-agent/build/distributions/
+          cd pc-agent/build/distributions
+          sha256sum solarminer-pc-agent-standalone.jar > solarminer-pc-agent-standalone.jar.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pc-agent-beta-release-assets
+          path: pc-agent/build/distributions/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-pc-agent-beta-release:
+    name: Publish PC-Agent prerelease
+    needs:
+      - build-pc-agent-beta-release-assets
+      - publish-pc-agent
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pc-agent-beta-release-assets
+          path: release-assets
+
+      - name: Create beta prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.sha }}
+          SHORT_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${SHORT_SHA:0:12}"
+          TAG="pc-agent-beta-${SHORT_SHA}"
+          gh release create "$TAG" release-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "SolarMiner PC-Agent Beta ${SHORT_SHA}" \
+            --notes "Beta build from commit ${TARGET_SHA}. The beta launcher downloads the latest published PC-Agent beta release." \
+            --prerelease \
+            --target "$TARGET_SHA"
 
   publish-multi-arch-tags:
     name: Publish beta manifests
@@ -191,19 +265,43 @@ jobs:
           set -euo pipefail
 
           docker buildx imagetools create \
-            --tag "${CORE_IMAGE}:${TAG}" \
-            --tag "${CORE_IMAGE}:beta" \
-            "${CORE_IMAGE}:${TAG}-amd64" \
-            "${CORE_IMAGE}:${TAG}-arm64"
+            --tag "${CORE_IMAGE}:latest-amd64-beta" \
+            "${CORE_IMAGE}:${TAG}-amd64-beta"
 
           docker buildx imagetools create \
-            --tag "${FRONTEND_IMAGE}:${TAG}-jvm" \
-            --tag "${FRONTEND_IMAGE}:beta-jvm" \
-            "${FRONTEND_IMAGE}:${TAG}-jvm-amd64" \
-            "${FRONTEND_IMAGE}:${TAG}-jvm-arm64"
+            --tag "${CORE_IMAGE}:latest-arm64-beta" \
+            "${CORE_IMAGE}:${TAG}-arm64-beta"
 
           docker buildx imagetools create \
-            --tag "${CURRENCY_RATES_IMAGE}:${TAG}" \
-            --tag "${CURRENCY_RATES_IMAGE}:beta" \
-            "${CURRENCY_RATES_IMAGE}:${TAG}-amd64" \
-            "${CURRENCY_RATES_IMAGE}:${TAG}-arm64"
+            --tag "${CORE_IMAGE}:${TAG}-beta" \
+            --tag "${CORE_IMAGE}:latest-beta" \
+            "${CORE_IMAGE}:${TAG}-amd64-beta" \
+            "${CORE_IMAGE}:${TAG}-arm64-beta"
+
+          docker buildx imagetools create \
+            --tag "${FRONTEND_IMAGE}:latest-amd64-jvm-beta" \
+            "${FRONTEND_IMAGE}:${TAG}-jvm-amd64-beta"
+
+          docker buildx imagetools create \
+            --tag "${FRONTEND_IMAGE}:latest-arm64-jvm-beta" \
+            "${FRONTEND_IMAGE}:${TAG}-jvm-arm64-beta"
+
+          docker buildx imagetools create \
+            --tag "${FRONTEND_IMAGE}:${TAG}-jvm-beta" \
+            --tag "${FRONTEND_IMAGE}:latest-jvm-beta" \
+            "${FRONTEND_IMAGE}:${TAG}-jvm-amd64-beta" \
+            "${FRONTEND_IMAGE}:${TAG}-jvm-arm64-beta"
+
+          docker buildx imagetools create \
+            --tag "${CURRENCY_RATES_IMAGE}:latest-amd64-beta" \
+            "${CURRENCY_RATES_IMAGE}:${TAG}-amd64-beta"
+
+          docker buildx imagetools create \
+            --tag "${CURRENCY_RATES_IMAGE}:latest-arm64-beta" \
+            "${CURRENCY_RATES_IMAGE}:${TAG}-arm64-beta"
+
+          docker buildx imagetools create \
+            --tag "${CURRENCY_RATES_IMAGE}:${TAG}-beta" \
+            --tag "${CURRENCY_RATES_IMAGE}:latest-beta" \
+            "${CURRENCY_RATES_IMAGE}:${TAG}-amd64-beta" \
+            "${CURRENCY_RATES_IMAGE}:${TAG}-arm64-beta"

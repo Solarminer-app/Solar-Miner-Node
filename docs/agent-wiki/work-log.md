@@ -3,9 +3,10 @@
 ## 2026-10-02 — Beta Docker publishing
 
 - Scope: `beta` branch Docker publishing for Solar-Miner-Node; no API or mining contract changes.
-- Change: `.github/workflows/docker-beta.yml` publishes commit-specific and moving `beta` tags for Core, Frontend JVM, Currency Rates, and PC-Agent. Core, Frontend and Currency Rates publish amd64/arm64 manifests; PC-Agent publishes linux/amd64 and embeds the proxy's `beta` branch.
+- Change: `.github/workflows/docker-beta.yml` publishes commit-specific tags ending in `-beta`, per-architecture moving tags such as `latest-amd64-beta` / `latest-arm64-beta`, and multi-architecture `latest-beta` manifests for Core and Currency Rates. Frontend JVM tags retain the JVM discriminator (for example `latest-amd64-jvm-beta` and `latest-jvm-beta`). PC-Agent publishes linux/amd64 tags `latest-amd64-beta` and `latest-beta`, and embeds the proxy's `beta` branch. The workflow also publishes a commit-specific GitHub prerelease with the standalone JAR, checksum and beta start scripts after the image and standalone JAR builds succeed.
+- Launcher: `start-agent-beta.bat` / `.ps1` select the newest `pc-agent-beta-*` prerelease, verify the JAR checksum and use a separate `%LOCALAPPDATA%\SolarMiner\PC-Agent-Beta` install directory.
 - Isolation: beta workflow does not publish release version tags or `latest`; release workflows remain tag-triggered.
-- Verification: source/workflow review only; no GitHub Actions run, Docker build or test was run here. Registry permissions, the proxy `beta` ref checkout and actual image startup remain to verify.
+- Verification: source/workflow review only; no GitHub Actions run, Docker build, PowerShell execution or test was run here. Registry/release permissions, the proxy `beta` ref checkout and actual launcher/image startup remain to verify.
 
 ### 2026-10-02 — PC-Agent benchmark sample-based completion
 
