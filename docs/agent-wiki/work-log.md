@@ -43,6 +43,12 @@
 - Change: process start/stop, watchdog, payout, failure and benchmark orchestration messages are now English. The reset marker for a new console run is also English. Raw stdout/stderr from XMRig, SRBMiner and the operating system is preserved verbatim because it is external diagnostic output rather than a PC-Agent-authored message.
 - Verification: `:pc-agent:test --no-daemon` passed with Temurin 21.
 
+### 2026-10-02 — Attribute PC-Agent miner stops
+
+- Scope: PC-Agent XMRig/SRBMiner process-stop diagnostics; no Node, proxy or mining wire contract changed.
+- Change: a thread-scoped stop context now reaches the actual XMRig and SRBMiner process-stop boundary. The console writes `Stop requested by: <source>` immediately before the normal stopped entry. Benchmark stops identify their precise phase reason; local power/pause controls and remote-control API stops identify their control path. Nested calls preserve the original, more specific initiator.
+- Verification: `:pc-agent:compileJava --no-daemon` and `:pc-agent:test --no-daemon` passed with Temurin 21. Host/browser verification remains pending.
+
 ### 2026-10-02 — Show benchmark upload outcomes
 
 - Scope: standalone PC-Agent manual and periodic benchmark uploads.
