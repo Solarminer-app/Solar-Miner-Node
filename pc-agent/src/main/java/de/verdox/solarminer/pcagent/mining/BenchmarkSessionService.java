@@ -149,9 +149,11 @@ public class BenchmarkSessionService {
         } finally {
             try {
                 if ("INSTALLED".equals(mode)) {
-                    if (xmrWasMining) mining.resumeMining("monero");
+                    boolean restored = true;
+                    if (xmrWasMining) restored = mining.resumeMining("monero");
                     else mining.restoreCpuPauseState(cpuPausedBefore);
-                    pearl.restoreWorkerState(pearlPausedBefore, pearlWasMining);
+                    restored = pearl.restoreWorkerState(pearlPausedBefore, pearlWasMining) && restored;
+                    if (!restored) error = "Could not fully restore miner state";
                 }
             } catch (RuntimeException restoreFailure) {
                 error = "Could not fully restore miner state: " + Objects.toString(restoreFailure.getMessage(), "unknown error");
