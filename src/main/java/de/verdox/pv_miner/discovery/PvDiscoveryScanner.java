@@ -36,25 +36,33 @@ public class PvDiscoveryScanner {
     <T> Result<T> scan(List<String> hosts, Function<String, List<T>> probe, Duration timeout) {
         if (!activeScan.tryAcquire()) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "A discovery scan is already running");
         var executor = Executors.newFixedThreadPool(24, Thread.ofVirtual().factory());
-        var found = new CopyOnWriteArrayList<T>();
+        var found = new ArrayList<T>();
         var checked = new AtomicInteger();
         var completion = new ExecutorCompletionService<Void>(executor);
         long deadline = System.nanoTime() + timeout.toNanos();
         try {
             for (String host : hosts) completion.submit(() -> {
                 if (System.nanoTime() >= deadline || Thread.currentThread().isInterrupted()) return null;
-                try {
-                    found.addAll(probe.apply(host));
-                } finally {
+                var devices = probe.apply(host);
+                synchronized (found) {
+                    found.addAll(devices);
                     checked.incrementAndGet();
                 }
                 return null;
             });
             for (int i = 0; i < hosts.size(); i++) {
                 long remaining = deadline - System.nanoTime();
-                if (remaining <= 0 || completion.poll(remaining, TimeUnit.NANOSECONDS) == null) break;
+                if (remaining <= 0) break;
+                var completed = completion.poll(remaining, TimeUnit.NANOSECONDS);
+                if (completed == null) break;
+                completed.get();
             }
-            return new Result<>(List.copyOf(found), checked.get(), hosts.size(), checked.get() == hosts.size());
+            synchronized (found) {
+                int checkedHosts = checked.get();
+                return new Result<>(List.copyOf(found), checkedHosts, hosts.size(), checkedHosts == hosts.size());
+            }
+        } catch (ExecutionException exception) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "A discovery probe failed", exception.getCause());
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Discovery was interrupted", exception);

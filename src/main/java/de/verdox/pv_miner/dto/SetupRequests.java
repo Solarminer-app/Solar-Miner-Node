@@ -29,6 +29,10 @@ public final class SetupRequests {
     public record PvDiscoveryRequest(String providerId, String subnetPrefix, Integer port, Integer slaveId) {
     }
 
+    public record PvDiscoveryReport(List<DiscoveredPvDeviceDto> devices, String subnetPrefix,
+                                    int checkedHosts, int totalHosts, boolean complete) {
+    }
+
     public record DiscoveredPvDeviceDto(
             String providerId,
             String host,

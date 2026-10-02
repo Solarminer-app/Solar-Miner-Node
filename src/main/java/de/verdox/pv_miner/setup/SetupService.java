@@ -9,6 +9,7 @@ import de.verdox.pv_miner.dto.SetupRequests;
 import de.verdox.pv_miner.dto.SetupRequests.CreateSetupRequest;
 import de.verdox.pv_miner.dto.SetupRequests.ProviderSelection;
 import de.verdox.pv_miner.discovery.DiscoveryService;
+import de.verdox.pv_miner.discovery.PvDiscoveryScanner;
 import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.entity.EntityService;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
@@ -67,8 +68,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 @Service
 public class SetupService {
@@ -91,6 +90,9 @@ public class SetupService {
     private final MqttMessageService mqttMessageService;
     private final WebSocketMessageService webSocketMessageService;
     private final DiscoveryService discoveryService;
+    private final PvDiscoveryScanner discoveryScanner;
+    @org.springframework.beans.factory.annotation.Value("${solarminer.discovery.subnet-prefix:}")
+    private String discoverySubnetPrefix = "";
 
     public SetupService(PVSiteRepository siteRepository,
                         EntityService entityService,
@@ -101,7 +103,7 @@ public class SetupService {
                         MessageConfigStorage messageConfigStorage,
                         MqttMessageService mqttMessageService,
                         WebSocketMessageService webSocketMessageService,
-                        DiscoveryService discoveryService) {
+                        DiscoveryService discoveryService, PvDiscoveryScanner discoveryScanner) {
         this.siteRepository = siteRepository;
         this.entityService = entityService;
         this.queryService = queryService;
@@ -112,6 +114,7 @@ public class SetupService {
         this.mqttMessageService = mqttMessageService;
         this.webSocketMessageService = webSocketMessageService;
         this.discoveryService = discoveryService;
+        this.discoveryScanner = discoveryScanner;
     }
 
     public SetupCatalogDto getCatalog(String localeTag) {
@@ -439,40 +442,51 @@ public class SetupService {
     }
 
     public List<SetupRequests.DiscoveredPvDeviceDto> discoverPvDevices(SetupRequests.PvDiscoveryRequest request) {
-        String providerId = request.providerId() == null ? MODBUS : request.providerId();
-        String subnetPrefix = request.subnetPrefix() == null || request.subnetPrefix().isBlank()
-                ? DiscoveryService.getLocalSubnetPrefix()
-                : request.subnetPrefix().trim();
-        int port = request.port() == null ? 502 : request.port();
-        int slaveId = request.slaveId() == null ? 1 : request.slaveId();
-        List<SetupRequests.DiscoveredPvDeviceDto> found = new CopyOnWriteArrayList<>();
-        CountDownLatch finished = new CountDownLatch(1);
+        return scanPvDevices(new SetupRequests.PvDiscoveryRequest(
+                request.providerId() == null ? MODBUS : request.providerId(), request.subnetPrefix(), request.port(), request.slaveId())).devices();
+    }
 
-        if (MODBUS.equals(providerId)) {
-            discoveryService.discoverModbusDevices(subnetPrefix, port, device -> {
-                SetupRequests.PvDeviceProfileDto profile = describeProfile(MODBUS, device.matchingProfileName());
-                if (profile != null) found.add(new SetupRequests.DiscoveredPvDeviceDto(
-                        MODBUS, device.ipAddress(), port, slaveId, device.matchingProfileName(), false, profile.sections()));
-            }, finished::countDown);
-        } else if (REST.equals(providerId)) {
-            discoveryService.discoverRestDevices(subnetPrefix, device -> {
-                SetupRequests.PvDeviceProfileDto profile = describeProfile(REST, device.matchingProfileName());
-                if (profile != null) found.add(new SetupRequests.DiscoveredPvDeviceDto(
-                        REST, device.ipAddress(), device.port(), 1, device.matchingProfileName(), device.requiresAuth(), profile.sections()));
-            }, finished::countDown);
-        } else {
-            throw badRequest("Unsupported PV source");
-        }
-        try {
-            finished.await(35, TimeUnit.SECONDS);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-        }
-        return found.stream()
-                .distinct()
-                .sorted(java.util.Comparator.comparing(SetupRequests.DiscoveredPvDeviceDto::host)
-                        .thenComparing(SetupRequests.DiscoveredPvDeviceDto::profileName))
-                .toList();
+    public SetupRequests.PvDiscoveryReport scanPvDevices(SetupRequests.PvDiscoveryRequest request) {
+        String provider = request.providerId() == null ? "AUTO" : request.providerId();
+        if (!Set.of("AUTO", MODBUS, REST).contains(provider)) throw badRequest("Unsupported discovery source");
+        String subnet = PvDiscoveryScanner.validateSubnet(request.subnetPrefix() == null || request.subnetPrefix().isBlank()
+                ? getDiscoverySubnetPrefix() : request.subnetPrefix().trim());
+        int slaveId = request.slaveId() == null ? 1 : request.slaveId();
+        int port = request.port() == null ? (REST.equals(provider) ? 80 : 502) : request.port();
+        if (port < 1 || port > 65535 || slaveId < 1 || slaveId > 255) throw badRequest("Invalid port or Modbus device ID");
+        var result = discoveryScanner.scan(subnet, host -> {
+            List<SetupRequests.DiscoveredPvDeviceDto> found = new java.util.ArrayList<>();
+            if (!REST.equals(provider)) {
+                int modbusPort = "AUTO".equals(provider) ? 502 : port;
+                var device = discoveryService.inspectModbusDevice(host, modbusPort, slaveId, 200);
+                if (device != null) {
+                    var profile = describeProfile(MODBUS, device.matchingProfileName());
+                    if (profile != null) found.add(new SetupRequests.DiscoveredPvDeviceDto(MODBUS, host,
+                            modbusPort, slaveId, profile.profileName(), false, profile.sections()));
+                }
+            }
+            if (!MODBUS.equals(provider)) {
+                int[] ports = "AUTO".equals(provider) ? new int[]{80, 443, 8080, 8123} : new int[]{port};
+                for (int restPort : ports) {
+                    if (Thread.currentThread().isInterrupted()) break;
+                    var device = discoveryService.inspectRestDevice(host, restPort, 200);
+                    if (device == null) continue;
+                    var profile = describeProfile(REST, device.matchingProfileName());
+                    if (profile != null) found.add(new SetupRequests.DiscoveredPvDeviceDto(REST, host,
+                            restPort, 1, profile.profileName(), device.requiresAuth(), profile.sections()));
+                }
+            }
+            return found;
+        });
+        var devices = result.devices().stream().distinct().sorted(java.util.Comparator
+                .comparing(SetupRequests.DiscoveredPvDeviceDto::host)
+                .thenComparing(SetupRequests.DiscoveredPvDeviceDto::profileName)).toList();
+        return new SetupRequests.PvDiscoveryReport(devices, subnet, result.checkedHosts(), result.totalHosts(), result.complete());
+    }
+
+    public String getDiscoverySubnetPrefix() {
+        return PvDiscoveryScanner.validateSubnet(discoverySubnetPrefix == null || discoverySubnetPrefix.isBlank()
+                ? DiscoveryService.getLocalSubnetPrefix() : discoverySubnetPrefix.trim());
     }
 
     public void addPvDevices(PVSiteEntity site, ProviderSelection selection, int batteryCapacityWh) {

@@ -15,9 +15,11 @@ import {
     LoaderCircle,
     MapPin,
     Pickaxe,
+    Pencil,
     Plus,
     RefreshCw,
     Server,
+    Search,
     Sun,
     Trash2,
     XCircle,
@@ -71,6 +73,7 @@ type ConfiguredPvDevice = {
 type PvDeviceSection = {sectionKey: string; templateId: string; name: string; deviceType: 'INVERTER' | 'BATTERY' | 'SMART_METER'};
 type PvDeviceProfile = {providerId: string; profileName: string; sections: PvDeviceSection[]};
 type DiscoveredPvDevice = PvDeviceProfile & {host: string; port: number; slaveId: number; requiresAuth: boolean};
+type DiscoveryReport = {devices: DiscoveredPvDevice[]; subnetPrefix: string; checkedHosts: number; totalHosts: number; complete: boolean};
 type PvDevicePreviewValue = {key: string; value: number; unit: string};
 type PvDeviceSectionPreview = {
     sectionKey: string;
@@ -101,23 +104,25 @@ function endpointLabel(values: Record<string, string>) {
     return values.serialPort || values.brokerUri || values.url || '—';
 }
 
-function ProviderFields({option, values, onChange}: {
+function ProviderFields({option, values, onChange, fieldKeys}: {
     option: SetupOption;
     values: Record<string, string>;
     onChange: (key: string, value: string) => void;
+    fieldKeys?: string[];
 }) {
     return (
         <div className="grid gap-4 sm:grid-cols-2">
-            {option.fields.map((field) => (
+            {option.fields.filter((field) => !fieldKeys || fieldKeys.includes(field.key)).map((field) => (
                 <label className={`text-sm text-[#c3c3cb] ${field.type === 'TEXT' || field.type === 'PASSWORD' ? 'sm:col-span-2' : ''}`} key={field.key}>
                     {field.label}{field.required ? <span className="ml-1 text-yellow-400">*</span> : null}
                     {field.type === 'SELECT' ? (
-                        <select className={inputClass} onChange={(event) => onChange(field.key, event.target.value)} required={field.required} value={values[field.key] ?? ''}>
+                        <select aria-label={field.label} className={inputClass} onChange={(event) => onChange(field.key, event.target.value)} required={field.required} value={values[field.key] ?? ''}>
                             <option value="">—</option>
                             {field.options.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}
                         </select>
                     ) : (
                         <input
+                            aria-label={field.label}
                             className={inputClass}
                             max={field.maximum ?? undefined}
                             min={field.minimum ?? undefined}
@@ -211,6 +216,19 @@ export default function SetupPage() {
     const previewSelectionKey = useRef('');
     const [discoveredDevices, setDiscoveredDevices] = useState<DiscoveredPvDevice[]>([]);
     const [discovering, setDiscovering] = useState(false);
+    const [sourceMode, setSourceMode] = useState<'discover' | 'manual'>('discover');
+    const [configurationOpen, setConfigurationOpen] = useState(false);
+    const [subnetPrefix, setSubnetPrefix] = useState('');
+    const [scanProvider, setScanProvider] = useState('AUTO');
+    const [scanPort, setScanPort] = useState('502');
+    const [scanSlaveId, setScanSlaveId] = useState('1');
+    const [discoveryReport, setDiscoveryReport] = useState<DiscoveryReport | null>(null);
+    const [discoveryError, setDiscoveryError] = useState('');
+    const [profilesLoading, setProfilesLoading] = useState(false);
+    const [profilesError, setProfilesError] = useState(false);
+    const [profileReload, setProfileReload] = useState(0);
+    const validationKey = useRef('');
+    validationKey.current = JSON.stringify({selectedSource, providerValues});
     const [selectedPools, setSelectedPools] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [createdSiteId, setCreatedSiteId] = useState<string | null>(null);
@@ -226,6 +244,12 @@ export default function SetupPage() {
         batteryCapacityWh: 0,
     });
     const [panels, setPanels] = useState<PanelGroup[]>([]);
+    const [editingPanelId, setEditingPanelId] = useState<string | null>(null);
+    const [panelLocationSelected, setPanelLocationSelected] = useState(false);
+    const [panelMapOpen, setPanelMapOpen] = useState(false);
+    const [panelFormError, setPanelFormError] = useState('');
+    const [manualLatitude, setManualLatitude] = useState('');
+    const [manualLongitude, setManualLongitude] = useState('');
     const [panelDraft, setPanelDraft] = useState<Omit<PanelGroup, 'id'>>({
         name: '',
         latitude: 0,
@@ -246,7 +270,7 @@ export default function SetupPage() {
             for (const option of options) {
                 next[option.id] = {...(next[option.id] ?? {})};
                 for (const field of option.fields) {
-                    if (next[option.id][field.key] === undefined) next[option.id][field.key] = field.defaultValue ?? '';
+                    if (next[option.id][field.key] === undefined) next[option.id][field.key] = option.kind === 'PV_SOURCE' && field.key === 'profile' ? '' : field.defaultValue ?? '';
                 }
             }
             return next;
@@ -283,26 +307,43 @@ export default function SetupPage() {
     const selectedSourceOption = catalog?.pvSources.find((option) => option.id === selectedSource);
     const selectedProfile = profiles.find((profile) => profile.providerId === selectedSource && profile.profileName === providerValues[selectedSource]?.profile);
     const selectedPoolOptions = catalog?.miningPools.filter((option) => selectedPools.includes(option.id)) ?? [];
+    const filteredProfiles = profiles.filter((profile) => profile.profileName.toLowerCase().includes(profileSearch.trim().toLowerCase()));
+
+    useEffect(() => {
+        const controller = new AbortController();
+        fetch(`${API_BASE_URL}/setup/pv-devices/network`, {signal: controller.signal})
+            .then((response) => response.ok ? response.json() as Promise<{subnetPrefix: string}> : Promise.reject())
+            .then((network) => {
+                const host = window.location.hostname;
+                const lanHost = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host) && /^\d+\.\d+\.\d+\.\d+$/.test(host);
+                setSubnetPrefix((current) => current || (lanHost ? host.slice(0, host.lastIndexOf('.') + 1) : network.subnetPrefix));
+            }).catch(() => undefined);
+        return () => controller.abort();
+    }, []);
 
     useEffect(() => {
         if (!selectedSource) return;
         const controller = new AbortController();
+        setProfilesLoading(true);
+        setProfilesError(false);
+        setProfiles([]);
         const timeout = window.setTimeout(() => {
-            const query = new URLSearchParams({providerId: selectedSource, query: profileSearch});
+            const query = new URLSearchParams({providerId: selectedSource});
             fetch(`${API_BASE_URL}/setup/pv-devices/profiles?${query}`, {signal: controller.signal})
                 .then((response) => response.ok ? response.json() as Promise<PvDeviceProfile[]> : Promise.reject())
                 .then(setProfiles)
-                .catch(() => undefined);
+                .catch(() => {if (!controller.signal.aborted) setProfilesError(true);})
+                .finally(() => {if (!controller.signal.aborted) setProfilesLoading(false);});
         }, 180);
         return () => {window.clearTimeout(timeout); controller.abort();};
-    }, [profileSearch, selectedSource]);
+    }, [selectedSource, catalog, profileReload]);
 
     useEffect(() => {
         if (selectedProfile) setSelectedSectionKeys(selectedProfile.sections.map((section) => section.sectionKey));
         setDevicePreview(null);
         setPreviewError(false);
         previewSelectionKey.current = '';
-    }, [selectedProfile?.profileName]);
+    }, [selectedSource, selectedProfile?.profileName]);
 
     const updateProviderValue = (providerId: string, key: string, value: string) => {
         setProviderValues((current) => ({...current, [providerId]: {...(current[providerId] ?? {}), [key]: value}}));
@@ -363,6 +404,7 @@ export default function SetupPage() {
     }, [step, selectedProfile?.profileName, selectedSource, verification[selectedSource]?.valid, previewRequestKey]);
 
     const testProvider = async (option: SetupOption) => {
+        const requestKey = validationKey.current;
         setTestingProvider(option.id);
         setVerification((current) => ({...current, [option.id]: undefined}));
         try {
@@ -373,8 +415,10 @@ export default function SetupPage() {
             });
             if (!response.ok) throw new Error();
             const result = await response.json() as {valid: boolean; message: string};
+            if (requestKey !== validationKey.current) return;
             setVerification((current) => ({...current, [option.id]: {valid: result.valid, message: result.valid ? t['setup.connection.success'] : result.message || t['setup.connection.failed']}}));
         } catch {
+            if (requestKey !== validationKey.current) return;
             setVerification((current) => ({...current, [option.id]: {valid: false, message: t['setup.connection.failed']}}));
         } finally {
             setTestingProvider(null);
@@ -406,33 +450,38 @@ export default function SetupPage() {
             }]);
         }
         setVerification((current) => ({...current, [selectedSourceOption.id]: undefined}));
+        setConfigurationOpen(false);
         setError(null);
     };
 
     const discoverPvDevices = async () => {
-        if (!selectedSourceOption) return;
-        if (!['MODBUS_TCP', 'REST_API'].includes(selectedSourceOption.id)) return;
         setDiscovering(true);
+        setDiscoveryReport(null);
+        setDiscoveredDevices([]);
+        setDiscoveryError('');
         setError(null);
         try {
-            const values = providerValues[selectedSourceOption.id] ?? {};
-            const response = await fetch(`${API_BASE_URL}/setup/pv-devices/discover`, {
+            const response = await fetch(`${API_BASE_URL}/setup/pv-devices/scan`, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({providerId: selectedSourceOption.id, port: Number(values.port || (selectedSourceOption.id === 'MODBUS_TCP' ? 502 : 80)), slaveId: Number(values.slaveId || 1)}),
+                body: JSON.stringify({providerId: scanProvider, subnetPrefix, port: scanProvider === 'AUTO' ? null : Number(scanPort), slaveId: Number(scanSlaveId)}),
             });
-            if (!response.ok) throw new Error();
-            setDiscoveredDevices(await response.json() as DiscoveredPvDevice[]);
+            if (!response.ok) throw new Error(response.status === 429 ? 'busy' : 'failed');
+            const report = await response.json() as DiscoveryReport;
+            setDiscoveryReport(report);
+            setDiscoveredDevices(report.devices);
         } catch {
-            setError(t['setup.source.discovery_error']);
+            setDiscoveryError(t['setup.source.discovery_error']);
         } finally {
             setDiscovering(false);
         }
     };
 
     const useDiscoveredDevice = (device: DiscoveredPvDevice) => {
+        setConfigurationOpen(true);
+        setProfileSearch('');
         setSelectedSource(device.providerId);
         setProviderValues((current) => ({...current, [device.providerId]: {
-            ...(current[device.providerId] ?? {}), host: device.host, port: String(device.port), slaveId: String(device.slaveId), profile: device.profileName,
+            ...(current[device.providerId] ?? {}), host: device.providerId === 'REST_API' && device.port === 443 ? `https://${device.host}` : device.host, port: String(device.port), slaveId: String(device.slaveId), profile: device.profileName,
         }}));
         setProfiles((current) => current.some((profile) => profile.providerId === device.providerId && profile.profileName === device.profileName) ? current : [...current, device]);
         setSelectedSectionKeys(device.sections.map((section) => section.sectionKey));
@@ -453,13 +502,74 @@ export default function SetupPage() {
         }
     };
 
+    const nextPanelName = () => {
+        let index = 1;
+        while (panels.some((panel) => panel.name === `${t['setup.panels.default_name']} ${index}`)) index++;
+        return `${t['setup.panels.default_name']} ${index}`;
+    };
+
+    const setPanelLocation = (location: {latitude: number; longitude: number}) => {
+        setPanelDraft((current) => ({...current, ...location}));
+        setManualLatitude(String(location.latitude));
+        setManualLongitude(String(location.longitude));
+        setPanelLocationSelected(true);
+        setPanelFormError('');
+    };
+
+    const changePanelCoordinate = (axis: 'latitude' | 'longitude', value: string) => {
+        const latitude = axis === 'latitude' ? value : manualLatitude;
+        const longitude = axis === 'longitude' ? value : manualLongitude;
+        setManualLatitude(latitude);
+        setManualLongitude(longitude);
+        const lat = Number(latitude);
+        const lon = Number(longitude);
+        const valid = latitude.trim() !== '' && longitude.trim() !== '' && Number.isFinite(lat) && Number.isFinite(lon)
+            && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+        setPanelLocationSelected(valid);
+        if (valid) setPanelDraft((current) => ({...current, latitude: lat, longitude: lon}));
+        setPanelFormError('');
+    };
+
+    const editPanel = (panel: PanelGroup) => {
+        setEditingPanelId(panel.id);
+        setPanelDraft({name: panel.name, latitude: panel.latitude, longitude: panel.longitude,
+            panelCount: panel.panelCount, powerPerPanelWatts: panel.powerPerPanelWatts,
+            azimuthDegrees: panel.azimuthDegrees, slopeDegrees: panel.slopeDegrees});
+        setManualLatitude(String(panel.latitude));
+        setManualLongitude(String(panel.longitude));
+        setPanelLocationSelected(true);
+        setPanelMapOpen(false);
+        setPanelFormError('');
+    };
+
+    const cancelPanelEdit = () => {
+        setEditingPanelId(null);
+        setPanelDraft((current) => ({...current, name: '', panelCount: 1, powerPerPanelWatts: 400,
+            azimuthDegrees: 180, slopeDegrees: 30}));
+        setPanelMapOpen(false);
+        setPanelFormError('');
+    };
+
     const addPanel = () => {
-        if (!panelDraft.name.trim() || panelDraft.panelCount <= 0 || panelDraft.powerPerPanelWatts <= 0 || (panelDraft.latitude === 0 && panelDraft.longitude === 0)) {
-            setError(t['setup.error.panel']);
+        if (!Number.isInteger(panelDraft.panelCount) || panelDraft.panelCount < 1
+            || !Number.isFinite(panelDraft.powerPerPanelWatts) || panelDraft.powerPerPanelWatts <= 0
+            || !Number.isFinite(panelDraft.azimuthDegrees) || panelDraft.azimuthDegrees < 0 || panelDraft.azimuthDegrees > 360
+            || !Number.isFinite(panelDraft.slopeDegrees) || panelDraft.slopeDegrees < 0 || panelDraft.slopeDegrees > 90) {
+            setPanelFormError(t['setup.panels.error.values']);
             return;
         }
-        setPanels((current) => [...current, {...panelDraft, id: crypto.randomUUID()}]);
-        setPanelDraft((current) => ({...current, name: '', panelCount: 1}));
+        if (!panelLocationSelected) {
+            setPanelMapOpen(true);
+            setPanelFormError(t['setup.panels.error.location']);
+            return;
+        }
+        const saved = {...panelDraft, name: panelDraft.name.trim() || nextPanelName(), id: editingPanelId || crypto.randomUUID()};
+        setPanels((current) => editingPanelId ? current.map((panel) => panel.id === editingPanelId ? saved : panel) : [...current, saved]);
+        setEditingPanelId(null);
+        setPanelDraft((current) => ({...current, name: '', panelCount: 1, powerPerPanelWatts: 400,
+            azimuthDegrees: 180, slopeDegrees: 30}));
+        setPanelMapOpen(false);
+        setPanelFormError('');
         setError(null);
     };
 
@@ -564,9 +674,10 @@ export default function SetupPage() {
                 </header>
 
                 <div className="mb-6 overflow-x-auto rounded-2xl border border-white/[0.07] bg-[#131316] p-3">
-                    <ol className="flex min-w-[680px] items-center">
+                    <div className="flex items-center justify-between gap-3 px-1 md:hidden"><span className="text-sm text-[#b0b0ba]">{step + 1} / {steps.length}</span><strong className="text-sm text-yellow-200">{t[`setup.step.${steps[step]}`]}</strong></div>
+                    <ol className="hidden min-w-[680px] items-center md:flex">
                         {steps.map((name, index) => (
-                            <li className="flex flex-1 items-center" key={name}>
+                            <li aria-current={index === step ? 'step' : undefined} className="flex flex-1 items-center" key={name}>
                                 <div className="flex items-center gap-2.5">
                                     <span className={`grid h-8 w-8 place-items-center rounded-full text-xs font-bold ${index < step ? 'bg-emerald-400 text-black' : index === step ? 'bg-yellow-400 text-black ring-4 ring-yellow-400/10' : 'bg-white/[0.06] text-[#777781]'}`}>{index < step ? <Check size={15}/> : index + 1}</span>
                                     <span className={`text-sm font-medium ${index === step ? 'text-white' : 'text-[#7f7f89]'}`}>{t[`setup.step.${name}`]}</span>
@@ -595,28 +706,64 @@ export default function SetupPage() {
 
                         {step === 1 ? (
                             <div>
-                                <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-[#8e8e98]">{t['setup.source.backend_hint']}</p><div className="flex flex-wrap gap-2"><button className="inline-flex items-center gap-2 rounded-xl bg-yellow-400/10 px-3 py-2 text-sm font-semibold text-yellow-200 transition hover:bg-yellow-400/20 disabled:opacity-50" disabled={discovering} onClick={() => void discoverPvDevices()}><DatabaseZap className={discovering ? 'animate-pulse' : ''} size={15}/>{discovering ? t['setup.source.discovering'] : t['setup.source.discover']}</button><button className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-[#b9b9c2] transition hover:bg-white/[0.05]" disabled={refreshing} onClick={() => void refreshProfiles()}><RefreshCw className={refreshing ? 'animate-spin' : ''} size={15}/>{t['setup.source.refresh']}</button></div></div>
+                                <div className="mb-6 rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.04] p-4 text-sm leading-6 text-[#c3d8dc]">
+                                    <p className="font-semibold text-white">{t['setup.source.goal']}</p>
+                                    <p className="mt-1">{t['setup.source.goal_hint']}</p>
+                                </div>
+                                <div className="mb-5 grid gap-3 sm:grid-cols-2">
+                                    {(['discover', 'manual'] as const).map((mode) => <button aria-pressed={sourceMode === mode} className={`rounded-2xl border p-4 text-left transition focus-visible:ring-2 focus-visible:ring-yellow-400 ${sourceMode === mode ? 'border-yellow-400/50 bg-yellow-400/[0.06]' : 'border-white/10 bg-[#101014] hover:border-white/25'}`} key={mode} onClick={() => {setSourceMode(mode); setConfigurationOpen(false);}}>
+                                        <span className="flex items-center justify-between gap-2"><strong>{t[`setup.source.mode.${mode}`]}</strong>{mode === 'discover' ? <Search className="text-yellow-300" size={20}/> : <Server className="text-[#aaaab4]" size={20}/>}</span>
+                                        <span className="mt-2 block text-sm leading-5 text-[#a0a0aa]">{t[`setup.source.mode.${mode}_hint`]}</span>
+                                    </button>)}
+                                </div>
+                                {sourceMode === 'discover' ? <div className="mb-5 rounded-2xl border border-white/10 bg-[#101014] p-5">
+                                    <h3 className="font-semibold">{t['setup.source.find_title']}</h3>
+                                    <p className="mt-1 text-sm leading-6 text-[#a0a0aa]">{t['setup.source.find_hint']}</p>
+                                    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                                        <label className="w-full min-w-0 text-sm text-[#c3c3cb] sm:flex-1">{t['setup.source.network']}<input className={inputClass} disabled={discovering} onChange={(event) => setSubnetPrefix(event.target.value)} placeholder="192.168.1." value={subnetPrefix}/></label>
+                                        <button className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-yellow-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50 sm:w-auto" disabled={discovering || !subnetPrefix.trim()} onClick={() => void discoverPvDevices()}>{discovering ? <LoaderCircle className="animate-spin" size={16}/> : <Search size={16}/>} {discovering ? t['setup.source.discovering'] : t['setup.source.discover']}</button>
+                                    </div>
+                                    <p className="mt-2 text-xs leading-5 text-[#a0a0aa]">{t['setup.source.network_hint']}</p>
+                                    <details className="mt-4 text-sm text-[#a0a0aa]"><summary className="cursor-pointer">{t['setup.source.scan_settings']}</summary><div className="mt-3 grid gap-3 sm:grid-cols-3">
+                                        <label>{t['setup.source.scan_protocol']}<select className={inputClass} disabled={discovering} value={scanProvider} onChange={(event) => {setScanProvider(event.target.value); setScanPort(event.target.value === 'REST_API' ? '80' : '502');}}><option value="AUTO">{t['setup.source.scan_auto']}</option><option value="MODBUS_TCP">Modbus TCP</option><option value="REST_API">HTTP / REST</option></select></label>
+                                        {scanProvider !== 'AUTO' ? <label>Port<input className={inputClass} disabled={discovering} min={1} max={65535} type="number" value={scanPort} onChange={(event) => setScanPort(event.target.value)}/></label> : null}
+                                        {scanProvider !== 'REST_API' ? <label>{t['setup.source.device_id']}<input className={inputClass} disabled={discovering} min={1} max={255} type="number" value={scanSlaveId} onChange={(event) => setScanSlaveId(event.target.value)}/></label> : null}
+                                    </div></details>
+                                    <div aria-live="polite" role="status" className="mt-4">
+                                        {discovering ? <p className="text-sm leading-6 text-yellow-200">{t['setup.source.scan_wait']}</p> : null}
+                                        {discoveryReport ? <div className="rounded-xl bg-white/[0.04] p-3 text-sm leading-6"><p className="font-semibold text-white">{discoveryReport.complete ? t['setup.source.scan_complete'] : t['setup.source.scan_partial']} · {discoveryReport.checkedHosts}/{discoveryReport.totalHosts}</p><p className="text-[#b0b0ba]">{discoveredDevices.length ? t['setup.source.pick_found'] : t['setup.source.scan_empty']}</p>{!discoveryReport.complete ? <p className="text-yellow-200">{t['setup.source.partial_hint']}</p> : null}</div> : null}
+                                        {discoveryError ? <p className="rounded-xl bg-red-400/10 p-3 text-sm leading-6 text-red-300">{discoveryError}</p> : null}
+                                    </div>
+                                    {discoveryReport || discoveryError ? <button className="mt-3 text-sm font-semibold text-yellow-200 underline underline-offset-4" onClick={() => {setSourceMode('manual'); setConfigurationOpen(false);}}>{t['setup.source.manual_fallback']}</button> : null}
+                                </div> : null}
                                 {pvDevices.length ? <div className="mb-5 space-y-2"><p className="text-xs font-semibold uppercase tracking-wider text-[#777781]">{t['setup.source.configured']}</p>{pvDevices.map((device) => <div className="flex items-center gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.05] px-4 py-3" key={device.id}><CheckCircle2 className="shrink-0 text-emerald-300" size={17}/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{device.label} · {device.values.profile}</p><p className="truncate text-xs text-[#85858f]">{device.values.host}:{device.values.port} · {device.selectedSectionKeys.length} {t['setup.source.components']}</p></div><button aria-label={t['setup.source.remove']} className="grid h-8 w-8 place-items-center rounded-lg text-[#777781] transition hover:bg-red-400/10 hover:text-red-300" onClick={() => setPvDevices((current) => current.filter((entry) => entry.id !== device.id))}><Trash2 size={15}/></button></div>)}</div> : null}
                                 {discoveredDevices.length ? <div className="mb-5 rounded-2xl border border-yellow-400/15 bg-yellow-400/[0.04] p-4"><p className="mb-3 text-xs font-semibold uppercase tracking-wider text-yellow-200">{t['setup.source.discovered']}</p><div className="grid gap-2 md:grid-cols-2">{discoveredDevices.map((device) => <button className="rounded-xl border border-white/[0.08] bg-[#101014] p-3 text-left transition hover:border-yellow-400/40" key={`${device.providerId}-${device.host}-${device.port}-${device.profileName}`} onClick={() => useDiscoveredDevice(device)}><p className="text-sm font-semibold">{device.profileName}</p><p className="mt-1 text-xs text-[#85858f]">{device.host}:{device.port} · {device.sections.length} {t['setup.source.components']}</p></button>)}</div></div> : null}
-                                <div className="grid gap-3 md:grid-cols-2">{catalog.pvSources.map((option) => <button className={`rounded-2xl border p-4 text-left transition ${selectedSource === option.id ? 'border-yellow-400/50 bg-yellow-400/[0.06]' : 'border-white/[0.08] bg-[#101014] hover:border-white/20'}`} key={option.id} onClick={() => {setSelectedSource(option.id); setError(null);}}><div className="flex items-start justify-between gap-3"><Server className={selectedSource === option.id ? 'text-yellow-300' : 'text-[#777781]'} size={22}/>{option.recommended ? <span className="rounded-full bg-yellow-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-yellow-300">{t['setup.recommended']}</span> : null}</div><h3 className="mt-4 font-semibold">{option.label}</h3><p className="mt-1.5 text-sm leading-5 text-[#85858f]">{option.description}</p></button>)}</div>
-                                {selectedSourceOption ? (
+                                {sourceMode === 'manual' ? <div className="mb-5">
+                                    <h3 className="mb-2 font-semibold">{t['setup.source.manual_title']}</h3>
+                                    <p className="mb-4 text-sm leading-6 text-[#a0a0aa]">{t['setup.source.manual_hint']}</p>
+                                    <div className="grid gap-3 sm:grid-cols-2">{catalog.pvSources.map((option) => <button aria-pressed={selectedSource === option.id && configurationOpen} className={`rounded-xl border p-4 text-left transition ${selectedSource === option.id && configurationOpen ? 'border-yellow-400/50 bg-yellow-400/[0.06]' : 'border-white/10 bg-[#101014] hover:border-white/25'}`} key={option.id} onClick={() => {setSelectedSource(option.id); setProfileReload((current) => current + 1); setProfileSearch(''); setConfigurationOpen(true); setError(null);}}><h4 className="font-semibold">{t[`setup.source.protocol.${option.id}`] || option.label}</h4><p className="mt-1 text-sm leading-5 text-[#a0a0aa]">{t[`setup.source.protocol.${option.id}_hint`] || option.description}</p></button>)}</div>
+                                    <button className="mt-4 inline-flex items-center gap-2 text-xs text-[#aaaab4] underline underline-offset-4 disabled:opacity-50" disabled={refreshing} onClick={() => void refreshProfiles()}><RefreshCw className={refreshing ? 'animate-spin' : ''} size={14}/>{t['setup.source.refresh']}</button>
+                                </div> : null}
+                                {selectedSourceOption && configurationOpen ? (
                                     <div className="mt-5 rounded-2xl border border-white/[0.08] bg-[#101014] p-5">
-                                        <label className="mb-4 block text-sm text-[#c3c3cb]">
-                                            {t['setup.source.profile_search']}
-                                            <input className={inputClass} onChange={(event) => setProfileSearch(event.target.value)} placeholder={t['setup.source.profile_search_placeholder']} value={profileSearch}/>
-                                        </label>
-                                        {profileSearch && profiles.length ? (
-                                            <div className="mb-4 flex flex-wrap gap-2">
-                                                {profiles.slice(0, 8).map((profile) => (
-                                                    <button className={`rounded-lg border px-3 py-2 text-xs ${selectedProfile?.profileName === profile.profileName ? 'border-yellow-400/50 bg-yellow-400/10 text-yellow-200' : 'border-white/10 text-[#aaaab4]'}`} key={profile.profileName} onClick={() => updateProviderValue(selectedSourceOption.id, 'profile', profile.profileName)}>{profile.profileName}</button>
-                                                ))}
-                                            </div>
-                                        ) : null}
-                                        <ProviderFields onChange={(key, value) => updateProviderValue(selectedSourceOption.id, key, value)} option={selectedSourceOption} values={providerValues[selectedSourceOption.id] ?? {}}/>
+                                        <div className="mb-5 flex items-start justify-between gap-3"><div><h3 className="font-semibold">{t['setup.source.connect_title']}</h3><p className="mt-1 text-sm text-[#a0a0aa]">{t['setup.source.connect_hint']}</p></div><span className="rounded-lg bg-white/5 px-2 py-1 text-xs text-[#aaaab4]">{selectedSourceOption.label}</span></div>
+                                        <h4 className="mb-3 text-sm font-semibold text-yellow-200">1. {t['setup.source.choose_model']}</h4>
+                                        <label className="mb-3 block text-sm text-[#c3c3cb]">{t['setup.source.profile_search']}<input className={inputClass} onChange={(event) => setProfileSearch(event.target.value)} placeholder={t['setup.source.profile_search_placeholder']} value={profileSearch}/></label>
+                                        <div aria-live="polite" className="mb-4">
+                                            {profilesLoading ? <p className="text-sm text-[#a0a0aa]">{t['setup.source.profiles_loading']}</p> : profilesError ? <p className="text-sm text-red-300">{t['setup.source.profiles_error']}</p> : <>
+                                                <label className="text-sm text-[#c3c3cb]">{t['setup.source.model']}<select aria-label={t['setup.source.model']} className={inputClass} value={providerValues[selectedSource]?.profile ?? ''} onChange={(event) => updateProviderValue(selectedSource, 'profile', event.target.value)}><option value="">{t['setup.source.model_placeholder']}</option>{selectedProfile && !filteredProfiles.includes(selectedProfile) ? <option value={selectedProfile.profileName}>{selectedProfile.profileName}</option> : null}{filteredProfiles.map((profile) => <option key={profile.profileName} value={profile.profileName}>{profile.profileName}</option>)}</select></label>
+                                                {!filteredProfiles.length ? <p className="mt-2 text-sm text-yellow-200">{t['setup.source.profiles_empty']}</p> : null}
+                                            </>}
+                                        </div>
+                                        <h4 className="mb-3 mt-6 text-sm font-semibold text-yellow-200">2. {t['setup.source.connect_address']}</h4>
+                                        <ProviderFields fieldKeys={['host', 'serialPort', 'brokerUri', 'url', 'apiToken', 'username', 'password']} onChange={(key, value) => updateProviderValue(selectedSourceOption.id, key, value)} option={selectedSourceOption} values={providerValues[selectedSourceOption.id] ?? {}}/>
+                                        {selectedSourceOption.fields.some((field) => !['profile', 'host', 'serialPort', 'brokerUri', 'url', 'apiToken', 'username', 'password'].includes(field.key)) ? <details className="mt-4 text-sm text-[#aaaab4]"><summary className="cursor-pointer">{t['setup.source.advanced']}</summary><div className="mt-4"><ProviderFields fieldKeys={selectedSourceOption.fields.filter((field) => !['profile', 'host', 'serialPort', 'brokerUri', 'url', 'apiToken', 'username', 'password'].includes(field.key)).map((field) => field.key)} onChange={(key, value) => updateProviderValue(selectedSourceOption.id, key, value)} option={selectedSourceOption} values={providerValues[selectedSourceOption.id] ?? {}}/></div></details> : null}
+                                        <button className="mt-4 inline-flex items-center gap-2 rounded-xl bg-violet-400/10 px-4 py-2.5 text-sm font-semibold text-violet-200 disabled:opacity-50" disabled={profilesLoading || !providerFieldsComplete(selectedSourceOption) || testingProvider !== null} onClick={() => void testProvider(selectedSourceOption)}>{testingProvider === selectedSourceOption.id ? <LoaderCircle className="animate-spin" size={16}/> : <DatabaseZap size={16}/>} {t['setup.connection.test']}</button>
+                                        <Verification state={verification[selectedSourceOption.id]}/>
                                         {selectedProfile ? (
                                             <div className="mt-5">
                                                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                                    <p className="text-xs font-semibold uppercase tracking-wider text-[#777781]">{t['setup.source.select_components']}</p>
+                                                    <p className="text-xs font-semibold uppercase tracking-wider text-[#777781]">3. {t['setup.source.select_components']}</p>
                                                     {verification[selectedSourceOption.id]?.valid ? (
                                                         <span className="inline-flex items-center gap-1.5 text-xs text-[#85858f]">
                                                             <span className={`h-2 w-2 rounded-full ${previewing ? 'animate-pulse bg-yellow-300' : 'bg-emerald-300'}`}/>
@@ -646,23 +793,66 @@ export default function SetupPage() {
                                             </div>
                                         ) : null}
                                         <div className="mt-5 flex flex-wrap gap-2">
-                                            <button className="inline-flex items-center gap-2 rounded-xl bg-violet-400/10 px-4 py-2.5 text-sm font-semibold text-violet-200 transition hover:bg-violet-400/20 disabled:opacity-50" disabled={!providerFieldsComplete(selectedSourceOption) || testingProvider === selectedSourceOption.id} onClick={() => void testProvider(selectedSourceOption)}>
-                                                {testingProvider === selectedSourceOption.id ? <LoaderCircle className="animate-spin" size={16}/> : <DatabaseZap size={16}/>} {t['setup.connection.test']}
-                                            </button>
                                             <button className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-300 disabled:opacity-40" disabled={!verification[selectedSourceOption.id]?.valid || selectedSectionKeys.length === 0} onClick={addPvDevice}>
                                                 <Plus size={16}/>{t['setup.source.add']}
                                             </button>
                                         </div>
-                                        <Verification state={verification[selectedSourceOption.id]}/>
+                                        <p className="mt-3 text-xs leading-5 text-[#a0a0aa]">{t['setup.source.add_hint']}</p>
                                     </div>
                                 ) : null}
                             </div>
                         ) : null}
 
                         {step === 2 ? (
-                            <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-                                <div><h3 className="mb-3 font-semibold">{t['setup.panels.created']}</h3>{panels.length === 0 ? <div className="rounded-2xl border border-dashed border-white/10 px-5 py-10 text-center text-sm text-[#777781]">{t['setup.panels.empty']}</div> : <div className="space-y-3">{panels.map((panel) => <article className="flex items-center justify-between gap-4 rounded-2xl border border-white/[0.07] bg-[#101014] p-4" key={panel.id}><div><p className="font-semibold">{panel.name}</p><p className="mt-1 text-xs text-[#85858f]">{panel.panelCount} × {panel.powerPerPanelWatts} W · {(panel.panelCount * panel.powerPerPanelWatts / 1000).toFixed(2)} kWp</p><p className="mt-1 flex items-center gap-1 text-xs text-[#686872]"><MapPin size={12}/>{panel.latitude.toFixed(5)}, {panel.longitude.toFixed(5)}</p></div><button aria-label={t['setup.panels.remove']} className="grid h-9 w-9 place-items-center rounded-lg text-[#777781] transition hover:bg-red-400/10 hover:text-red-300" onClick={() => setPanels((current) => current.filter((entry) => entry.id !== panel.id))}><Trash2 size={16}/></button></article>)}</div>}</div>
-                                <div className="rounded-2xl border border-white/[0.08] bg-[#101014] p-5"><h3 className="font-semibold">{t['setup.panels.new']}</h3><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm text-[#c3c3cb] sm:col-span-2">{t['setup.panels.name']}<input className={inputClass} onChange={(event) => setPanelDraft({...panelDraft, name: event.target.value})} value={panelDraft.name}/></label><label className="text-sm text-[#c3c3cb]">{t['setup.panels.count']}<input className={inputClass} min="1" onChange={(event) => setPanelDraft({...panelDraft, panelCount: Number(event.target.value)})} type="number" value={panelDraft.panelCount}/></label><label className="text-sm text-[#c3c3cb]">{t['setup.panels.power']} (W)<input className={inputClass} min="1" onChange={(event) => setPanelDraft({...panelDraft, powerPerPanelWatts: Number(event.target.value)})} type="number" value={panelDraft.powerPerPanelWatts}/></label><label className="text-sm text-[#c3c3cb]">{t['setup.panels.azimuth']}<input className={inputClass} max="360" min="0" onChange={(event) => setPanelDraft({...panelDraft, azimuthDegrees: Number(event.target.value)})} type="number" value={panelDraft.azimuthDegrees}/></label><label className="text-sm text-[#c3c3cb]">{t['setup.panels.slope']}<input className={inputClass} max="90" min="0" onChange={(event) => setPanelDraft({...panelDraft, slopeDegrees: Number(event.target.value)})} type="number" value={panelDraft.slopeDegrees}/></label><div className="sm:col-span-2"><PanelLocationMap labels={{select: t['details.panels.map.select'], move: t['details.panels.map.move'], selected: t['details.panels.map.selected'], useLocation: t['details.panels.map.use_location'], locationError: t['details.panels.map.location_error']}} onChange={(location) => setPanelDraft({...panelDraft, ...location})} value={panelDraft}/></div></div><button className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-3 font-semibold text-black transition hover:bg-emerald-300" onClick={addPanel}><Plus size={17}/>{t['setup.panels.add']}</button></div>
+                            <div className="space-y-5">
+                                <div className="rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.04] px-5 py-4 text-sm leading-6 text-[#c3d8dc]">
+                                    <h3 className="font-semibold text-white">{t['setup.panels.what_title']}</h3>
+                                    <p className="mt-1">{t['setup.panels.what_hint']}</p>
+                                </div>
+                                <div className="grid items-start gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+                                    <div className="rounded-2xl border border-white/[0.08] bg-[#101014] p-5 sm:p-6">
+                                        <h3 className="text-lg font-semibold">{editingPanelId ? t['setup.panels.edit'] : t['setup.panels.new']}</h3>
+                                        <p className="mt-1 text-sm leading-6 text-[#a0a0aa]">{t['setup.panels.form_hint']}</p>
+                                        <div className="mt-6 border-t border-white/10 pt-5">
+                                            <h4 className="text-sm font-semibold text-yellow-200">1. {t['setup.panels.power_title']}</h4>
+                                            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                                                <label className="text-sm text-[#c3c3cb]">{t['setup.panels.count']}<input aria-label={t['setup.panels.count']} className={inputClass} min="1" step="1" onChange={(event) => setPanelDraft((current) => ({...current, panelCount: Number(event.target.value)}))} type="number" value={panelDraft.panelCount}/></label>
+                                                <label className="text-sm text-[#c3c3cb]">{t['setup.panels.power']} (Wp)<input aria-label={t['setup.panels.power']} className={inputClass} min="1" step="1" onChange={(event) => setPanelDraft((current) => ({...current, powerPerPanelWatts: Number(event.target.value)}))} type="number" value={panelDraft.powerPerPanelWatts}/></label>
+                                            </div>
+                                            <p className="mt-2 text-xs leading-5 text-[#a0a0aa]">{t['setup.panels.power_hint']}</p>
+                                            <p aria-live="polite" className="mt-3 rounded-xl bg-emerald-400/[0.06] px-3 py-2 text-sm text-emerald-200">{t['setup.panels.total_power']}: <strong>{Number.isFinite(panelDraft.panelCount * panelDraft.powerPerPanelWatts) ? new Intl.NumberFormat(locale, {maximumFractionDigits: 2}).format(panelDraft.panelCount * panelDraft.powerPerPanelWatts / 1000) : '—'} kWp</strong></p>
+                                        </div>
+                                        <div className="mt-6 border-t border-white/10 pt-5">
+                                            <h4 className="text-sm font-semibold text-yellow-200">2. {t['setup.panels.orientation_title']}</h4>
+                                            <p className="mt-1 text-xs leading-5 text-[#a0a0aa]">{t['setup.panels.orientation_hint']}</p>
+                                            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label={t['setup.panels.azimuth']}>
+                                                {[{key: 'north', value: 0}, {key: 'east', value: 90}, {key: 'south', value: 180}, {key: 'west', value: 270}].map((direction) => <button aria-pressed={panelDraft.azimuthDegrees === direction.value} className={panelDraft.azimuthDegrees === direction.value ? 'rounded-xl border border-yellow-400/60 bg-yellow-400/10 px-2 py-3 text-sm font-semibold text-yellow-200' : 'rounded-xl border border-white/10 px-2 py-3 text-sm text-[#b0b0ba] hover:border-white/25'} key={direction.key} onClick={() => setPanelDraft((current) => ({...current, azimuthDegrees: direction.value}))} type="button">{t['setup.panels.direction.' + direction.key]}</button>)}
+                                            </div>
+                                            <details className="mt-3 text-xs text-[#a0a0aa]"><summary className="cursor-pointer">{t['setup.panels.exact_direction']}</summary><label className="mt-3 block text-sm">{t['setup.panels.azimuth']}<input aria-label={t['setup.panels.azimuth']} className={inputClass} max="360" min="0" onChange={(event) => setPanelDraft((current) => ({...current, azimuthDegrees: Number(event.target.value)}))} type="number" value={panelDraft.azimuthDegrees}/></label></details>
+                                            <label className="mt-5 block text-sm text-[#c3c3cb]">{t['setup.panels.tilt_title']} ({panelDraft.slopeDegrees}°)<input aria-label={t['setup.panels.tilt_title']} className="mt-3 block w-full accent-yellow-400" max="90" min="0" onChange={(event) => setPanelDraft((current) => ({...current, slopeDegrees: Number(event.target.value)}))} step="5" type="range" value={panelDraft.slopeDegrees}/></label>
+                                            <div className="mt-1 flex justify-between text-xs text-[#a0a0aa]"><span>{t['setup.panels.flat']}</span><span>{t['setup.panels.steep']}</span></div>
+                                            <details className="mt-3 text-xs text-[#a0a0aa]"><summary className="cursor-pointer">{t['setup.panels.exact_tilt']}</summary><label className="mt-3 block text-sm">{t['setup.panels.slope']}<input aria-label={t['setup.panels.slope']} className={inputClass} max="90" min="0" onChange={(event) => setPanelDraft((current) => ({...current, slopeDegrees: Number(event.target.value)}))} type="number" value={panelDraft.slopeDegrees}/></label></details>
+                                        </div>
+                                        <div className="mt-6 border-t border-white/10 pt-5">
+                                            <h4 className="text-sm font-semibold text-yellow-200">3. {t['setup.panels.location_title']}</h4>
+                                            <p className="mt-1 text-xs leading-5 text-[#a0a0aa]">{t['setup.panels.location_hint']}</p>
+                                            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                                                <span className="flex items-center gap-2 text-sm"><MapPin className={panelLocationSelected ? 'text-emerald-300' : 'text-[#777781]'} size={17}/>{panelLocationSelected ? t['setup.panels.location_set'] : t['setup.panels.location_missing']}</span>
+                                                <button aria-expanded={panelMapOpen} className="rounded-lg border border-white/15 px-3 py-2 text-sm font-semibold text-white hover:bg-white/[0.06]" onClick={() => setPanelMapOpen((open) => !open)} type="button">{panelLocationSelected ? t['setup.panels.change_location'] : t['setup.panels.select_location']}</button>
+                                            </div>
+                                            {panelLocationSelected ? <p className="mt-2 text-xs text-[#a0a0aa]">{panelDraft.latitude.toFixed(5)}, {panelDraft.longitude.toFixed(5)}</p> : null}
+                                            {panelMapOpen ? <div className="mt-3 space-y-3"><PanelLocationMap labels={{select: t['details.panels.map.select'], move: t['details.panels.map.move'], selected: t['details.panels.map.selected'], useLocation: t['details.panels.map.use_location'], locationError: t['details.panels.map.location_error']}} onChange={setPanelLocation} value={panelDraft}/><details className="text-sm text-[#a0a0aa]"><summary className="cursor-pointer">{t['setup.panels.coordinates']}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2"><label>{t['setup.panels.latitude']}<input aria-label={t['setup.panels.latitude']} className={inputClass} max="90" min="-90" onChange={(event) => changePanelCoordinate('latitude', event.target.value)} step="any" type="number" value={manualLatitude}/></label><label>{t['setup.panels.longitude']}<input aria-label={t['setup.panels.longitude']} className={inputClass} max="180" min="-180" onChange={(event) => changePanelCoordinate('longitude', event.target.value)} step="any" type="number" value={manualLongitude}/></label></div></details></div> : null}
+                                        </div>
+                                        <label className="mt-6 block text-sm text-[#c3c3cb]">{t['setup.panels.name_optional']}<input aria-label={t['setup.panels.name_optional']} className={inputClass} maxLength={120} onChange={(event) => setPanelDraft((current) => ({...current, name: event.target.value}))} placeholder={nextPanelName()} value={panelDraft.name}/></label>
+                                        {panelFormError ? <p aria-live="assertive" className="mt-4 rounded-xl border border-red-400/20 bg-red-400/[0.07] p-3 text-sm text-red-300">{panelFormError}</p> : null}
+                                        <div className="mt-5 flex flex-wrap gap-2"><button className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-3 font-semibold text-black transition hover:bg-emerald-300" onClick={addPanel} type="button">{editingPanelId ? <Pencil size={17}/> : <Plus size={17}/>} {editingPanelId ? t['setup.panels.save'] : t['setup.panels.add']}</button>{editingPanelId ? <button className="rounded-xl border border-white/10 px-4 py-3 text-sm text-[#b0b0ba]" onClick={cancelPanelEdit} type="button">{t['setup.panels.cancel']}</button> : null}</div>
+                                    </div>
+                                    <div className="rounded-2xl border border-white/[0.08] bg-[#101014] p-5 sm:p-6">
+                                        <h3 className="font-semibold">{t['setup.panels.created']}</h3>
+                                        {panels.length ? <><p className="mt-2 text-sm text-[#a0a0aa]">{panels.length} {t['setup.summary.panel_groups']} · {panels.reduce((sum, panel) => sum + panel.panelCount, 0)} {t['setup.summary.panels']} · {(panels.reduce((sum, panel) => sum + panel.panelCount * panel.powerPerPanelWatts, 0) / 1000).toFixed(2)} kWp</p><div className="mt-4 space-y-3">{panels.map((panel) => <article className={editingPanelId === panel.id ? 'rounded-xl border border-yellow-400/40 bg-yellow-400/[0.04] p-4' : 'rounded-xl border border-white/10 bg-black/20 p-4'} key={panel.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h4 className="truncate font-semibold">{panel.name}</h4><p className="mt-1 text-sm text-[#b0b0ba]">{panel.panelCount} × {panel.powerPerPanelWatts} Wp = {(panel.panelCount * panel.powerPerPanelWatts / 1000).toFixed(2)} kWp</p><p className="mt-1 text-xs text-[#a0a0aa]">{t['setup.panels.azimuth']}: {panel.azimuthDegrees}° · {t['setup.panels.slope']}: {panel.slopeDegrees}°</p><p className="mt-1 flex items-center gap-1 text-xs text-[#a0a0aa]"><MapPin size={12}/>{panel.latitude.toFixed(5)}, {panel.longitude.toFixed(5)}</p></div><div className="flex shrink-0 items-center gap-1"><button aria-label={t['setup.panels.edit'] + ': ' + panel.name} className="grid h-9 w-9 place-items-center rounded-lg text-[#b0b0ba] hover:bg-white/[0.06]" onClick={() => editPanel(panel)} type="button"><Pencil size={16}/></button><button aria-label={t['setup.panels.remove'] + ': ' + panel.name} className="grid h-9 w-9 place-items-center rounded-lg text-[#b0b0ba] hover:bg-red-400/10 hover:text-red-300" onClick={() => {setPanels((current) => current.filter((entry) => entry.id !== panel.id)); if (editingPanelId === panel.id) cancelPanelEdit();}} type="button"><Trash2 size={16}/></button></div></div></article>)}</div></> : <p className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm leading-6 text-[#a0a0aa]">{t['setup.panels.empty']}</p>}
+                                        <p className="mt-4 text-xs leading-5 text-[#a0a0aa]">{t['setup.panels.more_hint']}</p>
+                                    </div>
+                                </div>
                             </div>
                         ) : null}
 
@@ -678,10 +868,11 @@ export default function SetupPage() {
                         ) : null}
                     </div>
 
-                    {error ? <div className="mx-5 mb-4 rounded-xl border border-red-400/20 bg-red-400/[0.07] px-4 py-3 text-sm text-red-300 sm:mx-7">{error}</div> : null}
+                    {error ? <div role="alert" className="mx-5 mb-4 rounded-xl border border-red-400/20 bg-red-400/[0.07] px-4 py-3 text-sm text-red-300 sm:mx-7">{error}</div> : null}
+                    {step === 1 ? <p aria-live="polite" className="border-t border-white/[0.07] px-5 py-3 text-sm text-[#b0b0ba] sm:px-7">{pvDevices.length ? t['setup.source.ready'] : t['setup.source.continue_hint']}</p> : null}
                     <footer className="flex items-center justify-between gap-3 border-t border-white/[0.07] px-5 py-4 sm:px-7">
                         <button className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-[#b8b8c1] transition hover:bg-white/[0.05] disabled:invisible" disabled={step === 0 || submitting} onClick={() => {setStep((current) => Math.max(0, current - 1)); setError(null);}}><ArrowLeft size={16}/>{t['setup.action.previous']}</button>
-                        {step < steps.length - 1 ? <button className="inline-flex items-center gap-2 rounded-xl bg-yellow-400 px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-yellow-300" onClick={next}>{t['setup.action.next']}<ArrowRight size={16}/></button> : <button className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-60" disabled={submitting} onClick={() => void submit()}>{submitting ? <LoaderCircle className="animate-spin" size={16}/> : <Check size={16}/>} {t['setup.action.create']}</button>}
+                        {step < steps.length - 1 ? <button className="inline-flex items-center gap-2 rounded-xl bg-yellow-400 px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-yellow-300 disabled:opacity-40" disabled={step === 1 && pvDevices.length === 0} onClick={next}>{t['setup.action.next']}<ArrowRight size={16}/></button> : <button className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-60" disabled={submitting} onClick={() => void submit()}>{submitting ? <LoaderCircle className="animate-spin" size={16}/> : <Check size={16}/>} {t['setup.action.create']}</button>}
                     </footer>
                 </section>
             </div>

@@ -12,6 +12,7 @@ import de.verdox.solarminer.modbustcp.ModbusConfigCreatorTemplate;
 import de.verdox.solarminer.modbustcp.TCPModbusClient;
 import de.verdox.solarminer.rest.RestPVClient;
 import de.verdox.solarminer.rest.RestPVConfig;
+import de.verdox.solarminer.rest.RestHttpMethod;
 import org.springframework.stereotype.Service;
 
 import java.net.*;
@@ -56,14 +57,16 @@ public class DiscoveryService {
                     final String ip = subnetPrefix + i;
                     for (int port : TARGET_REST_PORTS) {
                         executor.submit(() -> {
+                            boolean acquired = false;
                             try {
                                 rateLimiter.acquire();
+                                acquired = true;
                                 if (isPortOpen(ip, port, 200)) {
                                     probeRestProfiles(ip, port, onDeviceFound);
                                 }
                             } catch (Exception ignored) {
                             } finally {
-                                rateLimiter.release();
+                                if (acquired) rateLimiter.release();
                             }
                         });
                     }
@@ -83,14 +86,13 @@ public class DiscoveryService {
         try {
             localRestNames = restStorage.getSavedConfigs();
             for (String name : localRestNames) {
+                if (Thread.currentThread().isInterrupted()) return;
                 try {
                     var config = restStorage.loadConfig(name);
                     if (config == null || config.getSections().isEmpty()) continue;
 
-                    var firstSection = config.getSections().values().iterator().next();
-                    if (firstSection.getEntries().isEmpty()) continue;
-
-                    var testEntry = firstSection.getEntries().values().iterator().next();
+                    var testEntry = readOnlyProbe(config);
+                    if (testEntry == null) continue;
                     if (executeRestProbe(baseUrl, testEntry, ip, port, name, onDeviceFound)) return;
                 } catch (Exception ignored) {}
             }
@@ -99,35 +101,42 @@ public class DiscoveryService {
         }
 
         for (var profile : configFetcherService.getCachedProfiles()) {
+            if (Thread.currentThread().isInterrupted()) return;
             if (!profile.supportedProtocols().contains("Rest-API") || localRestNames.contains(profile.name())) continue;
             var configOpt = configFetcherService.getRestPVConfig(profile.name());
             if (configOpt.isEmpty() || configOpt.get().getSections().isEmpty()) continue;
 
-            var firstSection = configOpt.get().getSections().values().iterator().next();
-            if (firstSection.getEntries().isEmpty()) continue;
-
-            var testEntry = firstSection.getEntries().values().iterator().next();
+            var testEntry = readOnlyProbe(configOpt.get());
+            if (testEntry == null) continue;
             if (executeRestProbe(baseUrl, testEntry, ip, port, profile.name(), onDeviceFound)) return;
         }
     }
 
-    private boolean executeRestProbe(String baseUrl, RestPVConfig.Entry<?> testEntry, String ip, int port,
+    private RestPVConfig.Entry<?> readOnlyProbe(RestPVConfig config) {
+        return config.getSections().values().stream()
+                .flatMap(section -> section.getEntries().values().stream())
+                .filter(entry -> entry.httpMethod() == RestHttpMethod.GET)
+                .sorted(java.util.Comparator.comparing(RestPVConfig.Entry::urlExtension))
+                .findFirst().orElse(null);
+    }
+
+    boolean executeRestProbe(String baseUrl, RestPVConfig.Entry<?> testEntry, String ip, int port,
                                      String profileName, Consumer<DiscoveredRestDevice> onDeviceFound) {
+        // Discovery is read-only. A protected endpoint alone does not identify a device.
+        if (testEntry.httpMethod() != RestHttpMethod.GET || Thread.currentThread().isInterrupted()) return false;
         String probeUrl = baseUrl + testEntry.urlExtension();
         try {
             HttpRequest request = HttpRequest.newBuilder().uri(URI.create(probeUrl)).timeout(Duration.ofMillis(800)).GET().build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             int status = response.statusCode();
             if (status == 200 || status == 201) {
-                try (RestPVClient client = new RestPVClient(baseUrl, "")) {
-                    client.read(testEntry);
-                }
+                double value = RestPVClient.parsePayload(response.body(), testEntry, probeUrl);
+                if (!Double.isFinite(value)) return false;
                 onDeviceFound.accept(new DiscoveredRestDevice(ip, port, profileName, false));
                 return true;
-            } else if (status == 401 || status == 403) {
-                onDeviceFound.accept(new DiscoveredRestDevice(ip, port, profileName, true));
-                return true;
             }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
         } catch (Exception ignored) {}
         return false;
     }
@@ -142,15 +151,17 @@ public class DiscoveryService {
             try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
                 for (String ip : ipsToScan) {
                     executor.submit(() -> {
+                        boolean acquired = false;
                         try {
                             rateLimiter.acquire();
+                            acquired = true;
                             if (isPortOpen(ip, modbusTCPPort, 200)) {
                                 String matchingProfile = tryMatchModbusProfiles(ip, modbusTCPPort);
                                 if (matchingProfile != null) onDeviceFound.accept(new DiscoveredModbusDevice(ip, matchingProfile));
                             }
                         } catch (Exception ignored) {
                         } finally {
-                            rateLimiter.release();
+                            if (acquired) rateLimiter.release();
                         }
                     });
                 }
@@ -167,7 +178,11 @@ public class DiscoveryService {
     }
 
     private String tryMatchModbusProfiles(String ip, int port) {
-        String sunSpecProfileName = tryMatchSunSpec(ip, port);
+        return tryMatchModbusProfiles(ip, port, 1);
+    }
+
+    private String tryMatchModbusProfiles(String ip, int port, int slaveId) {
+        String sunSpecProfileName = tryMatchSunSpec(ip, port, slaveId);
         if (sunSpecProfileName != null) return sunSpecProfileName;
 
         ModbusConfigStorage modbusStorage = SpringContextHelper.getBean(ModbusConfigStorage.class);
@@ -180,7 +195,7 @@ public class DiscoveryService {
                     var config = modbusStorage.loadConfig(name);
                     if (config == null || config.getFingerprint() == null) continue;
 
-                    try (TCPModbusClient modbusClient = new TCPModbusClient(ip, port, 1)) {
+                    try (TCPModbusClient modbusClient = new TCPModbusClient(ip, port, slaveId)) {
                         if (modbusClient.verifyFingerprint(config.getAddressOffset(), config.getFingerprint())) return name;
                     } catch (Exception ignored) {}
                 } catch (Exception ignored) {}
@@ -198,15 +213,16 @@ public class DiscoveryService {
             // A readable measurement register is not a device identity. Profiles without a verified
             // expected value remain available for manual selection but must never win auto-discovery.
             if (config.getFingerprint() == null) continue;
-            try (TCPModbusClient modbusClient = new TCPModbusClient(ip, port, 1)) {
+            if (Thread.currentThread().isInterrupted()) return null;
+            try (TCPModbusClient modbusClient = new TCPModbusClient(ip, port, slaveId)) {
                 if (modbusClient.verifyFingerprint(config.getAddressOffset(), config.getFingerprint())) return profile.name();
             } catch (Exception e) {}
         }
         return null;
     }
 
-    private String tryMatchSunSpec(String ip, int port) {
-        try (TCPModbusClient client = new TCPModbusClient(ip, port, 1)) {
+    private String tryMatchSunSpec(String ip, int port, int slaveId) {
+        try (TCPModbusClient client = new TCPModbusClient(ip, port, slaveId)) {
             int baseAddress = client.findSunSpecBaseAddress();
             if (baseAddress == -1) return null;
             int model1Address = baseAddress + 2;
@@ -241,13 +257,25 @@ public class DiscoveryService {
 
     /** Inspects one endpoint. SunSpec profiles are generated and persisted as part of this call. */
     public DiscoveredModbusDevice inspectModbusDevice(String host, int port) {
-        if (!isPortOpen(host, port, 800)) return null;
-        String profile = tryMatchModbusProfiles(host, port);
+        return inspectModbusDevice(host, port, 1);
+    }
+
+    public DiscoveredModbusDevice inspectModbusDevice(String host, int port, int slaveId) {
+        return inspectModbusDevice(host, port, slaveId, 800);
+    }
+
+    public DiscoveredModbusDevice inspectModbusDevice(String host, int port, int slaveId, int connectTimeoutMillis) {
+        if (Thread.currentThread().isInterrupted() || !isPortOpen(host, port, connectTimeoutMillis)) return null;
+        String profile = tryMatchModbusProfiles(host, port, slaveId);
         return profile == null ? null : new DiscoveredModbusDevice(host, profile);
     }
 
     public DiscoveredRestDevice inspectRestDevice(String host, int port) {
-        if (!isPortOpen(host, port, 800)) return null;
+        return inspectRestDevice(host, port, 800);
+    }
+
+    public DiscoveredRestDevice inspectRestDevice(String host, int port, int connectTimeoutMillis) {
+        if (Thread.currentThread().isInterrupted() || !isPortOpen(host, port, connectTimeoutMillis)) return null;
         AtomicReference<DiscoveredRestDevice> result = new AtomicReference<>();
         probeRestProfiles(host, port, device -> result.compareAndSet(null, device));
         return result.get();
