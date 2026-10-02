@@ -95,7 +95,7 @@ public class XmrMinerService {
         if (minerStatus != MinerStats.MinerStatus.ERROR || desiredPowerUsage <= 0 || isMiningProcessAlive()) return;
         if (crashRestartAttempts >= 3) return;
         crashRestartAttempts++;
-        console.append("monero", "[SolarMiner] XMRig-Watchdog: Wiederanlauf " + crashRestartAttempts + "/3");
+        console.append("monero", "[SolarMiner] XMRig watchdog restart " + crashRestartAttempts + "/3");
         startMining();
     }
 
@@ -168,7 +168,7 @@ public class XmrMinerService {
         try {
             if (configService.updateProxyRoute(XmrDownloadService.CONFIG_PATH, proxyConfigurationService.moneroUrl(),
                     payout.poolUrl() + ";" + payout.login() + ";x")) {
-                console.append("monero", "[SolarMiner] Auszahlung an aktuelles SolarMiner-Standardziel angepasst");
+                console.append("monero", "[SolarMiner] Payout updated to the current SolarMiner default target");
             }
         } catch (IOException e) {
             LOGGER.log(Level.WARNING, "Default Monero payout could not be refreshed", e);
@@ -192,7 +192,7 @@ public class XmrMinerService {
 
         if (!configService.isProxyRouteConfigured() || !proxyConfigurationService.miningReady("monero")) {
             LOGGER.severe("Cannot start XMRig: a reachable SolarMiner proxy with a loaded fee route is required in standalone mode");
-            lastStartError = "Start abgelehnt: SolarMiner-Proxy oder Monero-Fee-Ziel nicht bereit";
+            lastStartError = "Start rejected: SolarMiner proxy or Monero fee target is not ready";
             console.append("monero", "[SolarMiner] " + lastStartError);
             minerStatus = MinerStats.MinerStatus.ERROR;
             return;
@@ -205,7 +205,7 @@ public class XmrMinerService {
 
         if (!executableFile.exists()) {
             LOGGER.severe("Cannot start mining: Executable not found at " + executableFile.getAbsolutePath());
-            lastStartError = "Start abgelehnt: XMRig-Datei fehlt: " + executableFile.getAbsolutePath();
+            lastStartError = "Start rejected: XMRig executable is missing: " + executableFile.getAbsolutePath();
             console.append("monero", "[SolarMiner] " + lastStartError);
             minerStatus = MinerStats.MinerStatus.ERROR;
             return;
@@ -235,7 +235,7 @@ public class XmrMinerService {
                     }
                 } catch (Exception e) {
                     LOGGER.log(Level.WARNING, "Error reading XMRig output stream", e);
-                    console.append("monero", "[SolarMiner] Miner-Ausgabe konnte nicht gelesen werden: " + e.getMessage());
+                    console.append("monero", "[SolarMiner] Could not read miner output: " + e.getMessage());
                 }
             });
 
@@ -244,8 +244,8 @@ public class XmrMinerService {
                 catch (Exception ignored) { }
                 if (minerStatus == MinerStats.MinerStatus.MINING) {
                     LOGGER.severe("XMRig process crashed or exited unexpectedly with code: " + process.exitValue());
-                    console.append("monero", "[SolarMiner] XMRig beendet mit Exit-Code " + process.exitValue());
-                    lastStartError = "XMRig beendet mit Exit-Code " + process.exitValue();
+                    console.append("monero", "[SolarMiner] XMRig exited with code " + process.exitValue());
+                    lastStartError = "XMRig exited with code " + process.exitValue();
                     minerStatus = MinerStats.MinerStatus.ERROR;
                 }
                 currentHashesPerSecond = 0;
@@ -264,9 +264,9 @@ public class XmrMinerService {
             String reason = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
             if (e instanceof java.nio.file.AccessDeniedException || reason.toLowerCase().contains("access is denied")
                     || reason.toLowerCase().contains("zugriff verweigert")) {
-                lastStartError = "Windows hat den Start von XMRig wegen fehlender Berechtigungen verweigert. Prüfe die Dateiberechtigungen und Windows-Sicherheitsabfragen. Details: " + reason;
+                lastStartError = "Windows denied the XMRig start due to missing permissions. Check file permissions and Windows security prompts. Details: " + reason;
             } else {
-                lastStartError = "XMRig konnte nicht gestartet werden: " + reason;
+                lastStartError = "XMRig could not be started: " + reason;
             }
             console.append("monero", "[SolarMiner] " + lastStartError);
             minerStatus = MinerStats.MinerStatus.ERROR;
@@ -288,7 +288,7 @@ public class XmrMinerService {
                 Thread.currentThread().interrupt();
             }
             LOGGER.info("XMRig process terminated.");
-            console.append("monero", "[SolarMiner] XMRig wurde angehalten");
+            console.append("monero", "[SolarMiner] XMRig stopped");
         }
         MinerProcessRegistry.stop("xmrig");
 

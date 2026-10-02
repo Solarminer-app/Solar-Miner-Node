@@ -25,12 +25,14 @@ public class BenchmarkSessionService {
     private final XmrMinerService xmr;
     private final PearlMinerService pearl;
     private final BenchmarkSharingService sharing;
+    private final MinerConsoleService consoles;
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> Thread.ofPlatform().name("pc-agent-benchmark").daemon(true).unstarted(r));
     private volatile Session session = Session.idle();
     private volatile boolean cancel;
 
-    public BenchmarkSessionService(MiningService mining, XmrMinerService xmr, PearlMinerService pearl, BenchmarkSharingService sharing) {
-        this.mining = mining; this.xmr = xmr; this.pearl = pearl; this.sharing = sharing;
+    public BenchmarkSessionService(MiningService mining, XmrMinerService xmr, PearlMinerService pearl,
+                                   BenchmarkSharingService sharing, MinerConsoleService consoles) {
+        this.mining = mining; this.xmr = xmr; this.pearl = pearl; this.sharing = sharing; this.consoles = consoles;
     }
 
     public synchronized Session start(String mode) {
@@ -93,18 +95,29 @@ public class BenchmarkSessionService {
                 if (cancel) break;
                 index++;
                 if ("INSTALLED".equals(mode)) {
-                    if (!mining.resumeMining(phase)) { skipped.add(phase); continue; }
+                    if (!mining.resumeMining(phase)) {
+                        skipped.add(phase);
+                        benchmarkLog(phase, "Benchmark start failed; phase is skipped.");
+                        continue;
+                    }
                 }
                 // In INSTALLED mode a just-started miner must be a candidate before its first API/pool
                 // health sample. LIVE intentionally keeps its existing "only currently mining" semantics.
                 List<MinerStats.Worker> candidates = phaseWorkers(phase, "LIVE".equals(mode));
                 Set<String> expected = candidates.stream().map(BenchmarkSessionService::key).collect(java.util.stream.Collectors.toSet());
                 if (expected.isEmpty()) {
-                    skipped.add(phase + ("LIVE".equals(mode)
-                            ? " (keine aktiven Worker)" : " (keine konfigurierten Worker erkannt)"));
-                    if ("INSTALLED".equals(mode)) mining.pauseMining(phase);
+                    String reason = "LIVE".equals(mode)
+                            ? " (no active workers)" : " (no configured workers detected)";
+                    skipped.add(phase + reason);
+                    benchmarkLog(phase, "Phase skipped:" + reason);
+                    if ("INSTALLED".equals(mode)) {
+                        benchmarkLog(phase, "Benchmark pauses miner after skipped phase.");
+                        mining.pauseMining(phase);
+                    }
                     continue;
                 }
+                benchmarkLog(phase, "Measurement phase started; expected workers: " + String.join(", ", expected)
+                        + ("INSTALLED".equals(mode) ? "; waiting up to 95 s for the first active status." : "."));
                 Set<String> unavailable = new HashSet<>();
                 Set<String> observedMining = new HashSet<>();
                 Instant startupDeadline = Instant.now().plus(WORKER_STARTUP_GRACE);
@@ -130,7 +143,11 @@ public class BenchmarkSessionService {
                             .filter(k -> workerUnavailable(k, currentByKey.get(k), observedMining, startupDeadline))
                             .toList();
                     unavailable.addAll(lost);
-                    if (!lost.isEmpty()) skipped.add(phase + " (Worker startete nicht oder wurde beendet: " + String.join(", ", lost) + ")");
+                    if (!lost.isEmpty()) {
+                        String reason = "Worker did not start or stopped: " + String.join(", ", lost);
+                        skipped.add(phase + " (" + reason + ")");
+                        benchmarkLog(phase, reason);
+                    }
                     boolean complete = expected.stream().allMatch(k -> unavailable.contains(k)
                             || observations.getOrDefault(k, List.of()).size() >= REQUIRED_SAMPLES_PER_WORKER);
                     if (complete) break;
@@ -139,7 +156,13 @@ public class BenchmarkSessionService {
                             index, phases.size(), observations);
                     Thread.sleep(SAMPLE_INTERVAL_MILLIS);
                 }
-                if ("INSTALLED".equals(mode)) mining.pauseMining(phase);
+                int collected = expected.stream().mapToInt(k -> observations.getOrDefault(k, List.of()).size()).sum();
+                benchmarkLog(phase, "Measurement phase complete: " + collected + "/" + (expected.size() * REQUIRED_SAMPLES_PER_WORKER)
+                        + " valid samples." + (unavailable.isEmpty() ? "" : " Unavailable workers: " + String.join(", ", unavailable)));
+                if ("INSTALLED".equals(mode)) {
+                    benchmarkLog(phase, "Benchmark pauses miner after measurement to restore the previous state.");
+                    mining.pauseMining(phase);
+                }
                 update(mode, "Summarizing", index, phases.size(), observations);
             }
         } catch (InterruptedException e) {
@@ -154,6 +177,10 @@ public class BenchmarkSessionService {
                     else mining.restoreCpuPauseState(cpuPausedBefore);
                     restored = pearl.restoreWorkerState(pearlPausedBefore, pearlWasMining) && restored;
                     if (!restored) error = "Could not fully restore miner state";
+                    benchmarkLog("monero", restored ? "Previous miner state restored."
+                            : "Previous miner state could not be fully restored.");
+                    benchmarkLog("pearl", restored ? "Previous miner state restored."
+                            : "Previous miner state could not be fully restored.");
                 }
             } catch (RuntimeException restoreFailure) {
                 error = "Could not fully restore miner state: " + Objects.toString(restoreFailure.getMessage(), "unknown error");
@@ -169,6 +196,15 @@ public class BenchmarkSessionService {
 
     private List<MinerStats.Worker> phaseWorkers(String phase, boolean miningOnly) {
         return phaseWorkers(mining.getWorkerStats(), phase, miningOnly);
+    }
+    private void benchmarkLog(String phase, String message) {
+        String entry = "[Benchmark] " + message;
+        if ("monero".equals(phase)) consoles.append("monero", entry);
+        else if ("pearl".equals(phase)) pearl.appendBenchmarkEvent(entry);
+        else {
+            consoles.append("monero", entry);
+            pearl.appendBenchmarkEvent(entry);
+        }
     }
 
     static List<MinerStats.Worker> phaseWorkers(List<MinerStats.Worker> workers, String phase, boolean miningOnly) {

@@ -24,6 +24,25 @@
 - Verification: `git diff --check`; `:pc-agent:test --tests de.verdox.solarminer.pcagent.mining.BenchmarkSessionServiceTest --no-daemon` and the complete `:pc-agent:test --no-daemon` passed with Temurin 21. The focused test covers a warming GPU, CPU/GPU phase selection, immediate errors, post-start loss and the startup deadline.
 - Remaining gate: actual Windows/Linux XMRig and SRBMiner runs, including a slow real pool connection and process restoration, still require host verification. A worker that stays active yet reports zero hashrate remains cancellable rather than receiving an artificial measurement timeout.
 
+### 2026-10-02 — Reset miner console at process restart
+
+- Scope: PC-Agent's local XMRig/SRBMiner console files and Mining frontend; no Node or external API contract changed.
+- Change: a managed XMRig start now truncates its console file before recording its start marker. A SRBMiner GPU start does the same for its GPU-specific console; when no other managed Pearl GPU is running, it also resets the aggregate Pearl console. The console endpoint now returns a per-run identifier, and the frontend clears its rendered terminal plus byte offset when that identifier changes. Therefore a truncated file cannot leave old DOM output visible or cause an offset-based gap.
+- Verification: `MinerConsoleServiceTest` covers truncation and run-ID change; `node --check pc-agent/src/main/resources/static/agent.js` and `:pc-agent:test --no-daemon` passed with Temurin 21.
+- Remaining gate: visual verification in a browser while restarting XMRig, a single Pearl GPU and a multi-GPU Pearl run remains required.
+
+### 2026-10-02 — Explain benchmark miner pauses in the console
+
+- Scope: PC-Agent benchmark orchestration and local XMRig/SRBMiner consoles; no Node, proxy, fee or external API contract changed.
+- Change: benchmark phases now write `[Benchmark]` entries after start, worker discovery, worker loss, phase completion, intentional pause and final state restoration. Pearl writes the entries to its aggregate console and every known GPU console. The intentional post-measurement stop is therefore distinguishable from an SRBMiner exit, and a skipped/failed worker includes its worker key in the same terminal.
+- Verification: `:pc-agent:test --no-daemon` passed with Temurin 21; visual runtime confirmation remains open.
+
+### 2026-10-02 — English PC-Agent console messages
+
+- Scope: PC-Agent-generated XMRig, SRBMiner and benchmark console entries; no mining protocol or API contract changed.
+- Change: process start/stop, watchdog, payout, failure and benchmark orchestration messages are now English. The reset marker for a new console run is also English. Raw stdout/stderr from XMRig, SRBMiner and the operating system is preserved verbatim because it is external diagnostic output rather than a PC-Agent-authored message.
+- Verification: `:pc-agent:test --no-daemon` passed with Temurin 21.
+
 ### 2026-10-02 — Show benchmark upload outcomes
 
 - Scope: standalone PC-Agent manual and periodic benchmark uploads.

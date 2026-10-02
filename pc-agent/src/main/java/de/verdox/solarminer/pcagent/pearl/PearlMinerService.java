@@ -171,7 +171,7 @@ public class PearlMinerService {
             Config refreshed = new Config(payout.poolUrl(), current.proxyUrl(), payout.walletPart(), worker, current.devices());
             writeConfig(refreshed);
             config = refreshed;
-            console.append("pearl", "[SolarMiner] Auszahlung an aktuelles SolarMiner-Standardziel angepasst");
+            console.append("pearl", "[SolarMiner] Payout updated to the current SolarMiner default target");
         } catch (IOException e) {
             LOGGER.log(Level.WARNING, "Default Pearl payout could not be refreshed", e);
         }
@@ -221,7 +221,7 @@ public class PearlMinerService {
     public synchronized boolean startForBudget() {
         List<LocalGpuPowerService.Gpu> cards = eligibleGpus();
         if (cards.isEmpty()) {
-            lastError = "Keine konfigurierte Pearl-GPU erkannt";
+            lastError = "No configured Pearl GPU detected";
             console.append("pearl", "[SolarMiner] " + lastError);
             return false;
         }
@@ -258,22 +258,24 @@ public class PearlMinerService {
         if (run.running()) return true;
         if (hasExternalMiner()) {
             run.status = MinerStats.MinerStatus.MINING;
-            run.detail = "SRBMiner läuft extern; kein zweiter Prozess gestartet";
+            run.detail = "SRBMiner is running externally; no second process started";
             run.error = null;
             return true;
         }
         refreshDefaultPayout();
+        boolean noOtherPearlGpuRunning = runs.values().stream().noneMatch(GpuRun::running);
+        if (noOtherPearlGpuRunning) console.started("pearl");
         console.started(run.consoleId);
-        console.append("pearl", "[" + key + "] Neuer Miner-Start");
+        console.append("pearl", "[" + key + "] New miner start");
         if (config == null || !proxyConfigurationService.matches(config.proxyUrl(), "pearl")
                 || !proxyConfigurationService.miningReady("pearl") || !Files.isRegularFile(executable)) {
-            return fail(run, !Files.isRegularFile(executable) ? "SRBMiner-MULTI-Datei fehlt"
-                    : "Pearl benötigt einen erreichbaren SolarMiner-Proxy mit Fee-Ziel");
+            return fail(run, !Files.isRegularFile(executable) ? "SRBMiner-MULTI executable is missing"
+                    : "Pearl requires a reachable SolarMiner proxy with a loaded fee target");
         }
         try {
             int srbId = mappedGpuId(gpu);
             int apiPort = 12000 + srbId;
-            if (apiPort > 65535) throw new IOException("SRBMiner GPU-ID liegt außerhalb des API-Port-Bereichs");
+            if (apiPort > 65535) throw new IOException("SRBMiner GPU ID is outside the API port range");
             URI proxy = URI.create(config.proxyUrl());
             String suffix = "-" + (gpu.vendor().equals("NVIDIA") ? "n" : "a") + gpu.index();
             String worker = config.worker().substring(0, Math.min(config.worker().length(), 32 - suffix.length())) + suffix;
@@ -287,7 +289,7 @@ public class PearlMinerService {
             run.apiPort = apiPort;
             run.status = MinerStats.MinerStatus.MINING;
             run.error = null;
-            run.detail = "SRBMiner startet";
+            run.detail = "SRBMiner is starting";
             run.jobReceived = false;
             run.poolHealthy = false;
             run.output.set("");
@@ -299,12 +301,12 @@ public class PearlMinerService {
                 catch (InterruptedException e) { Thread.currentThread().interrupt(); }
                 if (runs.get(key) != run || run.process != done) return;
                 if (run.status == MinerStats.MinerStatus.MINING)
-                    fail(run, "SRBMiner auf " + key + " beendet (Exit-Code " + done.exitValue() + ")"
+                    fail(run, "SRBMiner on " + key + " exited (code " + done.exitValue() + ")"
                             + (run.output.get().isBlank() ? "" : ": " + run.output.get()));
             });
             return true;
         } catch (IOException e) {
-            return fail(run, "SRBMiner auf " + key + " konnte nicht gestartet werden: " + e.getMessage());
+            return fail(run, "SRBMiner on " + key + " could not be started: " + e.getMessage());
         }
     }
 
@@ -344,25 +346,25 @@ public class PearlMinerService {
                         run.jobReceived = true;
                         run.poolHealthy = true;
                         lastHealthy = Instant.now();
-                        run.detail = "Pool verbunden, letzter Job vor " + lastJob + " s";
+                        run.detail = "Pool connected, last job " + lastJob + " s ago";
                     } else {
                         run.poolHealthy = false;
-                        run.detail = "Warte auf Pool-Verbindung und Mining-Job";
+                        run.detail = "Waiting for pool connection and mining job";
                     }
                 } else {
                     run.poolHealthy = false;
-                    run.detail = "Miner-API antwortet mit HTTP " + response.statusCode();
+                    run.detail = "Miner API returned HTTP " + response.statusCode();
                 }
             } catch (Exception e) {
                 run.poolHealthy = false;
-                run.detail = "Miner-API noch nicht erreichbar";
+                run.detail = "Miner API is not reachable yet";
             }
             if (!started.isAlive() || run.process != started || run.status != MinerStats.MinerStatus.MINING) return;
             boolean startupTimeout = !run.jobReceived && Duration.between(launched, Instant.now()).toSeconds() >= 90;
             boolean stalled = run.jobReceived && Duration.between(lastHealthy, Instant.now()).toSeconds() >= 120;
             if (startupTimeout || stalled) {
-                fail(run, "SRBMiner auf " + run.key + " hat " + (startupTimeout ? "in 90" : "seit 120")
-                        + " Sekunden keinen Mining-Job erhalten: " + run.output.get());
+                fail(run, "SRBMiner on " + run.key + " has not received a mining job "
+                        + (startupTimeout ? "within 90" : "for 120") + " seconds: " + run.output.get());
                 started.destroy();
                 return;
             }
@@ -409,13 +411,13 @@ public class PearlMinerService {
         }
         String output = new String(listing.getInputStream().readNBytes(65536), StandardCharsets.UTF_8);
         if (listing.exitValue() != 0) throw new IOException("SRBMiner GPU listing failed (Exit-Code " + listing.exitValue() + "): " + output.strip());
-        if (output.isBlank()) throw new IOException("SRBMiner hat keine GPU-Geräteliste ausgegeben");
+        if (output.isBlank()) throw new IOException("SRBMiner did not produce a GPU device list");
         int id = gpu.vendor().equals("NVIDIA")
                 ? findNvidiaGpuId(output, pciAddress(gpu.deviceId()))
                 : findGpuId(output, gpu.vendor(), gpu.index());
         if (id >= 0) return id;
         throw new IOException("GPU " + gpu.vendor() + ":" + gpu.index()
-                + " nicht in der SRBMiner-Geräteliste gefunden: " + ANSI_ESCAPE.matcher(output).replaceAll("").strip());
+                + " was not found in the SRBMiner device list: " + ANSI_ESCAPE.matcher(output).replaceAll("").strip());
     }
 
     static int findGpuId(String output, String vendor, int index) {
@@ -435,16 +437,16 @@ public class PearlMinerService {
         try {
             if (!query.waitFor(5, TimeUnit.SECONDS)) {
                 query.destroyForcibly();
-                throw new IOException("NVIDIA PCI-Adresse konnte nicht rechtzeitig gelesen werden");
+                throw new IOException("NVIDIA PCI address could not be read in time");
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             query.destroyForcibly();
-            throw new IOException("NVIDIA PCI-Abfrage unterbrochen", e);
+            throw new IOException("NVIDIA PCI query interrupted", e);
         }
         String output = new String(query.getInputStream().readNBytes(4096), StandardCharsets.UTF_8).strip();
         if (query.exitValue() != 0 || canonicalPciAddress(output) == null)
-            throw new IOException("NVIDIA PCI-Adresse für " + deviceId + " nicht verfügbar");
+            throw new IOException("NVIDIA PCI address is unavailable for " + deviceId);
         return output;
     }
 
@@ -493,8 +495,8 @@ public class PearlMinerService {
                 process.destroyForcibly();
                 if (!process.waitFor(Duration.ofSeconds(5).toMillis(), TimeUnit.MILLISECONDS)) return false;
             }
-            console.append(run.consoleId, "[SolarMiner] SRBMiner wurde angehalten");
-            console.append("pearl", "[" + run.key + "] SRBMiner wurde angehalten");
+            console.append(run.consoleId, "[SolarMiner] SRBMiner stopped");
+            console.append("pearl", "[" + run.key + "] SRBMiner stopped");
             return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -567,6 +569,12 @@ public class PearlMinerService {
     }
 
     public boolean hasExternalMinerProcess() { return hasExternalMiner(); }
+
+    /** Adds an orchestration event to the aggregate and every currently known GPU console. */
+    public synchronized void appendBenchmarkEvent(String message) {
+        console.append("pearl", message);
+        for (GpuRun run : runs.values()) console.append(run.consoleId, message);
+    }
 
     /** Managed processes only; external miners are rejected before an installed benchmark begins. */
     public synchronized Set<String> runningGpuDeviceIds() {

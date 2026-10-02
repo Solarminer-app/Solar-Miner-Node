@@ -270,7 +270,7 @@ function syncConsoleView() {
   const coin = selectedView === 'pearl' ? $('console-gpu').value || 'pearl'
     : selectedView === 'monero' ? 'monero' : null;
   if ((consoleState?.coin ?? null) === coin) return;
-  consoleState = coin ? { coin, offset: 0, decoder: new TextDecoder(), loading: false } : null;
+  consoleState = coin ? { coin, offset: 0, runId: null, decoder: new TextDecoder(), loading: false } : null;
   $('miner-console').replaceChildren();
   $('console-download').hidden = true;
   if (!coin) return;
@@ -289,6 +289,12 @@ async function pollConsole() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const chunk = await response.json();
     if (consoleState !== state) return;
+    if (chunk.runId !== state.runId) {
+      state.runId = chunk.runId;
+      state.offset = 0;
+      state.decoder = new TextDecoder();
+      $('miner-console').replaceChildren();
+    }
     if (chunk.data) {
       const bytes = Uint8Array.from(atob(chunk.data), character => character.charCodeAt(0));
       const text = state.decoder.decode(bytes, { stream: true });
