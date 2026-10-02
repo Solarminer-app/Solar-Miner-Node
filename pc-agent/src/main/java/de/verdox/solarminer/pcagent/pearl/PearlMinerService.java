@@ -566,6 +566,19 @@ public class PearlMinerService {
                 .anyMatch(handle -> runs.values().stream().noneMatch(run -> run.process != null && run.process.pid() == handle.pid()));
     }
 
+    public boolean hasExternalMinerProcess() { return hasExternalMiner(); }
+
+    public synchronized Set<String> manuallyPausedGpuKeys() { return Set.copyOf(manuallyPaused); }
+
+    public synchronized void restoreWorkerState(Set<String> pausedBefore, Set<String> runningBefore) {
+        stop();
+        manuallyPaused.clear();
+        if (pausedBefore != null) manuallyPaused.addAll(pausedBefore);
+        for (LocalGpuPowerService.Gpu gpu : selectedGpus()) {
+            if (runningBefore != null && runningBefore.contains(gpu.deviceId())) startGpu(gpu);
+        }
+    }
+
     private String redact(String line) {
         Config current = config;
         if (current == null) return line;

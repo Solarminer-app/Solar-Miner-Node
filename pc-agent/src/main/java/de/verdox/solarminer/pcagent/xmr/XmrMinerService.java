@@ -403,6 +403,10 @@ public class XmrMinerService {
 
     private boolean isManagedProcessAlive() { return minerProcess != null && minerProcess.isAlive(); }
 
+    public boolean hasExternalMinerProcess() {
+        return !isManagedProcessAlive() && !MinerProcessRegistry.running("xmrig").isEmpty();
+    }
+
     public String lastStartError() { return lastStartError; }
 
     public boolean binaryAvailable() {

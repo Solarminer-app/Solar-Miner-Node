@@ -2,6 +2,7 @@ package de.verdox.solarminer.pcagent.controller;
 
 import de.verdox.solarminer.pcagent.mining.MiningService;
 import de.verdox.solarminer.pcagent.mining.AgentControlSettingsService;
+import de.verdox.solarminer.pcagent.mining.BenchmarkSessionService;
 import de.verdox.solarminer.pcagent.pearl.LocalGpuPowerService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -17,8 +18,9 @@ public class AgentPowerController {
     private final MiningService mining;
     private final LocalGpuPowerService gpus;
     private final AgentControlSettingsService controls;
+    private final BenchmarkSessionService benchmarks;
 
-    public AgentPowerController(MiningService mining, LocalGpuPowerService gpus, AgentControlSettingsService controls) { this.mining = mining; this.gpus = gpus; this.controls = controls; }
+    public AgentPowerController(MiningService mining, LocalGpuPowerService gpus, AgentControlSettingsService controls, BenchmarkSessionService benchmarks) { this.mining = mining; this.gpus = gpus; this.controls = controls; this.benchmarks = benchmarks; }
 
     @GetMapping("/identity")
     public Identity identity() { return new Identity("solarminer-pc-agent", 1, "SolarMiner PC Agent"); }
@@ -101,6 +103,7 @@ public class AgentPowerController {
     }
 
     private void requireExternalControl() {
+        if (benchmarks.status().running()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Node-Steuerung ist während eines Benchmarks vorübergehend gesperrt");
         if (!controls.get().externalControlEnabled()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Externe Steuerung wurde lokal deaktiviert");
     }
 

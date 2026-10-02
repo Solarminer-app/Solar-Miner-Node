@@ -260,6 +260,13 @@ public class MiningService {
 
     public String activeCoin() { return activeCoin; }
 
+    public boolean cpuManuallyPaused() { return cpuManuallyPaused; }
+
+    public synchronized void restoreCpuPauseState(boolean manuallyPaused) {
+        if (manuallyPaused) xmrMinerService.hardStopMining();
+        cpuManuallyPaused = manuallyPaused;
+    }
+
     public synchronized boolean switchCoin(String coin) {
         if (!"monero".equals(coin) && !"pearl".equals(coin)) return false;
         if (coin.equals(activeCoin)) return true;
