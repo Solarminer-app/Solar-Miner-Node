@@ -23,7 +23,6 @@ import java.util.UUID;
  */
 @Service
 public class BenchmarkSharingService {
-    private final AgentControlSettingsService settings;
     private final MiningService mining;
     private final RestClient client;
     private final ObjectMapper json;
@@ -31,10 +30,9 @@ public class BenchmarkSharingService {
     private final Path consentFile;
     private volatile State state;
 
-    public BenchmarkSharingService(AgentControlSettingsService settings, MiningService mining, ObjectMapper json,
+    public BenchmarkSharingService(MiningService mining, ObjectMapper json,
                                    RestClient.Builder client, @Value("${solarminer.agent.benchmark.url:https://portal.solarminer.app}") String url,
                                    @Value("${solarminer.agent.benchmark.state-file:./solarminer-agent/benchmark-sharing.json}") String statePath) {
-        this.settings = settings;
         this.mining = mining;
         this.json = json;
         this.client = client.baseUrl(url.replaceAll("/+$", "")).build();
@@ -46,7 +44,7 @@ public class BenchmarkSharingService {
 
     @Scheduled(fixedDelayString = "${solarminer.agent.benchmark.interval-ms:900000}", initialDelayString = "${solarminer.agent.benchmark.initial-delay-ms:60000}")
     public synchronized void report() {
-        boolean optedIn = settings.get().benchmarkSharingEnabled();
+        boolean optedIn = state.sharingEnabled();
         if (!optedIn && !state.previouslyShared()) return;
         try {
             List<Sample> samples = optedIn ? sampleWorkers(mining.getWorkerStats()) : List.of();
@@ -57,9 +55,16 @@ public class BenchmarkSharingService {
     }
 
     public synchronized void reportManualResults(List<MinerStats.Worker> workers) {
-        if (!settings.get().benchmarkSharingEnabled()) return;
+        if (!state.sharingEnabled()) return;
         try { send(true, sampleWorkers(workers)); }
         catch (RuntimeException ignored) { /* periodic reporting retries */ }
+    }
+
+    public synchronized boolean sharingEnabled() { return state.sharingEnabled(); }
+
+    public synchronized boolean setSharingEnabled(boolean enabled) {
+        try { writeState(new State(state.previouslyShared(), enabled)); return true; }
+        catch (RuntimeException e) { return false; }
     }
 
     private List<Sample> sampleWorkers(List<MinerStats.Worker> workers) {
@@ -77,7 +82,7 @@ public class BenchmarkSharingService {
     private void send(boolean optedIn, List<Sample> samples) {
             client.post().uri("/api/telemetry/standalone-benchmarks")
                     .body(new Batch(participantId(), optedIn, samples)).retrieve().toBodilessEntity();
-            writeState(new State(optedIn));
+            writeState(new State(optedIn, optedIn));
     }
 
     public Map<String, Object> comparison(String hardwareType, String hardwareModel, String algorithm) {
@@ -117,7 +122,7 @@ public class BenchmarkSharingService {
         try {
             return json.readValue(Files.readString(consentFile), State.class);
         } catch (Exception ignored) {
-            return new State(false);
+            return new State(false, false);
         }
     }
 
@@ -155,6 +160,6 @@ public class BenchmarkSharingService {
                          Double powerWatts, Double powerTargetWatts) {
     }
 
-    public record State(boolean previouslyShared) {
+    public record State(boolean previouslyShared, boolean sharingEnabled) {
     }
 }

@@ -1,6 +1,5 @@
 package de.verdox.solarminer.pcagent.controller;
 
-import de.verdox.solarminer.pcagent.mining.AgentControlSettingsService;
 import de.verdox.solarminer.pcagent.mining.BenchmarkSessionService;
 import de.verdox.solarminer.pcagent.mining.BenchmarkSharingService;
 import org.springframework.http.HttpStatus;
@@ -13,12 +12,10 @@ import java.util.Map;
 @RequestMapping("/api/agent/benchmarks")
 public class BenchmarkController {
     private final BenchmarkSessionService sessions;
-    private final AgentControlSettingsService settings;
     private final BenchmarkSharingService sharing;
 
-    public BenchmarkController(BenchmarkSessionService sessions, AgentControlSettingsService settings, BenchmarkSharingService sharing) {
+    public BenchmarkController(BenchmarkSessionService sessions, BenchmarkSharingService sharing) {
         this.sessions = sessions;
-        this.settings = settings;
         this.sharing = sharing;
     }
 
@@ -51,14 +48,14 @@ public class BenchmarkController {
 
     @GetMapping("/sharing")
     public boolean sharing() {
-        return settings.get().benchmarkSharingEnabled();
+        return sharing.sharingEnabled();
     }
 
     @PostMapping("/sharing")
     public boolean sharing(@RequestBody SharingRequest request) {
-        if (request == null || !settings.setBenchmarkSharingEnabled(request.enabled()))
+        if (request == null || !sharing.setSharingEnabled(request.enabled()))
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save benchmark sharing choice");
-        return settings.get().benchmarkSharingEnabled();
+        return sharing.sharingEnabled();
     }
 
     public record StartRequest(String mode, int seconds) {

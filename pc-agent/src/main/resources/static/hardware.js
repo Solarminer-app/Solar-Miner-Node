@@ -39,7 +39,7 @@ function renderSettings(data) {
     const row = node('label', 'control-setting'); const input = document.createElement('input'); input.type = 'checkbox'; input.checked = Boolean(data[key]);
     const copy = node('span', ''); copy.append(node('strong', '', title), node('small', '', detail)); const toggle = node('span', 'toggle'); row.append(input, copy, toggle);
     input.addEventListener('change', async () => {
-      const value = {dynamicPowerScalingEnabled: key === 'dynamicPowerScalingEnabled' ? input.checked : Boolean(data.dynamicPowerScalingEnabled), externalControlEnabled: key === 'externalControlEnabled' ? input.checked : Boolean(data.externalControlEnabled), workerExternalControl: data.workerExternalControl || {}, benchmarkSharingEnabled: Boolean(data.benchmarkSharingEnabled)};
+      const value = {dynamicPowerScalingEnabled: key === 'dynamicPowerScalingEnabled' ? input.checked : Boolean(data.dynamicPowerScalingEnabled), externalControlEnabled: key === 'externalControlEnabled' ? input.checked : Boolean(data.externalControlEnabled), workerExternalControl: data.workerExternalControl || {}};
       const response = await fetch('/api/agent/power-control/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(value)});
       if (!response.ok) { input.checked = !input.checked; return notice('Die lokale Einstellung konnte nicht gespeichert werden.', true); }
       notice('Lokale Steuerfreigabe sofort aktualisiert.'); await refresh();

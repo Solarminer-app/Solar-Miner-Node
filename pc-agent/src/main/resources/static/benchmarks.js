@@ -73,6 +73,9 @@ async function poll() {
         if (state.results?.length && signature !== lastResults) {
             lastResults = signature;
             await renderResults(state.results);
+        } else if (!state.running && state.phase !== 'Idle' && !state.results?.length) {
+            $('results').replaceChildren(make('p', 'empty', state.phase));
+            lastResults = signature;
         }
     } catch (e) {
         $('connection').className = 'badge offline';

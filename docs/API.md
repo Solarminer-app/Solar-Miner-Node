@@ -231,6 +231,10 @@ Controller source: [`MiningController`](../pc-agent/src/main/java/de/verdox/sola
 | `POST` | `/api/agent/power-control/target?watts=<watts>` | Apply one PV-wide watt target; below the supported minimum pauses mining and above maximum is capped. |
 | `POST` | `/api/agent/power-control/gpus/{deviceId}/limits` | Persist `{minimumWatts,maximumWatts}` within the freshly reported driver range for one stable GPU ID. |
 | `GET` / `POST` | `/api/agent/power-control/settings` | Read or set `{dynamicPowerScalingEnabled, externalControlEnabled}`. Disabled external control rejects Node start/pause/target commands immediately. |
+| `GET` / `POST` | `/api/agent/benchmarks` | Read timed benchmark session status or start `{mode:"LIVE"|"INSTALLED",seconds:30..300}`. INSTALLED measures configured miner families sequentially and restores previously active managed workers. Node control calls return HTTP 409 while the session runs. |
+| `POST` | `/api/agent/benchmarks/cancel` | Cancel the active session; INSTALLED restores previously active managed workers before completing. |
+| `GET` / `POST` | `/api/agent/benchmarks/sharing` | Read or change local standalone benchmark sharing consent. |
+| `GET` | `/api/agent/benchmarks/match?hardwareType=...&hardwareModel=...&algorithm=...` | Compare a local result with the public benchmark group; empty response means there is no published group. |
 | `GET` | `/api/agent` | Get current CPU/GPU mining statistics. |
 | `GET` | `/api/agent/telemetry` | Get a timestamped JSON snapshot of available host CPU, memory and sensor telemetry, including units, source and availability. |
 | `POST` | `/api/agent/telemetry/restart` | Retry starting LibreHardwareMonitor; Windows may show a UAC prompt. |

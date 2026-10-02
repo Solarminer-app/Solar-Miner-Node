@@ -33,6 +33,8 @@
 
 `telemetry/TelemetryReporter` sends periodic anonymized samples only for opted-in PV sites. An opt-out sends a minimal `{uuid, telemetryOptIn:false}` revocation without measurements; delivery is retried until acknowledged in the current process. The public admin endpoint still authenticates only by body UUID, so this revocation and normal telemetry are not yet protected by per-node proof of possession (cross-repo issue F22/B05).
 
+The standalone PC-Agent exposes its own Benchmarks page and default-off benchmark-sharing consent. `BenchmarkSharingService` sends active hardware results every 15 minutes to the Admin benchmark-only endpoint; no Node process is required. Manual sessions show phase and remaining time, compare local medians with the public group, and restore managed miners that were running before the sequential run. See C8a in the shared contract.
+
 1. Inspect `git status`, relevant code/tests and this map. Write down the owner and affected cross-repo contracts before coding.
 2. Extend the existing miner/device abstraction when a new implementation shares lifecycle or telemetry semantics. Keep protocol-specific parsing and driver calls at the edge. Do not add coin or GPU conditionals to unrelated orchestration layers.
 3. Define capability and unsupported states explicitly. For hardware control, do not infer a zero measurement from missing telemetry. For a new coin/algorithm, complete [the integration guide](../../../NEW-MINING-COIN-GUIDE.md), including fee route, pool accounting, portal and rollout evidence; document non-applicable steps.

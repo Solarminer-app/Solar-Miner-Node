@@ -30,11 +30,13 @@ public class BenchmarkSessionService {
         if (!"LIVE".equals(mode) && !"INSTALLED".equals(mode)) throw new IllegalArgumentException("Unknown benchmark mode");
         if (seconds < 30 || seconds > 300) throw new IllegalArgumentException("Duration must be 30–300 seconds");
         if (session.running()) throw new IllegalStateException("A benchmark is already running");
+        List<String> phases = "INSTALLED".equals(mode) ? installedPhases() : List.of("live");
+        if (phases.isEmpty()) throw new IllegalStateException("Install and configure at least one miner before running this benchmark");
         cancel = false;
         Instant start = Instant.now();
-        int phaseCount = "INSTALLED".equals(mode) ? 2 : 1;
+        int phaseCount = phases.size();
         session = new Session(true, mode, "Preparing", start, start.plusSeconds(seconds), start.plusSeconds((long) seconds * phaseCount), 0, phaseCount, List.of(), (long) seconds * phaseCount);
-        executor.submit(() -> run(mode, seconds));
+        executor.submit(() -> run(mode, seconds, phases));
         return session;
     }
 
@@ -47,7 +49,14 @@ public class BenchmarkSessionService {
     }
     public synchronized Session cancel() { cancel = true; return status(); }
 
-    private void run(String mode, int seconds) {
+    private List<String> installedPhases() {
+        List<String> phases = new ArrayList<>();
+        if (xmr.readyForStart()) phases.add("monero");
+        if (pearl.binaryAvailable() && pearl.configuration() != null) phases.add("pearl");
+        return List.copyOf(phases);
+    }
+
+    private void run(String mode, int seconds, List<String> phases) {
         if ("INSTALLED".equals(mode) && (xmr.hasExternalMinerProcess() || pearl.hasExternalMinerProcess())) {
             Session old = session;
             session = new Session(false, mode, "Sequential benchmark skipped: externally started miners cannot be safely paused and restored",
@@ -61,12 +70,12 @@ public class BenchmarkSessionService {
                 .map(MinerStats.Worker::deviceId).filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet());
         Set<String> pearlPausedBefore = pearl.manuallyPausedGpuKeys();
         Map<String, List<MinerStats.Worker>> observations = new LinkedHashMap<>();
-        List<String> phases = "INSTALLED".equals(mode) ? List.of("monero", "pearl") : List.of("live");
+        List<String> skipped = new ArrayList<>();
         int index = 0;
         String error = null;
         try {
             if ("INSTALLED".equals(mode)) {
-                update(mode, "Pausing current miners", Instant.now(), 0, phases.size(), observations);
+                update(mode, "Pausing current miners", Instant.now(), session.totalEndsAt(), 0, phases.size(), observations);
                 if (xmrWasMining) mining.pauseMining("monero");
                 if (!pearlWasMining.isEmpty()) mining.pauseMining("pearl");
             }
@@ -74,12 +83,11 @@ public class BenchmarkSessionService {
                 if (cancel) break;
                 index++;
                 if ("INSTALLED".equals(mode)) {
-                    if ("monero".equals(phase) && !xmr.readyForStart()) continue;
-                    if ("pearl".equals(phase) && (!pearl.binaryAvailable() || pearl.configuration() == null)) continue;
-                    if (!mining.resumeMining(phase)) continue;
+                    if (!mining.resumeMining(phase)) { skipped.add(phase); continue; }
                 }
                 Instant end = Instant.now().plusSeconds(seconds);
-                update(mode, "live".equals(phase) ? "Measuring active miners" : "Benchmarking " + phase, end, index, phases.size(), observations);
+                Instant totalEnd = end.plusSeconds((long) seconds * (phases.size() - index));
+                update(mode, "live".equals(phase) ? "Measuring active miners" : "Benchmarking " + phase, end, totalEnd, index, phases.size(), observations);
                 List<MinerStats.Worker> captured = new ArrayList<>();
                 while (!cancel && Instant.now().isBefore(end)) {
                     mining.getWorkerStats().stream().filter(BenchmarkSessionService::isMining)
@@ -90,7 +98,7 @@ public class BenchmarkSessionService {
                 }
                 if ("INSTALLED".equals(mode)) mining.pauseMining(phase);
                 for (MinerStats.Worker worker : captured) observations.computeIfAbsent(key(worker), ignored -> new ArrayList<>()).add(worker);
-                update(mode, "Summarizing", Instant.now(), index, phases.size(), observations);
+                update(mode, "Summarizing", Instant.now(), totalEnd, index, phases.size(), observations);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); error = "Benchmark interrupted";
@@ -106,18 +114,18 @@ public class BenchmarkSessionService {
             } catch (RuntimeException restoreFailure) {
                 error = "Could not fully restore miner state: " + Objects.toString(restoreFailure.getMessage(), "unknown error");
             }
-            List<MinerStats.Worker> captured = observations.values().stream().flatMap(List::stream)
-                    .collect(java.util.stream.Collectors.toMap(BenchmarkSessionService::key, w -> w, (a, b) -> b)).values().stream().toList();
+            List<MinerStats.Worker> captured = aggregateWorkers(observations);
             if (!captured.isEmpty()) sharing.reportManualResults(captured);
             Session old = session;
-            String result = error != null ? "Error: " + error : cancel ? "Cancelled; previous miner state restored" : "Complete; previous miner state restored";
+            String result = error != null ? "Error: " + error : cancel ? "Cancelled; previous miner state restored"
+                    : "Complete; previous miner state restored" + (skipped.isEmpty() ? "" : "; skipped: " + String.join(", ", skipped));
             session = new Session(false, mode, result, old.startedAt(), Instant.now(), old.totalEndsAt(), phases.size(), phases.size(), summarize(observations), 0L);
         }
     }
 
-    private void update(String mode, String phase, Instant end, int index, int count, Map<String, List<MinerStats.Worker>> observations) {
+    private void update(String mode, String phase, Instant end, Instant totalEnd, int index, int count, Map<String, List<MinerStats.Worker>> observations) {
         Session old = session;
-        session = new Session(true, mode, phase, old.startedAt(), end, old.totalEndsAt(), index, count, summarize(observations), null);
+        session = new Session(true, mode, phase, old.startedAt(), end, totalEnd, index, count, summarize(observations), null);
     }
     private static boolean isMining(MinerStats.Worker w) { return w.miningStatus() == MinerStats.MinerStatus.MINING; }
     private static String key(MinerStats.Worker w) { return String.join("|", Objects.toString(w.deviceId(), ""), Objects.toString(w.currentAlgorithm(), "")); }
@@ -128,6 +136,17 @@ public class BenchmarkSessionService {
             double median = rates.length % 2 == 1 ? rates[rates.length / 2] : (rates[rates.length / 2 - 1] + rates[rates.length / 2]) / 2;
             double watts = values.stream().mapToLong(MinerStats.Worker::approximatedPowerUsageWatts).filter(v -> v > 0).average().orElse(0);
             return new Result(w.hardwareType(), w.hardwareModel(), w.currentAlgorithm(), median, watts, watts > 0 ? median / watts : 0, values.size());
+        }).toList();
+    }
+    private static List<MinerStats.Worker> aggregateWorkers(Map<String, List<MinerStats.Worker>> observations) {
+        return observations.values().stream().map(values -> {
+            MinerStats.Worker w = values.getFirst();
+            double[] rates = values.stream().mapToDouble(MinerStats.Worker::terahashPerSecond).sorted().toArray();
+            double medianRate = rates.length % 2 == 1 ? rates[rates.length / 2] : (rates[rates.length / 2 - 1] + rates[rates.length / 2]) / 2;
+            long watts = Math.round(values.stream().mapToLong(MinerStats.Worker::approximatedPowerUsageWatts).filter(v -> v > 0).average().orElse(0));
+            return new MinerStats.Worker(w.miningStatus(), w.workerDisplayName(), w.currentAlgorithm(), medianRate,
+                    w.temperatureCelsius(), w.powerTargetWatts(), w.minPowerTarget(), w.defaultPowerTarget(),
+                    w.maxPowerTarget(), watts, w.pools(), w.hardwareType(), w.hardwareModel(), w.deviceId());
         }).toList();
     }
     @PreDestroy public void close() { cancel = true; executor.shutdownNow(); }

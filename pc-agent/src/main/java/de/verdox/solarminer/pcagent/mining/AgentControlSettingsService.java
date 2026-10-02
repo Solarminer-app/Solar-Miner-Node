@@ -20,17 +20,13 @@ public class AgentControlSettingsService {
     private volatile Settings settings;
 
     public record Settings(boolean dynamicPowerScalingEnabled, boolean externalControlEnabled,
-                           Map<String, Boolean> workerExternalControl, boolean benchmarkSharingEnabled) {
+                           Map<String, Boolean> workerExternalControl) {
         public Settings {
             workerExternalControl = workerExternalControl == null ? Map.of() : Map.copyOf(workerExternalControl);
         }
 
         public Settings(boolean dynamicPowerScalingEnabled, boolean externalControlEnabled) {
-            this(dynamicPowerScalingEnabled, externalControlEnabled, Map.of(), false);
-        }
-
-        public Settings(boolean dynamicPowerScalingEnabled, boolean externalControlEnabled, Map<String, Boolean> workerExternalControl) {
-            this(dynamicPowerScalingEnabled, externalControlEnabled, workerExternalControl, false);
+            this(dynamicPowerScalingEnabled, externalControlEnabled, Map.of());
         }
 
         public boolean workerEnabled(String workerId) {
@@ -63,11 +59,7 @@ public class AgentControlSettingsService {
         Map<String, Boolean> next = new java.util.HashMap<>(settings.workerExternalControl());
         if (enabled) next.remove(workerId);
         else next.put(workerId, false);
-        return update(new Settings(settings.dynamicPowerScalingEnabled(), settings.externalControlEnabled(), next, settings.benchmarkSharingEnabled()));
-    }
-    public synchronized boolean setBenchmarkSharingEnabled(boolean enabled) {
-        return update(new Settings(settings.dynamicPowerScalingEnabled(), settings.externalControlEnabled(),
-                settings.workerExternalControl(), enabled));
+        return update(new Settings(settings.dynamicPowerScalingEnabled(), settings.externalControlEnabled(), next));
     }
 
     /**
