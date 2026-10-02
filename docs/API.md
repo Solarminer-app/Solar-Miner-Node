@@ -109,8 +109,14 @@ Controller source: [`SetupController`](../src/main/java/de/verdox/pv_miner/contr
 | `POST` | `/api/setup/catalog/refresh` | Refresh remotely supplied setup capabilities. |
 | `GET` | `/api/setup/pv-devices/profiles` | Search compatible PV profiles, optionally by provider and name query. |
 | `POST` | `/api/setup/pv-devices/discover` | Discover PV devices and matching logical component profiles, including SunSpec. |
+| `GET` | `/api/setup/pv-devices/network` | Suggested private IPv4 subnet prefix for discovery; operators can override it with `solarminer.discovery.subnet-prefix` / `SOLARMINER_DISCOVERY_SUBNET_PREFIX`. |
+| `POST` | `/api/setup/pv-devices/scan` | Bounded PV discovery with `{devices, subnetPrefix, checkedHosts, totalHosts, complete}`. Supports `AUTO`, `MODBUS_TCP`, `REST_API`; request fields are `providerId`, `subnetPrefix`, `port`, `slaveId`. |
 | `POST` | `/api/setup/options/{kind}/{providerId}/validate` | Validate one provider selection and its credentials/settings. |
 | `POST` | `/api/setup` | Create a PV site from the completed setup request. |
+
+PV scans cover addresses `.1`–`.254` of an explicit private IPv4 prefix (for example `192.168.1.`), with 24 concurrent host probes and a 25-second deadline. `complete:false` means some hosts were not fully checked; an empty result is not proof that no devices exist. Concurrent scans receive HTTP 429 until in-flight probes have stopped. Invalid/public prefixes, invalid ports and invalid device IDs receive HTTP 400 before network access. `AUTO` checks Modbus port 502 and HTTP ports 80/443/8080/8123; a specified protocol honors the requested port, and Modbus honors `slaveId`. The legacy `/discover` response remains an array and defaults to Modbus when no provider is given, but cannot convey completion metadata.
+
+REST discovery only uses GET entries and requires the returned payload to parse for the profile. A 401/403 is not sufficient to identify a device; protected APIs remain available through manual setup. TLS certificate validation remains enabled. In Docker, the suggested interface may belong to the container network; configure the LAN prefix or enter it in setup. When opened through a private IPv4 Node address, the UI uses that address's prefix as its suggestion. Scans are local read probes, not device-control or mining activation commands.
 
 ### PV REST and Modbus/TCP profiles
 
