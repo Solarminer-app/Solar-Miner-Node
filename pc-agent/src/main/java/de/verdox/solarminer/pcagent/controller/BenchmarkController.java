@@ -33,7 +33,7 @@ public class BenchmarkController {
     @PostMapping
     public BenchmarkSessionService.Session start(@RequestBody StartRequest request) {
         try {
-            return sessions.start(request.mode(), request.seconds());
+            return sessions.start(request.mode());
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (IllegalStateException e) {
@@ -58,7 +58,17 @@ public class BenchmarkController {
         return sharing.sharingEnabled();
     }
 
-    public record StartRequest(String mode, int seconds) {
+    @GetMapping("/sharing/upload-status")
+    public BenchmarkSharingService.UploadStatuses uploadStatus() {
+        return sharing.uploadStatuses();
+    }
+
+    @PostMapping("/sharing/retry-manual")
+    public BenchmarkSharingService.ReportStatus retryManualReport() {
+        return sharing.retryManualResults();
+    }
+
+    public record StartRequest(String mode) {
     }
 
     public record SharingRequest(boolean enabled) {

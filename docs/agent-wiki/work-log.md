@@ -1,5 +1,29 @@
 # Agent work log
 
+### 2026-10-02 — PC-Agent benchmark sample-based completion
+
+- Scope: standalone PC-Agent benchmark lifecycle and UI; request now selects only LIVE or INSTALLED mode.
+- Change: removed fixed 30–300 second duration; each active worker now needs 12 valid positive-hashrate observations sampled every two seconds. A worker that stops or leaves the active state before reaching the target is reported as skipped/incomplete; sessions remain cancellable. INSTALLED continues to restore the previous miner state.
+- Verification: source inspection and diff review only; tests/build not run.
+- Limits: a worker that remains marked MINING but never reports a positive rate can keep the session open until cancelled; pool startup has existing SRBMiner health timeout, but no universal benchmark timeout is imposed.
+- UI: interim per-worker medians and observation counts are rendered during collection. Reloading the benchmark page re-reads the active in-memory session and restores phase, sample progress and current results.
+- User's existing frontend navigation change in `benchmarks.html` was preserved.
+
+### 2026-10-02 — Show benchmark upload outcomes
+
+- Scope: standalone PC-Agent manual and periodic benchmark uploads.
+- Change: the agent retains the latest upload outcome and exposes it to the Benchmarks page. Success, failure, no eligible measurements and disabled sharing are shown; failed manual uploads retain their sample batch in memory for a retry button. Periodic upload failures are also shown and remain scheduled for the next retry interval.
+- Verification: source inspection and `git diff --check` only; tests/build not run.
+- Limits: retained retry data and upload status are in memory and are lost if the PC-Agent restarts.
+
+### 2026-10-02 — PC-Agent navigation consistency
+
+- Scope and owner: standalone PC-Agent static frontend in Solar-Miner-Node; no API or cross-repository contract changed.
+- Implemented behavior and code evidence: all six page headers now render the same navigation entries in the same order (Overview, Mining, Benchmarks, Hardware, Telemetrie, Proxy), with only the current page marked selected. Files: `pc-agent/src/main/resources/static/{index,mining,benchmarks,hardware,telemetry,proxy}.html`.
+- Verification performed and result: source comparison and `git diff --check`; tests/build not run.
+- Remaining gaps / hardware or rollout gates: none for this static navigation correction.
+- Documentation updated: this work-log entry.
+
 Use a short dated entry for changes that affect architecture, contracts, mining support or documentation truth. Link commits/issues when available. Do not paste secrets or raw wallet credentials.
 
 ## 2026-10-02 — Exclude idle PC power from mining statistics
@@ -194,3 +218,9 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - Change: after an antivirus-blocked miner install, the loopback Mining UI offers a button to exclude only the known Monero or Pearl install directory. A new endpoint accepts only loopback requests and only while that coin reports `BLOCKED_BY_ANTIVIRUS`. `WindowsDefenderExclusionService` invokes PowerShell with `-Verb RunAs`; the elevated script applies `Add-MpPreference` and reads `Get-MpPreference` to confirm the path. The UI reports success, UAC cancellation, timeout, or command/policy failure.
 - Limits: all files in the selected install directory become excluded from Defender scanning. This requires a native Windows PC-Agent process; Linux/Docker cannot elevate on a Windows host. Enterprise policy or Defender tamper protection may reject the change.
 - Verification: source inspection only; no tests/builds run. Native Windows UAC approval/cancellation and Defender read-back still require host verification.
+
+## 2026-10-02 — Log remote PC-Agent miner control events
+
+- Scope: Node-originated PC-Agent power-control commands and per-worker external-control settings; no wire contract changed.
+- Change: successful remote pause, resume, target/start and worker permission changes now append timestamped English `[Remote Control]` entries to the persistent XMRig or Pearl console logs. Pearl events go to the aggregate console and enabled per-GPU consoles; permission changes go to the addressed worker console. Failed commands do not get reported as successful changes.
+- Verification: source review and `git diff --check`; no tests/build run. End-to-end Node to PC-Agent UI visibility remains unverified at runtime.

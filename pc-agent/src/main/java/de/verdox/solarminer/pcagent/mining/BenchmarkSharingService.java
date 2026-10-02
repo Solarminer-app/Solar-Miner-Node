@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,6 +30,9 @@ public class BenchmarkSharingService {
     private final Path identityFile;
     private final Path consentFile;
     private volatile State state;
+    private volatile ReportStatus manualReportStatus = ReportStatus.idle("MANUAL");
+    private volatile ReportStatus periodicReportStatus = ReportStatus.idle("PERIODIC");
+    private List<Sample> retrySamples = List.of();
 
     public BenchmarkSharingService(MiningService mining, ObjectMapper json,
                                    RestClient.Builder client, @Value("${solarminer.agent.benchmark.url:https://portal.solarminer.app}") String url,
@@ -49,15 +53,44 @@ public class BenchmarkSharingService {
         try {
             List<Sample> samples = optedIn ? sampleWorkers(mining.getWorkerStats()) : List.of();
             send(optedIn, samples);
+            periodicReportStatus = new ReportStatus("PERIODIC", "SENT",
+                    optedIn ? "Regelmäßiger Benchmark-Upload erfolgreich übermittelt." : "Widerruf der Benchmark-Freigabe übermittelt.",
+                    samples.size(), Instant.now());
         } catch (RuntimeException e) {
-            // Delivery is best-effort and retried at the next interval.
+            periodicReportStatus = new ReportStatus("PERIODIC", "FAILED", "Regelmäßiger Benchmark-Upload fehlgeschlagen; der Agent versucht es beim nächsten Intervall erneut.", 0, Instant.now());
         }
     }
 
-    public synchronized void reportManualResults(List<MinerStats.Worker> workers) {
-        if (!state.sharingEnabled()) return;
-        try { send(true, sampleWorkers(workers)); }
-        catch (RuntimeException ignored) { /* periodic reporting retries */ }
+    public synchronized ReportStatus reportManualResults(List<MinerStats.Worker> workers) {
+        if (!state.sharingEnabled()) {
+            retrySamples = List.of();
+            return manualReportStatus = new ReportStatus("MANUAL", "NOT_SHARED", "Benchmarkdaten wurden nicht hochgeladen: Teilen ist deaktiviert.", 0, Instant.now());
+        }
+        retrySamples = sampleWorkers(workers);
+        if (retrySamples.isEmpty())
+            return manualReportStatus = new ReportStatus("MANUAL", "NO_DATA", "Keine geeigneten Benchmark-Messwerte zum Hochladen vorhanden.", 0, Instant.now());
+        return deliverManual(retrySamples);
+    }
+
+    public synchronized ReportStatus retryManualResults() {
+        if (!state.sharingEnabled())
+            return manualReportStatus = new ReportStatus("MANUAL", "NOT_SHARED", "Benchmarkdaten wurden nicht hochgeladen: Teilen ist deaktiviert.", 0, Instant.now());
+        if (retrySamples.isEmpty())
+            return manualReportStatus = new ReportStatus("MANUAL", "NO_DATA", "Keine gespeicherten Benchmark-Messwerte zum erneuten Hochladen vorhanden.", 0, Instant.now());
+        return deliverManual(retrySamples);
+    }
+
+    public UploadStatuses uploadStatuses() { return new UploadStatuses(manualReportStatus, periodicReportStatus); }
+
+    private ReportStatus deliverManual(List<Sample> samples) {
+        manualReportStatus = new ReportStatus("MANUAL", "UPLOADING", "Benchmarkdaten werden hochgeladen …", samples.size(), Instant.now());
+        try {
+            send(true, samples);
+            retrySamples = List.of();
+            return manualReportStatus = new ReportStatus("MANUAL", "SENT", "Benchmarkdaten erfolgreich ans Backend übermittelt.", samples.size(), Instant.now());
+        } catch (RuntimeException e) {
+            return manualReportStatus = new ReportStatus("MANUAL", "FAILED", "Upload ans Backend fehlgeschlagen. Du kannst den Upload erneut versuchen.", samples.size(), Instant.now());
+        }
     }
 
     public synchronized boolean sharingEnabled() { return state.sharingEnabled(); }
@@ -162,4 +195,9 @@ public class BenchmarkSharingService {
 
     public record State(boolean previouslyShared, boolean sharingEnabled) {
     }
+
+    public record ReportStatus(String source, String status, String message, int sampleCount, Instant updatedAt) {
+        static ReportStatus idle(String source) { return new ReportStatus(source, "IDLE", "", 0, null); }
+    }
+    public record UploadStatuses(ReportStatus manual, ReportStatus periodic) { }
 }

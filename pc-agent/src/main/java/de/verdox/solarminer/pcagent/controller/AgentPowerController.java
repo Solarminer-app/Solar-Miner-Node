@@ -3,6 +3,7 @@ package de.verdox.solarminer.pcagent.controller;
 import de.verdox.solarminer.pcagent.mining.MiningService;
 import de.verdox.solarminer.pcagent.mining.AgentControlSettingsService;
 import de.verdox.solarminer.pcagent.mining.BenchmarkSessionService;
+import de.verdox.solarminer.pcagent.mining.MinerConsoleService;
 import de.verdox.solarminer.pcagent.pearl.LocalGpuPowerService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -10,6 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
+import java.time.Instant;
 
 /** Stable LAN contract for PV controllers. It intentionally hides CPU/GPU allocation details. */
 @RestController
@@ -19,8 +21,9 @@ public class AgentPowerController {
     private final LocalGpuPowerService gpus;
     private final AgentControlSettingsService controls;
     private final BenchmarkSessionService benchmarks;
+    private final MinerConsoleService consoles;
 
-    public AgentPowerController(MiningService mining, LocalGpuPowerService gpus, AgentControlSettingsService controls, BenchmarkSessionService benchmarks) { this.mining = mining; this.gpus = gpus; this.controls = controls; this.benchmarks = benchmarks; }
+    public AgentPowerController(MiningService mining, LocalGpuPowerService gpus, AgentControlSettingsService controls, BenchmarkSessionService benchmarks, MinerConsoleService consoles) { this.mining = mining; this.gpus = gpus; this.controls = controls; this.benchmarks = benchmarks; this.consoles = consoles; }
 
     @GetMapping("/identity")
     public Identity identity() { return new Identity("solarminer-pc-agent", 1, "SolarMiner PC Agent"); }
@@ -74,18 +77,36 @@ public class AgentPowerController {
             if (watts > 0 && !controls.get().dynamicPowerScalingEnabled()) {
                 if (!mining.resumeExternally())
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "Miner konnte nicht gestartet werden");
+                logExternalChange("Mining started remotely (power target " + watts + " W)");
                 return externalStatus();
             }
             if (!mining.setExternalTarget(watts)) throw new ResponseStatusException(HttpStatus.CONFLICT, "Leistungsziel konnte nicht sicher angewendet werden");
+            logExternalChange(watts <= 0 ? "Mining paused remotely (power target 0 W)" : "Power target changed remotely to " + watts + " W");
             return externalStatus();
         }, true);
     }
 
     @PostMapping("/external/pause")
-    public boolean externalPause() { return withControl(mining::pauseExternally, true); }
+    public boolean externalPause() { return withControl(() -> {
+        boolean success = mining.pauseExternally();
+        if (success) logExternalChange("Mining paused remotely");
+        return success;
+    }, true); }
 
     @PostMapping("/external/resume")
-    public boolean externalResume() { return withControl(mining::resumeExternally, true); }
+    public boolean externalResume() { return withControl(() -> {
+        boolean success = mining.resumeExternally();
+        if (success) logExternalChange("Mining resumed remotely");
+        return success;
+    }, true); }
+
+    private void logExternalChange(String message) {
+        String line = Instant.now() + " [SolarMiner] [Remote Control] " + message;
+        if (controls.workerEnabled("cpu")) consoles.append("monero", line);
+        var selected = gpus.discover().stream().filter(gpu -> controls.workerEnabled(gpu.deviceId())).toList();
+        if (!selected.isEmpty()) consoles.append("pearl", line);
+        selected.forEach(gpu -> consoles.append("pearl-" + gpu.vendor() + "-" + gpu.index(), line));
+    }
 
     @GetMapping("/settings")
     public AgentControlSettingsService.Settings settings() { return controls.get(); }
@@ -102,6 +123,13 @@ public class AgentPowerController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Worker wurde nicht erkannt");
         if (!controls.setWorkerEnabled(workerId, enabled))
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Worker-Freigabe konnte nicht gespeichert werden");
+        String line = Instant.now() + " [SolarMiner] [Remote Control] External control for " + workerId + (enabled ? " enabled" : " disabled");
+        if ("cpu".equals(workerId)) consoles.append("monero", line);
+        else {
+            consoles.append("pearl", line);
+            gpus.discover().stream().filter(gpu -> gpu.deviceId().equals(workerId)).findFirst().ifPresent(gpu ->
+                    consoles.append("pearl-" + gpu.vendor() + "-" + gpu.index(), line));
+        }
         return controls.get();
     }
 
