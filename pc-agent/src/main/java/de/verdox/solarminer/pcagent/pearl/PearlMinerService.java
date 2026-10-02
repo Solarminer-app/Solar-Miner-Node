@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.solarminer.pcagent.dto.MinerStats;
 import de.verdox.solarminer.pcagent.dto.Pools;
 import de.verdox.solarminer.pcagent.mining.MinerConsoleService;
+import de.verdox.solarminer.pcagent.mining.MinerStopContext;
 import de.verdox.solarminer.pcagent.mining.PayoutDefaultsService;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
 import de.verdox.solarminer.pcagent.mining.MinerProcessRegistry;
@@ -489,6 +490,9 @@ public class PearlMinerService {
         run.detail = "Miner pausiert";
         Process process = run.process;
         if (process == null || !process.isAlive()) return true;
+        String source = MinerStopContext.source();
+        console.append(run.consoleId, "[SolarMiner] Stop requested by: " + source);
+        console.append("pearl", "[" + run.key + "] Stop requested by: " + source);
         process.destroy();
         try {
             if (!process.waitFor(Duration.ofSeconds(5).toMillis(), TimeUnit.MILLISECONDS)) {

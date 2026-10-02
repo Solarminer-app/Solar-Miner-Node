@@ -88,8 +88,8 @@ public class BenchmarkSessionService {
         try {
             if ("INSTALLED".equals(mode)) {
                 update(mode, "Pausing current miners", 0, phases.size(), observations);
-                if (xmrWasMining) mining.pauseMining("monero");
-                if (!pearlWasMining.isEmpty()) mining.pauseMining("pearl");
+                if (xmrWasMining) pauseForBenchmark("monero", "capturing the pre-benchmark state");
+                if (!pearlWasMining.isEmpty()) pauseForBenchmark("pearl", "capturing the pre-benchmark state");
             }
             for (String phase : phases) {
                 if (cancel) break;
@@ -112,7 +112,7 @@ public class BenchmarkSessionService {
                     benchmarkLog(phase, "Phase skipped:" + reason);
                     if ("INSTALLED".equals(mode)) {
                         benchmarkLog(phase, "Benchmark pauses miner after skipped phase.");
-                        mining.pauseMining(phase);
+                        pauseForBenchmark(phase, "skipped phase");
                     }
                     continue;
                 }
@@ -161,7 +161,7 @@ public class BenchmarkSessionService {
                         + " valid samples." + (unavailable.isEmpty() ? "" : " Unavailable workers: " + String.join(", ", unavailable)));
                 if ("INSTALLED".equals(mode)) {
                     benchmarkLog(phase, "Benchmark pauses miner after measurement to restore the previous state.");
-                    mining.pauseMining(phase);
+                    pauseForBenchmark(phase, "measurement phase complete");
                 }
                 update(mode, "Summarizing", index, phases.size(), observations);
             }
@@ -205,6 +205,9 @@ public class BenchmarkSessionService {
             consoles.append("monero", entry);
             pearl.appendBenchmarkEvent(entry);
         }
+    }
+    private boolean pauseForBenchmark(String phase, String reason) {
+        return MinerStopContext.with("Benchmark: " + reason, () -> mining.pauseMining(phase));
     }
 
     static List<MinerStats.Worker> phaseWorkers(List<MinerStats.Worker> workers, String phase, boolean miningOnly) {

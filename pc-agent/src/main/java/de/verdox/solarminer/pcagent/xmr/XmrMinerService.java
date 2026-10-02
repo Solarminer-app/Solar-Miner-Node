@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.solarminer.pcagent.dto.MinerStats;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
+import de.verdox.solarminer.pcagent.mining.MinerStopContext;
 import de.verdox.solarminer.pcagent.mining.MinerConsoleService;
 import de.verdox.solarminer.pcagent.mining.PayoutDefaultsService;
 import de.verdox.solarminer.pcagent.mining.MinerProcessRegistry;
@@ -280,6 +281,7 @@ public class XmrMinerService {
         }
 
         if (isManagedProcessAlive()) {
+            console.append("monero", "[SolarMiner] Stop requested by: " + MinerStopContext.source());
             LOGGER.info("Sending kill signal to XMRig process...");
             minerProcess.destroyForcibly();
             try {

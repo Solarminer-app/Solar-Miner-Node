@@ -57,13 +57,15 @@ public class MiningService {
 
     /** Allocates the legacy PV-wide budget across CPU and selected GPUs. */
     public synchronized boolean setTarget(long powerTarget) {
-        return setTarget(powerTarget, false);
+        return MinerStopContext.withDefault("Local power target", () -> setTarget(powerTarget, false));
     }
 
     public synchronized boolean setExternalTarget(long powerTarget) {
-        if (powerTarget <= 0) return pauseExternally();
-        if (!controls.get().dynamicPowerScalingEnabled()) return resumeExternally();
-        return setTarget(powerTarget, true);
+        return MinerStopContext.with("Remote control API", () -> {
+            if (powerTarget <= 0) return pauseExternally();
+            if (!controls.get().dynamicPowerScalingEnabled()) return resumeExternally();
+            return setTarget(powerTarget, true);
+        });
     }
 
     private boolean setTarget(long powerTarget, boolean external) {
@@ -162,6 +164,9 @@ public class MiningService {
     }
 
     public synchronized boolean pauseExternally() {
+        return MinerStopContext.withDefault("Remote control API", this::pauseExternallyInternal);
+    }
+    private boolean pauseExternallyInternal() {
         desiredGlobalPowerTarget = 0;
         desiredCpuPowerTarget = 0;
         desiredGpuPowerTarget = 0;
@@ -194,6 +199,9 @@ public class MiningService {
     }
 
     public synchronized boolean setTarget(String coin, long powerTarget) {
+        return MinerStopContext.withDefault("Local " + coin + " power target", () -> setCoinTarget(coin, powerTarget));
+    }
+    private boolean setCoinTarget(String coin, long powerTarget) {
         if ("pearl".equals(coin)) {
             if (powerTarget <= 0) {
                 desiredGpuPowerTarget = 0;
@@ -219,6 +227,9 @@ public class MiningService {
     }
 
     public boolean pauseMining(String coin) {
+        return MinerStopContext.withDefault("Local mining control", () -> pauseCoin(coin));
+    }
+    private boolean pauseCoin(String coin) {
         if ("pearl".equals(coin)) return pearlMinerService.pauseSelectedManually();
         if (!"monero".equals(coin)) return false;
         cpuManuallyPaused = true;
@@ -227,6 +238,9 @@ public class MiningService {
     }
 
     public boolean pauseAll() {
+        return MinerStopContext.withDefault("Local pause-all control", this::pauseAllInternal);
+    }
+    private boolean pauseAllInternal() {
         boolean gpuStopped = pearlMinerService.stop();
         xmrMinerService.hardStopMining();
         return gpuStopped;
