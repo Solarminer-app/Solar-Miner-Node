@@ -1,0 +1,209 @@
+name: Build and publish SolarMiner beta images
+
+on:
+  push:
+    branches:
+      - beta
+
+permissions:
+  contents: read
+
+concurrency:
+  group: solarminer-node-beta-images
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    name: Read beta image metadata
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.metadata.outputs.tag }}
+      frontend_image: ${{ steps.metadata.outputs.frontend_image }}
+      core_image: ${{ steps.metadata.outputs.core_image }}
+      currency_rates_image: ${{ steps.metadata.outputs.currency_rates_image }}
+      pc_agent_image: ${{ steps.metadata.outputs.pc_agent_image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Read image names and commit tag
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          echo "tag=beta-${GITHUB_SHA:0:12}" >> "$GITHUB_OUTPUT"
+          echo "frontend_image=$(./gradlew -q printFrontendImage)" >> "$GITHUB_OUTPUT"
+          echo "core_image=$(./gradlew -q printCoreImage)" >> "$GITHUB_OUTPUT"
+          echo "currency_rates_image=$(./gradlew -q printCurrencyRatesImage)" >> "$GITHUB_OUTPUT"
+          echo "pc_agent_image=$(./gradlew -q printPcAgentImage)" >> "$GITHUB_OUTPUT"
+
+  build-native-images:
+    name: Build ${{ matrix.component }} ${{ matrix.arch }}
+    needs: metadata
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: core
+            task: :core:bootBuildImage
+            clean_task: :core:clean
+            arch: amd64
+            runner: ubuntu-latest
+            image_suffix: amd64
+          - component: core
+            task: :core:bootBuildImage
+            clean_task: :core:clean
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            image_suffix: arm64
+          - component: frontend
+            task: :bootBuildImage
+            clean_task: :clean
+            arch: amd64
+            runner: ubuntu-latest
+            image_suffix: jvm-amd64
+          - component: frontend
+            task: :bootBuildImage
+            clean_task: :clean
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            image_suffix: jvm-arm64
+          - component: currency-rates
+            task: :currency-rates:bootBuildImage
+            clean_task: :currency-rates:clean
+            arch: amd64
+            runner: ubuntu-latest
+            image_suffix: amd64
+          - component: currency-rates
+            task: :currency-rates:bootBuildImage
+            clean_task: :currency-rates:clean
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            image_suffix: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and publish commit-tagged image
+        shell: bash
+        env:
+          COMPONENT: ${{ matrix.component }}
+          TASK: ${{ matrix.task }}
+          CLEAN_TASK: ${{ matrix.clean_task }}
+          IMAGE_SUFFIX: ${{ matrix.image_suffix }}
+          TAG: ${{ needs.metadata.outputs.tag }}
+          FRONTEND_IMAGE: ${{ needs.metadata.outputs.frontend_image }}
+          CORE_IMAGE: ${{ needs.metadata.outputs.core_image }}
+          CURRENCY_RATES_IMAGE: ${{ needs.metadata.outputs.currency_rates_image }}
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+
+          case "$COMPONENT" in
+            core) IMAGE="$CORE_IMAGE" ;;
+            frontend) IMAGE="$FRONTEND_IMAGE" ;;
+            currency-rates) IMAGE="$CURRENCY_RATES_IMAGE" ;;
+            *) echo "Unknown component: $COMPONENT" >&2; exit 1 ;;
+          esac
+
+          ./gradlew "$CLEAN_TASK" "$TASK" \
+            --imageName="${IMAGE}:${TAG}-${IMAGE_SUFFIX}" \
+            --publishImage \
+            -x test \
+            --no-daemon
+
+  publish-pc-agent:
+    name: Build and publish PC-Agent beta image
+    needs: metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Solarminer-app/solarminer-stratum-proxy
+          ref: beta
+          path: embedded-proxy-src
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and publish PC-Agent beta tags
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: pc-agent/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ needs.metadata.outputs.pc_agent_image }}:${{ needs.metadata.outputs.tag }}
+            ${{ needs.metadata.outputs.pc_agent_image }}:beta
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish-multi-arch-tags:
+    name: Publish beta manifests
+    needs:
+      - metadata
+      - build-native-images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create beta and commit-specific manifests
+        shell: bash
+        env:
+          TAG: ${{ needs.metadata.outputs.tag }}
+          FRONTEND_IMAGE: ${{ needs.metadata.outputs.frontend_image }}
+          CORE_IMAGE: ${{ needs.metadata.outputs.core_image }}
+          CURRENCY_RATES_IMAGE: ${{ needs.metadata.outputs.currency_rates_image }}
+        run: |
+          set -euo pipefail
+
+          docker buildx imagetools create \
+            --tag "${CORE_IMAGE}:${TAG}" \
+            --tag "${CORE_IMAGE}:beta" \
+            "${CORE_IMAGE}:${TAG}-amd64" \
+            "${CORE_IMAGE}:${TAG}-arm64"
+
+          docker buildx imagetools create \
+            --tag "${FRONTEND_IMAGE}:${TAG}-jvm" \
+            --tag "${FRONTEND_IMAGE}:beta-jvm" \
+            "${FRONTEND_IMAGE}:${TAG}-jvm-amd64" \
+            "${FRONTEND_IMAGE}:${TAG}-jvm-arm64"
+
+          docker buildx imagetools create \
+            --tag "${CURRENCY_RATES_IMAGE}:${TAG}" \
+            --tag "${CURRENCY_RATES_IMAGE}:beta" \
+            "${CURRENCY_RATES_IMAGE}:${TAG}-amd64" \
+            "${CURRENCY_RATES_IMAGE}:${TAG}-arm64"

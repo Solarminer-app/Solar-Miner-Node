@@ -6,6 +6,7 @@ import de.verdox.solarminer.pcagent.xmr.XmrMinerService;
 import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -18,6 +19,8 @@ public class BenchmarkSessionService {
     /** Samples are two seconds apart; a median of twelve points ignores startup noise. */
     public static final int REQUIRED_SAMPLES_PER_WORKER = 12;
     private static final long SAMPLE_INTERVAL_MILLIS = 2_000;
+    /** Pearl's health monitor permits 90 seconds for its first pool job; leave a small scheduling margin. */
+    static final Duration WORKER_STARTUP_GRACE = Duration.ofSeconds(95);
     private final MiningService mining;
     private final XmrMinerService xmr;
     private final PearlMinerService pearl;
@@ -72,8 +75,9 @@ public class BenchmarkSessionService {
         List<MinerStats.Worker> before = mining.getWorkerStats();
         boolean cpuPausedBefore = mining.cpuManuallyPaused();
         boolean xmrWasMining = before.stream().anyMatch(w -> isMining(w) && "CPU".equalsIgnoreCase(w.hardwareType()));
-        Set<String> pearlWasMining = before.stream().filter(w -> isMining(w) && "GPU".equalsIgnoreCase(w.hardwareType()))
-                .map(MinerStats.Worker::deviceId).filter(Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+        // Do not derive this snapshot from visible worker status: SRBMiner deliberately reports PAUSED
+        // while it is connecting to the pool, although its managed process is already running.
+        Set<String> pearlWasMining = pearl.runningGpuDeviceIds();
         Set<String> pearlPausedBefore = pearl.manuallyPausedGpuKeys();
         Map<String, List<MinerStats.Worker>> observations = new LinkedHashMap<>();
         List<String> skipped = new ArrayList<>();
@@ -91,32 +95,42 @@ public class BenchmarkSessionService {
                 if ("INSTALLED".equals(mode)) {
                     if (!mining.resumeMining(phase)) { skipped.add(phase); continue; }
                 }
-                List<MinerStats.Worker> candidates = phaseWorkers(phase);
+                // In INSTALLED mode a just-started miner must be a candidate before its first API/pool
+                // health sample. LIVE intentionally keeps its existing "only currently mining" semantics.
+                List<MinerStats.Worker> candidates = phaseWorkers(phase, "LIVE".equals(mode));
                 Set<String> expected = candidates.stream().map(BenchmarkSessionService::key).collect(java.util.stream.Collectors.toSet());
                 if (expected.isEmpty()) {
-                    skipped.add(phase + " (keine aktiven Worker mit Hashrate)");
+                    skipped.add(phase + ("LIVE".equals(mode)
+                            ? " (keine aktiven Worker)" : " (keine konfigurierten Worker erkannt)"));
                     if ("INSTALLED".equals(mode)) mining.pauseMining(phase);
                     continue;
                 }
                 Set<String> unavailable = new HashSet<>();
+                Set<String> observedMining = new HashSet<>();
+                Instant startupDeadline = Instant.now().plus(WORKER_STARTUP_GRACE);
                 update(mode, phaseLabel(phase) + " · 0/" + (expected.size() * REQUIRED_SAMPLES_PER_WORKER) + " Messpunkte",
                         index, phases.size(), observations);
                 while (!cancel) {
-                    List<MinerStats.Worker> current = phaseWorkers(phase);
-                    for (MinerStats.Worker worker : current) {
+                    List<MinerStats.Worker> current = phaseWorkers(phase, false);
+                    Map<String, MinerStats.Worker> currentByKey = current.stream()
+                            .collect(java.util.stream.Collectors.toMap(BenchmarkSessionService::key, worker -> worker, (first, ignored) -> first));
+                    for (MinerStats.Worker worker : current.stream().filter(BenchmarkSessionService::isMining).toList()) {
                         String workerKey = key(worker);
-                        if (!expected.contains(workerKey) || !hasValidHashrate(worker)) continue;
+                        if (!expected.contains(workerKey)) continue;
+                        observedMining.add(workerKey);
+                        if (!hasValidHashrate(worker)) continue;
                         List<MinerStats.Worker> samples = observations.computeIfAbsent(workerKey, ignored -> new ArrayList<>());
                         if (samples.size() < REQUIRED_SAMPLES_PER_WORKER) {
                             samples.add(worker);
                         }
                     }
-                    Set<String> stillMining = current.stream().filter(BenchmarkSessionService::isMining)
-                            .map(BenchmarkSessionService::key).collect(java.util.stream.Collectors.toSet());
-                    List<String> lost = expected.stream().filter(k -> observations.getOrDefault(k, List.of()).size() < REQUIRED_SAMPLES_PER_WORKER)
-                            .filter(k -> !stillMining.contains(k) && !unavailable.contains(k)).toList();
+                    List<String> lost = expected.stream()
+                            .filter(k -> observations.getOrDefault(k, List.of()).size() < REQUIRED_SAMPLES_PER_WORKER)
+                            .filter(k -> !unavailable.contains(k))
+                            .filter(k -> workerUnavailable(k, currentByKey.get(k), observedMining, startupDeadline))
+                            .toList();
                     unavailable.addAll(lost);
-                    if (!lost.isEmpty()) skipped.add(phase + " (Worker beendet oder meldet keine Hashrate: " + String.join(", ", lost) + ")");
+                    if (!lost.isEmpty()) skipped.add(phase + " (Worker startete nicht oder wurde beendet: " + String.join(", ", lost) + ")");
                     boolean complete = expected.stream().allMatch(k -> unavailable.contains(k)
                             || observations.getOrDefault(k, List.of()).size() >= REQUIRED_SAMPLES_PER_WORKER);
                     if (complete) break;
@@ -151,11 +165,22 @@ public class BenchmarkSessionService {
         }
     }
 
-    private List<MinerStats.Worker> phaseWorkers(String phase) {
-        return mining.getWorkerStats().stream().filter(BenchmarkSessionService::isMining)
+    private List<MinerStats.Worker> phaseWorkers(String phase, boolean miningOnly) {
+        return phaseWorkers(mining.getWorkerStats(), phase, miningOnly);
+    }
+
+    static List<MinerStats.Worker> phaseWorkers(List<MinerStats.Worker> workers, String phase, boolean miningOnly) {
+        return workers.stream()
                 .filter(w -> "live".equals(phase) || ("monero".equals(phase)
                         ? "CPU".equalsIgnoreCase(w.hardwareType()) : "GPU".equalsIgnoreCase(w.hardwareType())))
+                .filter(w -> !miningOnly || isMining(w))
                 .toList();
+    }
+    static boolean workerUnavailable(String workerKey, MinerStats.Worker current, Set<String> observedMining, Instant startupDeadline) {
+        if (current != null && current.miningStatus() == MinerStats.MinerStatus.ERROR) return true;
+        if (current != null && isMining(current)) return false;
+        if (observedMining.contains(workerKey)) return current == null || !isMining(current);
+        return !Instant.now().isBefore(startupDeadline);
     }
     private static boolean hasValidHashrate(MinerStats.Worker w) { return Double.isFinite(w.terahashPerSecond()) && w.terahashPerSecond() > 0; }
     private static String phaseLabel(String phase) { return "live".equals(phase) ? "Measuring active miners" : "Benchmarking " + phase; }

@@ -568,15 +568,21 @@ public class PearlMinerService {
 
     public boolean hasExternalMinerProcess() { return hasExternalMiner(); }
 
+    /** Managed processes only; external miners are rejected before an installed benchmark begins. */
+    public synchronized Set<String> runningGpuDeviceIds() {
+        return runs.values().stream().filter(GpuRun::running).map(run -> run.gpu.deviceId()).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
     public synchronized Set<String> manuallyPausedGpuKeys() { return Set.copyOf(manuallyPaused); }
 
-    public synchronized void restoreWorkerState(Set<String> pausedBefore, Set<String> runningBefore) {
-        stop();
+    public synchronized boolean restoreWorkerState(Set<String> pausedBefore, Set<String> runningBefore) {
+        boolean success = stop();
         manuallyPaused.clear();
         if (pausedBefore != null) manuallyPaused.addAll(pausedBefore);
         for (LocalGpuPowerService.Gpu gpu : selectedGpus()) {
-            if (runningBefore != null && runningBefore.contains(gpu.deviceId())) startGpu(gpu);
+            if (runningBefore != null && runningBefore.contains(gpu.deviceId())) success = startGpu(gpu) && success;
         }
+        return success;
     }
 
     private String redact(String line) {

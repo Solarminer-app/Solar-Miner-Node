@@ -1,5 +1,12 @@
 # Agent work log
 
+## 2026-10-02 — Beta Docker publishing
+
+- Scope: `beta` branch Docker publishing for Solar-Miner-Node; no API or mining contract changes.
+- Change: `.github/workflows/docker-beta.yml` publishes commit-specific and moving `beta` tags for Core, Frontend JVM, Currency Rates, and PC-Agent. Core, Frontend and Currency Rates publish amd64/arm64 manifests; PC-Agent publishes linux/amd64 and embeds the proxy's `beta` branch.
+- Isolation: beta workflow does not publish release version tags or `latest`; release workflows remain tag-triggered.
+- Verification: source/workflow review only; no GitHub Actions run, Docker build or test was run here. Registry permissions, the proxy `beta` ref checkout and actual image startup remain to verify.
+
 ### 2026-10-02 — PC-Agent benchmark sample-based completion
 
 - Scope: standalone PC-Agent benchmark lifecycle and UI; request now selects only LIVE or INSTALLED mode.
@@ -8,6 +15,13 @@
 - Limits: a worker that remains marked MINING but never reports a positive rate can keep the session open until cancelled; pool startup has existing SRBMiner health timeout, but no universal benchmark timeout is imposed.
 - UI: interim per-worker medians and observation counts are rendered during collection. Reloading the benchmark page re-reads the active in-memory session and restores phase, sample progress and current results.
 - User's existing frontend navigation change in `benchmarks.html` was preserved.
+
+### 2026-10-02 — Benchmark warm-up and Pearl state restoration
+
+- Scope: standalone PC-Agent benchmark lifecycle for XMRig CPU and SRBMiner GPU paths; no Node, proxy, fee or public API contract changed.
+- Finding and change: the sample-based run started Pearl and immediately filtered the worker snapshot to `MINING`. SRBMiner intentionally remains display-`PAUSED` until its asynchronous local API confirms pool/job health, so the benchmark skipped Pearl before the first health poll. INSTALLED runs now retain all configured workers of their phase as expected workers, wait up to 95 seconds for their first active status (matching SRBMiner's 90-second job-start limit plus scheduling margin), then collect twelve positive samples. The same phase/status rule applies to Monero CPU and Pearl GPU workers; LIVE remains read-only and only includes workers already active. The previous Pearl state is captured from managed process IDs rather than the pool-health-gated display status, preventing a connecting Pearl process from being left paused after the run.
+- Verification: `git diff --check`; `:pc-agent:test --tests de.verdox.solarminer.pcagent.mining.BenchmarkSessionServiceTest --no-daemon` and the complete `:pc-agent:test --no-daemon` passed with Temurin 21. The focused test covers a warming GPU, CPU/GPU phase selection, immediate errors, post-start loss and the startup deadline.
+- Remaining gate: actual Windows/Linux XMRig and SRBMiner runs, including a slow real pool connection and process restoration, still require host verification. A worker that stays active yet reports zero hashrate remains cancellable rather than receiving an artificial measurement timeout.
 
 ### 2026-10-02 — Show benchmark upload outcomes
 
