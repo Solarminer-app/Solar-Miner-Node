@@ -23,10 +23,11 @@ public class MiningService {
     private final String minerModel;
     private final HardwareIdentityService hardwareIdentityService;
 
-    //TODO: Save desired global power target to disk or smth
+    // Deliberately volatile: a process restart must not start mining from a stale target.
     private long desiredCpuPowerTarget;
     private long desiredGpuPowerTarget;
     private long desiredGlobalPowerTarget;
+    private final PowerApplicationState powerApplication = new PowerApplicationState();
     private volatile boolean cpuManuallyPaused;
     private final XmrMinerService xmrMinerService;
     private final PearlMinerService pearlMinerService;
@@ -66,44 +67,43 @@ public class MiningService {
     }
 
     private boolean setTarget(long powerTarget, boolean external) {
-        if (powerTarget <= 0) {
-            if (external) return pauseExternally();
-            desiredGlobalPowerTarget = 0;
-            desiredCpuPowerTarget = 0;
-            desiredGpuPowerTarget = 0;
-            return pauseAll();
-        }
-        long cpuMax = (!external || controls.workerEnabled("cpu")) && !cpuManuallyPaused && xmrMinerService.readyForStart() ? xmrMinerService.getEstimatedMaxCpuWattage() : 0;
         List<LocalGpuPowerService.Gpu> allowedGpus = pearlMinerService.eligibleGpus().stream()
                 .filter(gpu -> !external || controls.workerEnabled(gpu.deviceId()))
                 .toList();
         List<LocalGpuPowerService.Gpu> cards = allowedGpus.stream()
                 .filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling).toList();
-        long gpuMinimum = cards.stream().mapToLong(LocalGpuPowerService.Gpu::minWatts).sum();
-        long gpuMaximum = cards.stream().mapToLong(LocalGpuPowerService.Gpu::maxWatts).sum();
-        long minimum = cpuMax > 0 ? xmrMinerService.getMinimumControllablePowerWatts() : gpuMinimum;
-        long maximum = cpuMax + gpuMaximum;
-        if (powerTarget < minimum) {
-            if (external) { pauseExternally(); return false; }
-            return setTarget(0);
+        PowerBudgetPlanner.Cpu cpu = cpuCapability(external);
+        PowerBudgetPlanner.Plan requestedPlan = PowerBudgetPlanner.plan(powerTarget, cpu, plannerGpus(cards));
+        if (requestedPlan.outcome() == PowerBudgetPlanner.Outcome.PAUSE) {
+            boolean paused = external ? pauseExternally() : pauseAll();
+            if (paused) powerApplication.paused(powerTarget);
+            else powerApplication.failed(requestedPlan, "Miner konnten nicht vollständig angehalten werden");
+            return paused;
         }
-        powerTarget = Math.min(powerTarget, maximum);
-        long cpuTarget = Math.min(cpuMax, powerTarget);
-        long gpuTarget = 0;
-        if (!cards.isEmpty() && powerTarget >= gpuMinimum) {
-            cpuTarget = Math.min(cpuMax, powerTarget - gpuMinimum);
-            gpuTarget = Math.min(gpuMaximum, powerTarget - cpuTarget);
+        if (requestedPlan.outcome() == PowerBudgetPlanner.Outcome.REJECTED) {
+            if (external) pauseExternally(); else pauseAll();
+            desiredGlobalPowerTarget = 0;
+            desiredCpuPowerTarget = 0;
+            desiredGpuPowerTarget = 0;
+            powerApplication.rejected(requestedPlan);
+            return false;
         }
-        if (cpuTarget == 0 && gpuTarget == 0) {
-            if (external) { pauseExternally(); return false; }
-            return setTarget(0);
+
+        PowerBudgetPlanner.Plan appliedPlan = requestedPlan;
+        String partialReason = null;
+        if (requestedPlan.appliesGpuPowerLimits() && !gpuPowerService.setTotalPowerTarget(requestedPlan.gpuWatts(), cards)) {
+            if (!(external ? stopGpus(allowedGpus) : pearlMinerService.stop()))
+                return failGlobalBudget(external, requestedPlan, "GPU-Leistungsgrenzen konnten nicht gesetzt und GPU-Miner nicht sicher angehalten werden");
+            appliedPlan = PowerBudgetPlanner.plan(requestedPlan.plannedWatts(), cpu, List.of());
+            if (appliedPlan.outcome() != PowerBudgetPlanner.Outcome.APPLY)
+                return failGlobalBudget(external, requestedPlan, "GPU-Leistungsgrenzen konnten nicht gesetzt werden");
+            partialReason = "GPU-Leistungsgrenzen konnten nicht gesetzt werden; nur CPU-Budget wurde angewendet";
         }
-        if (gpuTarget > 0 && !gpuPowerService.setTotalPowerTarget(gpuTarget, cards)) {
-            if (!(external ? stopGpus(allowedGpus) : pearlMinerService.stop())) return failGlobalBudget(external);
-            gpuTarget = 0;
-            cpuTarget = Math.min(cpuMax, powerTarget);
-        }
-        if (gpuTarget == 0 && !(external ? stopGpus(allowedGpus) : pearlMinerService.stop())) return failGlobalBudget(external);
+        if (appliedPlan.gpuWatts() == 0 && !(external ? stopGpus(allowedGpus) : pearlMinerService.stop()))
+            return failGlobalBudget(external, requestedPlan, "GPU-Miner konnten nicht sicher angehalten werden");
+
+        long cpuTarget = appliedPlan.cpuWatts();
+        long gpuTarget = appliedPlan.gpuWatts();
         boolean cpuStartSucceeded = cpuTarget <= 0;
         if (!external || controls.workerEnabled("cpu")) {
             xmrMinerService.setDesiredPowerUsage(cpuTarget);
@@ -119,12 +119,29 @@ public class MiningService {
                     gpuStartsSucceeded = pearlMinerService.startGpu(gpu.vendor(), gpu.index()) && gpuStartsSucceeded;
             } else gpuStartsSucceeded = pearlMinerService.startForBudget();
         }
-        desiredGlobalPowerTarget = powerTarget;
+        desiredGlobalPowerTarget = appliedPlan.plannedWatts();
         desiredCpuPowerTarget = cpuTarget;
         desiredGpuPowerTarget = gpuTarget;
-        return external
-                ? (cpuTarget > 0 || gpuTarget > 0) && cpuStartSucceeded && (gpuTarget <= 0 || gpuStartsSucceeded)
-                : xmrMinerService.isMiningProcessAlive() || pearlMinerService.running();
+        boolean fullyStarted = (cpuTarget <= 0 || cpuStartSucceeded) && (gpuTarget <= 0 || gpuStartsSucceeded);
+        if (!fullyStarted) {
+            powerApplication.partiallyApplied(requestedPlan, appliedPlan,
+                    "Mindestens ein Miner-Prozess konnte nach dem Anwenden des Leistungsplans nicht gestartet werden");
+            return false;
+        }
+        if (partialReason != null) powerApplication.partiallyApplied(requestedPlan, appliedPlan, partialReason);
+        else powerApplication.applied(appliedPlan);
+        return true;
+    }
+
+    private PowerBudgetPlanner.Cpu cpuCapability(boolean external) {
+        boolean available = (!external || controls.workerEnabled("cpu")) && !cpuManuallyPaused && xmrMinerService.readyForStart();
+        return available
+                ? new PowerBudgetPlanner.Cpu(true, xmrMinerService.getMinimumControllablePowerWatts(), xmrMinerService.getEstimatedMaxCpuWattage())
+                : new PowerBudgetPlanner.Cpu(false, 0, 0);
+    }
+
+    private static List<PowerBudgetPlanner.Gpu> plannerGpus(List<LocalGpuPowerService.Gpu> cards) {
+        return cards.stream().map(gpu -> new PowerBudgetPlanner.Gpu(gpu.deviceId(), gpu.minWatts(), gpu.maxWatts())).toList();
     }
 
     public synchronized boolean resumeExternally() {
@@ -156,6 +173,7 @@ public class MiningService {
             if (controls.workerEnabled(gpu.deviceId()))
                 success = pearlMinerService.stopGpu(gpu.vendor(), gpu.index()) && success;
         }
+        if (success) powerApplication.paused(0);
         return success;
     }
 
@@ -166,11 +184,12 @@ public class MiningService {
         return success;
     }
 
-    private boolean failGlobalBudget(boolean external) {
+    private boolean failGlobalBudget(boolean external, PowerBudgetPlanner.Plan plan, String reason) {
         desiredGlobalPowerTarget = 0;
         desiredCpuPowerTarget = 0;
         desiredGpuPowerTarget = 0;
         if (external) pauseExternally(); else pauseAll();
+        powerApplication.failed(plan, reason);
         return false;
     }
 
@@ -301,6 +320,7 @@ public class MiningService {
 
     public long desiredGlobalPowerTarget() { return desiredGlobalPowerTarget; }
     public long desiredCpuPowerTarget() { return desiredCpuPowerTarget; }
+    public PowerApplicationState.Snapshot powerApplication() { return powerApplication.snapshot(); }
 
     public long approximatePowerUsageSystem() {
         return 0;

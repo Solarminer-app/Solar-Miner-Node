@@ -7,12 +7,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.cgminerapi.dto.CGMinerDTO;
 
 import java.io.*;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.logging.Logger;
 
 public class CGMinerClient implements Closeable {
+
+    private static final Logger LOGGER = Logger.getLogger(CGMinerClient.class.getName());
+    private static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 5_000;
+    private static final int DEFAULT_READ_TIMEOUT_MILLIS = 10_000;
 
     public static final Map<ResponseSection,
             Class<? extends CGMinerDTO>> TYPES =
@@ -43,17 +50,38 @@ public class CGMinerClient implements Closeable {
             );
 
     private final ObjectMapper mapper;
+    private final int connectTimeoutMillis;
+    private final int readTimeoutMillis;
 
     /**
      * Creates a new CGMiner client.
      */
     public CGMinerClient(ObjectMapper objectMapper) {
-        this.mapper =         objectMapper.configure(
+        this(objectMapper, DEFAULT_CONNECT_TIMEOUT_MILLIS, DEFAULT_READ_TIMEOUT_MILLIS);
+    }
+
+    /**
+     * Creates a client with explicit transport timeouts.
+     *
+     * <p>The supplied mapper is copied so that CGMiner-specific settings do not
+     * leak into other application JSON handling.</p>
+     */
+    public CGMinerClient(ObjectMapper objectMapper, int connectTimeoutMillis, int readTimeoutMillis) {
+        if (connectTimeoutMillis <= 0) {
+            throw new IllegalArgumentException("connectTimeoutMillis must be positive");
+        }
+        if (readTimeoutMillis <= 0) {
+            throw new IllegalArgumentException("readTimeoutMillis must be positive");
+        }
+
+        this.mapper = Objects.requireNonNull(objectMapper, "objectMapper").copy().configure(
                 DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
                 false
         ).setSerializationInclusion(
                 JsonInclude.Include.NON_NULL
         );
+        this.connectTimeoutMillis = connectTimeoutMillis;
+        this.readTimeoutMillis = readTimeoutMillis;
     }
 
     /**
@@ -97,29 +125,37 @@ public class CGMinerClient implements Closeable {
         }
 
         String json = mapper.writeValueAsString(request);
-        System.out.println("Request: " + json);
+        LOGGER.fine(() -> "Sending CGMiner API request; parameter present: " + request.containsKey("parameter"));
 
-        try (Socket socket = new Socket(host, port);
-             OutputStream out = socket.getOutputStream();
-             InputStream in = socket.getInputStream()) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(host, port), connectTimeoutMillis);
+            socket.setSoTimeout(readTimeoutMillis);
 
-            out.write(json.getBytes(StandardCharsets.UTF_8));
-            out.flush();
+            try (OutputStream out = socket.getOutputStream();
+                 InputStream in = socket.getInputStream()) {
+                out.write(json.getBytes(StandardCharsets.UTF_8));
+                out.flush();
 
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            byte[] data = new byte[4096];
-            int read;
+                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                byte[] data = new byte[4096];
+                int read;
+                boolean complete = false;
 
-            while ((read = in.read(data)) != -1) {
-                buffer.write(data, 0, read);
-
-                if (in.available() == 0) {
-                    break;
+                while (!complete && (read = in.read(data)) != -1) {
+                    int frameLength = read;
+                    for (int index = 0; index < read; index++) {
+                        if (data[index] == 0) {
+                            frameLength = index;
+                            complete = true;
+                            break;
+                        }
+                    }
+                    buffer.write(data, 0, frameLength);
                 }
-            }
 
-            String response = buffer.toString(StandardCharsets.UTF_8);
-            return mapper.readTree(response);
+                String response = buffer.toString(StandardCharsets.UTF_8);
+                return mapper.readTree(response);
+            }
         }
     }
 

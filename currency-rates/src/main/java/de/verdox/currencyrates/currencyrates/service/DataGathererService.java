@@ -6,6 +6,7 @@ import de.verdox.currencyrates.currencyrates.model.BitcoinNetworkStats;
 import de.verdox.currencyrates.currencyrates.model.DailyUsdRates;
 import de.verdox.currencyrates.currencyrates.repository.BitcoinNetworkStatsRepository;
 import de.verdox.currencyrates.currencyrates.repository.DailyUsdRatesRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -13,16 +14,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -30,31 +27,44 @@ import java.util.logging.Logger;
 public class DataGathererService {
     private static final Logger LOGGER = Logger.getLogger(DataGathererService.class.getSimpleName());
 
-    private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
-
     private final BitcoinNetworkStatsRepository bitcoinRepository;
     private final DailyUsdRatesRepository ratesRepository;
     private final ObjectMapper objectMapper;
     private final CoinGeckoPriceService coinPrices;
+    private final BitcoinMiningDataFetcher bitcoinMiningDataFetcher;
+    private final HttpTextClient httpClient;
+    private final boolean refreshOnStartup;
 
-    private BitcoinMiningDataFetcher bitcoinMiningDataFetcher;
+    private volatile BitcoinMiningDataFetcher.BitcoinMiningSnapshot latestBitcoinSnapshot;
 
     public DataGathererService(BitcoinNetworkStatsRepository bitcoinRepository,
                                DailyUsdRatesRepository ratesRepository,
-                               ObjectMapper objectMapper, CoinGeckoPriceService coinPrices) {
+                               ObjectMapper objectMapper,
+                               CoinGeckoPriceService coinPrices,
+                               BitcoinMiningDataFetcher bitcoinMiningDataFetcher,
+                               HttpTextClient httpClient,
+                               @Value("${currency-rates.refresh-on-startup:true}") boolean refreshOnStartup) {
         this.bitcoinRepository = bitcoinRepository;
         this.ratesRepository = ratesRepository;
         this.objectMapper = objectMapper;
         this.coinPrices = coinPrices;
+        this.bitcoinMiningDataFetcher = bitcoinMiningDataFetcher;
+        this.httpClient = httpClient;
+        this.refreshOnStartup = refreshOnStartup;
     }
 
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void onApplicationReady() {
-        bitcoinMiningDataFetcher = new BitcoinMiningDataFetcher(objectMapper);
+        if (!refreshOnStartup) {
+            LOGGER.log(Level.INFO, "Skipping initial market refresh because currency-rates.refresh-on-startup is disabled.");
+            return;
+        }
         LOGGER.log(Level.INFO, "Fetching global constants...");
         collectGlobalConstants();
-        saveDailyStatsToDatabase();
+        if (!saveDailyStatsToDatabase()) {
+            LOGGER.log(Level.WARNING, "Initial daily market snapshot was not persisted; the next scheduled refresh will retry.");
+        }
         coinPrices.fetch(LocalDate.now(ZoneOffset.UTC));
         LOGGER.log(Level.INFO, "Done...");
     }
@@ -63,7 +73,7 @@ public class DataGathererService {
         queryBitcoinMiningData();
     }
 
-    @Scheduled(fixedRate = 1, timeUnit = TimeUnit.HOURS)
+    @Scheduled(fixedRateString = "${currency-rates.refresh.fixed-rate-ms:3600000}")
     public void scheduledFetch() {
         collectGlobalConstants();
     }
@@ -73,7 +83,9 @@ public class DataGathererService {
     public void scheduledDailyDatabaseSave() {
         LOGGER.log(Level.INFO, "Starting scheduled daily UTC database backup...");
         collectGlobalConstants();
-        saveDailyStatsToDatabase();
+        if (!saveDailyStatsToDatabase()) {
+            LOGGER.log(Level.WARNING, "Scheduled daily market snapshot was not persisted; it will be retried on the next run.");
+        }
         coinPrices.fetch(LocalDate.now(ZoneOffset.UTC));
     }
 
@@ -94,23 +106,25 @@ public class DataGathererService {
     }
 
     @Transactional
-    public void saveDailyStatsToDatabase() {
+    public synchronized boolean saveDailyStatsToDatabase() {
         try {
             LocalDate todayUtc = LocalDate.now(ZoneOffset.UTC);
             JsonNode currencyRatesUSD = queryExchangeRates();
+            Map<String, Double> ratesMap = extractRatesMap(currencyRatesUSD);
+            BitcoinMiningDataFetcher.BitcoinMiningSnapshot bitcoinSnapshot = latestBitcoinSnapshot;
 
-            if (currencyRatesUSD == null || bitcoinMiningDataFetcher == null) {
-                LOGGER.log(Level.WARNING, "Cannot save to database: Data fetchers are empty.");
-                return;
+            if (bitcoinSnapshot == null || ratesMap.isEmpty()) {
+                LOGGER.log(Level.WARNING, "Cannot save to database: a complete Bitcoin and exchange-rate snapshot is unavailable.");
+                return false;
             }
 
             if (!bitcoinRepository.existsById(todayUtc)) {
                 BitcoinNetworkStats btcStats = new BitcoinNetworkStats(todayUtc);
-                btcStats.setMiningDifficulty(bitcoinMiningDataFetcher.getMiningDifficulty());
-                btcStats.setHashRateInThs(bitcoinMiningDataFetcher.getGlobalHashRateInThs());
-                btcStats.setPriceInDollar(bitcoinMiningDataFetcher.getPriceInDollar());
-                btcStats.setBlockSubsidy(bitcoinMiningDataFetcher.getBlockSubsidy());
-                btcStats.setAverageTxPrice24h(bitcoinMiningDataFetcher.getAverageTxPrice24h());
+                btcStats.setMiningDifficulty(bitcoinSnapshot.miningDifficulty());
+                btcStats.setHashRateInThs(bitcoinSnapshot.hashRateInThs());
+                btcStats.setPriceInDollar(bitcoinSnapshot.priceInDollar());
+                btcStats.setBlockSubsidy(bitcoinSnapshot.blockSubsidy());
+                btcStats.setAverageTxPrice24h(bitcoinSnapshot.averageTxPrice24h());
 
                 bitcoinRepository.save(btcStats);
                 LOGGER.log(Level.INFO, "Successfully saved Bitcoin network stats for UTC date: " + todayUtc);
@@ -119,20 +133,17 @@ public class DataGathererService {
             }
 
             if (!ratesRepository.existsById(todayUtc)) {
-                Map<String, Double> ratesMap = extractRatesMap(currencyRatesUSD);
-
-                if (!ratesMap.isEmpty()) {
-                    DailyUsdRates dailyRates = new DailyUsdRates(todayUtc, ratesMap);
-                    ratesRepository.save(dailyRates);
-                    LOGGER.log(Level.INFO, "Successfully saved daily currency rates for UTC date: " + todayUtc);
-                } else {
-                    LOGGER.log(Level.WARNING, "Fetched rates map was empty. Skipping database save for: " + todayUtc);
-                }} else {
+                DailyUsdRates dailyRates = new DailyUsdRates(todayUtc, ratesMap);
+                ratesRepository.save(dailyRates);
+                LOGGER.log(Level.INFO, "Successfully saved daily currency rates for UTC date: " + todayUtc);
+            } else {
                 LOGGER.log(Level.INFO, "Currency rates for " + todayUtc + " already exist. Skipping.");
             }
 
+            return true;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error while saving daily stats to database: " + e.getMessage(), e);
+            return false;
         }
     }
 
@@ -150,21 +161,11 @@ public class DataGathererService {
         return ratesMap;
     }
 
-    private static String sendGetRequest(String url) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(new URI(url))
-                .GET()
-                .build();
-        HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-        return response.body();
-    }
-
     private JsonNode queryExchangeRates(LocalDate date) {
         try {
             String dateParam = (date == null) ? "latest" : date.toString();
-            String url = String.format("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json", dateParam);
             LOGGER.log(Level.INFO, "Collecting currency exchange rates for date: " + dateParam);
-            String jsonResponse = sendGetRequest(url);
+            String jsonResponse = httpClient.get(exchangeRatesUri(date));
 
 
             return objectMapper.readTree(jsonResponse).path("usd");
@@ -178,11 +179,17 @@ public class DataGathererService {
         return queryExchangeRates(null);
     }
 
+    static URI exchangeRatesUri(LocalDate date) {
+        String version = date == null ? "latest" : date.toString();
+        return URI.create("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@" + version + "/v1/currencies/usd.json");
+    }
+
     private void queryBitcoinMiningData() {
         try {
             LOGGER.log(Level.INFO, "Collecting bitcoin mining data...");
-            bitcoinMiningDataFetcher.query();
+            latestBitcoinSnapshot = bitcoinMiningDataFetcher.query();
         } catch (Exception e) {
+            latestBitcoinSnapshot = null;
             LOGGER.log(Level.SEVERE, "Could not collect bitcoin mining data: " + e.getMessage());
         }
     }
@@ -191,7 +198,7 @@ public class DataGathererService {
     public BitcoinNetworkStats fetchAndSaveBitcoinStatsForDate(LocalDate targetDate) {
         LOGGER.log(Level.INFO, "Fetching historical Bitcoin network data from mempool.space for date: " + targetDate);
         try {
-            String hashrateResponse = sendGetRequest("https://mempool.space/api/v1/mining/hashrate/all");
+            String hashrateResponse = httpClient.get(URI.create("https://mempool.space/api/v1/mining/hashrate/all"));
             JsonNode hashrateRoot = objectMapper.readTree(hashrateResponse);
             JsonNode hashrateArray = hashrateRoot.path("hashrates");
 
@@ -216,7 +223,7 @@ public class DataGathererService {
                 return null;
             }
 
-            String priceResponse = sendGetRequest("https://mempool.space/api/v1/historical-price");
+            String priceResponse = httpClient.get(URI.create("https://mempool.space/api/v1/historical-price"));
             JsonNode pricesRoot = objectMapper.readTree(priceResponse);
             JsonNode pricesArray = pricesRoot.path("prices");
 
@@ -230,7 +237,7 @@ public class DataGathererService {
                 }
             }
 
-            String feesResponse = sendGetRequest("https://mempool.space/api/v1/mining/blocks/fees/3y");
+            String feesResponse = httpClient.get(URI.create("https://mempool.space/api/v1/mining/blocks/fees/3y"));
             JsonNode feesArray = objectMapper.readTree(feesResponse);
 
             int averageBlockFee = 0;

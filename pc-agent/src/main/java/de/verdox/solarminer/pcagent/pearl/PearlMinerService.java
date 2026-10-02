@@ -7,6 +7,7 @@ import de.verdox.solarminer.pcagent.dto.Pools;
 import de.verdox.solarminer.pcagent.mining.MinerConsoleService;
 import de.verdox.solarminer.pcagent.mining.PayoutDefaultsService;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
+import de.verdox.solarminer.pcagent.mining.MinerProcessRegistry;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -255,6 +256,12 @@ public class PearlMinerService {
         String key = gpu.vendor() + ":" + gpu.index();
         GpuRun run = runs.computeIfAbsent(key, ignored -> new GpuRun(gpu));
         if (run.running()) return true;
+        if (hasExternalMiner()) {
+            run.status = MinerStats.MinerStatus.MINING;
+            run.detail = "SRBMiner läuft extern; kein zweiter Prozess gestartet";
+            run.error = null;
+            return true;
+        }
         refreshDefaultPayout();
         console.started(run.consoleId);
         console.append("pearl", "[" + key + "] Neuer Miner-Start");
@@ -499,15 +506,17 @@ public class PearlMinerService {
     public synchronized boolean stop() {
         boolean success = true;
         for (GpuRun run : runs.values()) success = stopGpu(run.gpu.vendor(), run.gpu.index()) && success;
+        success = MinerProcessRegistry.stop("srbminer") && success;
         return success;
     }
 
-    public boolean running() { return runs.values().stream().anyMatch(GpuRun::running); }
+    public boolean running() { return runs.values().stream().anyMatch(GpuRun::running) || !MinerProcessRegistry.running("srbminer").isEmpty(); }
     public boolean poolHealthy() { return runs.values().stream().anyMatch(run -> run.running() && run.poolHealthy); }
     public String connectionDetail() {
         long healthy = runs.values().stream().filter(run -> run.running() && run.poolHealthy).count();
         long running = runs.values().stream().filter(GpuRun::running).count();
         return running > 0 ? healthy + " von " + running + " GPU-Minern mit Pool verbunden"
+                : hasExternalMiner() ? "SRBMiner läuft außerhalb des PC-Agent; Pool- und GPU-Status nicht verfügbar"
                 : lastError != null ? lastError : "GPU-Miner pausiert";
     }
     public String lastError() { return lastError; }
@@ -516,19 +525,21 @@ public class PearlMinerService {
     public Path executablePath() { return executable; }
     public Path configurationPath() { return configFile; }
     public List<GpuState> gpuStates(List<LocalGpuPowerService.Gpu> cards) {
+        boolean externalMiner = hasExternalMiner();
         return cards.stream().map(gpu -> {
             GpuRun run = runs.get(gpu.vendor() + ":" + gpu.index());
             return new GpuState(gpu.vendor(), gpu.index(), gpu.model(), selected(gpu),
-                    run == null ? MinerStats.MinerStatus.PAUSED : run.visibleStatus(),
-                    run != null && run.running(), run != null && run.poolHealthy,
+                    run == null ? externalMiner ? MinerStats.MinerStatus.MINING : MinerStats.MinerStatus.PAUSED : run.visibleStatus(),
+                    run != null ? run.running() : externalMiner, run != null && run.poolHealthy,
                     manuallyPaused.contains(gpu.vendor() + ":" + gpu.index()),
-                    run == null ? "Noch nicht gestartet" : run.detail, run == null ? null : run.error);
+                    run == null ? externalMiner ? "SRBMiner läuft außerhalb des PC-Agent; GPU-Zuordnung nicht verfügbar" : "Noch nicht gestartet" : run.detail,
+                    run == null ? null : run.error);
         }).toList();
     }
 
     public MinerStats.MinerStatus status() {
         if (poolHealthy()) return MinerStats.MinerStatus.MINING;
-        if (running()) return MinerStats.MinerStatus.PAUSED;
+        if (running()) return MinerStats.MinerStatus.MINING;
         if (runs.values().stream().anyMatch(run -> run.status == MinerStats.MinerStatus.ERROR))
             return MinerStats.MinerStatus.ERROR;
         return MinerStats.MinerStatus.PAUSED;
@@ -540,13 +551,19 @@ public class PearlMinerService {
         List<Pools> pools = List.of(new Pools(current.poolUrl(), current.wallet() + "/" + current.worker(), ""));
         return cards.stream().filter(this::selected).map(gpu -> {
             GpuRun run = runs.get(gpu.vendor() + ":" + gpu.index());
-            return new MinerStats.Worker(run == null ? MinerStats.MinerStatus.PAUSED : run.visibleStatus(),
+            boolean externalMiner = hasExternalMiner();
+            return new MinerStats.Worker(externalMiner ? MinerStats.MinerStatus.MINING : run == null ? MinerStats.MinerStatus.PAUSED : run.visibleStatus(),
                     "SRBMiner " + gpu.model() + " (" + gpu.vendor() + ":" + gpu.index() + ")", "PearlHash",
-                    run == null ? 0.0 : run.hashesPerSecond / 1_000_000_000_000.0, 0.0,
+                    run == null || externalMiner ? 0.0 : run.hashesPerSecond / 1_000_000_000_000.0, 0.0,
                     gpuPowerService.appliedTarget(gpu), gpu.minWatts(), gpu.maxWatts(), gpu.maxWatts(),
                     gpu.currentWatts() == null ? 0 : Math.round(gpu.currentWatts()), pools,
                     "GPU", gpu.model(), gpu.deviceId());
         }).toList();
+    }
+
+    private boolean hasExternalMiner() {
+        return MinerProcessRegistry.running("srbminer").stream()
+                .anyMatch(handle -> runs.values().stream().noneMatch(run -> run.process != null && run.process.pid() == handle.pid()));
     }
 
     private String redact(String line) {

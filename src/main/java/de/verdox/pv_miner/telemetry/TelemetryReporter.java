@@ -24,6 +24,8 @@ import org.springframework.web.client.RestClient;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Opt-in, outbound, anonymized telemetry for the SolarMiner network statistics
@@ -59,6 +61,7 @@ public class TelemetryReporter {
     private final String version;
     private final String locationGrid;
     private final PVStatisticsAccumulator pvAccumulator = new PVStatisticsAccumulator();
+    private final Set<String> acknowledgedRevocations = ConcurrentHashMap.newKeySet();
 
     public TelemetryReporter(
             PVSiteRepository pvSiteRepository,
@@ -107,10 +110,12 @@ public class TelemetryReporter {
         }
         for (PVSiteEntity site : pvSiteRepository.findAll()) {
             if (!site.isTelemetryOptIn()) {
+                reportRevocation(site);
                 continue;
             }
             try {
                 TelemetryBatch payload = buildPayload(site);
+                acknowledgedRevocations.remove(payload.uuid());
                 restClient.post()
                         .uri("/api/telemetry/batch")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -121,6 +126,23 @@ public class TelemetryReporter {
                 // Best-effort: never let telemetry disturb the control loop.
                 log.info("Telemetry send failed for site {}: {}", site.getId(), e.getMessage());
             }
+        }
+    }
+
+    private void reportRevocation(PVSiteEntity site) {
+        try {
+            String identity = ensureIdentity(site);
+            if (acknowledgedRevocations.contains(identity)) return;
+            restClient.post()
+                    .uri("/api/telemetry/batch")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new TelemetryRevocation(identity, false))
+                    .retrieve()
+                    .toBodilessEntity();
+            acknowledgedRevocations.add(identity);
+        } catch (RuntimeException e) {
+            // Retry on the next scheduled tick; the revocation contains no metrics.
+            log.info("Telemetry opt-out notification failed for site {}: {}", site.getId(), e.getMessage());
         }
     }
 
@@ -318,6 +340,8 @@ public class TelemetryReporter {
             String locationGrid,
             String nodeId) {
     }
+
+    public record TelemetryRevocation(String uuid, Boolean telemetryOptIn) { }
 
     public record BenchmarkSample(String deviceKey, String hardwareType, String hardwareModel, String algorithm,
                                   String minerOs, String processorArchitecture, Double hashrateHs,

@@ -6,6 +6,7 @@ import de.verdox.solarminer.pcagent.dto.MinerStats;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
 import de.verdox.solarminer.pcagent.mining.MinerConsoleService;
 import de.verdox.solarminer.pcagent.mining.PayoutDefaultsService;
+import de.verdox.solarminer.pcagent.mining.MinerProcessRegistry;
 import de.verdox.solarminer.pcagent.xmr.download.XmrDownloadService;
 import de.verdox.solarminer.pcagent.lowlevel.sensor.HardwareSensorReader;
 import jakarta.annotation.PreDestroy;
@@ -105,6 +106,11 @@ public class XmrMinerService {
     }
 
     public MinerStats.Worker getWorkerStats() {
+        if (!isManagedProcessAlive() && !MinerProcessRegistry.running("xmrig").isEmpty()) {
+            return new MinerStats.Worker(MinerStats.MinerStatus.MINING, processorName + " (extern gestartet)", "RandomX",
+                    0, readCPUTemperature(), desiredPowerUsage, 0, estimatedMaxCpuWattage,
+                    estimatedMaxCpuWattage, 0, List.of(configService.readUserPoolFromConfig()), "CPU", processorName, "cpu");
+        }
         if (minerStatus == MinerStats.MinerStatus.MINING && !isMiningProcessAlive()) {
             minerStatus = MinerStats.MinerStatus.ERROR;
             currentHashesPerSecond = 0;
@@ -172,6 +178,11 @@ public class XmrMinerService {
     public synchronized void startMining() {
         if (isMiningProcessAlive()) {
             LOGGER.info("XMRig is already running.");
+            return;
+        }
+        if (!MinerProcessRegistry.running("xmrig").isEmpty()) {
+            minerStatus = MinerStats.MinerStatus.MINING;
+            LOGGER.info("An XMRig process is already running outside this agent; refusing to start a duplicate.");
             return;
         }
         console.started("monero");
@@ -268,7 +279,7 @@ public class XmrMinerService {
             apiPollerExecutor.shutdownNow();
         }
 
-        if (isMiningProcessAlive()) {
+        if (isManagedProcessAlive()) {
             LOGGER.info("Sending kill signal to XMRig process...");
             minerProcess.destroyForcibly();
             try {
@@ -279,6 +290,7 @@ public class XmrMinerService {
             LOGGER.info("XMRig process terminated.");
             console.append("monero", "[SolarMiner] XMRig wurde angehalten");
         }
+        MinerProcessRegistry.stop("xmrig");
 
         minerStatus = MinerStats.MinerStatus.STOPPED;
         crashRestartAttempts = 0;
@@ -386,8 +398,10 @@ public class XmrMinerService {
     }
 
     public boolean isMiningProcessAlive() {
-        return minerProcess != null && minerProcess.isAlive();
+        return isManagedProcessAlive() || !MinerProcessRegistry.running("xmrig").isEmpty();
     }
+
+    private boolean isManagedProcessAlive() { return minerProcess != null && minerProcess.isAlive(); }
 
     public String lastStartError() { return lastStartError; }
 

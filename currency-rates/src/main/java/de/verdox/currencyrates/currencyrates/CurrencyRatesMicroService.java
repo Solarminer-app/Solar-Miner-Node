@@ -7,8 +7,10 @@ import org.springframework.aot.hint.TypeReference;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ImportRuntimeHints;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
+@EnableScheduling
 /*@ImportRuntimeHints(CurrencyRatesMicroService.GraalVMHints.class)*/
 public class CurrencyRatesMicroService {
     public static void main(String[] args) {

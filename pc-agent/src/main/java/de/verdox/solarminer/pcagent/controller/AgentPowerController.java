@@ -46,10 +46,13 @@ public class AgentPowerController {
         boolean measured = owner.externalControlEnabled() && mining.desiredCpuPowerTarget() == 0 && !visibleCards.isEmpty()
                 && visibleCards.stream().allMatch(c -> "measured".equals(c.usageMeasurement()));
         Long usage = measured ? visibleCards.stream().map(GpuStatus::currentUsageWatts).mapToLong(Math::round).sum() : null;
+        var application = mining.powerApplication();
         return new PowerStatus(owner.dynamicPowerScalingEnabled() && cards.stream().anyMatch(g -> g.externalControlEnabled() && g.supportsDynamicPowerScaling()), owner.dynamicPowerScalingEnabled(), owner.externalControlEnabled(), min, max, max == 0 ? 0 : Math.min(max, Math.max(min, max / 2)),
                 mining.desiredGlobalPowerTarget(), usage,
                 measured ? "measured" : "unavailable", mining.desiredGlobalPowerTarget() == 0,
-                externalView ? Map.of() : owner.workerExternalControl(), cards);
+                externalView ? Map.of() : owner.workerExternalControl(), cards,
+                application.requestedWatts(), application.appliedWatts(), application.appliedCpuWatts(), application.appliedGpuWatts(),
+                application.status().name(), application.failureReason());
     }
 
     @PostMapping("/target")
@@ -112,7 +115,9 @@ public class AgentPowerController {
     public record Identity(String kind, int powerControlProtocolVersion, String model) { }
     public record PowerStatus(boolean supportsDynamicPowerScaling, boolean dynamicPowerScalingEnabled, boolean externalControlEnabled, long minPowerWatts, long maxPowerWatts,
                               long defaultPowerWatts, long currentTargetWatts, Long currentUsageWatts,
-                              String usageMeasurement, boolean miningPaused, Map<String, Boolean> workerExternalControl, List<GpuStatus> gpus) { }
+                              String usageMeasurement, boolean miningPaused, Map<String, Boolean> workerExternalControl, List<GpuStatus> gpus,
+                              long requestedTargetWatts, long appliedTargetWatts, long appliedCpuTargetWatts, long appliedGpuTargetWatts,
+                              String targetApplicationStatus, String targetApplicationFailureReason) { }
     public record GpuStatus(String deviceId, String vendor, int index, String model, int driverMinPowerLimitWatts,
                             int driverMaxPowerLimitWatts, int userMinPowerLimitWatts, int userMaxPowerLimitWatts,
                             Integer currentPowerLimitWatts, Double currentUsageWatts, String usageMeasurement,

@@ -14,11 +14,13 @@ import de.verdox.pv_miner.core.miner.dto.Pools;
 import de.verdox.pv_miner.core.miner.twentyoneenergy.TwentyOneEnergyController;
 import de.verdox.pv_miner.core.miner.twentyoneenergy.TwentyOneEnergyDtos;
 import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Level;
@@ -56,27 +58,78 @@ import java.util.logging.Logger;
 @Service
 public class MinerService {
     private static final Logger LOGGER = Logger.getLogger(MinerService.class.getName());
-    private final MinerAgentController agentController;
-    private final BraiinsController braiinsController;
-    private final AntminerBackend antminerBackend;
     private final ProxyDiscoveryService proxyDiscoveryService;
     private final DevFeeService devFeeService;
-    private final Map<MiningOS, MinerController> controllersByOS = new ConcurrentHashMap<>();
+    private final Map<MiningOS, MinerControllerRegistration> registrations;
     private final MinerDataRegistry minerDataRegistry;
 
+    @Autowired
     public MinerService(ProxyDiscoveryService proxyDiscoveryService, DevFeeService devFeeService, ObjectMapper objectMapper, MinerDataRegistry minerDataRegistry) {
         this.proxyDiscoveryService = proxyDiscoveryService;
         this.devFeeService = devFeeService;
-        this.agentController = new MinerAgentController();
-        this.antminerBackend = new AntminerBackend(objectMapper);
-        this.braiinsController = new BraiinsController(objectMapper);
-
-        controllersByOS.put(MiningOS.AGENT, new MinerAgentController());
-        controllersByOS.put(MiningOS.ANTMINER_STOCK_OS, new AntminerBackend(objectMapper));
-        controllersByOS.put(MiningOS.BRAIINS, new BraiinsController(objectMapper));
-        // A device starts monitoring-only. Control needs a persisted, hardware-verified level map.
-        controllersByOS.put(MiningOS.TWENTY_ONE_ENERGY, new TwentyOneEnergyController(objectMapper, false, null));
         this.minerDataRegistry = minerDataRegistry;
+        this.registrations = createDefaultRegistrations(objectMapper);
+    }
+
+    MinerService(ProxyDiscoveryService proxyDiscoveryService, DevFeeService devFeeService, MinerDataRegistry minerDataRegistry,
+                 Map<MiningOS, MinerControllerRegistration> registrations) {
+        this.proxyDiscoveryService = proxyDiscoveryService;
+        this.devFeeService = devFeeService;
+        this.minerDataRegistry = minerDataRegistry;
+        this.registrations = registrationsForAllOperatingSystems(registrations);
+    }
+
+    private Map<MiningOS, MinerControllerRegistration> createDefaultRegistrations(ObjectMapper objectMapper) {
+        MinerAgentController agentController = new MinerAgentController();
+        AntminerBackend antminerController = new AntminerBackend(objectMapper);
+        BraiinsController braiinsController = new BraiinsController(objectMapper);
+        TwentyOneEnergyController twentyOneEnergyController = new TwentyOneEnergyController(objectMapper, false, null);
+
+        EnumMap<MiningOS, MinerControllerRegistration> configured = new EnumMap<>(MiningOS.class);
+        configured.put(MiningOS.AGENT, new MinerControllerRegistration(
+                agentController,
+                Set.of(MinerCapability.DYNAMIC_POWER_SCALING, MinerCapability.POOL_CONFIGURATION, MinerCapability.AGENT_COIN_CONFIGURATION),
+                request -> {
+                    String proxyUrl = request.proxyUrl(3335);
+                    String proxyUserName = request.proxyUserName();
+                    return proxyUrl != null && proxyUserName != null
+                            && agentController.setReferral(request.minerDetails(), request.referralCode())
+                            && agentController.setPoolTarget(request.minerDetails(), proxyUrl, proxyUserName);
+                }
+        ));
+        configured.put(MiningOS.ANTMINER_STOCK_OS, new MinerControllerRegistration(
+                antminerController,
+                Set.of(MinerCapability.POOL_CONFIGURATION),
+                request -> {
+                    String proxyUrl = request.proxyUrl(3333);
+                    String proxyUserName = request.proxyUserName();
+                    return proxyUrl != null && proxyUserName != null
+                            && antminerController.setPoolTarget(request.minerDetails(), proxyUrl, proxyUserName);
+                }
+        ));
+        configured.put(MiningOS.BRAIINS, new MinerControllerRegistration(
+                braiinsController,
+                Set.of(MinerCapability.DYNAMIC_POWER_SCALING, MinerCapability.POOL_CONFIGURATION),
+                request -> braiinsController.setPoolTargetNoProxy(request.minerDetails(), request.stratumUrl(), request.userName(),
+                        devFeeService.resolveFeeTargets("bitcoin", request.referralCode()))
+        ));
+        // A heater starts monitoring-only. Control needs a persisted, hardware-verified level map.
+        configured.put(MiningOS.TWENTY_ONE_ENERGY, new MinerControllerRegistration(
+                twentyOneEnergyController,
+                Set.of(MinerCapability.TWENTY_ONE_ENERGY_CALIBRATION),
+                request -> false
+        ));
+        return registrationsForAllOperatingSystems(configured);
+    }
+
+    private static Map<MiningOS, MinerControllerRegistration> registrationsForAllOperatingSystems(
+            Map<MiningOS, MinerControllerRegistration> configured
+    ) {
+        EnumMap<MiningOS, MinerControllerRegistration> complete = new EnumMap<>(MiningOS.class);
+        for (MiningOS miningOS : MiningOS.values()) {
+            complete.put(miningOS, configured.getOrDefault(miningOS, MinerControllerRegistration.unsupported()));
+        }
+        return Map.copyOf(complete);
     }
 
     public boolean startMining(MiningOS miningOS, MinerDetails details) {
@@ -100,32 +153,24 @@ public class MinerService {
     }
 
     public boolean setPoolTarget(MiningOS miningOS, MinerDetails details, String stratumUrl, String userName, String referralCode) {
-        String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
-        String proxyStratumUrl = "stratum+tcp://" + proxyIp + (miningOS == MiningOS.AGENT ? ":3335" : ":3333");
-        String cleanTargetUrl = stratumUrl.replace("stratum+tcp://", "");
-        String proxyUserName = cleanTargetUrl + ";" + userName + ";x";
-
-        return switch (miningOS) {
-            case AGENT ->
-                    agentController.setReferral(details, referralCode) && agentController.setPoolTarget(details, proxyStratumUrl, proxyUserName);
-            case BRAIINS ->
-                    braiinsController.setPoolTargetNoProxy(details, stratumUrl, userName, devFeeService.resolveFeeTargets("bitcoin", referralCode));
-            case ANTMINER_STOCK_OS -> antminerBackend.setPoolTarget(details, proxyStratumUrl, proxyUserName);
-            // Managed Mining remains unavailable until real proxy/share verification has been recorded.
-            case TWENTY_ONE_ENERGY -> false;
-            case BIXBIT, CANAAN_STOCK_OS, INNOSILICON_STOCK_OS, VNISH,
-                 WHATSMINER_STOCK_OS, LUX_OS, HIVEON_ASIC, HIVE_OS, MS_OS, RAVE_OS -> false;
-        };
+        return registration(miningOS).configurePoolTarget(new MinerControllerRegistration.PoolTargetRequest(
+                details, stratumUrl, userName, referralCode, proxyDiscoveryService.getCurrentProxyIp()
+        ));
     }
 
     public boolean configurePearlAgent(MinerDetails details, String poolUrl, String wallet, String worker, String devices, String referralCode) {
         String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
         String proxyUrl = proxyIp == null || proxyIp.isBlank() ? null : "stratum+tcp://" + proxyIp + ":3334";
-        return agentController.configurePearl(details, poolUrl, proxyUrl, wallet, worker, devices, referralCode);
+        MinerAgentController agentController = agentController();
+        return agentController != null && registration(MiningOS.AGENT).supports(MinerCapability.AGENT_COIN_CONFIGURATION)
+                && agentController.configurePearl(details, poolUrl, proxyUrl, wallet, worker, devices, referralCode);
     }
 
     public TwentyOneEnergyController.CalibratedPowerMap calibrateTwentyOneEnergyPowerMap(MinerDetails details, boolean heatAndLoadRiskAcknowledged) {
-        MinerController controller = controllersByOS.get(MiningOS.TWENTY_ONE_ENERGY);
+        if (!registration(MiningOS.TWENTY_ONE_ENERGY).supports(MinerCapability.TWENTY_ONE_ENERGY_CALIBRATION)) {
+            throw new IllegalStateException("21energy calibration is unavailable");
+        }
+        MinerController controller = registration(MiningOS.TWENTY_ONE_ENERGY).controller();
         if (!(controller instanceof TwentyOneEnergyController twentyOneEnergyController)) {
             throw new IllegalStateException("21energy controller is unavailable");
         }
@@ -135,16 +180,19 @@ public class MinerService {
     public boolean configureMoneroAgent(MinerDetails details, String poolUrl, String wallet, String worker, String referralCode) {
         String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
         String proxyUrl = proxyIp == null || proxyIp.isBlank() ? null : "stratum+tcp://" + proxyIp + ":3335";
-        return agentController.configureMonero(details, poolUrl, proxyUrl, wallet, worker, referralCode);
+        MinerAgentController agentController = agentController();
+        return agentController != null && registration(MiningOS.AGENT).supports(MinerCapability.AGENT_COIN_CONFIGURATION)
+                && agentController.configureMonero(details, poolUrl, proxyUrl, wallet, worker, referralCode);
     }
 
     public MinerAgentController.AgentCoinConfigurations agentCoinConfigurations(MinerDetails details) {
-        return agentController.coinConfigurations(details);
+        MinerAgentController agentController = agentController();
+        return agentController == null ? null : agentController.coinConfigurations(details);
     }
 
     public boolean setPowerTarget(MiningOS miningOS, MinerDetails details, long watts) {
         return tryOrGet(miningOS, minerController -> {
-            if (!miningOS.supportsDynamicPowerScaling()) {
+            if (!registration(miningOS).supports(MinerCapability.DYNAMIC_POWER_SCALING)) {
                 return false;
             }
             return minerController.setPowerTarget(details, watts);
@@ -153,7 +201,7 @@ public class MinerService {
 
     public boolean incrementPowerTarget(MiningOS miningOS, MinerDetails details, long watts) {
         return tryOrGet(miningOS, minerController -> {
-            if (!miningOS.supportsDynamicPowerScaling()) {
+            if (!registration(miningOS).supports(MinerCapability.DYNAMIC_POWER_SCALING)) {
                 return false;
             }
             return minerController.incrementPowerTarget(details, watts);
@@ -162,7 +210,7 @@ public class MinerService {
 
     public boolean decrementPowerTarget(MiningOS miningOS, MinerDetails details, long watts) {
         return tryOrGet(miningOS, minerController -> {
-            if (!miningOS.supportsDynamicPowerScaling()) {
+            if (!registration(miningOS).supports(MinerCapability.DYNAMIC_POWER_SCALING)) {
                 return false;
             }
             return minerController.decrementPowerTarget(details, watts);
@@ -219,7 +267,8 @@ public class MinerService {
     }
 
     public void syncAgentReferral(MiningOS miningOS, MinerDetails details, String referralCode) {
-        if (miningOS == MiningOS.AGENT) agentController.setReferral(details, referralCode);
+        MinerAgentController agentController = agentController();
+        if (miningOS == MiningOS.AGENT && agentController != null) agentController.setReferral(details, referralCode);
     }
 
     public boolean checkIfStandardCredentialsWork(MiningOS miningOS, MinerDetails details) {
@@ -239,14 +288,27 @@ public class MinerService {
     }
 
     private <RESULT> RESULT tryOrGet(MiningOS miningOS, Function<MinerController, RESULT> logic, RESULT defaultValue) {
-        if (!controllersByOS.containsKey(miningOS))
+        MinerController controller = registration(miningOS).controller();
+        if (controller == null)
             return defaultValue;
-        return logic.apply(controllersByOS.get(miningOS));
+        return logic.apply(controller);
     }
 
     private <RESULT> void tryOrDo(MiningOS miningOS, Consumer<MinerController> logic) {
-        if (controllersByOS.containsKey(miningOS)) {
-            logic.accept(controllersByOS.get(miningOS));
+        MinerController controller = registration(miningOS).controller();
+        if (controller != null) {
+            logic.accept(controller);
         }
+    }
+
+    private MinerControllerRegistration registration(MiningOS miningOS) {
+        return miningOS == null
+                ? MinerControllerRegistration.unsupported()
+                : registrations.getOrDefault(miningOS, MinerControllerRegistration.unsupported());
+    }
+
+    private MinerAgentController agentController() {
+        MinerController controller = registration(MiningOS.AGENT).controller();
+        return controller instanceof MinerAgentController agentController ? agentController : null;
     }
 }
