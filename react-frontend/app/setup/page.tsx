@@ -563,7 +563,12 @@ export default function SetupPage() {
             setPanelFormError(t['setup.panels.error.location']);
             return;
         }
-        const saved = {...panelDraft, name: panelDraft.name.trim() || nextPanelName(), id: editingPanelId || crypto.randomUUID()};
+        const name = panelDraft.name.trim() || nextPanelName();
+        if (panels.some((panel) => panel.name.toLocaleLowerCase(locale) === name.toLocaleLowerCase(locale) && panel.id !== editingPanelId)) {
+            setPanelFormError(t['setup.panels.error.duplicate_name']);
+            return;
+        }
+        const saved = {...panelDraft, name, id: editingPanelId || crypto.randomUUID()};
         setPanels((current) => editingPanelId ? current.map((panel) => panel.id === editingPanelId ? saved : panel) : [...current, saved]);
         setEditingPanelId(null);
         setPanelDraft((current) => ({...current, name: '', panelCount: 1, powerPerPanelWatts: 400,
@@ -869,10 +874,11 @@ export default function SetupPage() {
                     </div>
 
                     {error ? <div role="alert" className="mx-5 mb-4 rounded-xl border border-red-400/20 bg-red-400/[0.07] px-4 py-3 text-sm text-red-300 sm:mx-7">{error}</div> : null}
+                    {step === 2 ? <p aria-live="polite" className="border-t border-white/[0.07] px-5 py-3 text-sm text-[#b0b0ba] sm:px-7">{panels.length ? t['setup.panels.more_hint'] : t['setup.panels.continue_hint']}</p> : null}
                     {step === 1 ? <p aria-live="polite" className="border-t border-white/[0.07] px-5 py-3 text-sm text-[#b0b0ba] sm:px-7">{pvDevices.length ? t['setup.source.ready'] : t['setup.source.continue_hint']}</p> : null}
                     <footer className="flex items-center justify-between gap-3 border-t border-white/[0.07] px-5 py-4 sm:px-7">
                         <button className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-[#b8b8c1] transition hover:bg-white/[0.05] disabled:invisible" disabled={step === 0 || submitting} onClick={() => {setStep((current) => Math.max(0, current - 1)); setError(null);}}><ArrowLeft size={16}/>{t['setup.action.previous']}</button>
-                        {step < steps.length - 1 ? <button className="inline-flex items-center gap-2 rounded-xl bg-yellow-400 px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-yellow-300 disabled:opacity-40" disabled={step === 1 && pvDevices.length === 0} onClick={next}>{t['setup.action.next']}<ArrowRight size={16}/></button> : <button className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-60" disabled={submitting} onClick={() => void submit()}>{submitting ? <LoaderCircle className="animate-spin" size={16}/> : <Check size={16}/>} {t['setup.action.create']}</button>}
+                        {step < steps.length - 1 ? <button className="inline-flex items-center gap-2 rounded-xl bg-yellow-400 px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-yellow-300 disabled:opacity-40" disabled={(step === 1 && pvDevices.length === 0) || (step === 2 && panels.length === 0)} onClick={next}>{t['setup.action.next']}<ArrowRight size={16}/></button> : <button className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-300 disabled:cursor-wait disabled:opacity-60" disabled={submitting} onClick={() => void submit()}>{submitting ? <LoaderCircle className="animate-spin" size={16}/> : <Check size={16}/>} {t['setup.action.create']}</button>}
                     </footer>
                 </section>
             </div>
