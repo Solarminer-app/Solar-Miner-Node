@@ -1,36 +1,60 @@
 const $ = id => document.getElementById(id);
-let current;
-function notice(message, error = false) { const n = $('notice'); n.hidden = false; n.className = `notice ${error ? 'error' : ''}`; n.textContent = message; }
-async function switchMode() {
+const t = window.SolarMinerI18n.t;
+let current, busy = false, refreshing = false, hostDirty = false;
+const text = (id, value) => { $(id).textContent = t(value); };
+function notice(message, error = false, kind = 'action') { const box = $('notice'); box.hidden = false; box.dataset.kind = kind; box.className = 'notice' + (error ? ' error' : ''); box.textContent = t(message); }
+function controls() { $('proxy-local').disabled = busy || !current || current.mode === 'standalone' && current.managedStatus === 'running'; $('proxy-external').disabled = $('proxy-discover').disabled = busy || !current; $('external-host').disabled = busy; }
+async function command(url) {
+  const response = await fetch(url, {method:'POST'});
+  if (!response.ok) { const body = await response.json().catch(() => null); throw new Error(body?.message || body?.detail || 'HTTP ' + response.status); }
+  if (await response.json() !== true) throw new Error('Der Agent hat die Verbindungsänderung abgelehnt. Prüfe Sensorfreigabe, Proxy und Agent-Logs.');
+}
+async function activate(mode) {
+  if (busy) return;
+  if (mode === 'external' && !$('external-form').reportValidity()) return;
+  busy = true; controls();
   try {
-    if (current?.mode === 'standalone') {
-      const found = await fetch('/api/agent/proxy/discover', {method: 'POST'}); const candidates = found.ok ? await found.json() : [];
-      if (!candidates.length) throw new Error('Kein externer SolarMiner-Proxy im Netzwerk gefunden.');
-      const host = candidates[0].host;
-      const saved = await fetch(`/api/agent/proxy?host=${encodeURIComponent(host)}`, {method: 'POST'});
-      if (!saved.ok || !await saved.json()) throw new Error('Der externe Proxy konnte nicht gespeichert werden.');
-      const changed = await fetch('/api/agent/proxy/mode?mode=external', {method: 'POST'});
-      if (!changed.ok || !await changed.json()) throw new Error('Der externe Proxy konnte nicht aktiviert werden.');
-      notice(`Externer Proxy ${host} aktiviert. Alle Miner wurden pausiert.`);
-    } else {
-      const changed = await fetch('/api/agent/proxy/mode?mode=local', {method: 'POST'});
-      if (!changed.ok || !await changed.json()) throw new Error('Der lokale Proxy konnte nicht gestartet werden.');
-      notice('Lokaler Proxy aktiviert. Alle Miner wurden pausiert.');
-    }
-    await refresh();
-  } catch (e) { notice(e.message, true); }
+    if (mode === 'external') await command('/api/agent/proxy?host=' + encodeURIComponent($('external-host').value.trim()));
+    await command('/api/agent/proxy/mode?mode=' + mode); hostDirty = false;
+    notice('Verbindung geändert. Alle Miner wurden pausiert. Starte sie auf der Miner-Seite erneut.');
+  } catch (error) { notice(error.message, true); }
+  finally { busy = false; await refresh(); controls(); }
+}
+function render(data) {
+  current = data.proxy; const local = current?.mode === 'standalone';
+  text('proxy-heading', local ? 'Lokaler Proxy ausgewählt' : 'Externer Proxy ausgewählt'); text('proxy-mode', local ? 'LOKAL' : 'EXTERN');
+  text('proxy-state', current?.reachable ? 'Proxy erreichbar' : 'Proxy nicht erreichbar');
+  text('proxy-description', local ? current?.managedStatus === 'running' ? 'Der enthaltene Proxy läuft auf diesem PC.' : current?.managedDetail || 'Der lokale Proxy ist noch nicht bereit.' : current?.host || 'Kein externer Host gespeichert.');
+  $('local-mode').classList.toggle('active', local); $('external-mode').classList.toggle('active', !local);
+  text('local-state', local ? 'AUSGEWÄHLT' : 'AUF DIESEM PC'); text('external-state', local ? 'IM NETZWERK' : 'AUSGEWÄHLT');
+  if (!hostDirty && document.activeElement !== $('external-host')) $('external-host').value = current?.host || '';
+  const routes = $('proxy-routes'); routes.replaceChildren();
+  for (const [key, name, experimental] of [['monero','Monero',false],['pearl','Pearl',false],['ravencoin','Ravencoin',true],['ethereumclassic','Ethereum Classic',true]]) {
+    const card = document.createElement('article'); card.className = 'route-coin'; const title = document.createElement('h3'); title.textContent = name;
+    const state = document.createElement('span'); state.className = 'tag ' + (current?.[key + 'FeeReady'] && !experimental ? 'ready' : ''); state.textContent = t(experimental ? 'VORBEREITET' : current?.[key + 'FeeReady'] ? 'FEE-ZIEL GELADEN' : 'FEE-ZIEL FEHLT');
+    const route = document.createElement('p'); route.textContent = current?.[key + 'Url'] || t('Keine Route verfügbar'); card.append(title,state,route); routes.append(card);
+  }
+  controls();
 }
 async function refresh() {
-  try {
-    const response = await fetch('/api/agent/overview', {cache: 'no-store'}); if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json(); current = data.proxy; const local = current?.mode === 'standalone';
-    $('proxy-heading').textContent = local ? 'Lokaler SolarMiner-Proxy' : 'Externer SolarMiner-Proxy';
-    $('proxy-mode').textContent = local ? 'LOKAL' : 'EXTERN';
-    $('proxy-description').textContent = local ? 'Der im Agent enthaltene Proxy wird verwendet.' : 'Der Agent verwendet einen SolarMiner-Proxy im lokalen Netzwerk.';
-    $('proxy-route').textContent = current?.moneroUrl || 'Noch keine Route';
-    $('proxy-state').textContent = local ? (current?.managedStatus === 'running' ? 'Lokal aktiv' : 'Lokaler Proxy startet …') : (current?.reachable ? 'Erreichbar' : 'Nicht erreichbar');
-    $('proxy-switch').textContent = local ? 'Externen Proxy suchen & wechseln' : 'Lokalen Proxy verwenden'; $('proxy-switch').onclick = switchMode;
-    $('connection').className = 'badge online'; $('connection').textContent = 'Agent verbunden'; $('updated').textContent = `Aktualisiert ${new Date().toLocaleTimeString()}`;
-  } catch (e) { $('connection').className = 'badge offline'; $('connection').textContent = 'Agent nicht erreichbar'; notice(`Proxy-Daten konnten nicht geladen werden: ${e.message}`, true); }
+  if (refreshing) return; refreshing = true;
+  try { const response = await fetch('/api/agent/overview', {cache:'no-store'}); if (!response.ok) throw new Error('HTTP ' + response.status); render(await response.json()); if ($('notice').dataset.kind === 'connection') $('notice').hidden = true; $('connection').className = 'badge online'; text('connection','Agent verbunden'); text('updated','Aktualisiert ' + new Date().toLocaleTimeString(window.SolarMinerI18n.locale)); }
+  catch (error) { current = null; controls(); $('connection').className = 'badge offline'; text('connection','Agent nicht erreichbar'); notice('Proxy-Daten konnten nicht geladen werden: ' + error.message,true,'connection'); }
+  finally { refreshing = false; }
 }
-$('refresh').addEventListener('click', refresh); refresh(); setInterval(() => { if (!document.hidden) refresh(); }, 12000);
+$('external-host').addEventListener('input',()=>{hostDirty=true;});
+$('external-form').addEventListener('submit',event=>{event.preventDefault(); activate('external');});
+$('proxy-local').addEventListener('click',()=>activate('local'));
+$('proxy-discover').addEventListener('click',async()=>{
+  if (busy) return; busy=true; controls(); text('discovery-status','Suche im lokalen Netzwerk …'); $('proxy-candidates').replaceChildren();
+  try {
+    const response=await fetch('/api/agent/proxy/discover',{method:'POST'}); if (!response.ok) throw new Error('HTTP ' + response.status); const candidates=await response.json();
+    text('discovery-status', candidates.length ? 'Wähle einen gefundenen Proxy. Die Verbindung wird erst beim Aktivieren geändert.' : 'Kein Proxy gefunden. Du kannst einen bekannten Host manuell eintragen.');
+    for (const candidate of candidates) {
+      const button=document.createElement('button'); button.type='button'; button.className='button subtle'; button.textContent=candidate.host + ' ' + t('auswählen');
+      button.addEventListener('click',()=>{ $('external-host').value=candidate.host;hostDirty=true;$('external-host').focus(); }); $('proxy-candidates').append(button);
+    }
+  } catch (error) { text('discovery-status',t('Suche fehlgeschlagen:') + ' ' + error.message); }
+  finally {busy=false;controls();}
+});
+$('refresh').addEventListener('click',refresh); refresh(); setInterval(()=>{if(!document.hidden && !busy)refresh();},12000);

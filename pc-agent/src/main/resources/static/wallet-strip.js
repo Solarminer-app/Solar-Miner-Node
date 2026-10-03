@@ -90,11 +90,12 @@
         fetch('/api/agent/earnings', {cache: 'no-store'})
       ]);
       if (balancesResult.status === 'fulfilled' && balancesResult.value.ok) {
-        balances = await balancesResult.value.json();
+        const received = await balancesResult.value.json();
+        if (Array.isArray(received)) balances = received;
       }
       if (forecastsResult.status === 'fulfilled' && forecastsResult.value.ok) {
         const forecasts = await forecastsResult.value.json();
-        prices = Object.fromEntries(forecasts.filter(item => item.priceUsd > 0)
+        prices = Object.fromEntries((Array.isArray(forecasts) ? forecasts : []).filter(item => item.priceUsd > 0)
           .map(item => [item.ticker, item.priceUsd]));
       }
       render();

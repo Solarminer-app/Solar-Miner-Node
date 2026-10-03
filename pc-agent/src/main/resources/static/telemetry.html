@@ -6,8 +6,9 @@
     <meta name="theme-color" content="#0b1020">
     <title>SolarMiner · Telemetrie</title>
     <link rel="stylesheet" href="/agent.css">
+    <link rel="stylesheet" href="/workspace.css">
     <script src="/i18n.js" defer></script>
-    <script src="/wallet-strip.js" defer></script>
+    <script src="/workspace.js" defer></script>
     <script src="/telemetry-gate.js" defer></script>
     <script src="/telemetry.js" defer></script>
 </head>
@@ -25,9 +26,10 @@
     <section id="wallet-strip" class="wallet-strip" aria-label="Wallet-Kontostände"></section>
     <main>
         <div class="page-title telemetry-title">
-            <div><h1>Telemetrie</h1>
+            <div><p class="kicker">SYSTEM</p><h1>Sensoren & Messwerte</h1>
                 <p id="updated">Warte auf Daten</p></div>
             <span id="sensor-status" class="tag">Sensoren werden geladen</span></div>
+        <p class="sensor-guide">Diese Werte beschreiben deinen PC. Leistungsaufnahme und Temperaturen sind von Mining-Hashrate und Node-Leistungsziel getrennt. „—“ bedeutet: kein verfügbarer Messwert.</p>
         <section class="telemetry-overview">
             <article class="telemetry-tile power"><span>LEISTUNG</span><strong id="total-power">—</strong><small
                     id="power-quality">—</small></article>
@@ -44,20 +46,21 @@
         </section>
         <details class="telemetry-details">
             <summary>Sensor-Details <span id="detail-count"></span></summary>
+            <div class="sensor-toolbar"><input id="sensor-search" type="search" placeholder="Sensor, Einheit oder Quelle suchen" aria-label="Sensoren durchsuchen"><label><input id="sensor-available" type="checkbox">Nur verfügbare Messwerte</label></div>
             <div id="sensor-sources" class="sources"></div>
             <div id="telemetry-list" class="telemetry-list"></div>
             <a href="/api/agent/telemetry" target="_blank" rel="noopener noreferrer">JSON ↗</a></details>
         <footer>SolarMiner PC-Agent</footer>
     </main>
 </div>
-<div id="lhm-gate" class="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title" hidden>
+<div id="lhm-gate" class="gate sensor-alert" role="region" aria-labelledby="gate-title" hidden>
     <section class="gate-card"><p class="kicker">WINDOWS SENSORZUGRIFF</p>
         <h2 id="gate-title">LibreHardwareMonitor starten</h2>
         <p id="gate-copy">Windows benötigt eine Administratorfreigabe, damit der Hardware-Monitor seine Sensoren starten
             kann.</p>
         <p id="gate-detail" class="muted"></p>
         <button id="gate-retry" class="button primary" type="button">LibreHardwareMonitor neu starten</button>
-        <p class="muted">Bestätige die Windows-UAC-Abfrage. Ohne Freigabe bleiben Agent und Telemetrie gesperrt.</p>
+        <p class="muted">Bestätige die Windows-UAC-Abfrage. Ohne Freigabe fehlen die Windows-Sensoren. Einige Mining-Steuerungsaktionen benötigen diesen Sensorzugriff.</p>
     </section>
 </div>
 </body>

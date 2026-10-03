@@ -6,8 +6,9 @@
     <meta name="theme-color" content="#0b1020">
     <title>SolarMiner · Hardware</title>
     <link rel="stylesheet" href="/agent.css">
+    <link rel="stylesheet" href="/workspace.css">
     <script src="/i18n.js" defer></script>
-    <script src="/wallet-strip.js" defer></script>
+    <script src="/workspace.js" defer></script>
     <script src="/hardware.js" defer></script>
 </head>
 <body class="hardware-page">
@@ -23,9 +24,10 @@
     <section id="wallet-strip" class="wallet-strip" aria-label="Wallet-Kontostände"></section>
     <main>
         <div class="page-title hardware-title">
-            <div><h1>Hardware</h1>
+            <div><p class="kicker">OPTIMIERUNG</p><h1>Leistungsgrenzen</h1>
                 <p id="updated">Warte auf Daten</p></div>
         </div>
+        <p class="page-lead">Lege fest, wie viel Leistung deine GPUs im geregelten Betrieb nutzen dürfen. Treibergrenzen geben den verfügbaren Bereich vor. Änderungen werden erst mit „Grenzen anwenden“ gespeichert.</p>
         <div id="notice" class="notice" role="status" hidden></div>
         <section class="hardware-controls">
             <div id="control-settings" class="control-settings"></div>

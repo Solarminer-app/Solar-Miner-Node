@@ -6,14 +6,16 @@ const make = (tag, cls, value) => {
     return e;
 };
 let timer;
+let actionBusy = false;
+const t = window.SolarMinerI18n.t;
 let lastResults = '';
 let polling = false;
 let lastRenderRunning = null;
 let lastUploadStatus = '';
 
-function notice(text, error = false) {
+function notice(text, error = false, kind = 'action') {
     const e = $('notice');
-    e.hidden = false;
+    e.hidden = false; e.dataset.kind = kind;
     e.className = `notice${error ? ' error' : ''}`;
     e.textContent = text;
 }
@@ -39,7 +41,7 @@ async function renderResults(results, running = false, phase = '') {
     if (!results?.length) {
         root.append(make('p', 'empty', running
             ? `${phase || 'Benchmark läuft'} · Warte auf die ersten gültigen Hashrate-Messpunkte …`
-            : 'Keine gültigen Mining-Messwerte erfasst. Prüfe, ob Miner laufen und Hashrate liefern.'));
+            : !phase || phase === 'Idle' ? 'Noch keine Messung. Wähle oben einen Messlauf.' : 'Keine gültigen Mining-Messwerte erfasst. Prüfe, ob Miner laufen und Hashrate liefern.'));
         return;
     }
     for (const row of results) {
@@ -66,12 +68,13 @@ async function poll() {
         const response = await fetch('/api/agent/benchmarks', {cache: 'no-store'});
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const state = await response.json();
+        if ($('notice').dataset.kind === 'connection') $('notice').hidden = true;
         $('connection').className = 'badge online';
         $('connection').textContent = 'Agent verbunden';
-        $('run-state').textContent = state.phase || 'Bereit';
+        $('run-state').textContent = t(state.phase === 'Idle' ? 'Bereit' : state.phase || 'Bereit');
         $('cancel').hidden = !state.running;
         $('progress-wrap').hidden = !state.running;
-        $('run-live').disabled = $('run-installed').disabled = state.running;
+        $('run-live').disabled = $('run-installed').disabled = state.running || actionBusy;
         if (state.running) {
             $('upload-status').hidden = true;
             $('retry-upload').hidden = true;
@@ -98,7 +101,9 @@ async function poll() {
         if (!state.running) await pollUploadStatus();
     } catch (e) {
         $('connection').className = 'badge offline';
-        $('connection').textContent = 'Agent nicht erreichbar';
+        $('connection').textContent = t('Agent nicht erreichbar');
+        $('run-live').disabled = $('run-installed').disabled = true;
+        notice('Benchmark-Status konnte nicht geladen werden. Vorhandene Ergebnisse bleiben sichtbar.', true, 'connection');
     } finally {
         polling = false;
     }
@@ -131,17 +136,15 @@ function showUploadStatus(id, status, label) {
 }
 
 async function start(mode) {
-    const response = await fetch('/api/agent/benchmarks', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({mode})
-    });
-    if (!response.ok) {
-        const body = await response.text();
-        return notice(body || 'Benchmark konnte nicht gestartet werden.', true);
-    }
-    $('results').replaceChildren(make('p', 'empty', 'Messlauf gestartet …'));
-    await poll();
+    if (actionBusy) return; actionBusy = true;
+    $('run-live').disabled = $('run-installed').disabled = true;
+    try {
+        const response = await fetch('/api/agent/benchmarks', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode})});
+        if (!response.ok) { const body = await response.json().catch(() => null); throw new Error(body?.message || body?.detail || 'Benchmark konnte nicht gestartet werden.'); }
+        notice('Messlauf gestartet. Du kannst ihn jederzeit abbrechen.');
+        $('results').replaceChildren(make('p', 'empty', t('Messlauf gestartet …')));
+    } catch (error) { notice(error.message, true); }
+    finally { actionBusy = false; await poll(); }
 }
 
 $('run-live').addEventListener('click', () => start('LIVE'));
@@ -161,27 +164,31 @@ $('retry-upload').addEventListener('click', async () => {
     }
 });
 $('cancel').addEventListener('click', async () => {
-    await fetch('/api/agent/benchmarks/cancel', {method: 'POST'});
-    await poll();
+    if (actionBusy) return; actionBusy = true; $('cancel').disabled = true;
+    try { const response = await fetch('/api/agent/benchmarks/cancel', {method:'POST'}); if (!response.ok) throw new Error('Messlauf konnte nicht abgebrochen werden.'); notice('Abbruch angefordert. Der vorherige Mining-Zustand wird wiederhergestellt.'); }
+    catch (error) { notice(error.message, true); }
+    finally {actionBusy=false;$('cancel').disabled=false;await poll();}
 });
 $('refresh').addEventListener('click', poll);
+function sharingSummary() { $('sharing-summary').textContent = t($('sharing').checked ? 'EINGESCHALTET' : 'AUSGESCHALTET'); }
 $('sharing').addEventListener('change', async () => {
-    const input = $('sharing');
-    input.disabled = true;
-    const response = await fetch('/api/agent/benchmarks/sharing', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({enabled: input.checked})
-    });
-    if (!response.ok) {
-        input.checked = !input.checked;
-        notice('Die Freigabe konnte nicht gespeichert werden.', true);
-    } else $('sharing-note').textContent = input.checked ? 'Freigabe gespeichert. Aktive Miner werden regelmäßig übertragen.' : 'Freigabe deaktiviert. Der Widerruf wird beim nächsten Versandintervall übermittelt.';
-    input.disabled = false;
+    const input = $('sharing'); input.disabled = true;
+    try {
+        const response = await fetch('/api/agent/benchmarks/sharing', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:input.checked})});
+        if (!response.ok) throw new Error('Die Freigabe konnte nicht gespeichert werden.');
+        $('sharing-note').textContent = t(input.checked ? 'Freigabe gespeichert. Aktive Miner werden regelmäßig übertragen.' : 'Freigabe deaktiviert. Der Widerruf wird beim nächsten Versandintervall übermittelt.');
+    } catch (error) {input.checked=!input.checked;notice(error.message,true);}
+    finally {input.disabled=false;sharingSummary();}
 });
-fetch('/api/agent/benchmarks/sharing').then(r => r.json()).then(v => {
-    $('sharing').checked = Boolean(v)
+$('sharing').disabled = true;
+fetch('/api/agent/benchmarks/sharing').then(async response => {
+    if (!response.ok) throw new Error('Sharing unavailable');
+    const value = await response.json(); if (typeof value !== 'boolean') throw new Error('Invalid consent');
+    $('sharing').checked = value; $('sharing').disabled = false; sharingSummary();
 }).catch(() => {
+    $('sharing-summary').textContent = t('Nicht verfügbar');
+    $('sharing-note').textContent = t('Die Freigabe konnte nicht gelesen werden. Aktualisiere die Seite, bevor du sie änderst.');
 });
+
 poll();
-timer = setInterval(poll, 1000);
+timer = setInterval(() => {if (!document.hidden) poll();}, 1000);

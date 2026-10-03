@@ -43,7 +43,7 @@ public class AgentPowerController {
         AgentControlSettingsService.Settings owner = controls.get();
         List<GpuStatus> cards = gpus.discover().stream().map(g -> new GpuStatus(g.deviceId(), g.vendor(), g.index(), g.model(),
                 g.driverMinWatts(), g.driverMaxWatts(), g.minWatts(), g.maxWatts(), g.currentPowerLimitWatts(),
-                g.currentWatts(), g.usageMeasurement(), g.supportsDynamicPowerScaling(), g.regulationError(), controls.workerEnabled(g.deviceId()))).toList();
+                g.currentWatts(), g.usageMeasurement(), g.supportsDynamicPowerScaling(), g.regulationError(), mining.externallySelected(g.deviceId()))).toList();
         if (externalView) cards = owner.externalControlEnabled()
                 ? cards.stream().filter(GpuStatus::externalControlEnabled).toList() : List.of();
         long min = mining.calculateMinPowerTargetFromComponents(), max = mining.calculateMaxPowerTargetFromComponents();
@@ -57,7 +57,7 @@ public class AgentPowerController {
                 measured ? "measured" : "unavailable", mining.desiredGlobalPowerTarget() == 0,
                 externalView ? Map.of() : owner.workerExternalControl(), cards,
                 application.requestedWatts(), application.appliedWatts(), application.appliedCpuWatts(), application.appliedGpuWatts(),
-                application.status().name(), application.failureReason());
+                application.status().name(), application.failureReason(), externalView ? Map.of() : (owner.workerCoins() == null ? Map.of() : owner.workerCoins()));
     }
 
     @PostMapping("/target")
@@ -103,9 +103,9 @@ public class AgentPowerController {
     private void logExternalChange(String message) {
         String line = Instant.now() + " [SolarMiner] [Remote Control] " + message;
         if (controls.workerEnabled("cpu")) consoles.append("monero", line);
-        var selected = gpus.discover().stream().filter(gpu -> controls.workerEnabled(gpu.deviceId())).toList();
-        if (!selected.isEmpty()) consoles.append("pearl", line);
-        selected.forEach(gpu -> consoles.append("pearl-" + gpu.vendor() + "-" + gpu.index(), line));
+        var selected = gpus.discover().stream().filter(gpu -> mining.externallySelected(gpu.deviceId())).toList();
+        selected.stream().map(gpu -> controls.get().coinFor(gpu.deviceId())).distinct().forEach(coin -> consoles.append(coin, line));
+        selected.forEach(gpu -> consoles.append(controls.get().coinFor(gpu.deviceId()) + "-" + gpu.vendor() + "-" + gpu.index(), line));
     }
 
     @GetMapping("/settings")
@@ -113,7 +113,10 @@ public class AgentPowerController {
 
     @PostMapping("/settings")
     public AgentControlSettingsService.Settings settings(@RequestBody AgentControlSettingsService.Settings value) {
-        if (!controls.update(value)) throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Lokale Steuereinstellungen konnten nicht gespeichert werden");
+        // Assignments go through /workers/{id}/coin so a running old assignment is stopped first.
+        if (value == null || !controls.update(new AgentControlSettingsService.Settings(value.dynamicPowerScalingEnabled(),
+                value.externalControlEnabled(), value.workerExternalControl(), controls.get().workerCoins())))
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Lokale Steuereinstellungen konnten nicht gespeichert werden");
         return controls.get();
     }
 
@@ -131,6 +134,23 @@ public class AgentPowerController {
                     consoles.append("pearl-" + gpu.vendor() + "-" + gpu.index(), line));
         }
         return controls.get();
+    }
+
+    /** Persistent local assignment; selecting a tab never changes this profile. */
+    @PostMapping("/workers/{workerId}/coin")
+    public AgentControlSettingsService.Settings workerCoin(@PathVariable String workerId, @RequestParam String coin) {
+        if (!"cpu".equals(workerId) && gpus.discover().stream().noneMatch(g -> g.deviceId().equals(workerId)))
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Gerät wurde nicht erkannt");
+        if (!java.util.Set.of("none", "monero", "pearl", "ravencoin", "ethereumclassic").contains(coin)
+                || ("cpu".equals(workerId) ? !("none".equals(coin) || "monero".equals(coin)) : "monero".equals(coin)))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coin passt nicht zur Hardware");
+        return withControl(() -> {
+            if (!coin.equals(controls.get().coinFor(workerId)) && !mining.stopExternalWorker(workerId))
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Vorheriger Worker konnte nicht angehalten werden");
+            if (!controls.setWorkerCoin(workerId, coin))
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Standard konnte nicht gespeichert werden");
+            return controls.get();
+        }, false);
     }
 
     private <T> T withControl(java.util.function.Supplier<T> command, boolean external) {
@@ -161,7 +181,7 @@ public class AgentPowerController {
                               long defaultPowerWatts, long currentTargetWatts, Long currentUsageWatts,
                               String usageMeasurement, boolean miningPaused, Map<String, Boolean> workerExternalControl, List<GpuStatus> gpus,
                               long requestedTargetWatts, long appliedTargetWatts, long appliedCpuTargetWatts, long appliedGpuTargetWatts,
-                              String targetApplicationStatus, String targetApplicationFailureReason) { }
+                              String targetApplicationStatus, String targetApplicationFailureReason, Map<String, String> workerCoins) { }
     public record GpuStatus(String deviceId, String vendor, int index, String model, int driverMinPowerLimitWatts,
                             int driverMaxPowerLimitWatts, int userMinPowerLimitWatts, int userMaxPowerLimitWatts,
                             Integer currentPowerLimitWatts, Double currentUsageWatts, String usageMeasurement,

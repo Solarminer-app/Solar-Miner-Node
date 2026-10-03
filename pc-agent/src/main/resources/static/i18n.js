@@ -4,6 +4,183 @@
   const saved = (() => { try { return localStorage.getItem(preferenceKey); } catch (_) { return null; } })();
   const locale = supported.includes(saved) ? saved : (navigator.language || 'en').toLowerCase().startsWith('de') ? 'de' : 'en';
   const translations = {
+    "Miner lokal steuern und Geräte für die Automatisierung zuordnen.": "Control miners locally and assign devices for automation.",
+    "Node-Profil öffnen": "Open Node profile",
+    "Node-Profil": "Node profile",
+    "AUTOMATISIERUNG": "AUTOMATION",
+    "MINER-BIBLIOTHEK": "MINER LIBRARY",
+    "Deine Miner": "Your miners",
+    "Öffne einen installierten Miner oder ergänze einen für deine CPU oder GPU.": "Open an installed miner or add one for your CPU or GPU.",
+    "MANUELLE STEUERUNG": "MANUAL CONTROL",
+    "Installation verwalten": "Manage installation",
+    "Beim Entfernen wird der Miner angehalten. Deine Pool- und Wallet-Konfiguration bleibt gespeichert.": "Removing the miner stops it. Your pool and wallet configuration is kept.",
+    "Pool verbunden": "Pool connected",
+    "Leistungsobergrenze nicht gemeldet": "Power ceiling not reported",
+    "Node-Status nicht verfügbar.": "Node status unavailable.",
+    "Ein Worker braucht Aufmerksamkeit.": "A worker needs attention.",
+    "Die Freigabe konnte nicht gelesen werden. Aktualisiere die Seite, bevor du sie änderst.": "Could not read sharing permissions. Refresh the page before changing them.",
+    "BETRIEB": "OPERATIONS",
+    "OPTIMIERUNG": "OPTIMIZATION",
+    "SYSTEM": "SYSTEM",
+    "Übersicht": "Overview",
+    "Miner": "Miners",
+    "Leistungsgrenzen": "Power limits",
+    "Sensoren": "Sensors",
+    "Verbindung": "Connection",
+    "Dein lokaler Mining-Agent": "Your local mining agent",
+    "Auf diesem PC · lokal im Netzwerk": "On this PC · local network",
+    "Hauptnavigation": "Main navigation",
+    "Navigation öffnen": "Open navigation",
+    "Navigation schließen": "Close navigation",
+    "Zum Inhalt springen": "Skip to content",
+    "Verbindung zum Agent unterbrochen. Angezeigte Werte können veraltet sein.": "The agent connection was interrupted. Displayed values may be outdated.",
+    "Kontostände & Auszahlung": "Balances & payouts",
+    "DEIN MINING-BETRIEB": "YOUR MINING OPERATIONS",
+    "AKTIVE WORKER": "ACTIVE WORKERS",
+    "NODE-PROFIL": "NODE PROFILE",
+    "Status wird geladen …": "Loading status …",
+    "Laufende Miner, Node-Freigabe und Verbindungsstatus auf einen Blick.": "Running miners, Node permissions and connection status at a glance.",
+    "Dein PC arbeitet.": "Your PC is working.",
+    "Bereit, wenn du es bist.": "Ready when you are.",
+    "Dein erster Miner": "Your first miner",
+    "Die laufenden Worker findest du unten. Manuelle Starts und das Node-Profil lassen sich unabhängig steuern.": "See your running workers below. Manual starts and the Node profile are controlled independently.",
+    "Aktuell läuft kein Worker. Starte einen Miner manuell oder lass den Node dein gespeichertes Profil steuern.": "No worker is running. Start a miner manually or let the Node control your saved profile.",
+    "Installiere einen passenden Miner, richte Pool und Auszahlung ein und starte anschließend bewusst.": "Install a suitable miner, configure the pool and payout, then start it when you are ready.",
+    "Mindestens ein Worker meldet einen Fehler.": "At least one worker is reporting an error.",
+    "CPU und GPU getrennt erfasst": "CPU and GPU recorded separately",
+    "Freigabe nicht verfügbar": "Permission unavailable",
+    "Geräte für den Node freigegeben": "Devices assigned to the Node",
+    "Mining-Verbindung": "Mining connection",
+    "Proxy erreichbar. Die Fee-Route wird je Coin beim Start geprüft.": "Proxy reachable. The fee route is checked for each coin at startup.",
+    "Proxy nicht erreichbar. Prüfe die Verbindung vor dem Start.": "Proxy unreachable. Check the connection before starting.",
+    "Verbindung prüfen →": "Check connection →",
+    "Automatisierung": "Automation",
+    "Node-Freigabe konnte nicht gelesen werden.": "Could not read Node permissions.",
+    "Der Node darf das Geräteprofil steuern.": "The Node may control the device profile.",
+    "Du entscheidest lokal. Der Node darf keine Miner starten.": "You control mining locally. The Node may not start miners.",
+    "Node-Profil öffnen →": "Open Node profile →",
+    "Node-Bewertung verfügbar. Details zur Entscheidung bleiben beim Node.": "Node assessment available. Decision details remain on the Node.",
+    "Kein Node verbunden. Lokales Mining bleibt möglich.": "No Node connected. Local mining is still available.",
+    "Miner hinzufügen": "Add a miner",
+    "Wähle CPU oder GPU und installiere den passenden Miner über das Plus.": "Choose CPU or GPU and install a suitable miner using the plus button.",
+    "Miner hinzufügen →": "Add miner →",
+    "Einrichtung abschließen": "Complete setup",
+    "Pool, Auszahlung und Geräteauswahl fehlen bei einem installierten Miner.": "An installed miner needs its pool, payout and device selection configured.",
+    "Verbindung prüfen": "Check connection",
+    "Die Mining-Verbindung ist nicht erreichbar. Prüfe lokalen oder externen Proxy.": "The mining connection is unreachable. Check the local or external proxy.",
+    "Verbindung öffnen →": "Open connection →",
+    "Worker prüfen": "Check worker",
+    "Ein Miner meldet einen Fehler. Seine Konsole hilft bei der Diagnose.": "A miner is reporting an error. Its console can help diagnose the issue.",
+    "Node-Profil festlegen": "Define Node profile",
+    "Die Steuerung ist erlaubt, aber noch kein Gerät dem Node zugeordnet.": "Control is allowed, but no device is assigned to the Node yet.",
+    "Geräte zuordnen →": "Assign devices →",
+    "Aktuelle Messwerte": "Current readings",
+    "Hashrate je Algorithmus": "Hashrate by algorithm",
+    "Algorithmus für Hashrate-Verlauf": "Algorithm for hashrate history",
+    "Nur dieser Algorithmus · Verlauf seit Seitenaufruf": "Only this algorithm · history since opening this page",
+    "Noch keine Worker": "No workers yet",
+    "Messverlauf seit Öffnen dieser Seite": "Measurement history since opening this page",
+    "Sensorwerte konnten nicht geladen werden": "Could not load sensor readings",
+    "Ertrag pro Tag": "Daily earnings",
+    "Brutto-Prognose aus aktueller Hashrate und Netzwerkdaten. Gebühren und Stromkosten sind noch nicht abgezogen; dies ist keine Pool-Gutschrift.": "Gross forecast from current hashrate and network data. Fees and electricity costs have not been deducted; this is not a pool credit.",
+    "Ertragsprognosen erscheinen, sobald ein Miner eingerichtet ist und Hashrate liefert.": "Earnings forecasts appear once a miner is configured and reports hashrate.",
+    "Dynamische Leistungsregelung": "Dynamic power control",
+    "Der Node darf Wattziele innerhalb deiner Grenzen verteilen. Ohne Regelung bleiben Start und Pause möglich.": "The Node may allocate power within your limits. Start and pause remain available without dynamic control.",
+    "Welche Geräte der Node verwendet, legst du im Mining-Profil fest →": "Assign devices used by the Node in the mining profile →",
+    "Lege fest, wie viel Leistung deine GPUs im geregelten Betrieb nutzen dürfen. Treibergrenzen geben den verfügbaren Bereich vor. Änderungen werden erst mit „Grenzen anwenden“ gespeichert.": "Choose how much power your GPUs may use under dynamic control. Driver limits define the available range. Changes are saved only when you apply them.",
+    "minimale SolarMiner-Leistung": "minimum SolarMiner power",
+    "maximale SolarMiner-Leistung": "maximum SolarMiner power",
+    "Grenzen anwenden": "Apply limits",
+    "Verwerfen": "Discard",
+    "Gespeicherte Grenzen. Verschieben ändert noch nichts.": "Saved limits. Moving the sliders does not apply changes.",
+    "Noch nicht angewendet.": "Not applied yet.",
+    "Die Treiber haben diese Grenzen abgelehnt. Der Entwurf bleibt zum Prüfen erhalten.": "The drivers rejected these limits. Your draft is retained for review.",
+    "Leistungsgrenzen gespeichert.": "Power limits saved.",
+    "Leistungsregelung aktualisiert.": "Power control updated.",
+    "Für dieses Gerät ist nur Start/Stopp verfügbar. Leistungsgrenzen können nicht zuverlässig angewendet werden.": "This device supports start/stop only. Power limits cannot be applied reliably.",
+    "Dynamische Leistungsregelung ist ausgeschaltet. Aktiviere sie oben, um Grenzen zu bearbeiten.": "Dynamic power control is disabled. Enable it above to edit limits.",
+    "Gerätekennung": "Device identity",
+    "Keine regelbare GPU erkannt": "No controllable GPU detected",
+    "Prüfe GPU-Treiber und Gerätezugriff. CPU-Mining kannst du unabhängig davon in Miner einrichten.": "Check GPU drivers and device access. You can set up CPU mining independently in Miners.",
+    "Wähle die Art der Messung. Ein Ergebnis benötigt 12 gültige Hashrate-Messpunkte pro Worker; die Dauer hängt vom Verbindungsaufbau ab. Ergebnisse bleiben auch ohne Teilen lokal sichtbar.": "Choose a measurement mode. A result requires 12 valid hashrate samples per worker; duration depends on establishing the connection. Results remain visible locally without sharing.",
+    "IM LAUFENDEN BETRIEB": "WHILE MINING",
+    "VERGLEICH DER KONFIGURATIONEN": "COMPARE CONFIGURATIONS",
+    "Aktuelle Miner messen": "Measure current miners",
+    "Beobachtet Miner, die bereits laufen. Startet oder pausiert keine Worker. Ideal, um deine aktuelle Konfiguration zu prüfen.": "Observes miners that are already running. Does not start or pause workers. Use it to check your current configuration.",
+    "Testet konfigurierte Miner nacheinander. Laufende verwaltete Worker werden dafür vorübergehend pausiert und anschließend wiederhergestellt. Die Node-Steuerung ist währenddessen gesperrt.": "Tests configured miners in sequence. Running managed workers are temporarily paused and then restored. Node control is blocked during the test.",
+    "Messlauf abbrechen": "Cancel measurement",
+    "Noch keine Messung. Wähle oben einen Messlauf.": "No measurement yet. Choose a mode above.",
+    "Anonyme Benchmarks teilen": "Share anonymous benchmarks",
+    "AUSGESCHALTET": "DISABLED",
+    "EINGESCHALTET": "ENABLED",
+    "Messlauf gestartet. Du kannst ihn jederzeit abbrechen.": "Measurement started. You can cancel it at any time.",
+    "Benchmark-Status konnte nicht geladen werden. Vorhandene Ergebnisse bleiben sichtbar.": "Could not load benchmark status. Existing results remain visible.",
+    "Abbruch angefordert. Der vorherige Mining-Zustand wird wiederhergestellt.": "Cancellation requested. The previous mining state will be restored.",
+    "Messlauf konnte nicht abgebrochen werden.": "Could not cancel the measurement.",
+    "Sensoren & Messwerte": "Sensors & readings",
+    "Diese Werte beschreiben deinen PC. Leistungsaufnahme und Temperaturen sind von Mining-Hashrate und Node-Leistungsziel getrennt. „—“ bedeutet: kein verfügbarer Messwert.": "These readings describe your PC. Power draw and temperatures are separate from mining hashrate and the Node power target. “—” means no measurement is available.",
+    "Sensor, Einheit oder Quelle suchen": "Search sensor, unit or source",
+    "Sensoren durchsuchen": "Search sensors",
+    "Nur verfügbare Messwerte": "Available readings only",
+    "Keine Sensoren passen zu diesem Filter.": "No sensors match this filter.",
+    "Ohne Freigabe fehlen die Windows-Sensoren. Einige Mining-Steuerungsaktionen benötigen diesen Sensorzugriff.": "Without permission, Windows sensors are unavailable. Some mining control actions require access to these sensors.",
+    "Der Proxy verbindet deine Miner mit den Pools und stellt die SolarMiner-Fee-Route bereit. Verwende den enthaltenen Proxy oder wähle bewusst einen Server in deinem Netzwerk.": "The proxy connects miners to pools and provides the SolarMiner fee route. Use the included proxy or choose a server on your network.",
+    "Verbindung wird geladen …": "Loading connection …",
+    "AUF DIESEM PC": "ON THIS PC",
+    "IM NETZWERK": "ON YOUR NETWORK",
+    "AUSGEWÄHLT": "SELECTED",
+    "Lokaler Proxy": "Local proxy",
+    "Externer Proxy": "External proxy",
+    "Im PC-Agent enthalten. Für einen einzelnen PC brauchst du keinen zusätzlichen Server.": "Included with the PC agent. A single PC does not need an additional server.",
+    "Ein Wechsel pausiert alle Miner. Starte sie anschließend bewusst neu.": "Switching pauses all miners. Restart them when you are ready.",
+    "Lokalen Proxy verwenden": "Use local proxy",
+    "Für einen gemeinsamen SolarMiner-Proxy auf einem anderen Gerät. Die Suche zeigt Kandidaten; du bestimmst den Server.": "Use a shared SolarMiner proxy on another device. Discovery lists candidates; you choose the server.",
+    "Hostname oder IP-Adresse. Aktivieren pausiert alle Miner.": "Hostname or IP address. Activation pauses all miners.",
+    "Im Netzwerk suchen": "Search network",
+    "Externen Proxy aktivieren": "Activate external proxy",
+    "Coin-Routen & Verbindungsdetails": "Coin routes & connection details",
+    "Ein erreichbarer Proxy ist Voraussetzung für Mining. Listener und Fee-Ziel werden für jeden Coin separat geprüft. Vorbereitete Coins erhalten dadurch keine Produktionsfreigabe.": "Mining requires a reachable proxy. The listener and fee target are checked separately for each coin. Prepared coins are not released by this action.",
+    "Der Agent hat die Verbindungsänderung abgelehnt. Prüfe Sensorfreigabe, Proxy und Agent-Logs.": "The agent rejected the connection change. Check sensor permissions, the proxy and agent logs.",
+    "Verbindung geändert. Alle Miner wurden pausiert. Starte sie auf der Miner-Seite erneut.": "Connection changed. All miners were paused. Restart them on the Miners page.",
+    "Lokaler Proxy ausgewählt": "Local proxy selected",
+    "Externer Proxy ausgewählt": "External proxy selected",
+    "Proxy erreichbar": "Proxy reachable",
+    "Proxy nicht erreichbar": "Proxy unreachable",
+    "Der enthaltene Proxy läuft auf diesem PC.": "The included proxy is running on this PC.",
+    "Der lokale Proxy ist noch nicht bereit.": "The local proxy is not ready yet.",
+    "Kein externer Host gespeichert.": "No external host saved.",
+    "VORBEREITET": "PREPARED",
+    "FEE-ZIEL GELADEN": "FEE TARGET LOADED",
+    "FEE-ZIEL FEHLT": "FEE TARGET MISSING",
+    "Keine Route verfügbar": "No route available",
+    "Wähle einen gefundenen Proxy. Die Verbindung wird erst beim Aktivieren geändert.": "Choose a discovered proxy. The connection changes only when you activate it.",
+    "Kein Proxy gefunden. Du kannst einen bekannten Host manuell eintragen.": "No proxy found. You can enter a known host manually.",
+    "auswählen": "select",
+    "Suche fehlgeschlagen:": "Search failed:",
+    "DEINE STANDARDKONFIGURATION": "YOUR DEFAULT CONFIGURATION",
+    "Was darf der Node minen?": "What may the Node mine?",
+    "Node-Steuerung erlauben": "Allow Node control",
+    "Geräte & Standard-Coins zuordnen": "Assign devices and default coins",
+    "Lege pro Gerät den Standard-Coin fest. „Nur lokal / Benchmarks“ schließt das Gerät von automatischen Starts und der Leistungsplanung des Node aus. Du kannst es weiterhin manuell nutzen.": "Choose the default coin for each device. “Local / benchmarks only” excludes that device from automatic starts and the Node’s power planning. You can still use it manually.",
+    "Nur lokal / Benchmarks": "Local / benchmarks only",
+    "Standard für den Node": "Default for the Node",
+    "Geräte werden geladen …": "Loading devices …",
+    "Lade Node-Profil …": "Loading Node profile …",
+    "Leistungsgrenzen einstellen →": "Set power limits →",
+    "Bleibt lokal. Für den Node: 0 W.": "Stays local. For the Node: 0 W.",
+    "Gerätefreigabe ist in Hardware deaktiviert.": "Device permission is disabled in Hardware.",
+    "Miner zuerst über + installieren.": "Install the miner using + first.",
+    "Einrichtung fehlt: Pool, Wallet und dieses Gerät auswählen.": "Setup required: choose the pool, wallet and this device.",
+    "Vorbereitet. Mining-Route noch nicht freigegeben.": "Prepared. The mining route is not released yet.",
+    "Im Node-Profil enthalten.": "Included in the Node profile.",
+    "Gespeichert. Node-Steuerung ist ausgeschaltet.": "Saved. Node control is disabled.",
+    "Miner einrichten →": "Set up miner →",
+    "Status & Geräte": "Status & devices",
+    "Einrichtung": "Setup",
+    "Konsole & Diagnose": "Console & diagnostics",
+    "Geräte und Standard-Coins im Mining-Profil festlegen →": "Assign devices and default coins in the mining profile →",
+    "Node-Steuerung erlaubt. Nur Geräte aus diesem Profil werden automatisch verwendet.": "Node control allowed. Only devices in this profile are used automatically.",
+    "Node-Steuerung ausgeschaltet. Laufende Miner kannst du weiterhin lokal pausieren.": "Node control disabled. You can still pause running miners locally.",
     'Overview': 'Overview', 'Mining': 'Mining', 'Hardware': 'Hardware', 'Telemetrie': 'Telemetry',
     'Verbinde …': 'Connecting …', 'Aktualisieren': 'Refresh', 'Warte auf Daten': 'Waiting for data',
     'DEIN PC IM ÜBERBLICK': 'YOUR PC AT A GLANCE', 'Mining öffnen →': 'Open mining →',
@@ -50,6 +227,7 @@
     'Mining aktiv': 'Mining active', 'Pausiert': 'Paused', 'Gestoppt': 'Stopped', 'Fehler': 'Error', 'Online': 'Online', 'Offline': 'Offline',
     'Verbunden': 'Connected', 'Nicht erreichbar': 'Unavailable', 'Agent verbunden': 'Agent connected', 'Agent nicht erreichbar': 'Agent unavailable',
     'Lokaler Dienst': 'Local service', 'Externer SolarMiner-Proxy': 'External SolarMiner proxy', 'Installiert': 'Installed', 'Noch nicht installiert': 'Not installed',
+    'Miner werden geladen …': 'Loading miners …', 'Betriebsdaten werden geladen …': 'Loading operational data …',
     'DATEN VERALTET': 'STALE DATA', 'LIVE-SCHÄTZUNG': 'LIVE ESTIMATE', 'NOCH NICHT VERFÜGBAR': 'NOT AVAILABLE YET', 'Marktdaten werden geladen': 'Loading market data',
     'Nicht verfügbar': 'Unavailable', 'Keine GPU erkannt.': 'No GPU detected.', 'Keine GPU vom Treiber erkannt.': 'No GPU was detected by the driver.',
     'Wähle mindestens eine GPU.': 'Select at least one GPU.', 'Keine unterstützte GPU erkannt.': 'No supported GPU detected.',
@@ -101,7 +279,9 @@
   };
   function translate(value) {
     if (locale !== 'en' || typeof value !== 'string') return value;
-    if (translations[value]) return translations[value];
+    const normalized = value.replace(/\s+/g, ' ').trim();
+    if (!normalized) return value;
+    if (translations[normalized]) return translations[normalized];
     const patterns = [
       [/^Aktualisiert (.+)$/, 'Updated $1'], [/^Stand (.+)$/, 'As of $1'], [/^Download (.+) %$/, 'Download $1%'],
       [/^Aktiviert (.+)$/, 'Enabled $1'], [/^Maximal (.+)$/, 'Maximum $1'],
@@ -113,7 +293,7 @@
       [/^Konsole nicht erreichbar: (.+)$/, 'Console unavailable: $1'], [/^Status konnte nicht geladen werden: (.+)$/, 'Could not load status: $1'],
       [/^Aktivierung fehlgeschlagen: (.+)$/, 'Activation failed: $1']
     ];
-    for (const [pattern, replacement] of patterns) if (pattern.test(value)) return value.replace(pattern, replacement);
+    for (const [pattern, replacement] of patterns) if (pattern.test(normalized)) return normalized.replace(pattern, replacement);
     return value;
   }
   window.SolarMinerI18n = { locale: locale === 'de' ? 'de-DE' : 'en-US', language: locale, t: translate };
@@ -122,9 +302,10 @@
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
     nodes.forEach(node => { const translated = translate(node.nodeValue); if (translated !== node.nodeValue) node.nodeValue = translated; });
-    if (root instanceof Element) ['title', 'placeholder', 'aria-label'].forEach(attribute => {
-      if (root.hasAttribute(attribute)) root.setAttribute(attribute, translate(root.getAttribute(attribute)));
-    });
+    if (root instanceof Element) [root, ...root.querySelectorAll('[title], [placeholder], [aria-label]')].forEach(element =>
+      ['title', 'placeholder', 'aria-label'].forEach(attribute => {
+        if (element.hasAttribute(attribute)) element.setAttribute(attribute, translate(element.getAttribute(attribute)));
+      }));
   }
   document.addEventListener('DOMContentLoaded', () => {
     document.title = translate(document.title);
@@ -138,9 +319,18 @@
     switcher.innerHTML = '<option value="de">Deutsch</option><option value="en">English</option>'; switcher.value = locale;
     switcher.addEventListener('change', () => { try { localStorage.setItem(preferenceKey, switcher.value); } catch (_) {} location.reload(); });
     document.querySelector('.top-actions')?.prepend(switcher);
-    new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => {
-      if (node.nodeType === Node.TEXT_NODE) { const translated = translate(node.nodeValue); if (translated !== node.nodeValue) node.nodeValue = translated; }
-      else if (node.nodeType === Node.ELEMENT_NODE) translateTree(node);
-    }))).observe(document.body, { childList: true, subtree: true });
+    new MutationObserver(records => records.forEach(record => {
+      if (record.type === 'characterData') {
+        const translated = translate(record.target.nodeValue);
+        if (translated !== record.target.nodeValue) record.target.nodeValue = translated;
+      } else if (record.type === 'attributes') {
+        const value = record.target.getAttribute(record.attributeName), translated = translate(value);
+        if (translated !== value) record.target.setAttribute(record.attributeName, translated);
+      } else record.addedNodes.forEach(node => {
+        if (node.nodeType === Node.TEXT_NODE) { const translated = translate(node.nodeValue); if (translated !== node.nodeValue) node.nodeValue = translated; }
+        else if (node.nodeType === Node.ELEMENT_NODE) translateTree(node);
+      });
+    })).observe(document.body, { childList: true, characterData: true, attributes: true,
+      attributeFilter: ['title', 'placeholder', 'aria-label'], subtree: true });
   });
 })();

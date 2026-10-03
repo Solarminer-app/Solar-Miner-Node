@@ -14,6 +14,7 @@ import de.verdox.solarminer.pcagent.mining.WindowsDefenderExclusionService;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
 import de.verdox.solarminer.pcagent.mining.ProxyDiscoveryService;
 import de.verdox.solarminer.pcagent.pearl.PearlMinerService;
+import de.verdox.solarminer.pcagent.pearl.GpuCoinMinerService;
 import de.verdox.solarminer.pcagent.pearl.LocalGpuPowerService;
 import de.verdox.solarminer.pcagent.pearl.SrbDownloadService;
 import de.verdox.solarminer.pcagent.xmr.XmrConfigService;
@@ -32,6 +33,7 @@ public class MiningController {
     private final XmrConfigService xmrConfigService;
     private final ProxyConfigurationService proxyConfigurationService;
     private final PearlMinerService pearlMinerService;
+    private final GpuCoinMinerService gpuCoins;
     private final SrbDownloadService srbDownloadService;
     private final XmrDownloadService xmrDownloadService;
     private final LocalGpuPowerService gpuPowerService;
@@ -46,7 +48,7 @@ public class MiningController {
     private final WindowsDefenderExclusionService defenderExclusionService;
 
     public MiningController(MiningService miningService, XmrConfigService xmrConfigService,
-                            PearlMinerService pearlMinerService, LocalGpuPowerService gpuPowerService,
+                            PearlMinerService pearlMinerService, GpuCoinMinerService gpuCoins, LocalGpuPowerService gpuPowerService,
                             XmrMinerService xmrMinerService, ProxyConfigurationService proxyConfigurationService,
                             SrbDownloadService srbDownloadService, XmrDownloadService xmrDownloadService,
                             WindowsLhmBootstrapService lhmBootstrapService,
@@ -61,6 +63,7 @@ public class MiningController {
         this.xmrConfigService = xmrConfigService;
         this.proxyConfigurationService = proxyConfigurationService;
         this.pearlMinerService = pearlMinerService;
+        this.gpuCoins = gpuCoins;
         this.srbDownloadService = srbDownloadService;
         this.xmrDownloadService = xmrDownloadService;
         this.gpuPowerService = gpuPowerService;
@@ -93,10 +96,12 @@ public class MiningController {
     @GetMapping("/proxy")
     public ProxyOverview proxy() {
         return new ProxyOverview(proxyConfigurationService.host(), proxyConfigurationService.moneroUrl(),
-                proxyConfigurationService.pearlUrl(), proxyConfigurationService.isReachable(),
+                proxyConfigurationService.pearlUrl(), proxyConfigurationService.ravencoinUrl(),
+                proxyConfigurationService.ethereumclassicUrl(), proxyConfigurationService.isReachable(),
                 proxyConfigurationService.standalone() ? "standalone" : "external",
                 proxyConfigurationService.managedStatus(), proxyConfigurationService.managedDetail(),
-                proxyConfigurationService.feeReady("monero"), proxyConfigurationService.feeReady("pearl"));
+                proxyConfigurationService.feeReady("monero"), proxyConfigurationService.feeReady("pearl"),
+                proxyConfigurationService.feeReady("ravencoin"), proxyConfigurationService.feeReady("ethereumclassic"));
     }
 
     /** The node may set this through the LAN API; local edits are intentionally allowed but not authoritative. */
@@ -106,7 +111,10 @@ public class MiningController {
     @PostMapping("/referral")
     public boolean setReferral(@RequestParam String key) {
         boolean updated = referralConfigurationService.set(key);
-        if (updated) payoutDefaultsService.invalidate();
+        if (updated) {
+            payoutDefaultsService.invalidate();
+            proxyConfigurationService.invalidateFeeCache();
+        }
         return updated;
     }
 
@@ -140,9 +148,11 @@ public class MiningController {
         return proxyDiscoveryService.discover();
     }
 
-    public record ProxyOverview(String host, String moneroUrl, String pearlUrl, boolean reachable,
+    public record ProxyOverview(String host, String moneroUrl, String pearlUrl,
+                                String ravencoinUrl, String ethereumclassicUrl, boolean reachable,
                                 String mode, String managedStatus, String managedDetail,
-                                boolean moneroFeeReady, boolean pearlFeeReady) { }
+                                boolean moneroFeeReady, boolean pearlFeeReady,
+                                boolean ravencoinFeeReady, boolean ethereumclassicFeeReady) { }
 
     @PostMapping("/monero/configuration")
     public boolean setMoneroConfiguration(@RequestBody MoneroConfiguration request) throws java.io.IOException {
@@ -181,6 +191,11 @@ public class MiningController {
     @PostMapping("/pearl/download")
     public boolean retryPearlDownload() {
         return srbDownloadService.retry();
+    }
+
+    @PostMapping("/{coin}/download")
+    public boolean downloadGpuCoin(@PathVariable String coin) {
+        return GpuCoinMinerService.supported(coin) && srbDownloadService.retry();
     }
 
     @PostMapping("/monero/download")
@@ -242,8 +257,14 @@ public class MiningController {
 
     @PostMapping("/pearl/remove")
     public boolean removePearlMiner() {
-        if ("DOWNLOADING".equals(srbDownloadService.status()) || !pearlMinerService.stop()) return false;
+        if ("DOWNLOADING".equals(srbDownloadService.status()) || !pearlMinerService.stop()
+                || !gpuCoins.stop("ravencoin") || !gpuCoins.stop("ethereumclassic")) return false;
         return srbDownloadService.remove();
+    }
+
+    @PostMapping("/{coin}/remove")
+    public boolean removeGpuCoinMiner(@PathVariable String coin) {
+        return GpuCoinMinerService.supported(coin) && removePearlMiner();
     }
 
     @PostMapping("/monero/remove")
@@ -264,6 +285,24 @@ public class MiningController {
         pearlMinerService.configure(effective);
         payoutDefaultsService.markDefault("pearl", feeBackendPayout);
         return true;
+    }
+
+    @PostMapping("/{coin}/configuration")
+    public boolean setGpuCoinConfiguration(@PathVariable String coin,
+                                           @RequestBody GpuCoinMinerService.Config config) throws java.io.IOException {
+        if (!GpuCoinMinerService.supported(coin)) throw new IllegalArgumentException("Unbekannter GPU-Coin");
+        gpuCoins.configure(coin, config);
+        return miningService.switchCoin(coin);
+    }
+
+    @PostMapping("/{coin}/gpus/{vendor}/{index}/resume")
+    public boolean resumeGpuCoin(@PathVariable String coin, @PathVariable String vendor, @PathVariable int index) {
+        return lhmBootstrapService.readyForAgent() && gpuCoins.resumeGpu(coin, vendor, index);
+    }
+
+    @PostMapping("/{coin}/gpus/{vendor}/{index}/pause")
+    public boolean pauseGpuCoin(@PathVariable String coin, @PathVariable String vendor, @PathVariable int index) {
+        return gpuCoins.pauseGpu(coin, vendor, index);
     }
 
     /**
@@ -291,6 +330,21 @@ public class MiningController {
         return miningService.activeCoin();
     }
 
+    /** Local file checks only: navigation must not wait for GPU discovery, pools or market data. */
+    @GetMapping("/miner-catalog")
+    public List<MinerInstallation> minerCatalog() {
+        boolean cpuInstalled = xmrMinerService.binaryAvailable();
+        boolean gpuInstalled = pearlMinerService.binaryAvailable();
+        return List.of(
+                new MinerInstallation("monero", "Monero", "CPU", "RandomX", cpuInstalled, false),
+                new MinerInstallation("pearl", "Pearl", "GPU", "PearlHash", gpuInstalled, false),
+                new MinerInstallation("ravencoin", "Ravencoin", "GPU", "KAWPOW", gpuInstalled, true),
+                new MinerInstallation("ethereumclassic", "Ethereum Classic", "GPU", "ETCHash", gpuInstalled, true));
+    }
+
+    public record MinerInstallation(String id, String name, String device, String algorithm,
+                                    boolean binaryAvailable, boolean experimental) { }
+
     @GetMapping("/overview")
     public AgentOverview overview() {
         List<LocalGpuPowerService.Gpu> gpus = gpuPowerService.discover();
@@ -307,7 +361,13 @@ public class MiningController {
                         xmrConfigured, xmrMinerService.binaryAvailable(), false),
                 new CoinOverview("pearl", "Pearl", "PRL", "GPU", "PearlHash",
                         pearlMinerService.status(),
-                        pearlConfigured, pearlMinerService.binaryAvailable(), false));
+                        pearlConfigured, pearlMinerService.binaryAvailable(), false),
+                new CoinOverview("ravencoin", "Ravencoin", "RVN", "GPU", "KAWPOW",
+                        gpuCoins.status("ravencoin"), gpuCoins.configuration("ravencoin") != null,
+                        gpuCoins.binaryAvailable(), true),
+                new CoinOverview("ethereumclassic", "Ethereum Classic", "ETC", "GPU", "ETCHash",
+                        gpuCoins.status("ethereumclassic"), gpuCoins.configuration("ethereumclassic") != null,
+                        gpuCoins.binaryAvailable(), true));
         return new AgentOverview(stats, active, System.getProperty("os.name", "unknown"),
                 System.getProperty("os.arch", "unknown"), coins, earnings, gpus, proxy(), savedMoneroConfiguration(),
                 pearlMinerService.configuration(),
@@ -319,7 +379,14 @@ public class MiningController {
                         pearlMinerService.lastError(), pearlMinerService.connectionDetail(),
                         pearlMinerService.running(), pearlMinerService.poolHealthy(), pearlMinerService.gpuStates(gpus),
                         srbDownloadService.installDirectory().toString()),
-                payoutDefaults(), new ReferralOverview(referralConfigurationService.get()), feeTransparencyService.overview());
+                payoutDefaults(), new ReferralOverview(referralConfigurationService.get()), feeTransparencyService.overview(),
+                java.util.Map.of("ravencoin", gpuOverview("ravencoin", gpus),
+                        "ethereumclassic", gpuOverview("ethereumclassic", gpus)));
+    }
+
+    private GpuCoinOverview gpuOverview(String coin, List<LocalGpuPowerService.Gpu> gpus) {
+        return new GpuCoinOverview(gpuCoins.configuration(coin), gpuCoins.lastError(),
+                gpuCoins.running(coin), gpuCoins.gpuStates(coin, gpus));
     }
 
     /** Fee-backend payout per coin, shown so an empty wallet is never silently an unknown destination. */
@@ -365,7 +432,11 @@ public class MiningController {
                                 PearlReadiness pearl,
                                 List<PayoutOverview> payoutDefaults,
                                 ReferralOverview referral,
-                                List<FeeTransparencyService.FeeOverview> fees) { }
+                                List<FeeTransparencyService.FeeOverview> fees,
+                                java.util.Map<String, GpuCoinOverview> gpuCoins) { }
+
+    public record GpuCoinOverview(GpuCoinMinerService.Config configuration, String minerError,
+                                  boolean running, List<GpuCoinMinerService.GpuState> gpus) { }
 
     public record DownloadReadiness(String downloadStatus, String downloadDetail, int downloadProgress,
                                     String minerError, String installDirectory) { }

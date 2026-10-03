@@ -20,7 +20,11 @@
 | Document | Use / status |
 | --- | --- |
 | [Setup UX and PV discovery](setup-and-discovery.md) | Beginner-oriented device setup, bounded discovery API, verification and remaining hardware/UX gates; reviewed 2026-10-02. |
+| [UI/UX audit](ui-ux-audit-2026-10-02.md) | Source and Chrome desktop/mobile review of the local Node UI, reproducible usability findings and proposed redesign priorities; 2026-10-02. Proposals are not implemented behavior. |
+| [PC-Agent gesamtes UI/UX-Konzept](pc-agent-design-concept.md) | Bewertung, Aufgabenstruktur und umgesetzte Gestaltung aller sechs PC-Agent-Seiten mit Browser-Evidenz; 2026-10-03. |
+| [PC-Agent Mining UX and Node defaults](pc-agent-ux-profile.md) | Persistent per-device defaults, local/benchmark-only exclusion, browser and backend verification; 2026-10-03. |
 | [PC-Agent ownership and gaps](pc-agent.md) | Code-checked map and review queue, checked 2026-10-01. |
+| [RVN / ETC integration](rvn-etc-integration.md) | In-progress PC-Agent GPU contract and unverified gates; neither coin is enabled. |
 | [API](../API.md), [mining targets](../MINING-TARGETS.md) | Interface references; verify endpoints and behavior in code before changing them. |
 | [device protocol roadmap](../DEVICE_PROTOCOL_ROADMAP.md), [21energy status](../21ENERGY-SOFTWARE-STATUS.md) | Roadmap/status; follow [21energy integration guide](../../../21ENERGY-INTEGRATION.md) for related changes. |
 | [PC-Agent PV power control](../../PC-AGENT-PV-POWER-CONTROL.md) | Design and verification checklist; some API and GPU control code now exists, so it is not a complete current-state description. |

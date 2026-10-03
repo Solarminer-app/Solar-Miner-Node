@@ -13,6 +13,7 @@ import de.verdox.solarminer.pcagent.mining.ProxyDiscoveryService;
 import de.verdox.solarminer.pcagent.pearl.SrbDownloadService;
 import de.verdox.solarminer.pcagent.pearl.LocalGpuPowerService;
 import de.verdox.solarminer.pcagent.pearl.PearlMinerService;
+import de.verdox.solarminer.pcagent.pearl.GpuCoinMinerService;
 import de.verdox.solarminer.pcagent.xmr.XmrConfigService;
 import de.verdox.solarminer.pcagent.xmr.XmrMinerService;
 import de.verdox.solarminer.pcagent.xmr.download.XmrDownloadService;
@@ -28,7 +29,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -40,18 +44,42 @@ class MiningControllerValidationTest {
     private final XmrConfigService xmrConfig = mock(XmrConfigService.class);
     private final ProxyConfigurationService proxy = mock(ProxyConfigurationService.class);
     private final PayoutDefaultsService payouts = mock(PayoutDefaultsService.class);
+    private final XmrMinerService cpu = mock(XmrMinerService.class);
+    private final LocalGpuPowerService gpuPower = mock(LocalGpuPowerService.class);
+    private final MiningService mining = mock(MiningService.class);
+    private final EarningsForecastService earnings = mock(EarningsForecastService.class);
 
     MiningControllerValidationTest() {
         when(sensors.readyForAgent()).thenReturn(true);
     }
 
     private MockMvc controller() {
-        return standaloneSetup(new MiningController(mock(MiningService.class), xmrConfig, pearl,
-                mock(LocalGpuPowerService.class), mock(XmrMinerService.class), proxy, mock(SrbDownloadService.class),
+        return standaloneSetup(new MiningController(mining, xmrConfig, pearl, mock(GpuCoinMinerService.class),
+                gpuPower, cpu, proxy, mock(SrbDownloadService.class),
                 mock(XmrDownloadService.class), sensors, mock(ProxyDiscoveryService.class),
-                mock(EarningsForecastService.class), payouts, mock(ReferralConfigurationService.class),
+                earnings, payouts, mock(ReferralConfigurationService.class),
                 mock(FeeTransparencyService.class), mock(WalletBalanceService.class),
                 mock(WindowsDefenderExclusionService.class))).build();
+    }
+
+    @Test
+    void installationCatalogOnlyChecksLocalFilesAndReflectsRemoval() throws Exception {
+        when(cpu.binaryAvailable()).thenReturn(true);
+        when(pearl.binaryAvailable()).thenReturn(true, false);
+        MockMvc api = controller();
+        api.perform(get("/api/agent/miner-catalog")).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value("monero"))
+                .andExpect(jsonPath("$[0].binaryAvailable").value(true))
+                .andExpect(jsonPath("$[1].binaryAvailable").value(true))
+                .andExpect(jsonPath("$[2].experimental").value(true));
+        api.perform(get("/api/agent/miner-catalog")).andExpect(status().isOk())
+                .andExpect(jsonPath("$[1].binaryAvailable").value(false))
+                .andExpect(jsonPath("$[2].binaryAvailable").value(false))
+                .andExpect(jsonPath("$[3].binaryAvailable").value(false));
+        verify(cpu, org.mockito.Mockito.times(2)).binaryAvailable();
+        verify(pearl, org.mockito.Mockito.times(2)).binaryAvailable();
+        verifyNoMoreInteractions(cpu, pearl);
+        verifyNoInteractions(mining, gpuPower, earnings, proxy, payouts, xmrConfig);
     }
 
     @Test

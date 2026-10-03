@@ -16,6 +16,7 @@ Checked against `pc-agent/src/main/java` on 2026-10-02. This describes source st
 
 ## Verified seams and gaps
 
+- Mining navigation uses `GET /api/agent/miner-catalog` for local CPU/SRBMiner file availability only. `agent.js` loads it independently of `/overview`; installation data never enables start controls. Full operational state replaces the initial catalog, and late catalog responses cannot overwrite a newer overview. Node assessment is optional, loaded after rendering the overview with a five-second timeout; its failure does not mark the local agent offline. Verified by `MiningControllerValidationTest.installationCatalogOnlyChecksLocalFilesAndReflectsRemoval` and delayed-response Chrome fixtures in `.codex-qa/pc-agent-design.cjs` (2026-10-03).
 - `AgentPowerController` exposes `GET /api/agent/power-control` for the local Hardware UI and `GET /external-status` for the Node, plus `POST /target`, `/external/target`, `/external/pause`, `/external/resume`. External commands check the global `externalControlEnabled` permission and per-worker settings (`cpu` or the GPU device ID). The Node-only status omits opted-out GPU identities, while `GET /api/agent` filters disabled workers and their aggregate stats; local mining controls remain independent. The PV-power document's example JSON is a design sketch; use the controller records for the current wire format.
 - All power-control commands are serialized with benchmark admission through `BenchmarkSessionService`. While a benchmark is running, local `/target` and Node `/external/*` target/pause/resume requests return HTTP 409; serialization closes the race where a command passed an idle check just as a benchmark began.
 - `MiningService.setTarget` allocates a total target across XMR CPU and eligible Pearl GPUs. It still directly depends on both miner services; a third miner should prompt an explicit lifecycle/capability interface instead of another branch in orchestration.
@@ -34,3 +35,17 @@ Checked against `pc-agent/src/main/java` on 2026-10-02. This describes source st
 ## Adding a miner
 
 Document algorithm, device capability, installer provenance, process lifecycle, status units, power-control semantics, fee route and failure behavior. Keep the new miner's executable/API adapter in its own package. Add a shared interface only where two or more implementations have the same semantics; avoid a generic interface that hides unsupported operations. Follow the [coin integration guide](../../../NEW-MINING-COIN-GUIDE.md) and record real pool/fee accounting evidence before marking support complete.
+
+# RVN / ETC GPU path (prepared 2026-10-03)
+
+`pearl/GpuCoinMinerService` adds separate RVN/KAWPOW and ETC/ETCHash SRBMiner configurations and per-GPU processes. It reuses Pearl's SRBMiner installer and physical GPU mapping, while `MinerProcessRegistry` marks new-coin PIDs so Pearl's external-process detection and stop path cannot claim them. `MiningService` dispatches the selected GPU coin for power targets and remote control. `ProxyConfigurationService` reserves 3336/3337, checks a live Stratum listener and a loaded house fee target before either new coin starts; `StandaloneFeeGuard` and the process monitor stop it if that route disappears. The local Mining UI exposes both coins and their own pool, wallet, worker and GPU selections.
+
+The associated [integration record](rvn-etc-integration.md) contains the observed wire contract, test evidence and remaining fee/proxy/accounting gates. Neither coin is released for mining yet.
+
+## Persistent Node profile and Mining UX (2026-10-03)
+
+See [the verified UX/profile record](pc-agent-ux-profile.md). External dispatch now uses persisted per-device workerCoins instead of the viewed/preferred activeCoin; none excludes a worker from Node starts, stats and capacity. Local benchmarks remain independent. New installations require explicit device assignment.
+
+## Gesamtgestaltung (2026-10-03)
+
+Alle sechs UI-Seiten verwenden workspace.js/workspace.css für gruppierte Navigation, mobile Bedienung und gemeinsame Zustände. Aufgaben, Designentscheidungen und Browser-Evidenz stehen im [Gesamtkonzept](pc-agent-design-concept.md). Hardware-Grenzen werden explizit angewendet, Proxy-Suche ist von Auswahl/Aktivierung getrennt, und die Übersicht addiert keine Hashraten verschiedener Algorithmen. Lokale API-Verträge und Hardware-Freigaben bleiben unverändert.

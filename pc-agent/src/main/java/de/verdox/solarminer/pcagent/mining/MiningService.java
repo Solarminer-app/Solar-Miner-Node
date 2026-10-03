@@ -4,6 +4,7 @@ import de.verdox.solarminer.pcagent.dto.MinerStats;
 import de.verdox.solarminer.pcagent.dto.Pools;
 import de.verdox.solarminer.pcagent.lowlevel.HardwareIdentityService;
 import de.verdox.solarminer.pcagent.pearl.PearlMinerService;
+import de.verdox.solarminer.pcagent.pearl.GpuCoinMinerService;
 import de.verdox.solarminer.pcagent.pearl.LocalGpuPowerService;
 import de.verdox.solarminer.pcagent.xmr.XmrMinerService;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +32,7 @@ public class MiningService {
     private volatile boolean cpuManuallyPaused;
     private final XmrMinerService xmrMinerService;
     private final PearlMinerService pearlMinerService;
+    private final GpuCoinMinerService gpuCoins;
     private final LocalGpuPowerService gpuPowerService;
     private final AgentControlSettingsService controls;
     private final Path coinSelectionFile;
@@ -38,12 +40,13 @@ public class MiningService {
     private final MinerStats.MinerIdentity minerIdentity;
     private final MinerStats.MinerStatus status = MinerStats.MinerStatus.PAUSED;
 
-    public MiningService(XmrMinerService xmrMinerService, PearlMinerService pearlMinerService,
+    public MiningService(XmrMinerService xmrMinerService, PearlMinerService pearlMinerService, GpuCoinMinerService gpuCoins,
                          LocalGpuPowerService gpuPowerService, HardwareIdentityService hardwareIdentityService,
                          AgentControlSettingsService controls,
                          @Value("${solarminer.agent.coin-selection-file:./solarminer-agent/active-coin.txt}") String coinSelectionPath) {
         this.xmrMinerService = xmrMinerService;
         this.pearlMinerService = pearlMinerService;
+        this.gpuCoins = gpuCoins;
         this.gpuPowerService = gpuPowerService;
         this.controls = controls;
         this.coinSelectionFile = Path.of(coinSelectionPath).toAbsolutePath().normalize();
@@ -69,7 +72,7 @@ public class MiningService {
     }
 
     private boolean setTarget(long powerTarget, boolean external) {
-        List<LocalGpuPowerService.Gpu> allowedGpus = pearlMinerService.eligibleGpus().stream()
+        List<LocalGpuPowerService.Gpu> allowedGpus = eligibleGpus(external).stream()
                 .filter(gpu -> !external || controls.workerEnabled(gpu.deviceId()))
                 .toList();
         List<LocalGpuPowerService.Gpu> cards = allowedGpus.stream()
@@ -94,14 +97,14 @@ public class MiningService {
         PowerBudgetPlanner.Plan appliedPlan = requestedPlan;
         String partialReason = null;
         if (requestedPlan.appliesGpuPowerLimits() && !gpuPowerService.setTotalPowerTarget(requestedPlan.gpuWatts(), cards)) {
-            if (!(external ? stopGpus(allowedGpus) : pearlMinerService.stop()))
+            if (!(external ? stopGpus(allowedGpus) : stopActiveGpus()))
                 return failGlobalBudget(external, requestedPlan, "GPU-Leistungsgrenzen konnten nicht gesetzt und GPU-Miner nicht sicher angehalten werden");
             appliedPlan = PowerBudgetPlanner.plan(requestedPlan.plannedWatts(), cpu, List.of());
             if (appliedPlan.outcome() != PowerBudgetPlanner.Outcome.APPLY)
                 return failGlobalBudget(external, requestedPlan, "GPU-Leistungsgrenzen konnten nicht gesetzt werden");
             partialReason = "GPU-Leistungsgrenzen konnten nicht gesetzt werden; nur CPU-Budget wurde angewendet";
         }
-        if (appliedPlan.gpuWatts() == 0 && !(external ? stopGpus(allowedGpus) : pearlMinerService.stop()))
+        if (appliedPlan.gpuWatts() == 0 && !(external ? stopGpus(allowedGpus) : stopActiveGpus()))
             return failGlobalBudget(external, requestedPlan, "GPU-Miner konnten nicht sicher angehalten werden");
 
         long cpuTarget = appliedPlan.cpuWatts();
@@ -118,8 +121,8 @@ public class MiningService {
         if (gpuTarget > 0) {
             if (external) {
                 for (LocalGpuPowerService.Gpu gpu : cards)
-                    gpuStartsSucceeded = pearlMinerService.startGpu(gpu.vendor(), gpu.index()) && gpuStartsSucceeded;
-            } else gpuStartsSucceeded = pearlMinerService.startForBudget();
+                    gpuStartsSucceeded = startGpuForCoin(controls.get().coinFor(gpu.deviceId()), gpu.vendor(), gpu.index()) && gpuStartsSucceeded;
+            } else gpuStartsSucceeded = startActiveGpusForBudget();
         }
         desiredGlobalPowerTarget = appliedPlan.plannedWatts();
         desiredCpuPowerTarget = cpuTarget;
@@ -154,10 +157,10 @@ public class MiningService {
             xmrMinerService.startMining();
             allStarted = xmrMinerService.isMiningProcessAlive() && allStarted;
         }
-        for (LocalGpuPowerService.Gpu gpu : pearlMinerService.eligibleGpus()) {
+        for (LocalGpuPowerService.Gpu gpu : eligibleGpus(true)) {
             if (controls.workerEnabled(gpu.deviceId())) {
                 attempted = true;
-                allStarted = pearlMinerService.startGpu(gpu.vendor(), gpu.index()) && allStarted;
+                allStarted = startGpuForCoin(controls.get().coinFor(gpu.deviceId()), gpu.vendor(), gpu.index()) && allStarted;
             }
         }
         return attempted && allStarted;
@@ -174,9 +177,9 @@ public class MiningService {
         if (controls.workerEnabled("cpu")) {
             xmrMinerService.hardStopMining();
         }
-        for (LocalGpuPowerService.Gpu gpu : pearlMinerService.selectedGpus()) {
+        for (LocalGpuPowerService.Gpu gpu : selectedGpus(true)) {
             if (controls.workerEnabled(gpu.deviceId()))
-                success = pearlMinerService.stopGpu(gpu.vendor(), gpu.index()) && success;
+                success = stopGpuForCoin(controls.get().coinFor(gpu.deviceId()), gpu.vendor(), gpu.index()) && success;
         }
         if (success) powerApplication.paused(0);
         return success;
@@ -185,8 +188,87 @@ public class MiningService {
     private boolean stopGpus(List<LocalGpuPowerService.Gpu> cards) {
         boolean success = true;
         for (LocalGpuPowerService.Gpu gpu : cards)
-            success = pearlMinerService.stopGpu(gpu.vendor(), gpu.index()) && success;
+            success = stopGpuForCoin(controls.get().coinFor(gpu.deviceId()), gpu.vendor(), gpu.index()) && success;
         return success;
+    }
+
+    private boolean startGpuForCoin(String coin, String vendor, int index) {
+        // Node assignments are exclusive per physical GPU.
+        boolean stopped = true;
+        if (!"pearl".equals(coin)) stopped = pearlMinerService.stopGpu(vendor, index);
+        for (String other : List.of("ravencoin", "ethereumclassic"))
+            if (!other.equals(coin)) stopped = gpuCoins.stopGpu(other, vendor, index) && stopped;
+        if (!stopped) return false;
+        return "pearl".equals(coin) ? pearlMinerService.startGpu(vendor, index) : gpuCoins.startGpu(coin, vendor, index);
+    }
+
+    private boolean stopGpuForCoin(String coin, String vendor, int index) {
+        return "pearl".equals(coin) ? pearlMinerService.stopGpu(vendor, index) : gpuCoins.stopGpu(coin, vendor, index);
+    }
+
+    private List<LocalGpuPowerService.Gpu> selectedGpus(boolean external) {
+        if (!external) return selectedGpus();
+        return gpuPowerService.discover().stream().filter(gpu -> controls.workerEnabled(gpu.deviceId()))
+                .filter(gpu -> selectedForCoin(controls.get().coinFor(gpu.deviceId()), false).stream()
+                        .anyMatch(selected -> selected.deviceId().equals(gpu.deviceId()))).toList();
+    }
+
+    private List<LocalGpuPowerService.Gpu> selectedForCoin(String coin, boolean eligible) {
+        if ("pearl".equals(coin)) return eligible ? pearlMinerService.eligibleGpus() : pearlMinerService.selectedGpus();
+        if (GpuCoinMinerService.supported(coin)) return eligible ? gpuCoins.eligible(coin) : gpuCoins.selected(coin);
+        return List.of();
+    }
+
+    private List<LocalGpuPowerService.Gpu> eligibleGpus(boolean external) {
+        if (!external) return eligibleGpus();
+        return selectedGpus(true).stream().filter(gpu -> selectedForCoin(controls.get().coinFor(gpu.deviceId()), true).stream()
+                .anyMatch(selected -> selected.deviceId().equals(gpu.deviceId()))).toList();
+    }
+
+    public boolean externallySelected(String deviceId) {
+        return controls.workerEnabled(deviceId) && ("cpu".equals(deviceId) || selectedGpus(true).stream()
+                .anyMatch(gpu -> gpu.deviceId().equals(deviceId)));
+    }
+
+    public synchronized boolean stopExternalWorker(String deviceId) {
+        return MinerStopContext.with("Node default configuration changed", () -> {
+            if ("cpu".equals(deviceId)) {
+                xmrMinerService.hardStopMining();
+                if (xmrMinerService.isMiningProcessAlive()) return false;
+                desiredGlobalPowerTarget = Math.max(0, desiredGlobalPowerTarget - desiredCpuPowerTarget);
+                desiredCpuPowerTarget = 0;
+                return true;
+            }
+            return gpuPowerService.discover().stream().filter(g -> g.deviceId().equals(deviceId)).findFirst()
+                    .map(g -> stopGpuForCoin(controls.get().coinFor(deviceId), g.vendor(), g.index())).orElse(false);
+        });
+    }
+
+    private List<LocalGpuPowerService.Gpu> selectedGpus() {
+        return GpuCoinMinerService.supported(activeCoin) ? gpuCoins.selected(activeCoin) : pearlMinerService.selectedGpus();
+    }
+
+    private List<LocalGpuPowerService.Gpu> eligibleGpus() {
+        return GpuCoinMinerService.supported(activeCoin) ? gpuCoins.eligible(activeCoin) : pearlMinerService.eligibleGpus();
+    }
+
+    private boolean startActiveGpu(String vendor, int index) {
+        return GpuCoinMinerService.supported(activeCoin)
+                ? gpuCoins.startGpu(activeCoin, vendor, index) : pearlMinerService.startGpu(vendor, index);
+    }
+
+    private boolean stopActiveGpu(String vendor, int index) {
+        return GpuCoinMinerService.supported(activeCoin)
+                ? gpuCoins.stopGpu(activeCoin, vendor, index) : pearlMinerService.stopGpu(vendor, index);
+    }
+
+    private boolean startActiveGpusForBudget() {
+        return GpuCoinMinerService.supported(activeCoin)
+                ? gpuCoins.startForBudget(activeCoin) : pearlMinerService.startForBudget();
+    }
+
+    private boolean stopActiveGpus() {
+        return GpuCoinMinerService.supported(activeCoin) ? gpuCoins.stop(activeCoin) : pearlMinerService.stop();
     }
 
     private boolean failGlobalBudget(boolean external, PowerBudgetPlanner.Plan plan, String reason) {
@@ -202,6 +284,15 @@ public class MiningService {
         return MinerStopContext.withDefault("Local " + coin + " power target", () -> setCoinTarget(coin, powerTarget));
     }
     private boolean setCoinTarget(String coin, long powerTarget) {
+        if (GpuCoinMinerService.supported(coin)) {
+            if (powerTarget <= 0) return gpuCoins.pause(coin);
+            List<LocalGpuPowerService.Gpu> cards = gpuPowerService.discover().stream()
+                    .filter(gpu -> gpuCoins.gpuStates(coin, List.of(gpu)).getFirst().selected()).toList();
+            if (cards.isEmpty() || !gpuPowerService.setTotalPowerTarget(powerTarget, cards)) return false;
+            desiredGpuPowerTarget = powerTarget;
+            desiredGlobalPowerTarget = desiredCpuPowerTarget + desiredGpuPowerTarget;
+            return gpuCoins.start(coin);
+        }
         if ("pearl".equals(coin)) {
             if (powerTarget <= 0) {
                 desiredGpuPowerTarget = 0;
@@ -230,6 +321,7 @@ public class MiningService {
         return MinerStopContext.withDefault("Local mining control", () -> pauseCoin(coin));
     }
     private boolean pauseCoin(String coin) {
+        if (GpuCoinMinerService.supported(coin)) return gpuCoins.pause(coin);
         if ("pearl".equals(coin)) return pearlMinerService.pauseSelectedManually();
         if (!"monero".equals(coin)) return false;
         cpuManuallyPaused = true;
@@ -241,7 +333,10 @@ public class MiningService {
         return MinerStopContext.withDefault("Local pause-all control", this::pauseAllInternal);
     }
     private boolean pauseAllInternal() {
-        boolean gpuStopped = pearlMinerService.stop();
+        boolean pearlStopped = pearlMinerService.stop();
+        boolean ravenStopped = gpuCoins.stop("ravencoin");
+        boolean etcStopped = gpuCoins.stop("ethereumclassic");
+        boolean gpuStopped = pearlStopped && ravenStopped && etcStopped;
         xmrMinerService.hardStopMining();
         return gpuStopped;
     }
@@ -256,6 +351,7 @@ public class MiningService {
     }
 
     public boolean resumeMining(String coin) {
+        if (GpuCoinMinerService.supported(coin)) return gpuCoins.start(coin);
         if ("pearl".equals(coin)) return pearlMinerService.start();
         if (!"monero".equals(coin)) return false;
         cpuManuallyPaused = false;
@@ -282,7 +378,7 @@ public class MiningService {
     }
 
     public synchronized boolean switchCoin(String coin) {
-        if (!"monero".equals(coin) && !"pearl".equals(coin)) return false;
+        if (!"monero".equals(coin) && !"pearl".equals(coin) && !GpuCoinMinerService.supported(coin)) return false;
         if (coin.equals(activeCoin)) return true;
         try {
             persistSelectedCoin(coin);
@@ -296,7 +392,7 @@ public class MiningService {
     private String readSelectedCoin() {
         try {
             String selected = Files.readString(coinSelectionFile).strip();
-            if ("monero".equals(selected) || "pearl".equals(selected)) return selected;
+            if ("monero".equals(selected) || "pearl".equals(selected) || GpuCoinMinerService.supported(selected)) return selected;
         } catch (IOException ignored) { }
         return pearlMinerService.configuration() == null ? "monero" : "pearl";
     }
@@ -327,14 +423,14 @@ public class MiningService {
     public long calculateMinPowerTargetFromComponents() {
         long cpu = controls.workerEnabled("cpu") && !cpuManuallyPaused && xmrMinerService.readyForStart()
                 ? xmrMinerService.getMinimumControllablePowerWatts() : 0;
-        long gpu = pearlMinerService.eligibleGpus().stream().filter(g -> controls.workerEnabled(g.deviceId())).filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling)
+        long gpu = eligibleGpus(true).stream().filter(g -> controls.workerEnabled(g.deviceId())).filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling)
                 .mapToLong(LocalGpuPowerService.Gpu::minWatts).sum();
         return cpu > 0 ? cpu : gpu;
     }
 
     public long calculateMaxPowerTargetFromComponents() {
         long cpu = controls.workerEnabled("cpu") && !cpuManuallyPaused && xmrMinerService.readyForStart() ? xmrMinerService.getEstimatedMaxCpuWattage() : 0;
-        long gpu = pearlMinerService.eligibleGpus().stream().filter(g -> controls.workerEnabled(g.deviceId())).filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling)
+        long gpu = eligibleGpus(true).stream().filter(g -> controls.workerEnabled(g.deviceId())).filter(LocalGpuPowerService.Gpu::supportsDynamicPowerScaling)
                 .mapToLong(LocalGpuPowerService.Gpu::maxWatts).sum();
         return cpu + gpu;
     }
@@ -360,13 +456,23 @@ public class MiningService {
     }
 
     public List<MinerStats.Worker> getExternallyVisibleWorkerStats() {
-        return getWorkerStats().stream().filter(worker -> controls.workerEnabled(worker.deviceId())).toList();
+        return getWorkerStats().stream().filter(worker -> externallySelected(worker.deviceId()))
+                .filter(worker -> switch (controls.get().coinFor(worker.deviceId())) {
+                    case "monero" -> "randomx".equalsIgnoreCase(worker.currentAlgorithm());
+                    case "pearl" -> "pearlhash".equalsIgnoreCase(worker.currentAlgorithm());
+                    case "ravencoin" -> "kawpow".equalsIgnoreCase(worker.currentAlgorithm());
+                    case "ethereumclassic" -> "etchash".equalsIgnoreCase(worker.currentAlgorithm());
+                    default -> false;
+                }).toList();
     }
 
     private List<MinerStats.Worker> getWorkerStats(List<LocalGpuPowerService.Gpu> discoveredGpus) {
         List<MinerStats.Worker> workers = new ArrayList<>();
         workers.add(xmrMinerService.getWorkerStats());
         workers.addAll(pearlMinerService.workerStats(discoveredGpus == null ? gpuPowerService.discover() : discoveredGpus));
+        List<LocalGpuPowerService.Gpu> cards = discoveredGpus == null ? gpuPowerService.discover() : discoveredGpus;
+        for (String coin : List.of("ravencoin", "ethereumclassic"))
+            if (coin.equals(activeCoin) || gpuCoins.running(coin) || (controls.get().workerCoins() != null && controls.get().workerCoins().containsValue(coin))) workers.addAll(gpuCoins.workerStats(coin, cards));
         return workers;
     }
 

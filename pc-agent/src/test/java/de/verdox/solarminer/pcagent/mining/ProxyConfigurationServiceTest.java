@@ -22,6 +22,9 @@ class ProxyConfigurationServiceTest {
         assertTrue(proxy.configure("node.lan"));
         assertTrue(proxy.matches("stratum+tcp://node.lan:3335", "monero"));
         assertTrue(proxy.matches("stratum+tcp://node.lan:3334", "pearl"));
+        assertTrue(proxy.matches("stratum+tcp://node.lan:3336", "ravencoin"));
+        assertTrue(proxy.matches("stratum+tcp://node.lan:3337", "ethereumclassic"));
+        assertFalse(proxy.matches("stratum+tcp://node.lan:3334", "ravencoin"));
         assertFalse(proxy.matches("stratum+tcp://pool.example:3335", "monero"));
         assertFalse(proxy.matches("stratum+tcp://node.lan:3334", "monero"));
         assertFalse(proxy.matches("stratum+ssl://node.lan:3335", "monero"));
@@ -61,6 +64,6 @@ class ProxyConfigurationServiceTest {
     private static ProxyConfigurationService proxy(Path file, boolean standalone) {
         return new ProxyConfigurationService(new ObjectMapper(), new ManagedProxyService(false, "./lib/proxy.jar"),
                 new ReferralConfigurationService(file.resolveSibling("referral-key.txt").toString()),
-                file.toString(), 3335, 3334, 8090, file.resolveSibling("proxy-mode.txt").toString(), standalone);
+                file.toString(), 3335, 3334, 3336, 3337, 8090, file.resolveSibling("proxy-mode.txt").toString(), standalone);
     }
 }

@@ -8,6 +8,8 @@ import java.util.concurrent.TimeUnit;
 
 /** Cross-platform view and shutdown guard for miner processes, including processes started elsewhere. */
 public final class MinerProcessRegistry {
+    private static final java.util.Set<Long> MANAGED_GPU_COIN_PIDS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final java.util.Map<Long, String> GPU_COIN_DEVICES = new java.util.concurrent.ConcurrentHashMap<>();
     private MinerProcessRegistry() { }
 
     public static List<ProcessHandle> runningMiners() {
@@ -47,6 +49,24 @@ public final class MinerProcessRegistry {
     }
 
     public static boolean stop(String miner) { return stop(running(miner)); }
+
+    public static void registerGpuCoin(Process process) { MANAGED_GPU_COIN_PIDS.add(process.pid()); }
+    public static void registerGpuCoin(Process process, String deviceId) {
+        registerGpuCoin(process);
+        GPU_COIN_DEVICES.put(process.pid(), deviceId);
+    }
+    public static boolean gpuCoinUsesDevice(String deviceId) {
+        return running("srbminer").stream().filter(MinerProcessRegistry::managedGpuCoin)
+                .anyMatch(handle -> deviceId.equals(GPU_COIN_DEVICES.get(handle.pid())) || !GPU_COIN_DEVICES.containsKey(handle.pid()));
+    }
+    public static void unregisterGpuCoin(Process process) {
+        MANAGED_GPU_COIN_PIDS.remove(process.pid());
+        GPU_COIN_DEVICES.remove(process.pid());
+    }
+    public static boolean managedGpuCoin(ProcessHandle handle) { return MANAGED_GPU_COIN_PIDS.contains(handle.pid()); }
+    public static boolean stopSrbExceptGpuCoins() {
+        return stop(running("srbminer").stream().filter(handle -> !managedGpuCoin(handle)).toList());
+    }
 
     private static boolean stop(List<ProcessHandle> miners) {
         miners = new ArrayList<>(miners);

@@ -6,7 +6,9 @@
     <meta name="theme-color" content="#0b1020">
     <title>SolarMiner · PC-Agent</title>
     <link rel="stylesheet" href="/agent.css">
+    <link rel="stylesheet" href="/workspace.css">
     <script src="/i18n.js" defer></script>
+    <script src="/workspace.js" defer></script>
     <script src="/wallet-strip.js" defer></script>
     <script src="/telemetry-gate.js" defer></script>
     <script src="/overview.js" defer></script>
@@ -25,33 +27,25 @@
     <main>
         <div class="page-title">
             <div><p class="kicker">DEIN PC IM ÜBERBLICK</p>
-                <h1>PC-Agent</h1>
+                <h1>Übersicht</h1>
                 <p id="updated">Warte auf Daten</p></div>
             <a class="button primary" href="/mining.html">Mining öffnen →</a></div>
         <div id="notice" class="notice error" role="status" hidden></div>
-        <section class="section panel workspace">
-            <div class="section-head">
-                <div><p class="kicker">SCHNELLZUGRIFF</p>
-                    <h2>Your Workspace</h2></div>
-            </div>
-            <div class="overview-links"><a class="overview-link" href="/mining.html"><span
-                    class="overview-icon">⛏</span><strong>Mining</strong><small>Miner installieren, konfigurieren und
-                steuern</small><span>→</span></a><a class="overview-link" href="/hardware.html"><span
-                    class="overview-icon">◈</span><strong>Hardware</strong><small>GPU-Schutzgrenzen und Leistungswerte
-                verwalten</small><span>→</span></a><a class="overview-link" href="/telemetry.html"><span
-                    class="overview-icon">◌</span><strong>Telemetrie</strong><small>Sensoren und Messwerte
-                ansehen</small><span>→</span></a><a class="overview-link" href="/proxy.html"><span
-                    class="overview-icon">⇄</span><strong>Proxy</strong><small>Stratum-Verbindung und Route
-                verwalten</small><span>→</span></a></div>
+        <section class="agent-summary" aria-labelledby="summary-title">
+            <div><p class="kicker">DEIN MINING-BETRIEB</p><h2 id="summary-title">Status wird geladen …</h2><p id="summary-description">Laufende Miner, Node-Freigabe und Verbindungsstatus auf einen Blick.</p></div>
+            <div class="summary-metrics"><article><span>AKTIVE WORKER</span><strong id="summary-workers">—</strong><small id="summary-workers-detail">Warte auf Daten</small></article><article><span>NODE-PROFIL</span><strong id="summary-profile">—</strong><small id="summary-profile-detail">Warte auf Daten</small></article></div>
         </section>
+        <section id="readiness-list" class="readiness-list" aria-label="Betriebsbereitschaft"></section>
+        <section id="next-action" class="next-action" aria-live="polite" hidden><div><h2 id="next-title"></h2><p id="next-description"></p></div><a id="next-link" class="button primary" href="/mining.html">Miner einrichten →</a></section>
         <section class="section telemetry-dashboard">
             <div class="section-head">
                 <div><p class="kicker">LIVE-TELEMETRIE</p>
-                    <h2>Mining &amp; Hardware</h2></div>
+                    <h2>Aktuelle Messwerte</h2></div>
                 <a href="/telemetry.html">Alle Sensoren →</a></div>
             <div class="dashboard-chart-grid">
                 <article class="dashboard-chart">
-                    <div class="chart-heading"><span>Hashrate</span><strong id="chart-hashrate">—</strong></div>
+                    <div class="chart-heading"><span>Hashrate je Algorithmus</span><strong id="chart-hashrate">—</strong></div>
+                    <select id="chart-algorithm" class="chart-selection" aria-label="Algorithmus für Hashrate-Verlauf"></select>
                     <svg id="hashrate-chart" viewBox="0 0 600 150" role="img" aria-label="Hashrate-Verlauf"></svg>
                     <small id="chart-workers">Warte auf Worker-Daten</small></article>
                 <article class="dashboard-chart">
@@ -68,8 +62,9 @@
         <section class="section panel earnings-compact">
             <div class="section-head">
                 <div><p class="kicker">ERTRAGSPROGNOSE</p>
-                    <h2>Earnings pro Tag</h2></div>
+                    <h2>Ertrag pro Tag</h2></div>
                 <span class="muted">Brutto-Schätzung</span></div>
+            <p class="forecast-note">Brutto-Prognose aus aktueller Hashrate und Netzwerkdaten. Gebühren und Stromkosten sind noch nicht abgezogen; dies ist keine Pool-Gutschrift.</p>
             <div id="earnings-grid" class="earnings-grid"></div>
         </section>
         <footer>SolarMiner PC-Agent</footer>

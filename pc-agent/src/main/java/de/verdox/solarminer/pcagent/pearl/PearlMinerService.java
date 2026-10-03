@@ -257,6 +257,8 @@ public class PearlMinerService {
         String key = gpu.vendor() + ":" + gpu.index();
         GpuRun run = runs.computeIfAbsent(key, ignored -> new GpuRun(gpu));
         if (run.running()) return true;
+        if (MinerProcessRegistry.gpuCoinUsesDevice(gpu.deviceId()))
+            return fail(run, "This GPU is already mining RVN or ETC; pause that GPU worker first");
         if (hasExternalMiner()) {
             run.status = MinerStats.MinerStatus.MINING;
             run.detail = "SRBMiner is running externally; no second process started";
@@ -391,7 +393,7 @@ public class PearlMinerService {
         }
     }
 
-    private int mappedGpuId(LocalGpuPowerService.Gpu gpu) throws IOException {
+    int mappedGpuId(LocalGpuPowerService.Gpu gpu) throws IOException {
         // On Linux SRBMiner can return an empty device list when stdout is a pipe,
         // even though the same CUDA devices are listed on a terminal.
         List<String> command = System.getProperty("os.name", "").toLowerCase().contains("linux")
@@ -512,11 +514,11 @@ public class PearlMinerService {
     public synchronized boolean stop() {
         boolean success = true;
         for (GpuRun run : runs.values()) success = stopGpu(run.gpu.vendor(), run.gpu.index()) && success;
-        success = MinerProcessRegistry.stop("srbminer") && success;
+        success = MinerProcessRegistry.stopSrbExceptGpuCoins() && success;
         return success;
     }
 
-    public boolean running() { return runs.values().stream().anyMatch(GpuRun::running) || !MinerProcessRegistry.running("srbminer").isEmpty(); }
+    public boolean running() { return runs.values().stream().anyMatch(GpuRun::running) || hasExternalMiner(); }
     public boolean poolHealthy() { return runs.values().stream().anyMatch(run -> run.running() && run.poolHealthy); }
     public String connectionDetail() {
         long healthy = runs.values().stream().filter(run -> run.running() && run.poolHealthy).count();
@@ -569,6 +571,7 @@ public class PearlMinerService {
 
     private boolean hasExternalMiner() {
         return MinerProcessRegistry.running("srbminer").stream()
+                .filter(handle -> !MinerProcessRegistry.managedGpuCoin(handle))
                 .anyMatch(handle -> runs.values().stream().noneMatch(run -> run.process != null && run.process.pid() == handle.pid()));
     }
 

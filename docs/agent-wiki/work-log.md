@@ -1,5 +1,18 @@
 # Agent work log
 
+## 2026-10-03 — RVN / ETC PC-Agent integration assessment
+
+- Owner: PC-Agent / Node integration. The [RVN / ETC record](rvn-etc-integration.md) captures canonical keys, selected initial miner/pool combination, required cross-repository contracts, inapplicable first-scope paths and release gates.
+- Source evidence: SRBMiner-MULTI documents `kawpow` and `etchash`; 2Miners documents a pool path for each. Short local fake-pool captures recorded SRBMiner 3.7.1 subscribe/authorize calls. Read-only 2Miners probes recorded real subscribe, authorize, difficulty/target and notify responses for both coins. Exact shapes are in the integration record. Local `MiningService`, proxy configuration and Node coin catalog have no RVN/ETC path. This change adds no Node mining code and does not claim support.
+- Environment: Windows `nvidia-smi` detected RTX 2080 Ti and SRBMiner listed it as CUDA GPU1; Docker Desktop daemon access was denied. No `mining.submit`, accepted share or fee-accounting test was run. House and test wallets are not yet available.
+
+## 2026-10-02 — Local Node frontend UI/UX audit
+
+- Scope: analysis only of the local React/Vite Node operator UI. No product code, API contract, device control, mining route or payment was changed. See [the detailed audit](ui-ux-audit-2026-10-02.md).
+- Evidence: source inspection plus Chrome renderings with synthetic API responses at desktop 1440×1000 and mobile 390×844; header geometry checked from 390 through 1920 px. Local diagnostics/screenshots are at workspace `.codex-qa/uiux-audit*.cjs` and `.codex-qa/screenshots/uiux-2026-10-02/`.
+- Reproduced: clipped header controls, unreachable preferences at intermediate breakpoints, start/dashboard profile-check errors rendered as loading, missing focus entry/Escape behavior in selected dialogs, setup draft loss after reload and a wallet error without retry. Static color pairs used for small dashboard labels measure below 4.5:1. Source evidence confirms default-on setup telemetry, inconsistent preferences/formatting and gross-only wording behind the profitable-grid UI.
+- Deliverable: 18 prioritized findings, proposed navigation/dashboard/automation/finance design, accessibility recommendations, phased implementation and user-study tasks. Recommendations remain unimplemented. Browser fixtures establish UI behavior only; no real hardware/pools/payments, full wizard completion, full accessibility certification or user study was performed. No product build/test was needed for documentation-only changes; `git diff --check` was run.
+
 ## 2026-10-02 — Beta Docker publishing
 
 - Scope: `beta` branch Docker publishing for Solar-Miner-Node; no API or mining contract changes.
@@ -279,3 +292,33 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - Owner: Node React setup and German/English copy; setup request fields and backend validation are unchanged. Source check: `ControllerDSL.calculateSunEvent` consumes saved panel coordinates for sunrise/sunset, so location is still required.
 - Change: the step explains roof-area grouping, places panel count/Wp first, displays total kWp, provides cardinal direction choices, tilt control and exact-degree inputs, loads the map when requested, offers manual coordinates, reuses the selected site location and allows editing/removal. Default Wp/direction/tilt values are labeled as assumptions. Names are generated if omitted, duplicate names are rejected locally and Next requires a saved area.
 - Verification: Vite production build, TypeScript noEmit and browser checks for missing location, manual location, multiple areas, editing, duplicate-name feedback, calculated power and mobile overflow all pass. Screenshots were inspected before and after the change. No hardware measurement or user study was performed.
+
+## 2026-10-03 — PC-Agent RVN/ETC GPU preparation
+
+- Owner: PC-Agent; shared planned login contract with the disabled proxy adapters. `GpuCoinMinerService` supports RVN/KAWPOW and ETC/ETCHash through SRBMiner-MULTI, with separate persisted configuration, mainnet RVN Base58Check/ETC hex wallet validation, per-GPU process and API monitoring, proxy listener/house-fee start gate, fee-loss stop, and fee/console/status/UI wiring. `MiningService` uses the active GPU coin for power and remote dispatch. SRBMiner process ownership prevents Pearl's status and stop path from capturing these managed processes.
+- Verification: `:pc-agent:test --offline` passes with JDK 21, including new address/login and proxy-port tests; `node --check pc-agent/src/main/resources/static/agent.js` and `git diff --check` pass. Installed SRBMiner 3.7.1 lists `kawpow` (0.85%) and `etchash` (0.65%). The [RVN/ETC integration record](rvn-etc-integration.md) tracks the full new-coin guide.
+- Gate: the operator supplied RVN/ETC house addresses; local Fee-Backend configs now contain them, and the PC-Agent format/checksum tests pass. No proxy listener, deployed fee-target verification or real share/pool credit exists. The PC-Agent fails closed and no production support is claimed. Windows 11/RTX 2080 Ti and Docker Desktop mining remain to test after a complete fee path and user test wallets exist.
+
+## 2026-10-03 — PC-Agent Mining UX and Node defaults
+
+- Added persistent device-to-coin assignments and local/benchmark-only exclusion. External target/resume/pause and worker stats/capacity use the assignment, preserving existing permission flags and migrating legacy settings. New installs require explicit assignment. Coin changes serialize with benchmarks and stop the old assignment before saving.
+- Preserved the miner rail/+ flow, added distinct coin labels, a collapsible Node profile, named miner headings and Status/Setup/Diagnostics views; Hardware links to the single profile editor. Added German/English core copy and mobile/focus improvements.
+- Evidence: full :pc-agent:test passes with JDK 21; NodeMiningProfileTest and desktop/mobile browser fixture checks pass. Screenshots inspected; syntax/diff checks pass. Node core endpoint/Map consumers checked in MinerAgentController. No new coin release or hardware/pool verification claimed. Details and migration behavior: [UX/profile record](pc-agent-ux-profile.md).
+
+## 2026-10-03 — PC-Agent gesamtes UI/UX-Konzept
+
+- Bewertet und überarbeitet: Übersicht, Miner, Leistungsgrenzen, Benchmarks, Sensoren und Verbindung. Gemeinsame Anwendungshülle mit Betrieb/Optimierung/System, Desktop-Seitenleiste, mobilem Menü, Fokusführung und gemeinsamen Offline-Zuständen. Status/Handlungsbedarf stehen vor Finanzen; Profile bleiben von manuellen Mining-Ansichten getrennt.
+- Verhaltensverbesserungen: getrennte Algorithmus-Hashraten, Hardware-Entwürfe mit bewusstem Anwenden/Verwerfen, explizite Proxy-Kandidatenauswahl, erklärte Benchmark-Modi mit geschützten Aktionen/Consent, durchsuchbare Sensoren und Inline-Sensorfehler. Deutsche/englische Haupttexte ergänzt.
+- Verifikation: 41 Backend-Tests erfolgreich; JavaScript-Syntax geprüft. Browser-Fixtures prüfen alle sechs Seiten am Desktop und mobil, DE/EN, Entwürfe/Polling, Proxy-Auswahl/Aktivierung, Benchmark-Start/Abbruch/Teilen, Sensorfilter/Fehler, Erststart und Offline. Ausgangs- und Ergebnis-Screenshots visuell geprüft. Keine Nutzungsstudie oder Hardware-/Pool-Zertifizierung. [Bewertung und Gesamtkonzept](pc-agent-design-concept.md).
+
+## 2026-10-03 — Miner beim Seitenaufruf unabhängig laden
+
+- Ursache im Quellcode: Die Miner-Leiste wurde erst nach der umfassenden `/overview`-Antwort (GPU-Erkennung, Status, Ertrags-/Proxy-/Fee-Daten) und anschließendem `/node-assessment` gerendert. Eine separate Node-Störung konnte sogar den lokalen Agent als offline markieren.
+- Neuer lokaler GET `/api/agent/miner-catalog` prüft ausschließlich installierte CPU-/GPU-Binaries. Das Frontend zeigt damit Leiste und Installationszustand vor der vollständigen Übersicht; Auswahl bleibt erhalten, Startaktionen warten auf Betriebsdaten. Späte Katalogantworten überschreiben keine aktuelle Übersicht. Übersicht wird vor optionaler Node-Bewertung gerendert; parallele Übersicht-Polls werden vermieden und Node-Abrufe auf fünf Sekunden begrenzt.
+- Evidenz: 42 Backend-Tests erfolgreich mit JDK 21 (`:pc-agent:test --offline`); Controller-Test prüft ausschließlich Dateiverfügbarkeitsaufrufe sowie Entfernung des gemeinsamen GPU-Binaries. Chrome-Fixtures blockieren Übersicht und Node-Antwort getrennt, prüfen frühe Leiste, sichere Startbuttons, erhaltene Auswahl und verspätete Katalogantwort nach Entfernung. Gesamte Desktop-/Mobile-/DE-/EN-Prüfung weiterhin grün; Syntax/Diff geprüft. Keine gemessene Produktionslatenz oder Hardwareverifikation behauptet. Vertrag ist rein lokal, keine Node-/Pool-/Fee-Vertragsänderung.
+
+## 2026-10-03 — Mining-Inhalt an das Gesamtbild angeglichen
+
+- PC-Agent UI: `mining.css` ergänzt die gemeinsame Gestaltung mit einer durchgehenden Hierarchie für Seitenkopf, lokalen Miner, Betriebswerte, Bereichsnavigation und Katalog. Profil folgt dem lokalen Inhalt und bleibt per Kopfbutton mit Fokusführung sowie Direktlink erreichbar; Entfernen liegt unter Installation verwalten in Einrichtung. Vertikale Coin-Leiste bleibt am Desktop, horizontal auf schmalen Geräten. Große Erststart-Hilfe erscheint ausschließlich ohne installierte Binaries. Keine Geräte-/Mining-/Fee-Verträge geändert.
+- Korrigierte Statusdarstellung: poolgesunde laufende GPUs ohne zusätzliches Detail melden Pool verbunden statt Noch nicht gestartet; vorhandene Wattziele ohne gemeldetes Maximum zeigen eine fehlende Obergrenze statt ein fehlendes Ziel.
+- Evidenz: JavaScript-Syntax und Git-Diff geprüft; Chrome-Fixtures `.codex-qa/pc-agent-design.cjs` erfolgreich für Hierarchie, Profilfokus, Installationsverwaltung, Filter, Erststart, verzögerte Antworten, alle sechs Seiten am Desktop/mobil und DE/EN bis 320 px. `.codex-qa/pc-agent-workspace.cjs` bestätigt gespeicherte Gerätezuordnungen über Miner-Wechsel, lokale Ausschlüsse, Bereichsnavigation und globale Freigabe. Betriebs-/Katalog-/Einrichtungs-/Diagnose-/Profil-Screenshots visuell kontrolliert. Kein Hardwaretest oder Benutzerstudie.

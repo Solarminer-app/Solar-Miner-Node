@@ -1,9 +1,10 @@
 const $ = id => document.getElementById(id);
 const i18n = window.SolarMinerI18n;
 const fmt = (value, digits = 2) => new Intl.NumberFormat(i18n.locale, { maximumFractionDigits: digits }).format(value);
+let currentTelemetry;
 const text = (id, value) => { $(id).textContent = value; };
 function el(tag, className, value) { const n = document.createElement(tag); if (className) n.className = className; if (value !== undefined) n.textContent = value; return n; }
-function meter(value, maximum, className = '') { const bar = el('div', `telemetry-meter ${className}`); const fill = el('i'); fill.style.width = `${Math.max(0, Math.min(100, value == null ? 0 : value / maximum * 100))}%`; bar.append(fill); return bar; }
+function meter(value, maximum, className = '') { const bar = el('div', `telemetry-meter ${className}${value == null ? ' unavailable' : ''}`); const fill = el('i'); fill.style.width = `${Math.max(0, Math.min(100, value == null ? 0 : value / maximum * 100))}%`; bar.append(fill); return bar; }
 function formatMetric(value, unit) {
   if (unit !== 'B' && unit !== 'B/s') return `${fmt(value)} ${unit || ''}`.trim();
   const suffix = unit === 'B/s' ? '/s' : '';
@@ -16,6 +17,7 @@ function formatMetric(value, unit) {
   return `${fmt(scaled, index === 0 ? 0 : 2)} ${units[index]}${suffix}`;
 }
 function render(data) {
+  currentTelemetry = data;
   text('platform', `${data.platform || '—'} · ${data.architecture || '—'}`);
   text('cpu-name', data.cpuName || 'Prozessor unbekannt');
   const cpuPower = data.metrics?.['cpu.package_power'];
@@ -52,17 +54,7 @@ function render(data) {
   text('collected-at', data.collectedAt ? i18n.t(`Stand ${new Date(data.collectedAt).toLocaleTimeString(i18n.locale)}`) : '—');
   const sources = $('sensor-sources'); sources.replaceChildren();
   for (const [name, state] of Object.entries(data.sources || {})) sources.append(el('span', 'source', `${name}: ${state}`));
-  const list = $('telemetry-list'); list.replaceChildren();
-  for (const [key, metric] of metrics) {
-    const row = el('div', `metric${metric.available ? '' : ' unavailable'}`);
-    const value = metric.available ? formatMetric(metric.value, metric.unit) : 'Nicht verfügbar';
-    const exactBytes = metric.available && (metric.unit === 'B' || metric.unit === 'B/s')
-      ? `${fmt(metric.value, 0)} ${metric.unit}` : '';
-    row.append(el('span', '', key), el('strong', '', value),
-      el('small', '', `${metric.source || 'Quelle unbekannt'} · ${metric.directMeasurement ? 'direkte Messung' : 'abgeleitet / geschätzt'}`));
-    if (exactBytes) row.title = `Rohwert: ${exactBytes}`;
-    list.append(row);
-  }
+  renderMetricList(data);
   const status = data.sensorServiceStatus || 'not-required';
   $('sensor-status').className = `tag ${status === 'available' || status === 'not-required' ? 'ready' : 'blocked'}`;
   text('sensor-status', status === 'available' || status === 'not-required' ? 'Sensorzugriff bereit' : `Sensorzugriff: ${status}`);
@@ -80,4 +72,24 @@ async function refresh() {
   }
 }
 $('refresh').addEventListener('click', refresh);
-refresh(); setInterval(refresh, 3000);
+refresh(); setInterval(() => {if (!document.hidden) refresh();}, 3000);
+
+function renderMetricList(data) {
+  const query = $('sensor-search').value.trim().toLowerCase(), onlyAvailable = $('sensor-available').checked;
+  const list = $('telemetry-list'); list.replaceChildren();
+  for (const [key, metric] of Object.entries(data.metrics || {}).filter(([key, metric]) => (!onlyAvailable || metric.available) && [key, metric.unit, metric.source].join(' ').toLowerCase().includes(query))) {
+    const row = el('div', `metric${metric.available ? '' : ' unavailable'}`);
+    const value = metric.available ? formatMetric(metric.value, metric.unit) : 'Nicht verfügbar';
+    const exactBytes = metric.available && (metric.unit === 'B' || metric.unit === 'B/s')
+      ? `${fmt(metric.value, 0)} ${metric.unit}` : '';
+    row.append(el('span', '', key), el('strong', '', value),
+      el('small', '', `${metric.source || 'Quelle unbekannt'} · ${metric.directMeasurement ? 'direkte Messung' : 'abgeleitet / geschätzt'}`));
+    if (exactBytes) row.title = `Rohwert: ${exactBytes}`;
+    list.append(row);
+  }
+
+  if (!list.children.length) list.append(el('p', 'empty', window.SolarMinerI18n.t('Keine Sensoren passen zu diesem Filter.')));
+}
+$('sensor-search').addEventListener('input', () => {if(currentTelemetry)renderMetricList(currentTelemetry);});
+$('sensor-available').addEventListener('change', () => {if(currentTelemetry)renderMetricList(currentTelemetry);});
+const sensorAlert = $('lhm-gate'); document.querySelector('.telemetry-details').before(sensorAlert);

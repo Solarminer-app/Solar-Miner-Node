@@ -3,10 +3,53 @@ const i18n = window.SolarMinerI18n;
 const t = i18n.t;
 const statusLabels = { MINING: 'Mining aktiv', PAUSED: 'Pausiert', STOPPED: 'Gestoppt', ERROR: 'Fehler' };
 let latest = null, busy = false, deviceFilter = 'all';
-let selectedView = ['monero', 'pearl'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'catalog';
+let refreshing = false, assessing = false, initialCatalog = null;
+let overviewFresh = false, overviewSavedAt = null;
+const cachedControls = new Map();
+const gpuCoinIds = ['ravencoin', 'ethereumclassic'];
+const viewIds = ['monero', 'pearl', ...gpuCoinIds];
+let selectedView = viewIds.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'catalog';
 let pendingInstall = null;
 let defenderAction = null, defenderMessage = null;
 let selectedGpuIndices = new Set(), gpuSelectionDirty = false, gpuSelectionVersion = null;
+const gpuCoinSelection = {ravencoin: new Set(), ethereumclassic: new Set()};
+const gpuCoinSelectionVersion = {};
+const gpuCoinSelectionDirty = {ravencoin: false, ethereumclassic: false};
+
+function initGpuCoinForms() {
+  const labels = {ravencoin: ['Ravencoin', 'RVN', 'KAWPOW'], ethereumclassic: ['Ethereum Classic', 'ETC', 'ETCHash']};
+  for (const coin of gpuCoinIds) {
+    const [name, ticker, algorithm] = labels[coin];
+    const form = document.createElement('form');
+    form.id = `${coin}-form`; form.className = 'form-block'; form.hidden = true;
+    form.innerHTML = `<h3>${name} · ${algorithm} / GPU</h3>
+      <p class="muted">Eigene Pool-Adresse und ${ticker}-Wallet erforderlich. Die Fee-Route muss vor dem Start freigeschaltet sein.</p>
+      <label for="${coin}-pool">Mining-Pool</label>
+      <input id="${coin}-pool" type="text" placeholder="stratum+tcp://pool.example:3333" required autocomplete="off" spellcheck="false">
+      <label for="${coin}-wallet">${ticker} Wallet</label>
+      <input id="${coin}-wallet" type="text" required autocomplete="off" spellcheck="false">
+      <label for="${coin}-worker">Worker</label>
+      <input id="${coin}-worker" type="text" value="pc" pattern="[A-Za-z0-9_\\-]{1,32}" required>
+      <div class="field"><span class="field-label">GPUs auswählen</span>
+      <div id="${coin}-devices" class="gpu-selection" role="group" aria-label="GPUs auswählen"></div>
+      <small id="${coin}-devices-help" class="muted"></small></div>
+      <button id="${coin}-submit" class="button" type="submit">Konfiguration speichern</button>
+      <p id="${coin}-save-feedback" class="notice form-feedback" role="status" aria-live="polite" hidden></p>`;
+    $('power-form').before(form);
+    form.addEventListener('input', () => { form.dataset.dirty = 'true'; });
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      const devices = [...gpuCoinSelection[coin]].sort();
+      if (!devices.length) return notice('Wähle mindestens eine erkannte GPU.', true);
+      const proxyUrl = latest?.proxy?.[coin === 'ravencoin' ? 'ravencoinUrl' : 'ethereumclassicUrl'];
+      if (!proxyUrl) return notice('SolarMiner-Proxy-Route fehlt.', true);
+      action(`/api/agent/${coin}/configuration`, `${name}-Konfiguration gespeichert.`, null,
+        {poolUrl: $(`${coin}-pool`).value.trim(), proxyUrl, wallet: $(`${coin}-wallet`).value.trim(),
+         worker: $(`${coin}-worker`).value.trim(), devices: devices.join(',')}, `${coin}-save-feedback`);
+    });
+  }
+}
 let consoleState = null;
 let randomXOptimization = null, lastOptimizationLoad = 0, optimizationBusy = false;
 let nodeAssessment = null;
@@ -21,6 +64,12 @@ const miningTips = {
   pearl: [
     { id: 'pearl-gpu-compatible', platforms: ['windows', 'linux'], level: 'Voraussetzung', title: 'Kompatible GPU und Treiber', action: 'Die GPU-, Treiber- und SRBMiner-Kompatibilität hängt von Modell, Version und Betriebssystem ab. Für diese Prüfung gibt es derzeit keine automatische Aktivierungsaktion.', source: 'https://github.com/doktor83/SRBMiner-Multi' },
     { id: 'pearl-miner-no-errors', platforms: ['windows', 'linux'], level: 'Hinweis', title: 'Miner-Ausgabe', action: 'SRBMiner meldet erkannte Geräte und Initialisierungsfehler in seiner Konsole. Der PC-Agent zeigt die Miner-Ausgabe in dieser Ansicht.', source: 'https://github.com/doktor83/SRBMiner-Multi' }
+  ],
+  ravencoin: [
+    { id: 'rvn-gpu-compatible', platforms: ['windows', 'linux'], level: 'Voraussetzung', title: 'KAWPOW-fähige GPU und Treiber', action: 'SRBMiner muss die gewählte GPU für KAWPOW erkennen. Prüfe Geräte und Initialisierungsfehler in der Miner-Konsole; der Agent ändert keine Treiber oder Taktraten.', source: 'https://github.com/doktor83/SRBMiner-Multi' }
+  ],
+  ethereumclassic: [
+    { id: 'etc-gpu-compatible', platforms: ['windows', 'linux'], level: 'Voraussetzung', title: 'ETCHash-fähige GPU und Treiber', action: 'SRBMiner muss die gewählte GPU für ETCHash erkennen. Prüfe Geräte und Initialisierungsfehler in der Miner-Konsole; der Agent ändert keine Treiber oder Taktraten.', source: 'https://github.com/doktor83/SRBMiner-Multi' }
   ]
 };
 function platformKey(platform = '') {
@@ -262,19 +311,60 @@ function renderGpuSelection(data) {
   set('pearl-devices-help', indices.length ? 'Wähle mindestens eine GPU.' : 'Keine unterstützte GPU erkannt.');
   $('pearl-submit').disabled = busy || !indices.some(index => selectedGpuIndices.has(index));
 }
+function renderGpuCoinSelection(coin, data) {
+  const config = data.gpuCoins?.[coin]?.configuration;
+  const gpus = data.gpus || [];
+  const version = JSON.stringify({devices: config?.devices, gpus: gpus.map(g => [g.vendor, g.index, g.model])});
+  if (!gpuCoinSelectionDirty[coin] && gpuCoinSelectionVersion[coin] !== version) {
+    gpuCoinSelection[coin] = new Set(config?.devices ? config.devices.split(',') : gpus.map(gpuKey));
+    gpuCoinSelectionVersion[coin] = version;
+  }
+  const list = $(`${coin}-devices`);
+  const indices = gpus.map(gpuKey);
+  if ([...list.querySelectorAll('button')].map(button => button.dataset.index).join(',') !== indices.join(',')) {
+    list.replaceChildren();
+    for (const gpu of gpus) {
+      const key = gpuKey(gpu);
+      const button = node('button', 'gpu-button', `${gpu.vendor} ${gpu.index} · ${gpu.model || gpu.vendor}`);
+      button.type = 'button'; button.dataset.index = key;
+      button.addEventListener('click', () => {
+        if (gpuCoinSelection[coin].has(key)) gpuCoinSelection[coin].delete(key);
+        else gpuCoinSelection[coin].add(key);
+        gpuCoinSelectionDirty[coin] = true;
+        renderGpuCoinSelection(coin, latest);
+      });
+      list.append(button);
+    }
+  }
+  for (const button of list.querySelectorAll('button')) {
+    const selected = gpuCoinSelection[coin].has(button.dataset.index);
+    button.classList.toggle('selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  }
+  set(`${coin}-devices-help`, indices.length ? 'Wähle mindestens eine GPU.' : 'Keine GPU erkannt.');
+  $(`${coin}-submit`).disabled = busy || !indices.some(index => gpuCoinSelection[coin].has(index));
+  const form = $(`${coin}-form`);
+  if (config && form.dataset.dirty !== 'true' && form.dataset.hydrated !== JSON.stringify(config)) {
+    $(`${coin}-pool`).value = config.poolUrl;
+    $(`${coin}-wallet`).value = config.wallet;
+    $(`${coin}-worker`).value = config.worker;
+    form.dataset.hydrated = JSON.stringify(config);
+  }
+}
 function showView(view) {
   selectedView = view; location.hash = view === 'catalog' ? '' : view;
   if (latest) render(latest);
+  else if (initialCatalog) renderInitialCatalog(initialCatalog);
 }
 function syncConsoleView() {
-  const coin = selectedView === 'pearl' ? $('console-gpu').value || 'pearl'
-    : selectedView === 'monero' ? 'monero' : null;
+  const coin = selectedView === 'pearl' || gpuCoinIds.includes(selectedView)
+    ? $('console-gpu').value || selectedView : selectedView === 'monero' ? 'monero' : null;
   if ((consoleState?.coin ?? null) === coin) return;
   consoleState = coin ? { coin, offset: 0, runId: null, decoder: new TextDecoder(), loading: false } : null;
   $('miner-console').replaceChildren();
   $('console-download').hidden = true;
   if (!coin) return;
-  set('miner-console-title', coin === 'monero' ? 'XMRig-Konsole' : coin === 'pearl' ? 'SRBMiner-Konsole · alle GPUs' : `SRBMiner-Konsole · ${coin.replace('pearl-', '').replace('-', ' ')}`);
+  set('miner-console-title', coin === 'monero' ? 'XMRig-Konsole' : `SRBMiner-Konsole · ${coin}`);
   set('console-status', 'Lade vollständige Ausgabe …');
   $('console-download').href = `/api/agent/console/${coin}/download`;
   pollConsole();
@@ -314,6 +404,52 @@ async function pollConsole() {
     if (more && consoleState === state) setTimeout(pollConsole, 0);
   }
 }
+function renderInstalledRail(coins, data = {}) {
+  $('add-miner').classList.toggle('selected', selectedView === 'catalog');
+  $('add-miner').setAttribute('aria-pressed', String(selectedView === 'catalog'));
+  const rail = $('installed-rail'); rail.replaceChildren();
+  for (const coin of coins.filter(c => c.binaryAvailable)) {
+    const running = coin.id === 'pearl' ? data.pearl?.running : coin.status === 'MINING';
+    const button = node('button', `rail-coin ${selectedView === coin.id ? 'selected' : ''} ${running ? 'running' : ''}`, coin.id === 'monero' ? 'ɱ' : coin.id === 'ravencoin' ? 'RVN' : coin.id === 'ethereumclassic' ? 'ETC' : 'PRL');
+    button.setAttribute('aria-pressed', String(selectedView === coin.id));
+    button.type = 'button'; button.title = `${coin.name} öffnen${running ? ' · läuft' : ''}`; button.setAttribute('aria-label', `${coin.name} öffnen${running ? ', läuft' : ''}`);
+    button.addEventListener('click', () => showView(coin.id)); rail.append(button);
+  }
+}
+function renderInitialCatalog(coins) {
+  renderInstalledRail(coins);
+  const grid = $('catalog-grid'); grid.replaceChildren();
+  for (const coin of coins) {
+    if (deviceFilter !== 'all' && coin.device !== deviceFilter) continue;
+    const card = node('article', 'catalog-card');
+    const header = node('div', 'coin-top');
+    header.append(node('span', `coin-emblem ${coin.id}`, coin.id === 'monero' ? 'ɱ' : '◈'),
+      node('span', 'tag', coin.experimental ? 'EXPERIMENTELL' : coin.device));
+    card.append(header);
+    card.append(node('h2', '', coin.name), node('p', 'muted', `${coin.algorithm} · ${coin.device}`),
+      node('p', 'catalog-state', coin.binaryAvailable ? 'Installiert' : 'Noch nicht installiert'));
+    if (coin.binaryAvailable) {
+      const open = node('button', 'button', 'Miner öffnen'); open.type = 'button';
+      open.addEventListener('click', () => showView(coin.id)); card.append(open);
+    }
+    grid.append(card);
+  }
+  const selected = coins.find(coin => coin.id === selectedView);
+  // Only installation data is known; the full detail view needs fresh operational state.
+  $('catalog-view').hidden = false; $('miner-view').hidden = true;
+  if ($('notice').dataset.kind !== 'connection') {
+    $('catalog-notice').textContent = `${selected ? `${selected.name}: ` : ''}${t('Betriebsdaten werden geladen …')}`;
+    $('catalog-notice').hidden = false;
+  }
+}
+async function loadInitialCatalog() {
+  try {
+    const response = await fetch('/api/agent/miner-catalog', { cache: 'no-store' });
+    if (!response.ok) return; // The overview remains the fallback and owns connection errors.
+    const coins = await response.json();
+    if (!latest && Array.isArray(coins)) { initialCatalog = coins; renderInitialCatalog(coins); }
+  } catch (_) { /* The overview reports connection failures. */ }
+}
 function renderWorkspace(data) {
   let onboarding = document.getElementById('onboarding');
   if (!onboarding) {
@@ -322,8 +458,9 @@ function renderWorkspace(data) {
     $('catalog-view').insertBefore(onboarding, $('catalog-notice'));
   }
   const steps = onboarding.querySelector('.onboarding-steps'); steps.replaceChildren();
-  const configured = Boolean(data.moneroConfiguration || data.pearlConfiguration);
+  const configured = Boolean(data.moneroConfiguration || data.pearlConfiguration || gpuCoinIds.some(coin => data.gpuCoins?.[coin]?.configuration));
   const installedAny = (data.coins || []).some(coin => coin.binaryAvailable);
+  onboarding.hidden = installedAny;
   const stepData = [
     [true, 'Hardware ansehen und einen CPU- oder GPU-Miner auswählen.'],
     [installedAny, installedAny ? 'Miner installiert – Pool und eigene Wallet einrichten.' : 'Passenden Miner herunterladen und installieren.'],
@@ -345,13 +482,7 @@ function renderWorkspace(data) {
   if (selectedView !== 'catalog' && !installed.some(c => c.id === selectedView)) selectedView = 'catalog';
   $('catalog-view').hidden = selectedView !== 'catalog';
   $('miner-view').hidden = selectedView === 'catalog';
-  const rail = $('installed-rail'); rail.replaceChildren();
-  for (const coin of installed) {
-    const running = coin.id === 'pearl' ? data.pearl?.running : coin.status === 'MINING';
-    const button = node('button', `rail-coin ${selectedView === coin.id ? 'selected' : ''} ${running ? 'running' : ''}`, coin.id === 'monero' ? 'ɱ' : '◈');
-    button.type = 'button'; button.title = `${coin.name} öffnen${running ? ' · läuft' : ''}`; button.setAttribute('aria-label', `${coin.name} öffnen${running ? ', läuft' : ''}`);
-    button.addEventListener('click', () => showView(coin.id)); rail.append(button);
-  }
+  renderInstalledRail(data.coins || [], data);
   const grid = $('catalog-grid'); grid.replaceChildren();
   for (const coin of data.coins || []) {
     if (deviceFilter !== 'all' && coin.device !== deviceFilter) continue;
@@ -360,7 +491,7 @@ function renderWorkspace(data) {
     const badge = node('span', 'tag', coin.experimental ? 'EXPERIMENTELL' : coin.device);
     const header = node('div', 'coin-top'); header.append(icon, badge);
     const title = node('h2', '', coin.name); const meta = node('p', 'muted', `${coin.algorithm} · ${coin.device} Mining · ${coin.id === 'monero' ? 'XMRig' : 'SRBMiner-MULTI'}`);
-    const readiness = data[coin.id] || {}; const status = readiness.downloadStatus || 'PENDING';
+    const readiness = gpuCoinIds.includes(coin.id) ? data.pearl || {} : data[coin.id] || {}; const status = readiness.downloadStatus || 'PENDING';
     const blockedByAntivirus = status === 'BLOCKED_BY_ANTIVIRUS';
     const state = node('p', 'catalog-state', coin.binaryAvailable ? `${coin.id === 'pearl' && data.pearl?.running ? 'Läuft auf GPU(s)' : coin.status === 'MINING' ? 'Mining aktiv' : 'Installiert'}` : status === 'DOWNLOADING' ? `Download ${readiness.downloadProgress || 0} %` : blockedByAntivirus ? 'Windows-Sicherheit hat den Miner blockiert.' : status === 'FAILED' || status === 'UNSUPPORTED' ? readiness.downloadDetail || 'Installation fehlgeschlagen' : 'Noch nicht installiert');
     card.append(header, title, meta, state);
@@ -413,7 +544,7 @@ function renderWorkspace(data) {
   if (pendingInstall) {
     const coin = data.coins?.find(c => c.id === pendingInstall);
     if (coin?.binaryAvailable) { const installedId = pendingInstall; pendingInstall = null; showView(installedId); }
-    else if (['FAILED', 'UNSUPPORTED', 'BLOCKED_BY_ANTIVIRUS'].includes(data[pendingInstall]?.downloadStatus)) pendingInstall = null;
+    else if (['FAILED', 'UNSUPPORTED', 'BLOCKED_BY_ANTIVIRUS'].includes((gpuCoinIds.includes(pendingInstall) ? data.pearl : data[pendingInstall])?.downloadStatus)) pendingInstall = null;
   }
   if (selectedView !== 'catalog') {
     const coin = data.coins?.find(c => c.id === selectedView);
@@ -423,7 +554,7 @@ function renderWorkspace(data) {
 async function installMiner(coin) {
   pendingInstall = coin;
   await action(`/api/agent/${coin}/download`, `${coin === 'monero' ? 'XMRig' : 'SRBMiner-MULTI'}-Download gestartet.`);
-  const readiness = latest?.[coin];
+  const readiness = gpuCoinIds.includes(coin) ? latest?.pearl : latest?.[coin];
   if (['FAILED', 'UNSUPPORTED', 'BLOCKED_BY_ANTIVIRUS'].includes(readiness?.downloadStatus)) pendingInstall = null;
 }
 async function removeMiner(coin) {
@@ -436,8 +567,9 @@ function coinBlockers(coin, data) {
   const standalone = data.proxy?.mode === 'standalone';
   if (!data.proxy?.reachable) blocked.push('SolarMiner-Proxy nicht erreichbar');
   else if (standalone && data.proxy?.managedStatus !== 'running') blocked.push('Lokaler Proxy läuft nicht');
-  const feeReady = coin.id === 'monero' ? data.proxy?.moneroFeeReady : data.proxy?.pearlFeeReady;
-  if (standalone && !feeReady) blocked.push(coin.id === 'pearl' ? 'Pearl-Fee-Ziel nicht geladen' : 'Monero-Fee-Ziel nicht geladen');
+  const feeReady = coin.id === 'monero' ? data.proxy?.moneroFeeReady : coin.id === 'pearl' ? data.proxy?.pearlFeeReady
+    : coin.id === 'ravencoin' ? data.proxy?.ravencoinFeeReady : data.proxy?.ethereumclassicFeeReady;
+  if ((standalone || gpuCoinIds.includes(coin.id)) && !feeReady) blocked.push(`${coin.name}-Fee-Ziel nicht geladen`);
   if (!coin.configured) blocked.push('Pool-Konfiguration fehlt');
   if (!coin.binaryAvailable) blocked.push('Miner-Binary fehlt');
   return blocked;
@@ -458,23 +590,25 @@ function renderCoins(data) {
   }
 }
 function renderGpuProcesses(data) {
-  const pearl = selectedView === 'pearl', states = data.pearl?.gpus || [];
-  $('gpu-processes-panel').hidden = !pearl;
-  $('console-gpu-label').hidden = !pearl;
+  const gpuCoin = selectedView === 'pearl' || gpuCoinIds.includes(selectedView);
+  const states = selectedView === 'pearl' ? data.pearl?.gpus || [] : data.gpuCoins?.[selectedView]?.gpus || [];
+  $('gpu-processes-panel').hidden = !gpuCoin;
+  $('console-gpu-label').hidden = !gpuCoin;
+  set('gpu-processes-title', `${data.coins?.find(coin => coin.id === selectedView)?.name || 'GPU-Miner'} pro GPU`);
   const picker = $('console-gpu'), selected = picker.value;
-  const keys = ['pearl', ...states.map(gpu => `pearl-${gpu.vendor}-${gpu.index}`)];
+  const keys = [selectedView, ...states.map(gpu => `${selectedView}-${gpu.vendor}-${gpu.index}`)];
   if ([...picker.options].map(option => option.value).join(',') !== keys.join(',')) {
     picker.replaceChildren();
-    const all = node('option', '', 'Alle GPUs'); all.value = 'pearl'; picker.append(all);
+    const all = node('option', '', 'Alle GPUs'); all.value = selectedView; picker.append(all);
     for (const gpu of states) {
       const option = node('option', '', `${gpu.vendor} ${gpu.index} · ${gpu.model}`);
-      option.value = `pearl-${gpu.vendor}-${gpu.index}`; picker.append(option);
+      option.value = `${selectedView}-${gpu.vendor}-${gpu.index}`; picker.append(option);
     }
-    picker.value = keys.includes(selected) ? selected : 'pearl';
+    picker.value = keys.includes(selected) ? selected : selectedView;
   }
   const list = $('gpu-processes'); list.replaceChildren();
   if (!states.length) { list.append(node('p', 'muted', 'Keine GPU erkannt.')); return; }
-  const pearlCoin = data.coins?.find(coin => coin.id === 'pearl');
+  const selectedCoin = data.coins?.find(coin => coin.id === selectedView);
   for (const gpu of states) {
     const card = node('article', `gpu-process${gpu.running ? ' running' : ''}`);
     const title = node('strong', '', `${gpu.vendor} ${gpu.index} · ${gpu.model}`);
@@ -482,14 +616,15 @@ function renderGpuProcesses(data) {
       !gpu.selected ? 'Nicht ausgewählt' : gpu.manuallyPaused ? 'Manuell pausiert'
         : gpu.running && !gpu.poolHealthy ? 'Verbinde mit Pool' : statusLabels[gpu.status] || gpu.status);
     const header = node('div', 'gpu-process-head'); header.append(title, state);
-    const detail = node('p', 'muted', gpu.lastError || gpu.connectionDetail || 'Noch nicht gestartet');
+    const detail = node('p', 'muted', gpu.lastError || gpu.connectionDetail ||
+      (gpu.running ? gpu.poolHealthy ? 'Pool verbunden' : 'Verbinde mit Pool' : 'Noch nicht gestartet'));
     const controls = node('div', 'gpu-process-actions');
     const start = node('button', 'button subtle', 'GPU starten'); start.type = 'button';
-    start.disabled = busy || !gpu.selected || gpu.running || !pearlCoin || coinBlockers(pearlCoin, data).length > 0;
-    start.addEventListener('click', () => action(`/api/agent/pearl/gpus/${gpu.vendor}/${gpu.index}/resume`, `${gpu.vendor} ${gpu.index} gestartet.`));
+    start.disabled = busy || !gpu.selected || gpu.running || !selectedCoin || coinBlockers(selectedCoin, data).length > 0;
+    start.addEventListener('click', () => action(`/api/agent/${selectedView}/gpus/${gpu.vendor}/${gpu.index}/resume`, `${gpu.vendor} ${gpu.index} gestartet.`));
     const stop = node('button', 'button subtle', 'GPU pausieren'); stop.type = 'button';
     stop.disabled = busy || !gpu.running;
-    stop.addEventListener('click', () => action(`/api/agent/pearl/gpus/${gpu.vendor}/${gpu.index}/pause`, `${gpu.vendor} ${gpu.index} pausiert.`));
+    stop.addEventListener('click', () => action(`/api/agent/${selectedView}/gpus/${gpu.vendor}/${gpu.index}/pause`, `${gpu.vendor} ${gpu.index} pausiert.`));
     controls.append(start, stop); card.append(header, detail, controls); list.append(card);
   }
 }
@@ -506,8 +641,12 @@ function renderProxy(proxy) {
   set('proxy-description', 'Der Agent nutzt einen SolarMiner-Proxy in deinem Netzwerk.');
   set('proxy-state', proxy?.reachable ? 'Erreichbar' : 'Nicht erreichbar');
   set('proxy-xmr', proxy?.moneroUrl || '—'); set('proxy-pearl', proxy?.pearlUrl || '—');
+  set('proxy-ravencoin', proxy?.ravencoinUrl || '—');
+  set('proxy-ethereumclassic', proxy?.ethereumclassicUrl || '—');
   set('fee-monero', proxy?.moneroFeeReady ? 'Verfügbar' : 'Nicht verfügbar');
   set('fee-pearl', proxy?.pearlFeeReady ? 'Verfügbar' : 'Nicht verfügbar');
+  set('fee-ravencoin', proxy?.ravencoinFeeReady ? 'Verfügbar' : 'Nicht verfügbar');
+  set('fee-ethereumclassic', proxy?.ethereumclassicFeeReady ? 'Verfügbar' : 'Nicht verfügbar');
   set('proxy-detail', '');
   $('proxy-form').hidden = false;
   $('proxy-discovery').hidden = false;
@@ -528,17 +667,22 @@ function renderFees(data) {
   if (document.activeElement !== $('referral-key')) $('referral-key').value = data.referral?.key || '';
   if (!fee) { root.append(node('p', 'muted', 'Gebührenmodell wird geladen …')); return; }
   const knownTotal = fee.parts.filter(part => part.known).reduce((sum, part) => sum + (part.percentage || 0), 0);
-  const card = node('article', 'fee-card'); card.append(node('strong', '', `${fee.coin === 'monero' ? 'Monero · XMRig' : 'Pearl · SRBMiner-MULTI'} · ${i18n.language === 'en' ? 'known deductions' : 'bekannte Abzüge'} ${fmt(knownTotal, 2)} %`));
+  const feeCoin = data.coins?.find(item => item.id === fee.coin);
+  const card = node('article', 'fee-card'); card.append(node('strong', '', `${feeCoin?.name || fee.coin} · ${fee.coin === 'monero' ? 'XMRig' : 'SRBMiner-MULTI'} · ${i18n.language === 'en' ? 'known deductions' : 'bekannte Abzüge'} ${fmt(knownTotal, 2)} %`));
   const bar = node('div', 'fee-bar');
   for (const part of fee.parts.filter(part => part.known && part.percentage > 0)) { const segment = node('span', `fee-segment fee-${part.kind.toLowerCase()}`); segment.style.flexGrow = String(part.percentage); segment.title = `${part.label}: ${fmt(part.percentage, 2)} %`; bar.append(segment); }
   const user = node('span', 'fee-segment fee-user'); user.style.flexGrow = String(Math.max(0, 100 - knownTotal)); bar.append(user); card.append(bar);
   for (const part of fee.parts) { const row = node('div', 'detail'); row.append(node('span', '', part.label), node('strong', '', part.known ? `${fmt(part.percentage, 2)} %` : 'unbekannt')); card.append(row, node('small', 'muted', part.source)); }
   const remaining = node('div', 'detail'); remaining.append(node('span', '', 'Voraussichtlich für dich'), node('strong', '', `${fmt(Math.max(0, 100-knownTotal), 2)} %`)); card.append(remaining); root.append(card);
 }
-function render(data) {
+function render(data, fresh = overviewFresh) {
+  for (const [control, disabled] of cachedControls) control.disabled = disabled;
+  cachedControls.clear();
+  overviewFresh = fresh;
   latest = data;
   hydrateConfiguration('monero-form', data.moneroConfiguration, {poolUrl: 'monero-pool', wallet: 'monero-wallet', worker: 'monero-worker'});
   hydrateConfiguration('pearl-form', data.pearlConfiguration, {poolUrl: 'pearl-pool', wallet: 'pearl-wallet', worker: 'pearl-worker'});
+  for (const coin of gpuCoinIds) renderGpuCoinSelection(coin, data);
   renderPayoutState(data);
   renderGpuSelection(data);
   renderWorkspace(data);
@@ -546,24 +690,32 @@ function render(data) {
   const coin = data.coins?.find(c => c.id === selectedView);
   if (coin?.id === 'monero' && Date.now() - lastOptimizationLoad > 5000) loadRandomXOptimization();
   renderOptimizationChecklist(coin, data);
-  const workers = (data.stats?.workers || []).filter(worker => worker.currentAlgorithm === (selectedView === 'pearl' ? 'PearlHash' : 'RandomX'));
+  const workers = (data.stats?.workers || []).filter(worker => worker.currentAlgorithm ===
+    (selectedView === 'pearl' ? 'PearlHash' : selectedView === 'ravencoin' ? 'kawpow' : selectedView === 'ethereumclassic' ? 'etchash' : 'RandomX'));
   const status = coin?.status || 'STOPPED';
   const pearlWaiting = selectedView === 'pearl' && data.pearl?.running && !data.pearl?.poolHealthy;
   set('status', pearlWaiting ? 'Verbinde mit Pool' : statusLabels[status] || status); set('coin-label', coin ? `${coin.name} · ${coin.device}` : '—');
-  const gpuRunning = (data.pearl?.gpus || []).filter(gpu => gpu.running).length;
-  const gpuSelected = (data.pearl?.gpus || []).filter(gpu => gpu.selected).length;
+  const currentGpuStates = selectedView === 'pearl' ? data.pearl?.gpus || [] : data.gpuCoins?.[selectedView]?.gpus || [];
+  const gpuRunning = currentGpuStates.filter(gpu => gpu.running).length;
+  const gpuSelected = currentGpuStates.filter(gpu => gpu.selected).length;
   const cpuRunning = data.coins?.find(c => c.id === 'monero')?.status === 'MINING';
   set('view-note', `CPU: ${cpuRunning ? 'läuft' : 'pausiert'} · GPUs: ${gpuRunning}/${gpuSelected} gestartet. Beide können parallel laufen.`);
   set('miner-details-title', coin?.name || 'Miner');
+  set('miner-view-title', coin?.name || 'Mining');
+  set('miner-emblem', coin?.ticker || (coin?.id === 'monero' ? 'XMR' : '—'));
+  $('miner-view').dataset.coin = coin?.id || '';
+  window.dispatchEvent(new CustomEvent('mining-rendered', {detail: data}));
   set('detail-algorithm', coin?.algorithm || '—');
-  set('detail-hardware', coin?.device === 'GPU' ? ((data.pearl?.gpus || []).filter(gpu => gpu.selected)
+  set('detail-hardware', coin?.device === 'GPU' ? (currentGpuStates.filter(gpu => gpu.selected)
     .map(gpu => gpu.model || `${gpu.vendor} ${gpu.index}`).join(', ') || 'Keine GPU ausgewählt') : 'CPU');
   set('detail-installation', coin?.binaryAvailable ? 'Installiert' : 'Nicht installiert');
   set('detail-configuration', coin?.configured
     ? (payoutDefault(selectedView)?.inUse ? 'Pool aktiv · Auszahlung an SolarMiner-Standard' : 'Pool und Wallet konfiguriert')
     : 'Pool und Wallet fehlen');
-  set('detail-connection', selectedView === 'pearl' && (data.pearl?.running || status === 'ERROR')
-    ? (data.pearl?.minerError || data.pearl?.connectionDetail || 'Verbindung wird geprüft')
+  set('detail-connection', gpuCoinIds.includes(selectedView) && (data.gpuCoins?.[selectedView]?.running || status === 'ERROR')
+    ? (data.gpuCoins?.[selectedView]?.minerError || currentGpuStates.find(gpu => gpu.running)?.connectionDetail || 'Verbindung wird geprüft')
+    : selectedView === 'pearl' && (data.pearl?.running || status === 'ERROR')
+    ? (data.pearl?.minerError || data.pearl?.connectionDetail || (data.pearl?.poolHealthy ? 'Pool verbunden' : 'Verbindung wird geprüft'))
     : selectedView === 'monero' && status === 'ERROR' && data.monero?.minerError
       ? data.monero.minerError
       : data.proxy?.reachable ? (data.proxy?.mode === 'standalone' ? 'Lokaler Mining-Dienst bereit' : 'SolarMiner-Proxy erreichbar') : 'Nicht erreichbar');
@@ -579,47 +731,75 @@ function render(data) {
   const powerTarget = workers.reduce((sum, worker) => sum + (worker.powerTargetWatts || 0), 0);
   const maximum = workers.reduce((sum, worker) => sum + (worker.maxPowerTarget || 0), 0);
   set('power-target', powerTarget > 0 ? `${fmt(powerTarget, 0)} W` : '—');
-  set('power-range', maximum > 0 ? `Maximal ${fmt(maximum, 0)} W` : 'Noch kein Leistungsziel');
-  const remainingGpus = (data.pearl?.gpus || []).some(gpu => gpu.selected && !gpu.running);
-  $('resume').disabled = busy || !coin || coinBlockers(coin, data).length > 0 || (selectedView === 'pearl' ? !remainingGpus : status === 'MINING');
-  $('pause').disabled = busy || (selectedView === 'pearl' ? !data.pearl?.running : status !== 'MINING');
+  set('power-range', maximum > 0 ? `Maximal ${fmt(maximum, 0)} W`
+    : powerTarget > 0 ? 'Leistungsobergrenze nicht gemeldet' : 'Noch kein Leistungsziel');
+  const remainingGpus = currentGpuStates.some(gpu => gpu.selected && !gpu.running);
+  $('resume').disabled = busy || !coin || coinBlockers(coin, data).length > 0 || (coin.device === 'GPU' ? !remainingGpus : status === 'MINING');
+  $('pause').disabled = busy || (coin?.device === 'GPU' ? !currentGpuStates.some(gpu => gpu.running) : status !== 'MINING');
   const selectedMiner = data.coins?.find(item => item.id === selectedView);
   $('remove-current-miner').hidden = !selectedMiner?.binaryAvailable;
-  $('remove-current-miner').disabled = busy || data[selectedView]?.downloadStatus === 'DOWNLOADING';
-  const pearl = selectedView === 'pearl'; $('monero-form').hidden = pearl; $('pearl-form').hidden = !pearl;
+  $('remove-current-miner').disabled = busy || (gpuCoinIds.includes(selectedView) ? data.pearl : data[selectedView])?.downloadStatus === 'DOWNLOADING';
+  const pearl = selectedView === 'pearl';
+  $('monero-form').hidden = selectedView !== 'monero'; $('pearl-form').hidden = !pearl;
+  for (const gpuCoin of gpuCoinIds) $(`${gpuCoin}-form`).hidden = selectedView !== gpuCoin;
   if (pearl) {
     set('pearl-readiness', data.pearl?.minerError || 'SRBMiner nutzt den SolarMiner-Proxy.');
     $('pearl-download').hidden = data.pearl?.binaryAvailable || data.pearl?.downloadStatus === 'DOWNLOADING';
     $('pearl-download').disabled = busy;
   }
-  const gpus = (data.gpus || []).filter(gpu => data.pearl?.gpus?.some(state => state.selected && state.vendor === gpu.vendor && state.index === gpu.index));
+  const gpus = (data.gpus || []).filter(gpu => currentGpuStates.some(state => state.selected && state.vendor === gpu.vendor && state.index === gpu.index));
   const min = gpus.reduce((s,g) => s + g.minWatts, 0), max = gpus.reduce((s,g) => s + g.maxWatts, 0);
-  $('power-form').hidden = !pearl || !gpus.length;
+  $('power-form').hidden = coin?.device !== 'GPU' || !gpus.length;
   $('power-input').min = String(min); $('power-input').max = String(max);
   if (document.activeElement !== $('power-input')) $('power-input').value = powerTarget || Math.round((min + max) / 2);
   set('power-limits', `${fmt(min, 0)}–${fmt(max, 0)} W`);
-  $('power-submit').disabled = busy || !pearl; $('monero-submit').disabled = busy;
+  $('power-submit').disabled = busy || coin?.device !== 'GPU'; $('monero-submit').disabled = busy;
   $('connection').className = 'badge online'; set('connection', 'Agent verbunden');
   set('updated', `Aktualisiert ${new Date().toLocaleTimeString(i18n.locale)}`);
+  $('mining-refresh-state').hidden = fresh;
+  if (!fresh) {
+    $('connection').className = 'badge'; set('connection', 'Aktualisiere …');
+    set('updated', `Letzter Stand ${new Date(overviewSavedAt).toLocaleTimeString(i18n.locale)}`);
+    set('mining-refresh-state', 'Letzter bekannter Stand · Aktuelle Daten werden geprüft. Aktionen sind danach verfügbar.');
+    for (const control of document.querySelectorAll('#miner-view button:not([data-view]), #miner-view input, #miner-view select, #catalog-grid button')) {
+      cachedControls.set(control, control.disabled); control.disabled = true;
+    }
+  }
 }
 async function refresh() {
-  if (busy || document.hidden) return;
+  if (busy || refreshing || document.hidden) return;
+  refreshing = true;
   try {
     const response = await fetch('/api/agent/overview', { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const overview = await response.json();
-    const assessmentResponse = await fetch('/api/agent/node-assessment', { cache: 'no-store' });
-    if (assessmentResponse.ok) nodeAssessment = await assessmentResponse.json();
-    render(overview);
+    overviewSavedAt = Date.now();
+    render(overview, true);
+    window.SolarMinerMiningCache?.write(overview);
+    if (initialCatalog) { initialCatalog = null; $('catalog-notice').hidden = true; }
+    refreshAssessment();
     if ($('notice').dataset.kind === 'connection') { $('notice').hidden = true; $('catalog-notice').hidden = true; }
   } catch (error) {
+    overviewFresh = false;
+    if (latest) render(latest, false);
     $('connection').className = 'badge offline'; set('connection', 'Agent nicht erreichbar');
     $('resume').disabled = true; $('pause').disabled = true;
     $('notice').dataset.kind = 'connection'; notice(`Daten konnten nicht geladen werden: ${error.message}`, true);
-  }
+  } finally { refreshing = false; }
+}
+async function refreshAssessment() {
+  if (assessing) return;
+  assessing = true;
+  try {
+    const response = await fetch('/api/agent/node-assessment', { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+    if (response.ok) { nodeAssessment = await response.json(); if (latest && !busy) renderWorkspace(latest); }
+  } catch (_) { /* Optional Node assessment must not block or mark the local agent offline. */ }
+  finally { assessing = false; }
 }
 async function action(path, success, params, body, feedbackId = null) {
+  if (!overviewFresh) return notice('Warte auf aktuelle Agent-Daten, bevor du eine Änderung ausführst.', true);
   if (busy) return;
+  window.SolarMinerMiningCache?.clear();
   busy = true; $('resume').disabled = true; $('pause').disabled = true;
   try {
     const url = new URL(path, location.origin);
@@ -640,10 +820,11 @@ async function action(path, success, params, body, feedbackId = null) {
   }
   finally { busy = false; await refresh(); }
 }
+initGpuCoinForms();
 $('refresh').addEventListener('click', refresh);
 window.addEventListener('hashchange', () => {
-  const view = ['monero', 'pearl'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'catalog';
-  if (view !== selectedView) { selectedView = view; if (latest) render(latest); }
+  const view = viewIds.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'catalog';
+  if (view !== selectedView) { selectedView = view; if (latest) render(latest); else if (initialCatalog) renderInitialCatalog(initialCatalog); }
 });
 $('console-bottom').addEventListener('click', () => { $('miner-console').scrollTop = $('miner-console').scrollHeight; });
 $('console-gpu').addEventListener('change', syncConsoleView);
@@ -663,10 +844,11 @@ document.querySelectorAll('.filter-button').forEach(button => button.addEventLis
   deviceFilter = button.dataset.device;
   document.querySelectorAll('.filter-button').forEach(item => item.classList.toggle('selected', item === button));
   if (latest) renderWorkspace(latest);
+  else if (initialCatalog) renderInitialCatalog(initialCatalog);
 }));
-$('resume').addEventListener('click', () => { if (['monero', 'pearl'].includes(selectedView)) action(`/api/agent/miners/${selectedView}/resume`, 'Miner gestartet.'); });
-$('pause').addEventListener('click', () => { if (['monero', 'pearl'].includes(selectedView)) action(`/api/agent/miners/${selectedView}/pause`, 'Miner pausiert.'); });
-$('remove-current-miner').addEventListener('click', () => { if (['monero', 'pearl'].includes(selectedView)) removeMiner(selectedView); });
+$('resume').addEventListener('click', () => { if (viewIds.includes(selectedView)) action(`/api/agent/miners/${selectedView}/resume`, 'Miner gestartet.'); });
+$('pause').addEventListener('click', () => { if (viewIds.includes(selectedView)) action(`/api/agent/miners/${selectedView}/pause`, 'Miner pausiert.'); });
+$('remove-current-miner').addEventListener('click', () => { if (viewIds.includes(selectedView)) removeMiner(selectedView); });
 $('pearl-download').addEventListener('click', () => action('/api/agent/pearl/download', 'SRBMiner-Download gestartet.'));
 $('proxy-form').addEventListener('submit', event => { event.preventDefault(); if ($('proxy-form').reportValidity()) action('/api/agent/proxy', 'Proxy gespeichert.', { host: $('proxy-host').value.trim() }); });
 $('proxy-discover').addEventListener('click', async () => {
@@ -697,9 +879,11 @@ $('proxy-discover').addEventListener('click', async () => {
 });
 $('monero-form').addEventListener('submit', event => { event.preventDefault(); if (!$('monero-form').reportValidity()) return; if (!latest?.proxy?.moneroUrl) return notice('SolarMiner-Proxy für Monero fehlt. Verbinde zuerst den Proxy.', true); if (!payoutAvailable('monero')) return; const standard = usesStandardPayout('monero'); action('/api/agent/monero/configuration', standard ? 'Monero gespeichert: Auszahlung an das SolarMiner-Standardziel.' : 'Monero-Konfiguration gespeichert.', null, { poolUrl: standard ? '' : selectedPool('monero'), wallet: standard ? '' : $('monero-wallet').value.trim(), worker: $('monero-worker').value.trim() }, 'monero-save-feedback'); });
 $('pearl-form').addEventListener('submit', event => { event.preventDefault(); if (!$('pearl-form').reportValidity()) return; const indices = [...selectedGpuIndices].filter(index => latest?.gpus?.some(gpu => gpuKey(gpu) === index)).sort(); if (!indices.length) return notice('Wähle mindestens eine erkannte GPU.', true); if (!latest?.proxy?.pearlUrl) return notice('SolarMiner-Proxy für Pearl fehlt. Verbinde zuerst den Proxy.', true); if (!payoutAvailable('pearl')) return; const standard = usesStandardPayout('pearl'); action('/api/agent/pearl/configuration', standard ? 'Pearl gespeichert: Auszahlung an das SolarMiner-Standardziel.' : 'Pearl-Konfiguration und GPU-Auswahl gespeichert.', null, { poolUrl: standard ? '' : selectedPool('pearl'), proxyUrl: latest.proxy.pearlUrl, wallet: standard ? '' : $('pearl-wallet').value.trim(), worker: $('pearl-worker').value.trim(), devices: indices.join(',') }, 'pearl-save-feedback'); });
-$('power-form').addEventListener('submit', event => { event.preventDefault(); if ($('power-form').reportValidity()) action('/api/agent/miners/pearl/power-target', 'GPU-Leistungsziel übernommen.', { powerTarget: $('power-input').value }); });
+$('power-form').addEventListener('submit', event => { event.preventDefault(); if ($('power-form').reportValidity() && ['pearl', ...gpuCoinIds].includes(selectedView)) action(`/api/agent/miners/${selectedView}/power-target`, 'GPU-Leistungsziel übernommen.', { powerTarget: $('power-input').value }); });
 let lastPoll = Date.now();
-refresh(); setInterval(pollConsole, 2000); setInterval(() => {
+const cachedOverview = window.SolarMinerMiningCache?.read();
+if (cachedOverview) { overviewSavedAt = cachedOverview.savedAt; render(cachedOverview.overview, false); }
+loadInitialCatalog(); refresh(); setInterval(pollConsole, 2000); setInterval(() => {
   const downloading = ['monero', 'pearl'].some(id => latest?.[id]?.downloadStatus === 'DOWNLOADING');
   if (downloading || Date.now() - lastPoll > 3000) { lastPoll = Date.now(); refresh(); }
 }, 1000); document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); pollConsole(); } });

@@ -21,6 +21,8 @@ public class ProxyConfigurationService {
     private final Path configFile;
     private final int moneroPort;
     private final int pearlPort;
+    private final int ravenPort;
+    private final int etcPort;
     private final int apiPort;
     private final Path modeFile;
     private final ObjectMapper mapper;
@@ -30,7 +32,7 @@ public class ProxyConfigurationService {
     private volatile String host;
     private volatile boolean standalone;
     private volatile boolean modeStored;
-    private volatile long feeCheckedAt;
+    private final java.util.concurrent.ConcurrentHashMap<String, Long> feeCheckedAt = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.concurrent.ConcurrentHashMap<String, Boolean> feeCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     public ProxyConfigurationService(
@@ -38,6 +40,8 @@ public class ProxyConfigurationService {
             @Value("${solarminer.agent.proxy-file:./solarminer-agent/proxy-host.txt}") String configPath,
             @Value("${solarminer.agent.proxy.monero-port:3335}") int moneroPort,
             @Value("${solarminer.agent.proxy.pearl-port:3334}") int pearlPort,
+            @Value("${solarminer.agent.proxy.ravencoin-port:3336}") int ravenPort,
+            @Value("${solarminer.agent.proxy.ethereumclassic-port:3337}") int etcPort,
             @Value("${solarminer.agent.proxy.api-port:8090}") int apiPort,
             @Value("${solarminer.agent.proxy-mode-file:./solarminer-agent/proxy-mode.txt}") String modePath,
             @Value("${solarminer.agent.standalone:false}") boolean standalone) {
@@ -47,6 +51,8 @@ public class ProxyConfigurationService {
         this.configFile = Path.of(configPath).toAbsolutePath().normalize();
         this.moneroPort = moneroPort;
         this.pearlPort = pearlPort;
+        this.ravenPort = ravenPort;
+        this.etcPort = etcPort;
         this.apiPort = apiPort;
         this.modeFile = Path.of(modePath).toAbsolutePath().normalize();
         String savedMode = readMode();
@@ -79,6 +85,7 @@ public class ProxyConfigurationService {
                 Files.deleteIfExists(temp);
             }
             host = nextHost;
+            invalidateFeeCache();
             return true;
         } catch (IOException e) {
             return false;
@@ -93,6 +100,7 @@ public class ProxyConfigurationService {
             if (local && !managedProxy.setStandalone(true)) return false;
             if (!writeMode(local)) return false;
             modeStored = true;
+            invalidateFeeCache();
             return true;
         }
         if (local && !managedProxy.setStandalone(true)) return false;
@@ -102,6 +110,7 @@ public class ProxyConfigurationService {
         }
         standalone = local;
         modeStored = true;
+        invalidateFeeCache();
         if (!local) managedProxy.setStandalone(false);
         return true;
     }
@@ -114,6 +123,8 @@ public class ProxyConfigurationService {
     public String host() { return standalone ? "127.0.0.1" : host; }
     public String moneroUrl() { return url(moneroPort); }
     public String pearlUrl() { return url(pearlPort); }
+    public String ravencoinUrl() { return url(ravenPort); }
+    public String ethereumclassicUrl() { return url(etcPort); }
 
     private String url(int port) {
         String currentHost = host();
@@ -125,7 +136,13 @@ public class ProxyConfigurationService {
         if (currentHost == null || stratumUrl == null) return false;
         try {
             URI uri = URI.create(stratumUrl);
-            int expectedPort = "monero".equals(coin) ? moneroPort : "pearl".equals(coin) ? pearlPort : -1;
+            int expectedPort = switch (coin) {
+                case "monero" -> moneroPort;
+                case "pearl" -> pearlPort;
+                case "ravencoin" -> ravenPort;
+                case "ethereumclassic" -> etcPort;
+                default -> -1;
+            };
             return "stratum+tcp".equals(uri.getScheme()) && currentHost.equalsIgnoreCase(uri.getHost())
                     && uri.getPort() == expectedPort && uri.getRawUserInfo() == null
                     && (uri.getRawPath() == null || uri.getRawPath().isEmpty())
@@ -152,41 +169,61 @@ public class ProxyConfigurationService {
     /** The standalone miner may start only after the local proxy has a real fee target. */
     public boolean feeReady(String coin) {
         String currentHost = host();
-        if (currentHost == null || !java.util.Set.of("monero", "pearl").contains(coin)) return false;
+        if (currentHost == null || !java.util.Set.of("monero", "pearl", "ravencoin", "ethereumclassic").contains(coin)) return false;
         long now = System.currentTimeMillis();
-        if (now - feeCheckedAt < 3000) return feeCache.getOrDefault(coin, false);
+        if (now - feeCheckedAt.getOrDefault(coin, 0L) < 3000) return feeCache.getOrDefault(coin, false);
         synchronized (this) {
             now = System.currentTimeMillis();
-            if (now - feeCheckedAt < 3000) return feeCache.getOrDefault(coin, false);
-            for (String name : java.util.List.of("monero", "pearl")) {
-                try {
-                    String referralQuery = referralConfigurationService.get().isBlank() ? "" : "?referral=" + referralConfigurationService.get();
-                    HttpRequest request = HttpRequest.newBuilder(URI.create("http://" + currentHost + ":" + apiPort
-                                    + "/api/v1/fees/" + name + "/targets" + referralQuery))
-                            .timeout(Duration.ofSeconds(3)).GET().build();
-                    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                    boolean ready = false;
-                    if (response.statusCode() == 200) {
-                        JsonNode targets = mapper.readTree(response.body());
-                        if (targets.isArray()) for (JsonNode target : targets) {
-                            if (target.path("percentage").asDouble() > 0
-                                    && !target.path("poolAddress").asText("").isBlank()
-                                    && !target.path("workerName").asText("").isBlank()) ready = true;
-                        }
+            if (now - feeCheckedAt.getOrDefault(coin, 0L) < 3000) return feeCache.getOrDefault(coin, false);
+            try {
+                String referralQuery = referralConfigurationService.get().isBlank() ? "" : "?referral=" + referralConfigurationService.get();
+                HttpRequest request = HttpRequest.newBuilder(URI.create("http://" + currentHost + ":" + apiPort
+                                + "/api/v1/fees/" + coin + "/targets" + referralQuery))
+                        .timeout(Duration.ofSeconds(3)).GET().build();
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                boolean ready = false;
+                if (response.statusCode() == 200) {
+                    JsonNode targets = mapper.readTree(response.body());
+                    if (targets.isArray()) for (JsonNode target : targets) {
+                        if (target.path("percentage").asDouble() > 0
+                                && (!java.util.Set.of("ravencoin", "ethereumclassic").contains(coin)
+                                    || target.path("house").asBoolean(false))
+                                && !target.path("poolAddress").asText("").isBlank()
+                                && !target.path("workerName").asText("").isBlank()) ready = true;
                     }
-                    feeCache.put(name, ready);
-                } catch (Exception e) {
-                    if (e instanceof InterruptedException) Thread.currentThread().interrupt();
-                    feeCache.put(name, false);
                 }
+                feeCache.put(coin, ready);
+            } catch (Exception e) {
+                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+                feeCache.put(coin, false);
             }
-            feeCheckedAt = System.currentTimeMillis();
+            feeCheckedAt.put(coin, System.currentTimeMillis());
             return feeCache.getOrDefault(coin, false);
         }
     }
 
+    public synchronized void invalidateFeeCache() {
+        feeCache.clear();
+        feeCheckedAt.clear();
+    }
+
     public boolean miningReady(String coin) {
-        return (!standalone || managedProxy.running()) && isReachable() && (!standalone || feeReady(coin));
+        return (!standalone || managedProxy.running()) && isReachable()
+                && (!java.util.Set.of("ravencoin", "ethereumclassic").contains(coin) || stratumReachable(coin))
+                && (!java.util.Set.of("ravencoin", "ethereumclassic").contains(coin) || feeReady(coin))
+                && (!standalone || feeReady(coin));
+    }
+
+    private boolean stratumReachable(String coin) {
+        String currentHost = host();
+        if (currentHost == null) return false;
+        int port = "ravencoin".equals(coin) ? ravenPort : etcPort;
+        try (java.net.Socket socket = new java.net.Socket()) {
+            socket.connect(new java.net.InetSocketAddress(currentHost, port), 1500);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     private static boolean validHost(String value) {
