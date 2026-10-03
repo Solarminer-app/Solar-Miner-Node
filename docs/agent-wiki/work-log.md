@@ -120,6 +120,19 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - Migration and rollback: there is no data or wire migration. Rollback restores the previous `CGMinerClient` transport implementation; it would also restore the known unbounded/truncating behavior. Independent audit work may continue, but C05 closes only after the real-device probe and a green relevant Core consumer test.
 - Documentation updated: repository responsibility map, review queue and this work-log entry. The architecture-audit snapshot was not changed because its C05 finding and acceptance gate remain accurate.
 
+### 2026-10-03 — Currency service public endpoint and coin-data rule
+
+- **Architecture/owner:** `currency-rates` is designated as the standalone public read service at `https://currency.solarminer.app/api/v1/public/**`; Landing's `api.solarminer.app` remains a separate landing facade. Production Node configuration now defaults `solarmining.currency-service.url` to that public URL and preserves the `CURRENCY_MICRO_SERVICE_URL` override. Local Compose continues to supply its internal `http://currency-service:8080` value.
+- **Public boundary:** the service may expose versioned, read-only aggregated currency, coin-price and network snapshots. It must never expose wallet addresses, workers, pool credentials, referral state, individual telemetry or administration. Current public routes and their wire shapes remain unchanged; this change does not itself deploy DNS/Traefik or create a new network-statistics endpoint.
+- **New-coin rule:** every coin used by a Node or public profitability calculation must gain price and mining-network tracking with canonical key/ticker, source, unit/precision, timestamp, cadence, persistence, bounded stale/error semantics and provider/contract/consumer tests. Existing BTC/XMR/PRL price collection alone is insufficient; ETC requires the canonical `ethereumclassic`/`ETC` data path when it is introduced. New assets must use a coin-keyed snapshot model rather than another BTC-only table. The shared C9 contract and `NEW-MINING-COIN-GUIDE.md` now make this a mandatory gate.
+- **Verification/rollout:** configuration and documentation change only. `currency-rates` provider collection was not extended and no public deployment/DNS/ingress probe was made. Add the currency service to central Traefik with the `currency.solarminer.app` router, TLS and read-only public-route checks before representing the host as deployed.
+
+### 2026-10-03 — Currency service MariaDB Compose compatibility
+
+- **Problem/fix:** local and planned central Compose configurations set `MYSQL_URL`, `MYSQL_USER` and `MYSQL_PASSWORD`, but `currency-rates` previously ignored them and always used its H2 URL. `application.properties` now maps those variables to Spring's datasource configuration with the same local H2 fallback, and the module declares the MariaDB JDBC runtime driver.
+- **Deployment contract:** `currency-rates/PUBLIC-DEPLOYMENT.md` supplies the central Compose additions for Traefik, a private MariaDB network and TLS host `currency.solarminer.app`. It deliberately omits host `ports` for the service/database, keeps local Compose private, and explains DNS, persistence, ingress and future restricted-CORS/rate-limit checks.
+- **Verification:** with Temurin 21, `gradlew.bat :currency-rates:test --no-daemon` passed after the approved Gradle/MariaDB dependency download. The suite uses H2 and validates code/test compatibility; no MariaDB container, DNS record, Traefik ingress or public provider response was started or verified.
+
 ### 2026-10-02 — C02 Core controller registration and routing boundary
 
 - Scope and owner: Task C02, `core` in Solar-Miner-Node. This is a local implementation pending its workflow prerequisites and acceptance; no mining device, pool, proxy, or other repository was changed.

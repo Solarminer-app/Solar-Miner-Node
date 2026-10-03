@@ -14,13 +14,15 @@
   };
   async function request(url, body) {
     if (!overviewFresh) throw new Error('Warte auf aktuelle Agent-Daten, bevor du eine Änderung ausführst.');
-    window.SolarMinerMiningCache?.clear();
-    const response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, ...(body ? {body: JSON.stringify(body)} : {})});
-    if (!response.ok) {
-      const result = await response.json().catch(() => ({}));
-      throw new Error(result.message || result.detail || `Speichern fehlgeschlagen (${response.status})`);
-    }
-    return response.json();
+    invalidateMiningViewCache();
+    try {
+      const response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, ...(body ? {body: JSON.stringify(body)} : {})});
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.message || result.detail || `Speichern fehlgeschlagen (${response.status})`);
+      }
+      return await response.json();
+    } finally { invalidateMiningViewCache(); refresh(); }
   }
   function renderProfile() {
     if (!settings || !power || !overview) return;

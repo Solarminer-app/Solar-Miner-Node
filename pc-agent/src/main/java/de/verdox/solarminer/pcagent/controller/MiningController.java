@@ -349,39 +349,45 @@ public class MiningController {
     public AgentOverview overview() {
         List<LocalGpuPowerService.Gpu> gpus = gpuPowerService.discover();
         xmrMinerService.ensureDefaultConfiguration();
-        MinerStats stats = miningService.getStats(gpus);
-        List<EarningsForecastService.Forecast> earnings = earningsForecastService.forecasts(stats.workers());
-        String active = miningService.activeCoin();
-        boolean xmrConfigured = xmrConfigService.isProxyRouteConfigured();
-        boolean pearlConfigured = pearlMinerService.configuration() != null
-                && proxyConfigurationService.matches(pearlMinerService.configuration().proxyUrl(), "pearl");
-        List<CoinOverview> coins = List.of(
-                new CoinOverview("monero", "Monero", "XMR", "CPU", "RandomX",
-                        xmrMinerService.getWorkerStats().miningStatus(),
-                        xmrConfigured, xmrMinerService.binaryAvailable(), false),
-                new CoinOverview("pearl", "Pearl", "PRL", "GPU", "PearlHash",
-                        pearlMinerService.status(),
-                        pearlConfigured, pearlMinerService.binaryAvailable(), false),
-                new CoinOverview("ravencoin", "Ravencoin", "RVN", "GPU", "KAWPOW",
-                        gpuCoins.status("ravencoin"), gpuCoins.configuration("ravencoin") != null,
-                        gpuCoins.binaryAvailable(), true),
-                new CoinOverview("ethereumclassic", "Ethereum Classic", "ETC", "GPU", "ETCHash",
-                        gpuCoins.status("ethereumclassic"), gpuCoins.configuration("ethereumclassic") != null,
-                        gpuCoins.binaryAvailable(), true));
-        return new AgentOverview(stats, active, System.getProperty("os.name", "unknown"),
-                System.getProperty("os.arch", "unknown"), coins, earnings, gpus, proxy(), savedMoneroConfiguration(),
-                pearlMinerService.configuration(),
-                new DownloadReadiness(xmrDownloadService.status(), xmrDownloadService.detail(), xmrDownloadService.progress(),
-                        xmrMinerService.lastStartError(), xmrDownloadService.installDirectory().toString()),
-                new PearlReadiness(pearlConfigured,
-                        pearlMinerService.binaryAvailable(),
-                        srbDownloadService.status(), srbDownloadService.detail(), srbDownloadService.progress(),
-                        pearlMinerService.lastError(), pearlMinerService.connectionDetail(),
-                        pearlMinerService.running(), pearlMinerService.poolHealthy(), pearlMinerService.gpuStates(gpus),
-                        srbDownloadService.installDirectory().toString()),
-                payoutDefaults(), new ReferralOverview(referralConfigurationService.get()), feeTransparencyService.overview(),
-                java.util.Map.of("ravencoin", gpuOverview("ravencoin", gpus),
-                        "ethereumclassic", gpuOverview("ethereumclassic", gpus)));
+        // Independent display lookups run concurrently; miner start gates stay in their services.
+        try (var displayLookups = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var proxyResult = java.util.concurrent.CompletableFuture.supplyAsync(this::proxy, displayLookups);
+            var payoutResult = java.util.concurrent.CompletableFuture.supplyAsync(this::payoutDefaults, displayLookups);
+            var feeResult = java.util.concurrent.CompletableFuture.supplyAsync(feeTransparencyService::overview, displayLookups);
+            MinerStats stats = miningService.getStats(gpus);
+            List<EarningsForecastService.Forecast> earnings = earningsForecastService.forecasts(stats.workers());
+            String active = miningService.activeCoin();
+            boolean xmrConfigured = xmrConfigService.isProxyRouteConfigured();
+            boolean pearlConfigured = pearlMinerService.configuration() != null
+                    && proxyConfigurationService.matches(pearlMinerService.configuration().proxyUrl(), "pearl");
+            List<CoinOverview> coins = List.of(
+                    new CoinOverview("monero", "Monero", "XMR", "CPU", "RandomX",
+                            xmrMinerService.getWorkerStats().miningStatus(),
+                            xmrConfigured, xmrMinerService.binaryAvailable(), false),
+                    new CoinOverview("pearl", "Pearl", "PRL", "GPU", "PearlHash",
+                            pearlMinerService.status(),
+                            pearlConfigured, pearlMinerService.binaryAvailable(), false),
+                    new CoinOverview("ravencoin", "Ravencoin", "RVN", "GPU", "KAWPOW",
+                            gpuCoins.status("ravencoin"), gpuCoins.configuration("ravencoin") != null,
+                            gpuCoins.binaryAvailable(), true),
+                    new CoinOverview("ethereumclassic", "Ethereum Classic", "ETC", "GPU", "ETCHash",
+                            gpuCoins.status("ethereumclassic"), gpuCoins.configuration("ethereumclassic") != null,
+                            gpuCoins.binaryAvailable(), true));
+            return new AgentOverview(stats, active, System.getProperty("os.name", "unknown"),
+                    System.getProperty("os.arch", "unknown"), coins, earnings, gpus, proxyResult.join(), savedMoneroConfiguration(),
+                    pearlMinerService.configuration(),
+                    new DownloadReadiness(xmrDownloadService.status(), xmrDownloadService.detail(), xmrDownloadService.progress(),
+                            xmrMinerService.lastStartError(), xmrDownloadService.installDirectory().toString()),
+                    new PearlReadiness(pearlConfigured,
+                            pearlMinerService.binaryAvailable(),
+                            srbDownloadService.status(), srbDownloadService.detail(), srbDownloadService.progress(),
+                            pearlMinerService.lastError(), pearlMinerService.connectionDetail(),
+                            pearlMinerService.running(), pearlMinerService.poolHealthy(), pearlMinerService.gpuStates(gpus),
+                            srbDownloadService.installDirectory().toString()),
+                    payoutResult.join(), new ReferralOverview(referralConfigurationService.get()), feeResult.join(),
+                    java.util.Map.of("ravencoin", gpuOverview("ravencoin", gpus),
+                            "ethereumclassic", gpuOverview("ethereumclassic", gpus)));
+        }
     }
 
     private GpuCoinOverview gpuOverview(String coin, List<LocalGpuPowerService.Gpu> gpus) {

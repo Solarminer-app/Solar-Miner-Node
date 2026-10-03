@@ -39,8 +39,15 @@ public class FeeTransparencyService {
         this.gpuCoins = gpuCoins; this.apiPort = apiPort;
     }
 
-    public List<FeeOverview> overview() { return List.of(forCoin("monero"), forCoin("pearl"),
-            forCoin("ravencoin"), forCoin("ethereumclassic")); }
+    public List<FeeOverview> overview() {
+        // Four independent HTTP deadlines must not add up when the proxy is slow/unavailable.
+        try (var lookups = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var results = List.of("monero", "pearl", "ravencoin", "ethereumclassic").stream()
+                    .map(coin -> java.util.concurrent.CompletableFuture.supplyAsync(() -> forCoin(coin), lookups))
+                    .toList();
+            return results.stream().map(java.util.concurrent.CompletableFuture::join).toList();
+        }
+    }
 
     private FeeOverview forCoin(String coin) {
         List<FeePart> parts = new ArrayList<>();

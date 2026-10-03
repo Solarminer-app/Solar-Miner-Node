@@ -34,6 +34,7 @@ dependencies {
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5")
 
     runtimeOnly("com.h2database:h2")
+    runtimeOnly("org.mariadb.jdbc:mariadb-java-client")
 
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")

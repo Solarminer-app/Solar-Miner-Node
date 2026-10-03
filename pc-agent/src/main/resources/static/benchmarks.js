@@ -21,7 +21,7 @@ function notice(text, error = false, kind = 'action') {
 }
 
 function fmtRate(v) {
-    return new Intl.NumberFormat(undefined, {maximumSignificantDigits: 4}).format(v) + ' H/s';
+    return window.SolarMinerMeasurements.hashrate(v);
 }
 
 async function comparison(row) {
@@ -48,11 +48,11 @@ async function renderResults(results, running = false, phase = '') {
         const card = make('article', 'worker-card');
         const info = make('div', '');
         info.append(make('strong', '', `${row.hardwareModel} · ${row.algorithm}`), make('p', 'muted', `${row.hardwareType} · ${row.observations} Messpunkte`));
-        info.append(make('p', '', `Hashrate: ${fmtRate(row.hashrateHs)} · Leistung: ${row.powerWatts > 0 ? Math.round(row.powerWatts) + ' W' : 'nicht verfügbar'} · Effizienz: ${row.hashesPerWatt > 0 ? row.hashesPerWatt.toPrecision(3) + ' H/s/W' : '—'}`));
+        info.append(make('p', '', `${t('Hashrate')}: ${fmtRate(row.hashrateHs)} · ${t('Leistung')}: ${row.powerWatts > 0 ? new Intl.NumberFormat(window.SolarMinerI18n.locale, {maximumFractionDigits: 0}).format(row.powerWatts) + ' W' : t('nicht verfügbar')} · ${t('Effizienz')}: ${window.SolarMinerMeasurements.efficiency(row.hashrateHs, row.powerWatts)}`));
         const peer = running ? null : await comparison(row);
         if (peer) {
             const delta = peer.medianHashrateHs > 0 ? (row.hashrateHs / peer.medianHashrateHs - 1) * 100 : null;
-            info.append(make('p', 'muted', `Vergleich (${peer.sampleCount} Geräte): Median ${fmtRate(peer.medianHashrateHs)}${peer.medianPowerWatts ? ` · ${Math.round(peer.medianPowerWatts)} W` : ''}${delta == null ? '' : ` · ${Math.abs(delta).toFixed(1)} % ${delta >= 0 ? 'über' : 'unter'} dem Median`}`));
+            info.append(make('p', 'muted', `${window.SolarMinerI18n.language === 'de' ? 'Vergleich' : 'Comparison'} (${peer.sampleCount} ${window.SolarMinerI18n.language === 'de' ? 'Geräte' : 'devices'}): Median ${fmtRate(peer.medianHashrateHs)}${peer.medianPowerWatts ? ` · ${Math.round(peer.medianPowerWatts)} W` : ''}${delta == null ? '' : ` · ${new Intl.NumberFormat(window.SolarMinerI18n.locale, {maximumFractionDigits: 1}).format(Math.abs(delta))} % ${t(delta >= 0 ? 'über' : 'unter')} ${window.SolarMinerI18n.language === 'de' ? 'dem Median' : 'median'}`}`));
         } else info.append(make('p', 'muted', running
             ? 'Messwerte werden laufend aktualisiert; der Vergleich erscheint nach Abschluss.'
             : 'Noch kein veröffentlichter Vergleich für diese Hardware und diesen Algorithmus.'));

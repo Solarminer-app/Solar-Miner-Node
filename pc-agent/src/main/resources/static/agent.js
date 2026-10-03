@@ -5,7 +5,12 @@ const statusLabels = { MINING: 'Mining aktiv', PAUSED: 'Pausiert', STOPPED: 'Ges
 let latest = null, busy = false, deviceFilter = 'all';
 let refreshing = false, assessing = false, initialCatalog = null;
 let overviewFresh = false, overviewSavedAt = null;
+let stateRevision = 0, refreshQueued = false;
 const cachedControls = new Map();
+function invalidateMiningViewCache() {
+  stateRevision++;
+  window.SolarMinerMiningCache?.clear();
+}
 const gpuCoinIds = ['ravencoin', 'ethereumclassic'];
 const viewIds = ['monero', 'pearl', ...gpuCoinIds];
 let selectedView = viewIds.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'catalog';
@@ -559,7 +564,7 @@ async function installMiner(coin) {
 }
 async function removeMiner(coin) {
   const name = coin === 'monero' ? 'XMRig' : 'SRBMiner-MULTI';
-  if (!window.confirm(`${name} wird gestoppt und entfernt. Die gespeicherte Pool-/Wallet-Konfiguration bleibt erhalten. Fortfahren?`)) return;
+  if (!window.confirm(t(`${name} wird gestoppt und entfernt. Die gespeicherte Pool-/Wallet-Konfiguration bleibt erhalten. Fortfahren?`))) return;
   await action(`/api/agent/${coin}/remove`, `${name} wurde entfernt.`);
 }
 function coinBlockers(coin, data) {
@@ -767,12 +772,15 @@ function render(data, fresh = overviewFresh) {
   }
 }
 async function refresh() {
-  if (busy || refreshing || document.hidden) return;
+  if (busy || document.hidden) return;
+  if (refreshing) { refreshQueued = true; return; }
   refreshing = true;
+  const revision = stateRevision;
   try {
     const response = await fetch('/api/agent/overview', { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const overview = await response.json();
+    if (revision !== stateRevision) { refreshQueued = true; return; }
     overviewSavedAt = Date.now();
     render(overview, true);
     window.SolarMinerMiningCache?.write(overview);
@@ -780,12 +788,16 @@ async function refresh() {
     refreshAssessment();
     if ($('notice').dataset.kind === 'connection') { $('notice').hidden = true; $('catalog-notice').hidden = true; }
   } catch (error) {
+    if (revision !== stateRevision) { refreshQueued = true; return; }
     overviewFresh = false;
     if (latest) render(latest, false);
     $('connection').className = 'badge offline'; set('connection', 'Agent nicht erreichbar');
     $('resume').disabled = true; $('pause').disabled = true;
     $('notice').dataset.kind = 'connection'; notice(`Daten konnten nicht geladen werden: ${error.message}`, true);
-  } finally { refreshing = false; }
+  } finally {
+    refreshing = false;
+    if (refreshQueued && !busy && !document.hidden) { refreshQueued = false; queueMicrotask(refresh); }
+  }
 }
 async function refreshAssessment() {
   if (assessing) return;
@@ -799,7 +811,7 @@ async function refreshAssessment() {
 async function action(path, success, params, body, feedbackId = null) {
   if (!overviewFresh) return notice('Warte auf aktuelle Agent-Daten, bevor du eine Änderung ausführst.', true);
   if (busy) return;
-  window.SolarMinerMiningCache?.clear();
+  invalidateMiningViewCache();
   busy = true; $('resume').disabled = true; $('pause').disabled = true;
   try {
     const url = new URL(path, location.origin);
@@ -818,7 +830,7 @@ async function action(path, success, params, body, feedbackId = null) {
     notice(message, true);
     if (feedbackId) { const feedback = $(feedbackId); feedback.classList.add('error'); feedback.hidden = false; feedback.textContent = t(message); }
   }
-  finally { busy = false; await refresh(); }
+  finally { invalidateMiningViewCache(); busy = false; await refresh(); }
 }
 initGpuCoinForms();
 $('refresh').addEventListener('click', refresh);

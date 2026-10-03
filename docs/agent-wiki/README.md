@@ -12,7 +12,7 @@
 | `pc-agent/` | Local CPU/GPU mining and hardware-specific power control | Node sends a target or decision, not per-GPU driver commands. See [PC-Agent map](pc-agent.md). |
 | `pv-api/` | Shared profile serialization contract | Configurator must use the same serializer; see contract C3. |
 | `react-frontend/` | Local operator UI | API and decisions stay in backend services. |
-| `currency-rates/` | Currency rate service | Keep market rates separate from miner control. |
+| `currency-rates/` | Public currency and mining-network data service | Serves Nodes and public clients at `https://currency.solarminer.app/api/v1/public/**`; keep market data separate from miner control. |
 | `device-profiles/`, `tools/` | Bundled profiles and import tooling | Runtime community profile source is separate. |
 
 ## Documentation catalog
@@ -30,9 +30,16 @@
 | [PC-Agent PV power control](../../PC-AGENT-PV-POWER-CONTROL.md) | Design and verification checklist; some API and GPU control code now exists, so it is not a complete current-state description. |
 | [standalone PC-Agent](../../pc-agent/standalone/README.md), [Docker](../../pc-agent/standalone/DOCKER.md) | Run and packaging instructions; check scripts/workflows before relying on release claims. |
 | [main README](../../README.md), [core help](../../core/HELP.md), [currency help](../../currency-rates/HELP.md) | Component guides; code is authoritative. |
+| [currency public deployment](../../currency-rates/PUBLIC-DEPLOYMENT.md) | Central Traefik/MariaDB deployment for `currency.solarminer.app`; local Compose remains internal. |
 | `src/main/resources/markdowns/` | Product help shown to users, not agent operating instructions. |
 
 ## Feature workflow
+
+### Public currency and mining-network data
+
+`currency-rates` is a public central service, not a trust-LAN endpoint. Production Nodes use `CURRENCY_MICRO_SERVICE_URL`, defaulting to `https://currency.solarminer.app`; local Compose may use the internal `http://currency-service:8080`. Only versioned, read-only aggregated snapshots belong under `/api/v1/public/**`. Wallets, worker names, pools, referrals, individual telemetry and administration do not.
+
+For every mining coin that becomes relevant to Node or public profitability calculations, extend this service first with both price and mining-network collection. Record the canonical key/ticker, provider, units and precision, timestamp, refresh cadence, persisted snapshot, stale/unavailable behavior and tests. A coin-price record alone is not a network-statistics contract. Follow C9 in the workspace contracts and the currency-data requirement in `NEW-MINING-COIN-GUIDE.md`; do not add another coin-specific BTC-style table for new assets.
 
 ### Public telemetry egress
 

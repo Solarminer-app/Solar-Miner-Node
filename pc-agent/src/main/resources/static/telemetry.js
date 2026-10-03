@@ -57,7 +57,11 @@ function render(data) {
   renderMetricList(data);
   const status = data.sensorServiceStatus || 'not-required';
   $('sensor-status').className = `tag ${status === 'available' || status === 'not-required' ? 'ready' : 'blocked'}`;
-  text('sensor-status', status === 'available' || status === 'not-required' ? 'Sensorzugriff bereit' : `Sensorzugriff: ${status}`);
+  const sensorLabels = {available: 'Sensorzugriff bereit', 'not-required': 'Sensorzugriff bereit',
+    starting: 'Warte auf Windows-Freigabe …', stopped: 'Hardware-Monitor angehalten',
+    failed: 'Hardware-Monitor fehlgeschlagen', 'api-disabled': 'Lokale Sensor-API deaktiviert',
+    'api-unavailable': 'Lokale Sensor-API nicht erreichbar', 'not-started': 'Hardware-Monitor noch nicht gestartet'};
+  text('sensor-status', sensorLabels[status] || `Sensorzugriff: ${status}`);
 }
 async function refresh() {
   try {

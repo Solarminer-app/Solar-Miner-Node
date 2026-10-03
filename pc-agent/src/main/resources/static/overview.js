@@ -126,6 +126,7 @@ async function refresh() {
     const response = await fetch('/api/agent/overview', {cache: 'no-store'});
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const overview = await response.json(); currentOverview = overview; render(overview);
+    window.SolarMinerMiningCache?.write(overview);
     if (!$('earnings-grid').children.length) $('earnings-grid').textContent = t('Ertragsprognosen erscheinen, sobald ein Miner eingerichtet ist und Hashrate liefert.');
     const optional = await Promise.allSettled(['/api/agent/power-control/settings', '/api/agent/node-assessment'].map(async url => { const r = await fetch(url, {cache: 'no-store'}); return r.ok ? r.json() : null; }));
     renderReadiness(overview, optional[0].status === 'fulfilled' ? optional[0].value : null, optional[1].status === 'fulfilled' ? optional[1].value : null);

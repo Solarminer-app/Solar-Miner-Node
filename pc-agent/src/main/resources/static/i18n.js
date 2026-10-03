@@ -4,6 +4,129 @@
   const saved = (() => { try { return localStorage.getItem(preferenceKey); } catch (_) { return null; } })();
   const locale = supported.includes(saved) ? saved : (navigator.language || 'en').toLowerCase().startsWith('de') ? 'de' : 'en';
   const translations = {
+    'Hardware-Monitor angehalten': 'Hardware monitor stopped', 'Hardware-Monitor fehlgeschlagen': 'Hardware monitor failed',
+    'Lokale Sensor-API deaktiviert': 'Local sensor API disabled', 'Lokale Sensor-API nicht erreichbar': 'Local sensor API unavailable',
+    'Hardware-Monitor noch nicht gestartet': 'Hardware monitor not started',
+    'LibreHardwareMonitor wird nach Windows-UAC-Freigabe neu gestartet.': 'LibreHardwareMonitor will restart after Windows UAC approval.',
+    'LibreHardwareMonitor wird mit Windows-UAC-Rechten gestartet.': 'LibreHardwareMonitor is starting with Windows UAC permissions.',
+    "Bereits ausgezahlter Bestand": "Already paid balance",
+    "Unbekannt": "Unknown",
+    "Architektur unbekannt": "Unknown architecture",
+    "dieses Betriebssystem": "this operating system",
+    "Regelmäßiger Benchmark-Upload erfolgreich übermittelt.": "Periodic benchmark upload sent successfully.",
+    "Widerruf der Benchmark-Freigabe übermittelt.": "Benchmark sharing withdrawal sent.",
+    "Regelmäßiger Benchmark-Upload fehlgeschlagen; der Agent versucht es beim nächsten Intervall erneut.": "Periodic benchmark upload failed; the agent will retry at the next interval.",
+    "Benchmarkdaten wurden nicht hochgeladen: Teilen ist deaktiviert.": "Benchmark data was not uploaded: sharing is disabled.",
+    "Keine geeigneten Benchmark-Messwerte zum Hochladen vorhanden.": "No suitable benchmark observations to upload.",
+    "Keine gespeicherten Benchmark-Messwerte zum erneuten Hochladen vorhanden.": "No saved benchmark observations to upload again.",
+    "Benchmarkdaten werden hochgeladen …": "Uploading benchmark data …",
+    "Benchmarkdaten erfolgreich ans Backend übermittelt.": "Benchmark data sent successfully.",
+    "Upload ans Backend fehlgeschlagen. Du kannst den Upload erneut versuchen.": "Upload failed. You can retry the upload.",
+    "Vom SolarMiner Fee-Backend geladen": "Loaded from the SolarMiner fee backend",
+    "Eigener/noch nicht katalogisierter Pool": "Custom/unlisted pool",
+    "Poolgebühr unbekannt – bitte beim Pool prüfen": "Pool fee unknown – check with the pool",
+    "XMRig Entwickler-Spende": "XMRig developer donation",
+    "SRBMiner-MULTI Entwicklergebühr": "SRBMiner-MULTI developer fee",
+    "SRBMiner-MULTI KAWPOW Entwicklergebühr": "SRBMiner-MULTI KAWPOW developer fee",
+    "SRBMiner-MULTI ETCHash Entwicklergebühr": "SRBMiner-MULTI ETCHash developer fee",
+    "Prozessor unbekannt": "Unknown processor",
+    "Nicht erkannt": "Not detected",
+    "Minimale Leistung": "Minimum power",
+    "Maximale Leistung": "Maximum power",
+    "Node-Profil ist nicht verfügbar.": "Node profile unavailable.",
+    "messbare Hashrate fehlt": "measurable hashrate missing",
+    "Anzeigewährung": "Display currency",
+    "Alle Sensoren →": "All sensors →",
+    "Brutto-Schätzung": "Gross estimate",
+    "Coins & Miner": "Coins & miners",
+    "Deine Messungen": "Your measurements",
+    "Installierte Miner": "Installed miners",
+    "Installierte Miner testen": "Test installed miners",
+    "Laufende Miner messen": "Measure running miners",
+    "Miner installieren": "Install miner",
+    "Miner entfernen": "Remove miner",
+    "Miner-Bereiche": "Miner sections",
+    "Vollständige Miner-Ausgabe": "Complete miner output",
+    "Wallet-Kontostände": "Wallet balances",
+    "Kryptex-Guthaben vor Auszahlung": "Kryptex balance before payout",
+    "Regelmäßige Benchmarks": "Periodic benchmarks",
+    "Ziel: 12 Messpunkte je Worker": "Target: 12 observations per worker",
+    "Benchmark läuft bis genügend Messpunkte vorliegen": "Benchmark runs until enough observations are collected",
+    "Miss die Leistung deiner Miner und vergleiche sie mit veröffentlichten Ergebnissen.": "Measure your miners and compare them with published results.",
+    "Standardmäßig deaktiviert. Eine spätere Deaktivierung sendet eine Widerrufsmeldung.": "Off by default. Turning it off later sends a withdrawal notification.",
+    "Der PC-Agent sendet regelmäßig aktive Hashrate sowie verfügbare Leistungsaufnahme und Leistungsziel. Hardwaremodell und Algorithmus werden für den Vergleich benötigt. Keine Wallets, Pool-Zugangsdaten, IP-Adresse oder sonstige Sensordaten.": "The PC agent periodically sends active hashrate, available power usage and power target. Hardware model and algorithm are needed for comparison. Wallets, pool credentials, IP addresses and other sensor data are excluded.",
+    "Bestätige die Windows-UAC-Abfrage. Ohne Freigabe fehlen die Windows-Sensoren. Einige Mining-Steuerungsaktionen benötigen diesen Sensorzugriff.": "Approve the Windows UAC prompt. Windows sensors are unavailable without permission. Some mining controls require this sensor access.",
+    "Eigene Auszahlung: Pool und Wallet gehören zusammen.": "Own payout: pool and wallet belong together.",
+    "Pool-Adresse und Wallet werden für den Mining-Start verwendet.": "The pool address and wallet are used to start mining.",
+    "Benchmark konnte nicht gestartet werden.": "Could not start the benchmark.",
+    "Benchmark läuft": "Benchmark running",
+    "Der Miner verbindet sich über den SolarMiner-Proxy; die Pool-Adresse wird dort als Ziel verwendet.": "The miner connects through the SolarMiner proxy, which uses the pool address as its destination.",
+    "Der Upload konnte nicht erneut gestartet werden.": "Could not retry the upload.",
+    "Die Freigabe konnte nicht gespeichert werden.": "Could not save permission.",
+    "Die lokale Einstellung konnte nicht gespeichert werden.": "Could not save the local setting.",
+    "Die GPU-, Treiber- und SRBMiner-Kompatibilität hängt von Modell, Version und Betriebssystem ab. Für diese Prüfung gibt es derzeit keine automatische Aktivierungsaktion.": "GPU, driver and SRBMiner compatibility depends on model, version and operating system. This check has no automatic activation action.",
+    "ETCHash-fähige GPU und Treiber": "ETCHash-capable GPU and driver",
+    "KAWPOW-fähige GPU und Treiber": "KAWPOW-capable GPU and driver",
+    "Freigabe deaktiviert. Der Widerruf wird beim nächsten Versandintervall übermittelt.": "Sharing disabled. Withdrawal will be sent at the next reporting interval.",
+    "Freigabe gespeichert. Aktive Miner werden regelmäßig übertragen.": "Permission saved. Active miners will be reported periodically.",
+    "Für diesen Pool nicht verfügbar": "Unavailable for this pool",
+    "GPU-Leistungsziel übernommen.": "GPU power target applied.",
+    "GPU-Miner": "GPU miner",
+    "Kein kompatibler Proxy gefunden. Prüfe, ob beide Geräte im selben LAN sind und UDP 8091 sowie API-Port 8090 erreichbar sind.": "No compatible proxy found. Check that both devices are on the same LAN and UDP 8091 and API port 8090 are reachable.",
+    "Keine GPU ausgewählt": "No GPU selected",
+    "Keine gültigen Mining-Messwerte erfasst. Prüfe, ob Miner laufen und Hashrate liefern.": "No valid mining readings recorded. Check that miners are running and reporting hashrate.",
+    "Lade vollständige Ausgabe …": "Loading complete output …",
+    "Letzter bekannter Stand · Aktuelle Daten werden geprüft. Aktionen sind danach verfügbar.": "Last known state · Checking current data. Actions will be available afterwards.",
+    "Aktualisiere …": "Updating …",
+    "Live · vollständiger Verlauf": "Live · complete history",
+    "Lokaler Proxy läuft nicht": "Local proxy is not running",
+    "Messwerte werden laufend aktualisiert; der Vergleich erscheint nach Abschluss.": "Readings update continuously; comparison appears after completion.",
+    "Miner öffnen →": "Open miner →",
+    "Miner-Binary fehlt": "Miner executable missing",
+    "Momentan nicht erreichbar": "Currently unavailable",
+    "Monero · im Pool": "Monero · at pool",
+    "Noch kein veröffentlichter Vergleich für diese Hardware und diesen Algorithmus.": "No published comparison for this hardware and algorithm yet.",
+    "Noch keine Miner-Ausgabe": "No miner output yet",
+    "Noch nicht eingerichtet": "Not configured yet",
+    "Node-Profil konnte nicht geladen werden.": "Could not load the Node profile.",
+    "Pearl · auf Adresse": "Pearl · at address",
+    "Pearl · im Pool": "Pearl · at pool",
+    "Pool aktiv · Auszahlung an SolarMiner-Standard": "Pool active · payout to SolarMiner default",
+    "Pool-Konfiguration fehlt": "Pool configuration missing",
+    "Referral-Key lokal gespeichert. Der Node kann ihn wieder überschreiben.": "Referral key saved locally. The Node may overwrite it.",
+    "Regelmäßiger Upload": "Periodic upload",
+    "SRBMiner meldet erkannte Geräte und Initialisierungsfehler in seiner Konsole. Der PC-Agent zeigt die Miner-Ausgabe in dieser Ansicht.": "SRBMiner reports detected devices and initialization errors in its console. This view shows the miner output.",
+    "SolarMiner-Proxy für Monero fehlt. Verbinde zuerst den Proxy.": "SolarMiner proxy for Monero is missing. Connect the proxy first.",
+    "SolarMiner-Proxy für Pearl fehlt. Verbinde zuerst den Proxy.": "SolarMiner proxy for Pearl is missing. Connect the proxy first.",
+    "SolarMiner-Proxy nicht erreichbar": "SolarMiner proxy unavailable",
+    "Verfügbar": "Available",
+    "Warte auf aktuelle Agent-Daten, bevor du eine Änderung ausführst.": "Wait for current agent data before making changes.",
+    "Wähle mindestens eine erkannte GPU.": "Select at least one detected GPU.",
+    "bekannte Abzüge": "known deductions",
+    "nicht verfügbar": "unavailable",
+    "· 1 % Poolgebühr": "· 1% pool fee",
+    "· läuft": "· running",
+    ", läuft": ", running",
+    "läuft": "running",
+    "pausiert": "paused",
+    "Steuerung erlaubt": "Control allowed",
+    "Steuerung ausgeschaltet": "Control disabled",
+    "SRBMiner muss die gewählte GPU für ETCHash erkennen. Prüfe Geräte und Initialisierungsfehler in der Miner-Konsole; der Agent ändert keine Treiber oder Taktraten.": "SRBMiner must detect the selected GPU for ETCHash. Check devices and initialization errors in its console; the agent does not change drivers or clock rates.",
+    "SRBMiner muss die gewählte GPU für KAWPOW erkennen. Prüfe Geräte und Initialisierungsfehler in der Miner-Konsole; der Agent ändert keine Treiber oder Taktraten.": "SRBMiner must detect the selected GPU for KAWPOW. Check devices and initialization errors in its console; the agent does not change drivers or clock rates.",
+    "Hashrate": "Hashrate",
+    "Leistung": "Power",
+    "Effizienz": "Efficiency",
+    "über": "above",
+    "unter": "below",
+    "Netzwerk- und Preisdaten werden geladen": "Loading network and price data",
+    "Miner liefert noch keine Hashrate": "Miner is not reporting hashrate yet",
+    "Daten veraltet": "Stale data",
+    "brutto": "gross",
+    "Benchmark-Upload": "Benchmark upload",
+    "SolarMiner · Mining": "SolarMiner · Mining",
+    "SolarMiner · Hardware": "SolarMiner · Power limits",
+    "SolarMiner · Telemetrie": "SolarMiner · Sensors",
+    "SolarMiner · Verbindung": "SolarMiner · Connection",
     "Miner lokal steuern und Geräte für die Automatisierung zuordnen.": "Control miners locally and assign devices for automation.",
     "Node-Profil öffnen": "Open Node profile",
     "Node-Profil": "Node profile",
@@ -277,12 +400,81 @@
     'LibreHardwareMonitor läuft nicht. Windows benötigt eine Administratorfreigabe, um den Hardware-Monitor neu zu starten.': 'LibreHardwareMonitor is not running. Windows requires administrator approval to restart the hardware monitor.',
     'Warte auf Windows-Freigabe …': 'Waiting for Windows approval …', 'Windows-Freigabe wird angefordert …': 'Requesting Windows approval …'
   };
+  const backendGerman = {
+    'LibreHardwareMonitor is no longer responding. Restart it to continue.': 'LibreHardwareMonitor antwortet nicht mehr. Starte ihn erneut, um fortzufahren.',
+    'LibreHardwareMonitor JSON API is responding on 127.0.0.1:8085.': 'LibreHardwareMonitor ist unter 127.0.0.1:8085 erreichbar.',
+    'LibreHardwareMonitor JSON API is responding on loopback.': 'LibreHardwareMonitor ist lokal erreichbar.',
+    'LibreHardwareMonitor is already running without a reachable local JSON API. Close it and restart the PC-Agent.': 'LibreHardwareMonitor läuft ohne erreichbare lokale JSON-Schnittstelle. Schließe ihn und starte den PC-Agent neu.',
+    'LibreHardwareMonitor was launched after Windows elevation approval.': 'LibreHardwareMonitor wurde nach der Windows-Administratorfreigabe gestartet.',
+    'LibreHardwareMonitor was launched, but its local JSON API did not become reachable. Check its window and the Windows elevation prompt.': 'LibreHardwareMonitor wurde gestartet, ist aber lokal nicht erreichbar. Prüfe sein Fenster und die Windows-Administratorabfrage.',
+    'Waiting for Windows elevation approval timed out': 'Zeitüberschreitung beim Warten auf die Windows-Administratorfreigabe',
+    'Preparing': 'Vorbereitung', 'Pausing current miners': 'Laufende Miner werden pausiert',
+    'Measuring active miners': 'Laufende Miner messen', 'Summarizing': 'Messwerte zusammenfassen',
+    'Cancelled; previous miner state restored': 'Abgebrochen; vorheriger Mining-Zustand wiederhergestellt',
+    'Complete; previous miner state restored': 'Abgeschlossen; vorheriger Mining-Zustand wiederhergestellt',
+    'Benchmark interrupted': 'Benchmark unterbrochen', 'Benchmark failed': 'Benchmark fehlgeschlagen',
+    'Could not fully restore miner state': 'Mining-Zustand konnte nicht vollständig wiederhergestellt werden',
+    'Unknown benchmark mode': 'Unbekannter Benchmark-Modus', 'A benchmark is already running': 'Ein Benchmark läuft bereits',
+    'Install and configure at least one miner before running this benchmark': 'Installiere und konfiguriere zuerst mindestens einen Miner.',
+    'Sequential benchmark skipped: externally started miners cannot be safely paused and restored': 'Messlauf übersprungen: Extern gestartete Miner können nicht sicher pausiert und wiederhergestellt werden',
+    'Node controls are temporarily locked while a benchmark is running': 'Node-Steuerung ist während eines Benchmarks vorübergehend gesperrt'
+  };
   function translate(value) {
-    if (locale !== 'en' || typeof value !== 'string') return value;
+    if (typeof value !== 'string') return value;
     const normalized = value.replace(/\s+/g, ' ').trim();
     if (!normalized) return value;
+    if (locale === 'de') {
+      if (backendGerman[normalized]) return backendGerman[normalized];
+      if (normalized.startsWith('Benchmarking ')) return `Benchmark: ${normalized.slice(13)}`;
+      if (normalized.startsWith('Error: ')) return `Fehler: ${translate(normalized.slice(7))}`;
+      if (normalized.startsWith('Could not fully restore miner state: ')) return `Mining-Zustand konnte nicht vollständig wiederhergestellt werden: ${translate(normalized.slice('Could not fully restore miner state: '.length))}`;
+      if (normalized.startsWith('Worker did not start or stopped: ')) return `Worker nicht gestartet oder angehalten: ${normalized.slice('Worker did not start or stopped: '.length)}`;
+      if (normalized.includes(' · ')) return normalized.split(' · ').map(translate).join(' · ');
+      if (normalized.includes('; skipped: ')) { const [result, skipped] = normalized.split('; skipped: '); return `${translate(result)}; übersprungen: ${skipped}`; }
+      return value;
+    }
     if (translations[normalized]) return translations[normalized];
     const patterns = [
+      [/^(\d+) von (\d+) Geräten im Node-Profil · (.+)$/, '$1 of $2 devices in Node profile · $3'],
+      [/^(\d+) von (\d+) Messwerten verfügbar$/, '$1 of $2 readings available'],
+      [/^CPU: (.+) · GPUs: (\d+)\/(\d+) gestartet\. Beide können parallel laufen\.$/, 'CPU: $1 · GPUs: $2/$3 started. Both can run in parallel.'],
+      [/^(.+): Standard-Coin für den Node$/, '$1: Default coin for the Node'],
+      [/^(.+) öffnen( · läuft|, läuft)?$/, 'Open $1$2'],
+      [/^(.+)-Fee-Ziel nicht geladen$/, '$1 fee target not loaded'],
+      [/^Eigene Pool-Adresse und (.+)-Wallet erforderlich\. Die Fee-Route muss vor dem Start freigeschaltet sein\.$/, 'Own pool address and $1 wallet required. The fee route must be enabled before starting.'],
+      [/^Letzter Stand (.+)$/, 'Last updated $1'],
+      [/^Sensorzugriff: (.+)$/, 'Sensor access: $1'],
+      [/^Datenabruf fehlgeschlagen \((.+)\)$/, 'Data request failed ($1)'],
+      [/^Letzter Datenabruf fehlgeschlagen \((.+)\)$/, 'Last data request failed ($1)'],
+      [/^(.+)-Konfiguration gespeichert\.$/, '$1 configuration saved.'],
+      [/^Für (.+) sind noch keine verifizierten Tipps hinterlegt\.$/, 'No verified tips are available for $1 yet.'],
+      [/^Kein SolarMiner-Standard-Auszahlungsziel für (.+) erreichbar\. Bitte eigene Wallet angeben\.$/, 'No SolarMiner default payout destination available for $1. Enter your own wallet.'],
+      [/^Bekannter Wert ≈ (.+)$/, 'Known value ≈ $1'],
+      [/^Neustart konnte nicht angefordert werden: (.+)$/, 'Could not request restart: $1'],
+      [/^Proxy-Daten konnten nicht geladen werden: (.+)$/, 'Could not load proxy data: $1'],
+      [/^Hardwaredaten konnten nicht geladen werden: (.+)$/, 'Could not load hardware data: $1'],
+      [/^(.+)\. Bitte Agent-Logs prüfen\.$/, '$1. Check the agent logs.'],
+      [/^(.+): (.+)$/, '$1: $2'],
+      [/^(.+) · (\d+) Messpunkte$/, '$1 · $2 observations'],
+      [/^(.+) · Schritt (\d+)\/(\d+)$/, '$1 · Step $2/$3'],
+      [/^(.+) · (\d+)\/(\d+) Messpunkte$/, '$1 · $2/$3 observations'],
+      [/^(.+) · Warte auf die ersten gültigen Hashrate-Messpunkte …$/, '$1 · Waiting for the first valid hashrate observations …'],
+      [/^(.+): (.+) gespeichert\. Der vorherige Worker wurde angehalten; ein Start erfolgt erst durch einen neuen Befehl\.$/, '$1: $2 saved. The previous worker was stopped; it will start only after a new command.'],
+      [/^(.+) wird gestoppt und entfernt\. Die gespeicherte Pool-\/Wallet-Konfiguration bleibt erhalten\. Fortfahren\?$/, '$1 will be stopped and removed. Saved pool/wallet configuration will be kept. Continue?'],
+      [/^(.+) wurde entfernt\.$/, '$1 was removed.'],
+      [/^(.+)-Download gestartet\.$/, '$1 download started.'],
+      [/^(.+) gestartet\.$/, '$1 started.'],
+      [/^(.+) pausiert\.$/, '$1 paused.'],
+      [/^≈ (.+) USD · brutto( · Daten veraltet)?$/, '≈ $1 USD · gross$2'],
+      [/^(.+) · (.+) · (.+) Mining · (.+)$/, '$1 · $2 · $3 mining · $4'],
+      [/^(\d+) Geräte$/, '$1 devices'],
+      [/^(\d+) Proxy(s)? gefunden$/, '$1 proxies found'],
+      [/^Netzwerksuche fehlgeschlagen: (.+)$/, 'Network discovery failed: $1'],
+      [/^Proxy (.+) gespeichert\. Der Miner wurde vorsorglich pausiert\.$/, 'Proxy $1 saved. The miner was paused as a precaution.'],
+      [/^(.+) — Verbinden$/, '$1 — Connect'],
+      [/^(.+): (.+) \((\d+) Geräte\)$/, '$1: $2 ($3 devices)'],
+      [/^Betroffener Ordner: (.+)$/, 'Affected folder: $1'],
+      [/^(.+) · (.+) · (.+)$/, '$1 · $2 · $3'],
       [/^Aktualisiert (.+)$/, 'Updated $1'], [/^Stand (.+)$/, 'As of $1'], [/^Download (.+) %$/, 'Download $1%'],
       [/^Aktiviert (.+)$/, 'Enabled $1'], [/^Maximal (.+)$/, 'Maximum $1'],
       [/^Auszahlung an das SolarMiner-Standardziel \((.+)\)\. Ohne eigene Wallet geht die gesamte Hashrate dorthin\.$/, 'Payout to the SolarMiner standard destination ($1). Without your own wallet, all hashrate goes there.'],
@@ -291,17 +483,29 @@
       [/^Hardwaredaten konnten nicht geladen werden: (.+)$/, 'Could not load hardware data: $1'],
       [/^Telemetrie konnte nicht geladen werden: (.+)$/, 'Could not load telemetry: $1'],
       [/^Konsole nicht erreichbar: (.+)$/, 'Console unavailable: $1'], [/^Status konnte nicht geladen werden: (.+)$/, 'Could not load status: $1'],
-      [/^Aktivierung fehlgeschlagen: (.+)$/, 'Activation failed: $1']
+      [/^Aktivierung fehlgeschlagen: (.+)$/, 'Activation failed: $1'],
+      [/^· (.+)$/, '· $1'],
+      [/^(.+) · (.+)$/, '$1 · $2'],
+      [/^(.+): (.+)$/, '$1: $2']
     ];
-    for (const [pattern, replacement] of patterns) if (pattern.test(normalized)) return normalized.replace(pattern, replacement);
+    for (const [pattern, replacement] of patterns) if (pattern.test(normalized)) return normalized.replace(pattern,
+      (...match) => replacement.replace(/\$(\d+)/g, (_, index) => translate(match[Number(index)] || '')));
     return value;
   }
   window.SolarMinerI18n = { locale: locale === 'de' ? 'de-DE' : 'en-US', language: locale, t: translate };
   document.documentElement.lang = locale;
+  function translateTextNode(node) {
+    if (node.parentElement?.closest('pre,script,style,[data-no-i18n]')) return;
+    const original = node.nodeValue, translated = translate(original);
+    if (translated !== original) {
+      const value = `${original.match(/^\s*/)[0]}${translated.trim()}${original.match(/\s*$/)[0]}`;
+      if (value !== original) node.nodeValue = value;
+    }
+  }
   function translateTree(root) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
-    nodes.forEach(node => { const translated = translate(node.nodeValue); if (translated !== node.nodeValue) node.nodeValue = translated; });
+    nodes.forEach(translateTextNode);
     if (root instanceof Element) [root, ...root.querySelectorAll('[title], [placeholder], [aria-label]')].forEach(element =>
       ['title', 'placeholder', 'aria-label'].forEach(attribute => {
         if (element.hasAttribute(attribute)) element.setAttribute(attribute, translate(element.getAttribute(attribute)));
@@ -321,13 +525,12 @@
     document.querySelector('.top-actions')?.prepend(switcher);
     new MutationObserver(records => records.forEach(record => {
       if (record.type === 'characterData') {
-        const translated = translate(record.target.nodeValue);
-        if (translated !== record.target.nodeValue) record.target.nodeValue = translated;
+        translateTextNode(record.target);
       } else if (record.type === 'attributes') {
         const value = record.target.getAttribute(record.attributeName), translated = translate(value);
         if (translated !== value) record.target.setAttribute(record.attributeName, translated);
       } else record.addedNodes.forEach(node => {
-        if (node.nodeType === Node.TEXT_NODE) { const translated = translate(node.nodeValue); if (translated !== node.nodeValue) node.nodeValue = translated; }
+        if (node.nodeType === Node.TEXT_NODE) translateTextNode(node);
         else if (node.nodeType === Node.ELEMENT_NODE) translateTree(node);
       });
     })).observe(document.body, { childList: true, characterData: true, attributes: true,
