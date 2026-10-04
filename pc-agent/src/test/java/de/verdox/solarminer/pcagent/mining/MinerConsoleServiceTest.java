@@ -28,4 +28,17 @@ class MinerConsoleServiceTest {
         assertTrue(output.contains("New miner start"));
         assertFalse(output.contains("old output"));
     }
+
+    @Test
+    void gpuCoinConsolesCanStartAndReadAggregateAndDeviceOutput() throws Exception {
+        MinerConsoleService consoles = new MinerConsoleService(directory);
+        for (String coin : new String[]{"ravencoin", "ethereumclassic"}) {
+            for (String name : new String[]{coin, coin + "-NVIDIA-0"}) {
+                consoles.started(name);
+                consoles.append(name, "job received");
+                String output = new String(Base64.getDecoder().decode(consoles.read(name, 0).data()), StandardCharsets.UTF_8);
+                assertTrue(output.contains("job received"));
+            }
+        }
+    }
 }

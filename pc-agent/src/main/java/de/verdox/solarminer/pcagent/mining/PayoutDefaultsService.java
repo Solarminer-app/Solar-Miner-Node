@@ -64,13 +64,18 @@ public class PayoutDefaultsService {
 
         /** Pearl rebuilds its upstream login as {@code <wallet>/<worker>}; the house target uses the same shape. */
         public String walletPart() {
-            int separator = login.lastIndexOf('/');
+            int separator = separator();
             return separator < 0 ? login : login.substring(0, separator);
         }
 
         public String workerPart() {
-            int separator = login.lastIndexOf('/');
+            int separator = separator();
             return separator < 0 ? null : login.substring(separator + 1);
+        }
+
+        private int separator() {
+            return java.util.Set.of("ravencoin", "ethereumclassic").contains(coin)
+                    ? login.lastIndexOf('.') : login.lastIndexOf('/');
         }
 
         public String maskedWallet() {
@@ -137,7 +142,9 @@ public class PayoutDefaultsService {
                 if (target.path("house").asBoolean(false)) return candidate;
                 if (first == null) first = candidate;
             }
-            return first;
+            // New GPU coins have no legacy fee targets: an unmarked referral target must
+            // never become the operator's default payout destination.
+            return java.util.Set.of("ravencoin", "ethereumclassic").contains(coin) ? null : first;
         } catch (Exception e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             LOGGER.log(Level.FINE, "Fee-backend payout target could not be resolved for " + coin, e);

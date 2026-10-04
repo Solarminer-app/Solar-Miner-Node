@@ -257,8 +257,8 @@ public class GpuCoinMinerService {
     }
 
     private void monitor(Run run, Process process) {
-        Instant launched = Instant.now(), lastHealthy = launched;
-        boolean hadJob = false;
+        Instant launched = Instant.now(), lastHealthy = launched, lastHashrate = launched;
+        boolean hadJob = false, hadHashrate = false;
         while (process.isAlive() && run.process == process) {
             try {
                 HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + run.apiPort + "/"))
@@ -271,8 +271,12 @@ public class GpuCoinMinerService {
                 if (rate <= 0) rate = info.path("hashrate").path("1min").asDouble(0);
                 run.hashrate = rate;
                 long age = pool.path("last_job_received").asLong(0);
-                run.healthy = response.statusCode() == 200 && pool.path("uptime").asLong(0) > 0 && age > 0 && age < 120;
-                if (run.healthy) { hadJob = true; lastHealthy = Instant.now(); run.detail = "Pool verbunden, letzter Job vor " + age + " s"; }
+                boolean poolHealthy = response.statusCode() == 200 && pool.path("uptime").asLong(0) > 0 && age > 0 && age < 120;
+                if (poolHealthy) { hadJob = true; lastHealthy = Instant.now(); }
+                run.healthy = poolHealthy && rate > 0;
+                if (rate > 0) { hadHashrate = true; lastHashrate = Instant.now(); }
+                if (run.healthy) run.detail = "GPU hasht, letzter Pool-Job vor " + age + " s";
+                else if (poolHealthy) run.detail = "Pool verbunden, warte auf GPU-Hashrate";
                 else run.detail = "Warte auf Pool-Job";
             } catch (Exception e) { run.healthy = false; run.detail = "Miner-API nicht erreichbar"; }
             if (run.status != MinerStats.MinerStatus.MINING) return;
@@ -280,6 +284,11 @@ public class GpuCoinMinerService {
                     || (hadJob && Duration.between(lastHealthy, Instant.now()).toSeconds() >= 120)
                     || !proxy.miningReady(run.coin) || !proxy.feeReady(run.coin)) {
                 fail(run, "Pool-Job oder Fee-Route nicht verfügbar");
+                process.destroy(); return;
+            }
+            if (hadJob && ((!hadHashrate && Duration.between(launched, Instant.now()).toSeconds() >= 180)
+                    || (hadHashrate && Duration.between(lastHashrate, Instant.now()).toSeconds() >= 120))) {
+                fail(run, "GPU liefert trotz Pool-Jobs keine Hashrate; SRBMiner- und GPU-Treiber prüfen");
                 process.destroy(); return;
             }
             try { Thread.sleep(5000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }

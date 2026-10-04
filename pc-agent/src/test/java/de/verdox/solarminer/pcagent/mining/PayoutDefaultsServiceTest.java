@@ -93,6 +93,24 @@ class PayoutDefaultsServiceTest {
     }
 
     @Test
+    void gpuCoinsRequireAnExplicitHouseTargetAndSplitDotWorker() {
+        String wallet = "RHaGK3iARQdKgZ6VPDP4N5chP3aVgUUfz7";
+        response.set("""
+                [{"targetId":"referrer","poolAddress":"stratum+tcp://rvn.kryptex.network:7031",
+                  "workerName":"%s.friend","password":"x","percentage":1,"house":false}]
+                """.formatted(wallet));
+        assertTrue(service("rvn.json").resolve("ravencoin").isEmpty());
+        response.set("""
+                [{"targetId":"house","poolAddress":"stratum+tcp://rvn.2miners.com:6060",
+                  "workerName":"%s.solarminer","password":"x","percentage":2.5,"house":true}]
+                """.formatted(wallet));
+        PayoutDefaultsService.DefaultPayout payout = service("rvn.json").resolve("ravencoin").orElseThrow();
+        assertEquals(wallet, payout.walletPart());
+        assertEquals("solarminer", payout.workerPart());
+        assertFalse(payout.maskedWallet().contains(wallet));
+    }
+
+    @Test
     void remembersTheDefaultChoicePerCoinAcrossRestarts() {
         PayoutDefaultsService first = service("chosen.json");
         first.markDefault("pearl", true);

@@ -48,6 +48,7 @@ public class MinerConsoleController {
 
     private static boolean known(String miner) {
         return "monero".equals(miner) || "pearl".equals(miner)
-                || miner.matches("pearl-(NVIDIA|AMD)-[0-9]{1,5}");
+                || "ravencoin".equals(miner) || "ethereumclassic".equals(miner)
+                || miner.matches("(pearl|ravencoin|ethereumclassic)-(NVIDIA|AMD)-[0-9]{1,5}");
     }
 }

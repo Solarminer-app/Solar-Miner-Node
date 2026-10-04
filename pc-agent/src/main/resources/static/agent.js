@@ -28,11 +28,21 @@ function initGpuCoinForms() {
     const form = document.createElement('form');
     form.id = `${coin}-form`; form.className = 'form-block'; form.hidden = true;
     form.innerHTML = `<h3>${name} · ${algorithm} / GPU</h3>
-      <p class="muted">Eigene Pool-Adresse und ${ticker}-Wallet erforderlich. Die Fee-Route muss vor dem Start freigeschaltet sein.</p>
-      <label for="${coin}-pool">Mining-Pool</label>
-      <input id="${coin}-pool" type="text" placeholder="stratum+tcp://pool.example:3333" required autocomplete="off" spellcheck="false">
+      <p class="muted">Wähle Kryptex mit eigener ${ticker}-Wallet oder bestätige das SolarMiner-Standardziel. Die Fee-Route muss vor dem Start freigeschaltet sein.</p>
+      <label for="${coin}-pool-select">Mining-Pool</label>
+      <select id="${coin}-pool-select">
+        <option value="solarminer">SolarMiner-Standard · ohne eigene Auszahlung</option>
+        <option value="stratum+tcp://${coin === 'ravencoin' ? 'rvn' : 'etc'}.kryptex.network:${coin === 'ravencoin' ? '7031' : '7033'}">Kryptex · Global</option>
+        <option value="stratum+tcp://${coin === 'ravencoin' ? 'rvn' : 'etc'}-eu.kryptex.network:${coin === 'ravencoin' ? '7031' : '7033'}">Kryptex · Europa</option>
+        <option value="stratum+tcp://${coin === 'ravencoin' ? 'rvn' : 'etc'}-us.kryptex.network:${coin === 'ravencoin' ? '7031' : '7033'}">Kryptex · Nordamerika</option>
+        <option value="custom">Erweitert · eigene Pool-Adresse</option>
+      </select>
+      <div id="${coin}-pool-custom" class="advanced-pool" hidden><label for="${coin}-pool">Eigene Pool-Adresse</label>
+        <input id="${coin}-pool" type="text" placeholder="stratum+tcp://pool.example:3333" autocomplete="off" spellcheck="false">
+        <p>Format: stratum+tcp://host:port oder stratum+ssl://host:port</p></div>
       <label for="${coin}-wallet">${ticker} Wallet</label>
-      <input id="${coin}-wallet" type="text" required autocomplete="off" spellcheck="false">
+      <input id="${coin}-wallet" type="text" autocomplete="off" spellcheck="false">
+      <p id="${coin}-payout-note" class="muted"></p>
       <label for="${coin}-worker">Worker</label>
       <input id="${coin}-worker" type="text" value="pc" pattern="[A-Za-z0-9_\\-]{1,32}" required>
       <div class="field"><span class="field-label">GPUs auswählen</span>
@@ -42,6 +52,8 @@ function initGpuCoinForms() {
       <p id="${coin}-save-feedback" class="notice form-feedback" role="status" aria-live="polite" hidden></p>`;
     $('power-form').before(form);
     form.addEventListener('input', () => { form.dataset.dirty = 'true'; });
+    $(`${coin}-pool-select`).addEventListener('change', () => { form.dataset.dirty = 'true'; updatePoolChoice(coin); });
+    updatePoolChoice(coin);
     form.addEventListener('submit', event => {
       event.preventDefault();
       if (!form.reportValidity()) return;
@@ -49,8 +61,10 @@ function initGpuCoinForms() {
       if (!devices.length) return notice('Wähle mindestens eine erkannte GPU.', true);
       const proxyUrl = latest?.proxy?.[coin === 'ravencoin' ? 'ravencoinUrl' : 'ethereumclassicUrl'];
       if (!proxyUrl) return notice('SolarMiner-Proxy-Route fehlt.', true);
-      action(`/api/agent/${coin}/configuration`, `${name}-Konfiguration gespeichert.`, null,
-        {poolUrl: $(`${coin}-pool`).value.trim(), proxyUrl, wallet: $(`${coin}-wallet`).value.trim(),
+      if (!payoutAvailable(coin)) return;
+      const standard = usesStandardPayout(coin);
+      action(`/api/agent/${coin}/configuration`, standard ? `${name} gespeichert: Auszahlung an das SolarMiner-Standardziel.` : `${name}-Konfiguration gespeichert.`, null,
+        {poolUrl: standard ? '' : selectedPool(coin), proxyUrl, wallet: standard ? '' : $(`${coin}-wallet`).value.trim(),
          worker: $(`${coin}-worker`).value.trim(), devices: devices.join(',')}, `${coin}-save-feedback`);
     });
   }
@@ -207,9 +221,9 @@ function ensureStandardConsent(coin) {
   return row.querySelector('input').checked;
 }
 function renderPayoutState(data) {
-  for (const coin of ['monero', 'pearl']) {
+  for (const coin of viewIds) {
     const select = $(`${coin}-pool-select`);
-    const configured = coin === 'monero' ? data.moneroConfiguration : data.pearlConfiguration;
+    const configured = coin === 'monero' ? data.moneroConfiguration : coin === 'pearl' ? data.pearlConfiguration : data.gpuCoins?.[coin]?.configuration;
     if (payoutDefault(coin)?.inUse && $(`${coin}-form`).dataset.dirty !== 'true') select.value = 'solarminer';
     // A new user starts with their own payout route. The SolarMiner house route remains an
     // explicit, consented option instead of silently receiving the user's full hashrate.
@@ -227,7 +241,7 @@ function payoutAvailable(coin) {
     return false;
   }
   if (payoutDefault(coin)?.available) return true;
-  notice(`Kein SolarMiner-Standard-Auszahlungsziel für ${coin === 'pearl' ? 'Pearl' : 'Monero'} erreichbar. Bitte eigene Wallet angeben.`, true);
+  notice(`Kein SolarMiner-Standard-Auszahlungsziel für ${coin === 'pearl' ? 'Pearl' : coin === 'monero' ? 'Monero' : coin === 'ravencoin' ? 'Ravencoin' : 'Ethereum Classic'} erreichbar. Bitte eigene Wallet angeben.`, true);
   return false;
 }
 function updatePoolChoice(coin) {
@@ -350,7 +364,7 @@ function renderGpuCoinSelection(coin, data) {
   $(`${coin}-submit`).disabled = busy || !indices.some(index => gpuCoinSelection[coin].has(index));
   const form = $(`${coin}-form`);
   if (config && form.dataset.dirty !== 'true' && form.dataset.hydrated !== JSON.stringify(config)) {
-    $(`${coin}-pool`).value = config.poolUrl;
+    selectSavedPool(coin, config.poolUrl);
     $(`${coin}-wallet`).value = config.wallet;
     $(`${coin}-worker`).value = config.worker;
     form.dataset.hydrated = JSON.stringify(config);
@@ -841,7 +855,7 @@ window.addEventListener('hashchange', () => {
 $('console-bottom').addEventListener('click', () => { $('miner-console').scrollTop = $('miner-console').scrollHeight; });
 $('console-gpu').addEventListener('change', syncConsoleView);
 ['monero-form', 'pearl-form'].forEach(id => $(id).addEventListener('input', () => { $(id).dataset.dirty = 'true'; }));
-['monero', 'pearl'].forEach(coin => {
+viewIds.forEach(coin => {
   $(`${coin}-pool-select`).addEventListener('change', () => updatePoolChoice(coin));
   for (const option of $(`${coin}-pool-select`).options) {
     if (option.value.includes('kryptex.network') && !option.dataset.feeLabel) {

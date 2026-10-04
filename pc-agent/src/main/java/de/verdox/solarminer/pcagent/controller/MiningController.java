@@ -291,8 +291,21 @@ public class MiningController {
     public boolean setGpuCoinConfiguration(@PathVariable String coin,
                                            @RequestBody GpuCoinMinerService.Config config) throws java.io.IOException {
         if (!GpuCoinMinerService.supported(coin)) throw new IllegalArgumentException("Unbekannter GPU-Coin");
-        gpuCoins.configure(coin, config);
+        boolean feeBackendPayout = config == null || config.wallet() == null || config.wallet().isBlank();
+        GpuCoinMinerService.Config effective = feeBackendPayout ? withGpuCoinFeeBackendPayout(coin, config) : config;
+        gpuCoins.configure(coin, effective);
+        payoutDefaultsService.markDefault(coin, feeBackendPayout);
         return miningService.switchCoin(coin);
+    }
+
+    private GpuCoinMinerService.Config withGpuCoinFeeBackendPayout(String coin, GpuCoinMinerService.Config request) {
+        if (request == null) throw new IllegalArgumentException("GPU-Coin-Konfiguration fehlt");
+        PayoutDefaultsService.DefaultPayout payout = payoutDefaultsService.resolve(coin).orElseThrow(
+                () -> new IllegalArgumentException("Kein SolarMiner-Standard-Auszahlungsziel für " + coin + " erreichbar"));
+        String wallet = payout.walletPart();
+        String worker = payout.workerPart();
+        if (worker == null || worker.isBlank()) worker = "solarminer";
+        return new GpuCoinMinerService.Config(payout.poolUrl(), request.proxyUrl(), wallet, worker, request.devices());
     }
 
     @PostMapping("/{coin}/gpus/{vendor}/{index}/resume")
@@ -398,7 +411,7 @@ public class MiningController {
     /** Fee-backend payout per coin, shown so an empty wallet is never silently an unknown destination. */
     @GetMapping("/payout-defaults")
     public List<PayoutOverview> payoutDefaults() {
-        return java.util.List.of("monero", "pearl").stream()
+        return java.util.List.of("monero", "pearl", "ravencoin", "ethereumclassic").stream()
                 .map(coin -> {
                     PayoutDefaultsService.DefaultView view = payoutDefaultsService.view(coin);
                     return new PayoutOverview(coin, view.available(), view.targetId(), view.poolUrl(),

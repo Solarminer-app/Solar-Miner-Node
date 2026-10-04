@@ -24,6 +24,7 @@
 | [PC-Agent gesamtes UI/UX-Konzept](pc-agent-design-concept.md) | Bewertung, Aufgabenstruktur und umgesetzte Gestaltung aller sechs PC-Agent-Seiten mit Browser-Evidenz; 2026-10-03. |
 | [PC-Agent Mining UX and Node defaults](pc-agent-ux-profile.md) | Persistent per-device defaults, local/benchmark-only exclusion, browser and backend verification; 2026-10-03. |
 | [PC-Agent ownership and gaps](pc-agent.md) | Code-checked map and review queue, checked 2026-10-01. |
+| [PC-Agent pool API research](pc-agent-pool-api-research-2026-10-04.md) | Public wallet balance and payout API candidates for XMR, PRL, RVN and ETC; research only, checked 2026-10-04. |
 | [RVN / ETC integration](rvn-etc-integration.md) | In-progress PC-Agent GPU contract and unverified gates; neither coin is enabled. |
 | [API](../API.md), [mining targets](../MINING-TARGETS.md) | Interface references; verify endpoints and behavior in code before changing them. |
 | [device protocol roadmap](../DEVICE_PROTOCOL_ROADMAP.md), [21energy status](../21ENERGY-SOFTWARE-STATUS.md) | Roadmap/status; follow [21energy integration guide](../../../21ENERGY-INTEGRATION.md) for related changes. |

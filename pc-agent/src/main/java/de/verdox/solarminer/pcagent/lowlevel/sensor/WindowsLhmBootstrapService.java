@@ -3,8 +3,6 @@ package de.verdox.solarminer.pcagent.lowlevel.sensor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -58,15 +56,10 @@ public class WindowsLhmBootstrapService {
 
     public WindowsLhmBootstrapService(ObjectMapper mapper,
             @Value("${solarminer.agent.telemetry.windows-lhm.directory:${user.home}/.solarminer/telemetry/librehardwaremonitor}") String directory,
-            @Value("${solarminer.agent.telemetry.windows-lhm.autostart:true}") boolean enabled) {
+            @Value("${solarminer.agent.telemetry.windows-lhm.enabled:${solarminer.agent.telemetry.windows-lhm.autostart:true}}") boolean enabled) {
         this.mapper = mapper;
         this.directory = Path.of(directory).toAbsolutePath().normalize();
         this.enabled = enabled;
-    }
-
-    @EventListener(ApplicationReadyEvent.class)
-    public void startWhenReady() {
-        retryStart();
     }
 
     public boolean retryStart() {
@@ -191,6 +184,10 @@ public class WindowsLhmBootstrapService {
         setSetting(document, settings, "authenticationEnabled", "false");
         setSetting(document, settings, "minTrayMenuItem", "true");
         setSetting(document, settings, "startMinMenuItem", "true");
+        // Storage/SMART probing is not needed for mining telemetry. In particular, it
+        // can cause Windows storage-management helpers to be invoked on some hosts.
+        // Disable it at the source instead of merely hiding its returned sensor nodes.
+        setSetting(document, settings, "/storage/enabled", "false");
 
         var transformer = TransformerFactory.newInstance().newTransformer();
         transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");

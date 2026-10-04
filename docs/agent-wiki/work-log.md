@@ -1,5 +1,34 @@
 # Agent work log
 
+## 2026-10-04 — Public pool API research for PC-Agent coins
+
+- Scope: documentation-only assessment for XMR, PRL, RVN and ETC; no mining, proxy, fee, API or release contract changed. Findings and source links are in [PC-Agent pool API research](pc-agent-pool-api-research-2026-10-04.md).
+- Evidence: current `WalletBalanceService` and wallet UI were checked against public pool/operator documentation. 2Miners documents wallet-specific balances and payments for RVN/ETC; MoneroOcean's official UI source calls wallet stats/payments; Goldenpool documents PRL wallet balances and payouts. Direct pool-status JSON was observed for ETC 2Miners and HashVault XMR. Live wallet credits, payout records and Stratum/fee compatibility for the new candidates remain unverified.
+- Existing concurrent worktree changes were preserved. No build/test is meaningful for this research-only change; `git diff --check` was run.
+
+## 2026-10-04 — RVN/ETC SRBMiner epoch error research
+
+- No code or contract change. The [RVN/ETC integration record](rvn-etc-integration.md#research-on-couldnt-set-epoch-2026-10-04) now links documented SRBMiner cases involving insufficient free VRAM, driver buffer-allocation limits and Windows miner bugs, and compares them with the local RTX 2080 Ti logs. The exact local cause remains unknown. Direct-pool failures and verified PCI mapping exclude the proxy and iGPU assignment for this host; no new mining run, driver change or accepted share was performed.
+
+## 2026-10-04 — PC-Agent GPU power-target check on Windows and Linux
+
+- Owner: PC-Agent. No API or code contract changed. See [PC-Agent GPU power-target verification](pc-agent.md#gpu-power-target-verification-2026-10-04).
+- Evidence: Windows `nvidia-smi` read a RTX 2080 Ti at 300 W with a 100–366 W range; the running Agent reported dynamic scaling support. A same-value `nvidia-smi -i <UUID> -pl 300` under the sandbox account failed with `Insufficient Permissions`, while readback stayed at 300 W. Source inspection confirms the Agent uses that command and verifies readback. The Windows launcher has no elevation step.
+- Linux NVIDIA follows the same command path and its Docker overlay requests GPU access plus NVIDIA `compute,utility`; no Linux hardware execution was available. AMD remains start/stop only. Targeted Gradle tests could not run because this sandbox could not download Gradle 8.14.5. The outstanding gate is an Agent-token write/readback/restoration probe on Windows and a real NVIDIA-container probe on Linux.
+
+## 2026-10-03 — RVN/ETC Kryptex choice and SolarMiner payout default
+
+- Scope: PC-Agent local RVN/ETC pool configuration plus the GPU proxy's user-pool login rewrite; shared contract recorded in the admin encyclopedia and details in [RVN/ETC integration](rvn-etc-integration.md). Existing concurrent Windows sensor edits were preserved.
+- Change: local forms offer Kryptex Global/Europe/North America, custom pool, or explicitly consented SolarMiner payout. Empty RVN/ETC wallet resolves only a marked fee-backend house target and saves its pool, wallet and worker together. Its `WALLET.WORKER` login is split for validation; an own wallet retains the selected pool. The proxy forwards `WALLET/WORKER` when the user pool host is Kryptex. No fee target or mining-start gate was relaxed.
+- Evidence: Kryptex's official RVN/ETC pool pages publish ports 7031/7033 and wallet/worker login. Controller, payout-target and proxy unit cases were added; `node --check` passes. Gradle test execution was unavailable in this sandbox because the wrapper could not download its distribution, and the cached installation failed to load `native-platform.dll`. No real share or payout evidence; the existing end-to-end release gates remain open.
+
+## 2026-10-03 — Windows PC-Agent sensor elevation and storage safety
+
+- Scope: PC-Agent Windows telemetry bootstrap and standalone operator guidance; no mining, proxy, Node, pool or fee contract changed.
+- Change: LibreHardwareMonitor no longer starts automatically when the Agent becomes ready. It can only be started through the existing explicit local Telemetry UI action. Before that process launches, its config now writes `/storage/enabled=false`, disabling disk/SMART enumeration at the collection source rather than merely filtering returned telemetry. The optional-monitor enable setting remains configurable, with legacy `windows-lhm.autostart` respected as a fallback for explicit-start availability.
+- Reason and evidence: a fresh Windows 11 host repeatedly displayed elevation prompts for `diskpart.exe` while the Agent's telemetry polling was active; closing the Agent stopped the prompts although LibreHardwareMonitor remained open. The Agent's current source calls the local LibreHardwareMonitor JSON API for telemetry, while its own elevation command launches only `LibreHardwareMonitor.exe`. LibreHardwareMonitor's upstream configuration documents `/storage/enabled=false` as disabling storage collection at source.
+- Verification: source inspection and `git diff --check` passed. `:pc-agent:test --no-daemon` was attempted, but this workspace has no JDK 21: Gradle is launched with JDK 25 and stops before compilation even though `build.gradle.kts` requires Java 21. Runtime verification is still required on the affected Windows host: start the Agent without opening Telemetry (no UAC prompt), then explicitly start sensors and confirm no `diskpart.exe` prompt while CPU/GPU telemetry remains available.
+
 ## 2026-10-03 — RVN / ETC PC-Agent integration assessment
 
 - Owner: PC-Agent / Node integration. The [RVN / ETC record](rvn-etc-integration.md) captures canonical keys, selected initial miner/pool combination, required cross-repository contracts, inapplicable first-scope paths and release gates.
@@ -335,3 +364,17 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - PC-Agent UI: `mining.css` ergänzt die gemeinsame Gestaltung mit einer durchgehenden Hierarchie für Seitenkopf, lokalen Miner, Betriebswerte, Bereichsnavigation und Katalog. Profil folgt dem lokalen Inhalt und bleibt per Kopfbutton mit Fokusführung sowie Direktlink erreichbar; Entfernen liegt unter Installation verwalten in Einrichtung. Vertikale Coin-Leiste bleibt am Desktop, horizontal auf schmalen Geräten. Große Erststart-Hilfe erscheint ausschließlich ohne installierte Binaries. Keine Geräte-/Mining-/Fee-Verträge geändert.
 - Korrigierte Statusdarstellung: poolgesunde laufende GPUs ohne zusätzliches Detail melden Pool verbunden statt Noch nicht gestartet; vorhandene Wattziele ohne gemeldetes Maximum zeigen eine fehlende Obergrenze statt ein fehlendes Ziel.
 - Evidenz: JavaScript-Syntax und Git-Diff geprüft; Chrome-Fixtures `.codex-qa/pc-agent-design.cjs` erfolgreich für Hierarchie, Profilfokus, Installationsverwaltung, Filter, Erststart, verzögerte Antworten, alle sechs Seiten am Desktop/mobil und DE/EN bis 320 px. `.codex-qa/pc-agent-workspace.cjs` bestätigt gespeicherte Gerätezuordnungen über Miner-Wechsel, lokale Ausschlüsse, Bereichsnavigation und globale Freigabe. Betriebs-/Katalog-/Einrichtungs-/Diagnose-/Profil-Screenshots visuell kontrolliert. Kein Hardwaretest oder Benutzerstudie.
+
+## 2026-10-03 — RVN/ETC gezielte Live-Proben und Konsolen-Startfehler
+
+- Der PC-Agent startete SRBMiner für RVN, warf aber nach dem Prozessstart wegen unbekannter RVN/ETC-Konsolenkennung eine unbehandelte Ausnahme. Dadurch blieb ein unüberwachter Prozess und ETC kollidierte auf derselben GPU. `MinerConsoleService` und `MinerConsoleController` akzeptieren nun beide Coins sowie ihre GPU-IDs. Nach Agent-Neustart: Konsolen HTTP 200, Start und Stop beider Coins separat erfolgreich.
+- Verifikation: JDK 21, gezielte `:pc-agent:test --offline` für `MinerConsoleServiceTest`, `MinerConsoleControllerTest`, `GpuCoinMinerServiceTest` erfolgreich. Reale 8084-/Proxy-/SRBMiner-API-Proben stehen im [RVN/ETC-Integrationsprotokoll](rvn-etc-integration.md). Beide Coins bleiben ohne gesunden Pool-Job oder akzeptierten Share und sind nicht freigegeben.
+
+## 2026-10-04 — RVN/ETC nach Agent-Neustart erneut gemessen
+
+- Der gestartete Agent hatte Proxy und House-Fee-Routen für beide Coins bereit. RVN und ETC starteten nacheinander auf NVIDIA GPU ID 1; ihre SRBMiner-APIs meldeten jeweils `time_connected="0"`, `uptime=0`, `last_job_received=0` und null Shares. Nach den begrenzten Proben wurden beide Miner über den Agenten gestoppt. Details und Kontext der eingeschränkten Fake-Pool-Probe: [RVN/ETC-Integrationsprotokoll](rvn-etc-integration.md). Kein neuer Codevertrag und keine Freigabe.
+
+## 2026-10-04 — GPU-Coin-Handshake und echte Hashrate getrennt geprüft
+
+- Der eingebettete Proxy antwortet SRBMiners blockierendem Subscribe nun vor dem dynamischen Authorize; danach überträgt er den echten Upstream-Extranonce. Mit neu gestartetem `pc-agent:bootRun` erhielten RVN und ETC live Kryptex-Jobs. Der PC-Agent fordert für einen gesunden GPU-Status zusätzlich positive Hashrate und beendet dauerhaft bei 0 H/s bleibende Prozesse nach einer Startfrist mit konkreter Diagnose.
+- Verifikation: gezielte GPU-Proxy-Tests und gesamtes `:pc-agent:test --offline` unter JDK 21 erfolgreich. Direkte Pool-Läufe ohne SolarMiner-Proxy zeigten dieselben SRBMiner-Epoch-Fehler auf NVIDIA GPU ID 1 und 0 H/s; ETCs `--gpu-table-slow-build` half nicht. Kein akzeptierter User-/House-/Referral-Share, keine Pool-Gutschrift oder Auszahlung. [Messungen und offene Gates](rvn-etc-integration.md).
