@@ -102,7 +102,8 @@ public class MinerAnalyticsService {
                 stats.workers().stream()
                         .map(worker -> new MinerDetailsPageDto.MinerWorkerDto(
                                 worker.workerDisplayName(), worker.currentAlgorithm(), worker.miningStatus().name(),
-                                worker.terahashPerSecond(), worker.temperatureCelsius(), worker.miningPowerWatts()
+                                worker.terahashPerSecond(), worker.temperatureCelsius(), worker.miningPowerWatts(),
+                                worker.acceptedShares(), worker.rejectedShares()
                         ))
                         .toList(),
                 summary,

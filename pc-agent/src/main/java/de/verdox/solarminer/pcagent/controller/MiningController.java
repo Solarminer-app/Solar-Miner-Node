@@ -13,6 +13,7 @@ import de.verdox.solarminer.pcagent.mining.WalletBalanceService;
 import de.verdox.solarminer.pcagent.mining.WindowsDefenderExclusionService;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
 import de.verdox.solarminer.pcagent.mining.ProxyDiscoveryService;
+import de.verdox.solarminer.pcagent.mining.MinerCatalogService;
 import de.verdox.solarminer.pcagent.pearl.PearlMinerService;
 import de.verdox.solarminer.pcagent.pearl.GpuCoinMinerService;
 import de.verdox.solarminer.pcagent.pearl.LocalGpuPowerService;
@@ -26,7 +27,7 @@ import org.springframework.http.ResponseEntity;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/agent")
+@RequestMapping("/api/agent/local")
 @Tag(name = "PC mining agent")
 public class MiningController {
     private final MiningService miningService;
@@ -46,6 +47,7 @@ public class MiningController {
     private final FeeTransparencyService feeTransparencyService;
     private final WalletBalanceService walletBalanceService;
     private final WindowsDefenderExclusionService defenderExclusionService;
+    private final MinerCatalogService minerCatalog;
 
     public MiningController(MiningService miningService, XmrConfigService xmrConfigService,
                             PearlMinerService pearlMinerService, GpuCoinMinerService gpuCoins, LocalGpuPowerService gpuPowerService,
@@ -58,7 +60,8 @@ public class MiningController {
                             ReferralConfigurationService referralConfigurationService,
                             FeeTransparencyService feeTransparencyService,
                             WalletBalanceService walletBalanceService,
-                            WindowsDefenderExclusionService defenderExclusionService) {
+                            WindowsDefenderExclusionService defenderExclusionService,
+                            MinerCatalogService minerCatalog) {
         this.miningService = miningService;
         this.xmrConfigService = xmrConfigService;
         this.proxyConfigurationService = proxyConfigurationService;
@@ -76,6 +79,7 @@ public class MiningController {
         this.feeTransparencyService = feeTransparencyService;
         this.walletBalanceService = walletBalanceService;
         this.defenderExclusionService = defenderExclusionService;
+        this.minerCatalog = minerCatalog;
     }
 
     @GetMapping("identify")
@@ -129,14 +133,14 @@ public class MiningController {
         if (host.equals(proxyConfigurationService.host())) return true;
         if (!proxyConfigurationService.configure(host)) return false;
         payoutDefaultsService.invalidate();
-        return miningService.pauseAll();
+        return miningService.pauseAll("Proxy was changed");
     }
 
     @PostMapping("/proxy/mode")
     public boolean configureProxyMode(@RequestParam String mode) {
         if (!lhmBootstrapService.readyForAgent()) return false;
         if (!"local".equals(mode) && !"external".equals(mode)) return false;
-        if (!miningService.pauseAll()) return false;
+        if (!miningService.pauseAll("Proxy mode was configured")) return false;
         if (!proxyConfigurationService.setMode(mode)) return false;
         payoutDefaultsService.invalidate();
         return true;
@@ -190,17 +194,22 @@ public class MiningController {
 
     @PostMapping("/pearl/download")
     public boolean retryPearlDownload() {
-        return srbDownloadService.retry();
+        return minerCatalog.downloadSelected("pearl");
     }
 
     @PostMapping("/{coin}/download")
     public boolean downloadGpuCoin(@PathVariable String coin) {
-        return GpuCoinMinerService.supported(coin) && srbDownloadService.retry();
+        return GpuCoinMinerService.supported(coin) && minerCatalog.downloadSelected(coin);
+    }
+
+    @PostMapping("/{coin}/miners/{minerId}/download")
+    public boolean downloadMiner(@PathVariable String coin, @PathVariable String minerId) {
+        return minerCatalog.download(coin, minerId);
     }
 
     @PostMapping("/monero/download")
     public boolean installMonero() {
-        return xmrDownloadService.retry();
+        return minerCatalog.downloadSelected("monero");
     }
 
     @PostMapping("/{coin}/defender-exclusion")
@@ -346,17 +355,28 @@ public class MiningController {
     /** Local file checks only: navigation must not wait for GPU discovery, pools or market data. */
     @GetMapping("/miner-catalog")
     public List<MinerInstallation> minerCatalog() {
-        boolean cpuInstalled = xmrMinerService.binaryAvailable();
-        boolean gpuInstalled = pearlMinerService.binaryAvailable();
         return List.of(
-                new MinerInstallation("monero", "Monero", "CPU", "RandomX", cpuInstalled, false),
-                new MinerInstallation("pearl", "Pearl", "GPU", "PearlHash", gpuInstalled, false),
-                new MinerInstallation("ravencoin", "Ravencoin", "GPU", "KAWPOW", gpuInstalled, true),
-                new MinerInstallation("ethereumclassic", "Ethereum Classic", "GPU", "ETCHash", gpuInstalled, true));
+                installation("monero", "Monero"), installation("pearl", "Pearl"),
+                installation("ravencoin", "Ravencoin"), installation("ethereumclassic", "Ethereum Classic"));
+    }
+
+    private MinerInstallation installation(String coin, String name) {
+        MinerCatalogService.MinerOption selected = minerCatalog.selected(coin);
+        return new MinerInstallation(coin, name, selected.device(), selected.algorithm(), selected.installed(),
+                selected.experimental(), selected.id(), minerCatalog.options(coin));
     }
 
     public record MinerInstallation(String id, String name, String device, String algorithm,
-                                    boolean binaryAvailable, boolean experimental) { }
+                                    boolean binaryAvailable, boolean experimental, String selectedMinerId,
+                                    List<MinerCatalogService.MinerOption> miners) { }
+
+    @GetMapping("/miner-options")
+    public List<MinerCatalogService.MinerOption> minerOptions() { return minerCatalog.allOptions(); }
+
+    @PostMapping("/{coin}/miner")
+    public boolean selectMiner(@PathVariable String coin, @RequestParam String minerId) {
+        return minerCatalog.select(coin, minerId);
+    }
 
     @GetMapping("/overview")
     public AgentOverview overview() {
@@ -376,16 +396,16 @@ public class MiningController {
             List<CoinOverview> coins = List.of(
                     new CoinOverview("monero", "Monero", "XMR", "CPU", "RandomX",
                             xmrMinerService.getWorkerStats().miningStatus(),
-                            xmrConfigured, xmrMinerService.binaryAvailable(), false),
+                            xmrConfigured, minerCatalog.selectedIsInstalled("monero"), false, minerCatalog.selected("monero"), minerCatalog.options("monero")),
                     new CoinOverview("pearl", "Pearl", "PRL", "GPU", "PearlHash",
                             pearlMinerService.status(),
-                            pearlConfigured, pearlMinerService.binaryAvailable(), false),
+                            pearlConfigured, minerCatalog.selectedIsInstalled("pearl"), false, minerCatalog.selected("pearl"), minerCatalog.options("pearl")),
                     new CoinOverview("ravencoin", "Ravencoin", "RVN", "GPU", "KAWPOW",
                             gpuCoins.status("ravencoin"), gpuCoins.configuration("ravencoin") != null,
-                            gpuCoins.binaryAvailable(), true),
+                            minerCatalog.selectedIsInstalled("ravencoin"), true, minerCatalog.selected("ravencoin"), minerCatalog.options("ravencoin")),
                     new CoinOverview("ethereumclassic", "Ethereum Classic", "ETC", "GPU", "ETCHash",
                             gpuCoins.status("ethereumclassic"), gpuCoins.configuration("ethereumclassic") != null,
-                            gpuCoins.binaryAvailable(), true));
+                            minerCatalog.selectedIsInstalled("ethereumclassic"), true, minerCatalog.selected("ethereumclassic"), minerCatalog.options("ethereumclassic")));
             return new AgentOverview(stats, active, System.getProperty("os.name", "unknown"),
                     System.getProperty("os.arch", "unknown"), coins, earnings, gpus, proxyResult.join(), savedMoneroConfiguration(),
                     pearlMinerService.configuration(),
@@ -462,7 +482,8 @@ public class MiningController {
 
     public record CoinOverview(String id, String name, String ticker, String device, String algorithm,
                                MinerStats.MinerStatus status, boolean configured, boolean binaryAvailable,
-                               boolean experimental) { }
+                               boolean experimental, MinerCatalogService.MinerOption selectedMiner,
+                               List<MinerCatalogService.MinerOption> miners) { }
 
     public record PearlReadiness(boolean configured, boolean binaryAvailable,
                                  String downloadStatus, String downloadDetail, int downloadProgress,
@@ -523,7 +544,7 @@ public class MiningController {
 
     @PostMapping("/pause")
     public boolean pause() {
-        return miningService.pauseAll();
+        return miningService.pauseAll("Local dashboard global pause request");
     }
 
     @PostMapping("/resume")

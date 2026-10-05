@@ -10,6 +10,7 @@ import de.verdox.solarminer.pcagent.mining.WalletBalanceService;
 import de.verdox.solarminer.pcagent.mining.WindowsDefenderExclusionService;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
 import de.verdox.solarminer.pcagent.mining.ProxyDiscoveryService;
+import de.verdox.solarminer.pcagent.mining.MinerCatalogService;
 import de.verdox.solarminer.pcagent.pearl.SrbDownloadService;
 import de.verdox.solarminer.pcagent.pearl.LocalGpuPowerService;
 import de.verdox.solarminer.pcagent.pearl.PearlMinerService;
@@ -49,9 +50,17 @@ class MiningControllerValidationTest {
     private final LocalGpuPowerService gpuPower = mock(LocalGpuPowerService.class);
     private final MiningService mining = mock(MiningService.class);
     private final EarningsForecastService earnings = mock(EarningsForecastService.class);
+    private final MinerCatalogService minerCatalog = mock(MinerCatalogService.class);
 
     MiningControllerValidationTest() {
         when(sensors.readyForAgent()).thenReturn(true);
+        for (String coin : java.util.List.of("monero", "pearl", "ravencoin", "ethereumclassic")) {
+            MinerCatalogService.MinerOption option = new MinerCatalogService.MinerOption(
+                    coin.equals("monero") ? "xmrig" : "srbminer-multi", coin, "test", coin.equals("monero") ? "CPU" : "GPU",
+                    "test", null, java.util.List.of(), java.util.List.of(), "https://example.test", coin.equals("ravencoin") || coin.equals("ethereumclassic"), true, "READY", "ready", true, null);
+            when(minerCatalog.selected(coin)).thenReturn(option);
+            when(minerCatalog.options(coin)).thenReturn(java.util.List.of(option));
+        }
     }
 
     private MockMvc controller() {
@@ -60,7 +69,7 @@ class MiningControllerValidationTest {
                 mock(XmrDownloadService.class), sensors, mock(ProxyDiscoveryService.class),
                 earnings, payouts, mock(ReferralConfigurationService.class),
                 mock(FeeTransparencyService.class), mock(WalletBalanceService.class),
-                mock(WindowsDefenderExclusionService.class))).build();
+                mock(WindowsDefenderExclusionService.class), minerCatalog)).build();
     }
 
     @Test
@@ -69,7 +78,7 @@ class MiningControllerValidationTest {
         when(payouts.resolve("ravencoin")).thenReturn(Optional.of(new PayoutDefaultsService.DefaultPayout(
                 "ravencoin", "solarminer-rvn-kawpow", "stratum+tcp://rvn.2miners.com:6060",
                 houseWallet + ".solarminer", "x")));
-        controller().perform(post("/api/agent/ravencoin/configuration").contentType(MediaType.APPLICATION_JSON)
+        controller().perform(post("/api/agent/local/ravencoin/configuration").contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"poolUrl":"","proxyUrl":"stratum+tcp://127.0.0.1:3336",
                                  "wallet":"","worker":"pc","devices":"NVIDIA:0"}
@@ -86,7 +95,7 @@ class MiningControllerValidationTest {
     @Test
     void emptyEtcWalletWithoutHouseRouteIsRejected() throws Exception {
         when(payouts.resolve("ethereumclassic")).thenReturn(Optional.empty());
-        controller().perform(post("/api/agent/ethereumclassic/configuration").contentType(MediaType.APPLICATION_JSON)
+        controller().perform(post("/api/agent/local/ethereumclassic/configuration").contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"poolUrl":"","proxyUrl":"stratum+tcp://127.0.0.1:3337",
                                  "wallet":"","worker":"pc","devices":"NVIDIA:0"}
@@ -98,7 +107,7 @@ class MiningControllerValidationTest {
 
     @Test
     void ownEtcWalletKeepsKryptexPoolAndDoesNotSelectHousePayout() throws Exception {
-        controller().perform(post("/api/agent/ethereumclassic/configuration").contentType(MediaType.APPLICATION_JSON)
+        controller().perform(post("/api/agent/local/ethereumclassic/configuration").contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"poolUrl":"stratum+tcp://etc.kryptex.network:7033",
                                  "proxyUrl":"stratum+tcp://127.0.0.1:3337",
@@ -114,27 +123,32 @@ class MiningControllerValidationTest {
 
     @Test
     void installationCatalogOnlyChecksLocalFilesAndReflectsRemoval() throws Exception {
-        when(cpu.binaryAvailable()).thenReturn(true);
-        when(pearl.binaryAvailable()).thenReturn(true, false);
         MockMvc api = controller();
-        api.perform(get("/api/agent/miner-catalog")).andExpect(status().isOk())
+        api.perform(get("/api/agent/local/miner-catalog")).andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value("monero"))
                 .andExpect(jsonPath("$[0].binaryAvailable").value(true))
                 .andExpect(jsonPath("$[1].binaryAvailable").value(true))
                 .andExpect(jsonPath("$[2].experimental").value(true));
-        api.perform(get("/api/agent/miner-catalog")).andExpect(status().isOk())
-                .andExpect(jsonPath("$[1].binaryAvailable").value(false))
-                .andExpect(jsonPath("$[2].binaryAvailable").value(false))
-                .andExpect(jsonPath("$[3].binaryAvailable").value(false));
-        verify(cpu, org.mockito.Mockito.times(2)).binaryAvailable();
-        verify(pearl, org.mockito.Mockito.times(2)).binaryAvailable();
-        verifyNoMoreInteractions(cpu, pearl);
-        verifyNoInteractions(mining, gpuPower, earnings, proxy, payouts, xmrConfig);
+        api.perform(get("/api/agent/local/miner-catalog")).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].selectedMinerId").value("xmrig"))
+                .andExpect(jsonPath("$[1].miners[0].id").value("srbminer-multi"));
+        verifyNoInteractions(mining, gpuPower, earnings, proxy, payouts, xmrConfig, cpu, pearl);
+    }
+
+    @Test
+    void installsTheRequestedMinerWithoutUsingTheCoinDefault() throws Exception {
+        when(minerCatalog.download("ravencoin", "srbminer-multi")).thenReturn(true);
+
+        controller().perform(post("/api/agent/local/ravencoin/miners/srbminer-multi/download"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$").value(true));
+
+        verify(minerCatalog).download("ravencoin", "srbminer-multi");
+        verifyNoInteractions(gpuCoins, mining, gpuPower, earnings, proxy, payouts, xmrConfig, cpu, pearl);
     }
 
     @Test
     void invalidPearlWalletReturnsReadableBadRequest() throws Exception {
-        controller().perform(post("/api/agent/pearl/configuration").contentType(MediaType.APPLICATION_JSON)
+        controller().perform(post("/api/agent/local/pearl/configuration").contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"poolUrl":"stratum+ssl://prl.kryptex.network:8048",
                                  "proxyUrl":"stratum+tcp://127.0.0.1:3334",
@@ -147,7 +161,7 @@ class MiningControllerValidationTest {
     @Test
     void missingPearlProxyReturnsReadableBadRequest() throws Exception {
         String wallet = "prl1" + "q".repeat(30);
-        controller().perform(post("/api/agent/pearl/configuration").contentType(MediaType.APPLICATION_JSON)
+        controller().perform(post("/api/agent/local/pearl/configuration").contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"poolUrl":"stratum+ssl://prl.kryptex.network:8048",
                                  "proxyUrl":"stratum+tcp://127.0.0.1:3334",
@@ -160,7 +174,7 @@ class MiningControllerValidationTest {
     @Test
     void emptyPearlWalletWithoutFeeBackendPayoutIsRefusedWithAReason() throws Exception {
         when(payouts.resolve("pearl")).thenReturn(Optional.empty());
-        controller().perform(post("/api/agent/pearl/configuration").contentType(MediaType.APPLICATION_JSON)
+        controller().perform(post("/api/agent/local/pearl/configuration").contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"poolUrl":"","proxyUrl":"stratum+tcp://127.0.0.1:3334",
                                  "wallet":"","worker":"pc","devices":"all"}
@@ -175,7 +189,7 @@ class MiningControllerValidationTest {
         when(payouts.resolve("pearl")).thenReturn(Optional.of(new PayoutDefaultsService.DefaultPayout("pearl",
                 "solarminer-prl-pearlhash", "stratum+ssl://prl.kryptex.network:8048", houseWallet + "/solarminer", "")));
         when(proxy.matches("stratum+tcp://127.0.0.1:3334", "pearl")).thenReturn(true);
-        controller().perform(post("/api/agent/pearl/configuration").contentType(MediaType.APPLICATION_JSON)
+        controller().perform(post("/api/agent/local/pearl/configuration").contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"poolUrl":"","proxyUrl":"stratum+tcp://127.0.0.1:3334",
                                  "wallet":"","worker":"pc","devices":"all"}
@@ -196,7 +210,7 @@ class MiningControllerValidationTest {
         when(proxy.moneroUrl()).thenReturn("stratum+tcp://127.0.0.1:3335");
         when(payouts.resolve("monero")).thenReturn(Optional.of(new PayoutDefaultsService.DefaultPayout("monero",
                 "solarminer-xmr-randomx", "stratum+tcp://xmr.kryptex.network:7029", "4HouseWallet.solarminer", "")));
-        controller().perform(post("/api/agent/monero/configuration").contentType(MediaType.APPLICATION_JSON)
+        controller().perform(post("/api/agent/local/monero/configuration").contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"poolUrl":"","wallet":"","worker":"pc"}
                                 """))
@@ -211,7 +225,7 @@ class MiningControllerValidationTest {
     @Test
     void ownMoneroWalletStillKeepsItsOwnPoolAndWorker() throws Exception {
         when(proxy.moneroUrl()).thenReturn("stratum+tcp://127.0.0.1:3335");
-        controller().perform(post("/api/agent/monero/configuration").contentType(MediaType.APPLICATION_JSON)
+        controller().perform(post("/api/agent/local/monero/configuration").contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"poolUrl":"stratum+tcp://xmr-eu.kryptex.network:7029",
                                  "wallet":"4AdUndXHHZ6cfufTMvppY6JwXNouMBzSkbLYfpAV5Usx3skxNgYeYTRj5UzqtReoS44qo9mtmXCqY45DJ852K5Jv2684Rge",

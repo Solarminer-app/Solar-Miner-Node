@@ -30,7 +30,7 @@ async function comparison(row) {
         hardwareModel: row.hardwareModel,
         algorithm: row.algorithm
     });
-    const response = await fetch(`/api/agent/benchmarks/match?${params}`, {cache: 'no-store'});
+    const response = await fetch(`/api/agent/local/benchmarks/match?${params}`, {cache: 'no-store'});
     if (!response.ok) return null;
     return response.json();
 }
@@ -65,7 +65,7 @@ async function poll() {
     if (polling) return;
     polling = true;
     try {
-        const response = await fetch('/api/agent/benchmarks', {cache: 'no-store'});
+        const response = await fetch('/api/agent/local/benchmarks', {cache: 'no-store'});
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const state = await response.json();
         if ($('notice').dataset.kind === 'connection') $('notice').hidden = true;
@@ -111,7 +111,7 @@ async function poll() {
 
 async function pollUploadStatus() {
     try {
-        const response = await fetch('/api/agent/benchmarks/sharing/upload-status', {cache: 'no-store'});
+        const response = await fetch('/api/agent/local/benchmarks/sharing/upload-status', {cache: 'no-store'});
         if (!response.ok) return;
         const statuses = await response.json();
         const signature = JSON.stringify(statuses);
@@ -139,7 +139,7 @@ async function start(mode) {
     if (actionBusy) return; actionBusy = true;
     $('run-live').disabled = $('run-installed').disabled = true;
     try {
-        const response = await fetch('/api/agent/benchmarks', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode})});
+        const response = await fetch('/api/agent/local/benchmarks', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode})});
         if (!response.ok) { const body = await response.json().catch(() => null); throw new Error(body?.message || body?.detail || 'Benchmark konnte nicht gestartet werden.'); }
         notice('Messlauf gestartet. Du kannst ihn jederzeit abbrechen.');
         $('results').replaceChildren(make('p', 'empty', t('Messlauf gestartet …')));
@@ -153,7 +153,7 @@ $('retry-upload').addEventListener('click', async () => {
     const button = $('retry-upload');
     button.disabled = true;
     try {
-        const response = await fetch('/api/agent/benchmarks/sharing/retry-manual', {method: 'POST'});
+        const response = await fetch('/api/agent/local/benchmarks/sharing/retry-manual', {method: 'POST'});
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         lastUploadStatus = '';
         await pollUploadStatus();
@@ -165,7 +165,7 @@ $('retry-upload').addEventListener('click', async () => {
 });
 $('cancel').addEventListener('click', async () => {
     if (actionBusy) return; actionBusy = true; $('cancel').disabled = true;
-    try { const response = await fetch('/api/agent/benchmarks/cancel', {method:'POST'}); if (!response.ok) throw new Error('Messlauf konnte nicht abgebrochen werden.'); notice('Abbruch angefordert. Der vorherige Mining-Zustand wird wiederhergestellt.'); }
+    try { const response = await fetch('/api/agent/local/benchmarks/cancel', {method:'POST'}); if (!response.ok) throw new Error('Messlauf konnte nicht abgebrochen werden.'); notice('Abbruch angefordert. Der vorherige Mining-Zustand wird wiederhergestellt.'); }
     catch (error) { notice(error.message, true); }
     finally {actionBusy=false;$('cancel').disabled=false;await poll();}
 });
@@ -174,14 +174,14 @@ function sharingSummary() { $('sharing-summary').textContent = t($('sharing').ch
 $('sharing').addEventListener('change', async () => {
     const input = $('sharing'); input.disabled = true;
     try {
-        const response = await fetch('/api/agent/benchmarks/sharing', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:input.checked})});
+        const response = await fetch('/api/agent/local/benchmarks/sharing', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:input.checked})});
         if (!response.ok) throw new Error('Die Freigabe konnte nicht gespeichert werden.');
         $('sharing-note').textContent = t(input.checked ? 'Freigabe gespeichert. Aktive Miner werden regelmäßig übertragen.' : 'Freigabe deaktiviert. Der Widerruf wird beim nächsten Versandintervall übermittelt.');
     } catch (error) {input.checked=!input.checked;notice(error.message,true);}
     finally {input.disabled=false;sharingSummary();}
 });
 $('sharing').disabled = true;
-fetch('/api/agent/benchmarks/sharing').then(async response => {
+fetch('/api/agent/local/benchmarks/sharing').then(async response => {
     if (!response.ok) throw new Error('Sharing unavailable');
     const value = await response.json(); if (typeof value !== 'boolean') throw new Error('Invalid consent');
     $('sharing').checked = value; $('sharing').disabled = false; sharingSummary();

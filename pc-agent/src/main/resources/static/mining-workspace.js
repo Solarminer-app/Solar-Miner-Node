@@ -75,7 +75,7 @@
       select.addEventListener('change', async () => {
         saving = true; select.disabled = true; enabled.disabled = true;
         try {
-          settings = await request(`/api/agent/power-control/workers/${encodeURIComponent(device.deviceId)}/coin?coin=${encodeURIComponent(select.value)}`);
+          settings = await request(`/api/agent/local/power-control/workers/${encodeURIComponent(device.deviceId)}/coin?coin=${encodeURIComponent(select.value)}`);
           select.blur(); message(`${device.model}: ${labels[select.value]} gespeichert. Der vorherige Worker wurde angehalten; ein Start erfolgt erst durch einen neuen Befehl.`);
         } catch (error) { select.value = coin; message(error.message, true); }
         finally { saving = false; await loadProfile(); renderProfile(); }
@@ -95,7 +95,7 @@
   async function loadProfile() {
     if (loading || saving) return; loading = true;
     try {
-      const responses = await Promise.all(['/api/agent/power-control/settings', '/api/agent/power-control'].map(url => fetch(url, {cache: 'no-store'})));
+      const responses = await Promise.all(['/api/agent/local/power-control/settings', '/api/agent/local/power-control'].map(url => fetch(url, {cache: 'no-store'})));
       if (responses.some(r => !r.ok)) throw new Error('Node-Profil konnte nicht geladen werden.');
       [settings, power] = await Promise.all(responses.map(r => r.json())); renderProfile();
     } catch (error) { message(error.message, true); byId('automation-enabled').disabled = true; }
@@ -104,7 +104,7 @@
   byId('automation-enabled').addEventListener('change', async event => {
     saving = true; event.target.disabled = true;
     try {
-      settings = await request('/api/agent/power-control/settings', {...settings, externalControlEnabled: event.target.checked});
+      settings = await request('/api/agent/local/power-control/settings', {...settings, externalControlEnabled: event.target.checked});
       message(settings.externalControlEnabled ? 'Node-Steuerung erlaubt. Nur Geräte aus diesem Profil werden automatisch verwendet.' : 'Node-Steuerung ausgeschaltet. Laufende Miner kannst du weiterhin lokal pausieren.');
     } catch (error) { message(error.message, true); }
     finally { saving = false; renderProfile(); }

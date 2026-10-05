@@ -71,8 +71,11 @@ H2 store, which is appropriate only for a local/default run.
 
 Before rollout, create the DNS record for `currency.solarminer.app` using the
 same Cloudflare/TLS setup as the other central services. Verify a date-based
-read request through Traefik, persistence after a container restart, and that
-database port 3306 and service port 8080 are unreachable from the internet.
+read request and both `GET /api/v1/public/mining-networks` and
+`GET /api/v1/public/mining-networks/ETC` through Traefik. The list must contain
+fresh, non-zero XMR/PRL/RVN/ETC rows after startup and the same rows must remain
+available after a MariaDB/container restart. Also verify that database port
+3306 and service port 8080 are unreachable from the internet.
 The current API is suitable for Nodes' server-to-server reads. If a browser is
 later allowed to call it directly, add an explicit CORS allowlist for trusted
 SolarMiner origins; do not add `Access-Control-Allow-Origin: *` by default.

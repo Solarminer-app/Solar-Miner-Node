@@ -6,6 +6,7 @@ import de.verdox.solarminer.pcagent.dto.MinerStats;
 import de.verdox.solarminer.pcagent.dto.Pools;
 import de.verdox.solarminer.pcagent.mining.MinerConsoleService;
 import de.verdox.solarminer.pcagent.mining.MinerStopContext;
+import de.verdox.solarminer.pcagent.mining.MinerShareTelemetry;
 import de.verdox.solarminer.pcagent.mining.PayoutDefaultsService;
 import de.verdox.solarminer.pcagent.mining.ProxyConfigurationService;
 import de.verdox.solarminer.pcagent.mining.MinerProcessRegistry;
@@ -73,6 +74,8 @@ public class PearlMinerService {
         volatile boolean jobReceived;
         volatile boolean poolHealthy;
         volatile double hashesPerSecond;
+        volatile Long acceptedShares;
+        volatile Long rejectedShares;
         int apiPort;
 
         GpuRun(LocalGpuPowerService.Gpu gpu) {
@@ -293,6 +296,8 @@ public class PearlMinerService {
             run.status = MinerStats.MinerStatus.MINING;
             run.error = null;
             run.detail = "SRBMiner is starting";
+            run.acceptedShares = null;
+            run.rejectedShares = null;
             run.jobReceived = false;
             run.poolHealthy = false;
             run.output.set("");
@@ -343,6 +348,7 @@ public class PearlMinerService {
                     double reportedHashrate = hashrate.path("gpu").path("total").asDouble(0);
                     if (!(reportedHashrate > 0)) reportedHashrate = hashrate.path("1min").asDouble(0);
                     run.hashesPerSecond = reportedHashrate;
+                    updateShares(run, pool);
                     long uptime = pool.path("uptime").asLong(0);
                     long lastJob = pool.path("last_job_received").asLong(0);
                     if (uptime > 0 && lastJob > 0 && lastJob < 120) {
@@ -489,6 +495,8 @@ public class PearlMinerService {
         run.status = MinerStats.MinerStatus.PAUSED;
         run.poolHealthy = false;
         run.hashesPerSecond = 0;
+        run.acceptedShares = null;
+        run.rejectedShares = null;
         run.detail = "Miner pausiert";
         Process process = run.process;
         if (process == null || !process.isAlive()) return true;
@@ -565,8 +573,17 @@ public class PearlMinerService {
                     run == null || externalMiner ? 0.0 : run.hashesPerSecond / 1_000_000_000_000.0, 0.0,
                     gpuPowerService.appliedTarget(gpu), gpu.minWatts(), gpu.maxWatts(), gpu.maxWatts(),
                     gpu.currentWatts() == null ? 0 : Math.round(gpu.currentWatts()), pools,
-                    "GPU", gpu.model(), gpu.deviceId());
+                    "GPU", gpu.model(), gpu.deviceId(),
+                    run == null || externalMiner || run.status != MinerStats.MinerStatus.MINING ? null : run.acceptedShares,
+                    run == null || externalMiner || run.status != MinerStats.MinerStatus.MINING ? null : run.rejectedShares);
         }).toList();
+    }
+
+    /** SRBMiner has used both pool.accepted and pool.shares.accepted across releases. */
+    private static void updateShares(GpuRun run, JsonNode pool) {
+        MinerShareTelemetry.Counters counters = MinerShareTelemetry.srbMiner(pool);
+        run.acceptedShares = counters.accepted();
+        run.rejectedShares = counters.rejected();
     }
 
     private boolean hasExternalMiner() {

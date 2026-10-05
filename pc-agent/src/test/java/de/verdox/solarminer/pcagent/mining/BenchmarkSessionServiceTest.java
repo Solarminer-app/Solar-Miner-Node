@@ -38,6 +38,6 @@ class BenchmarkSessionServiceTest {
     private static MinerStats.Worker worker(MinerStats.MinerStatus status, String hardwareType, String deviceId) {
         String algorithm = "CPU".equals(hardwareType) ? "RandomX" : "PearlHash";
         return new MinerStats.Worker(status, deviceId, algorithm, 0, 0,
-                0, 0, 0, 0, 0, List.of(), hardwareType, "test", deviceId);
+                0, 0, 0, 0, 0, List.of(), hardwareType, "test", deviceId, null, null);
     }
 }

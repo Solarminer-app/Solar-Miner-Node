@@ -4,10 +4,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import de.verdox.currencyrates.currencyrates.service.DataQueryService;
 import de.verdox.currencyrates.currencyrates.service.CoinGeckoPriceService;
+import de.verdox.currencyrates.currencyrates.service.MiningNetworkDataService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
@@ -20,10 +22,13 @@ public class PublicDataController {
 
     private final DataQueryService queryService;
     private final CoinGeckoPriceService coinPrices;
+    private final MiningNetworkDataService miningNetworks;
 
-    public PublicDataController(DataQueryService queryService, CoinGeckoPriceService coinPrices) {
+    public PublicDataController(DataQueryService queryService, CoinGeckoPriceService coinPrices,
+                                MiningNetworkDataService miningNetworks) {
         this.queryService = queryService;
         this.coinPrices = coinPrices;
+        this.miningNetworks = miningNetworks;
     }
 
     @GetMapping("/bitcoin-stats")
@@ -61,11 +66,21 @@ public class PublicDataController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /** Current or historic USD prices. Coin IDs are SolarMiner's btc, xmr and prl. */
+    /** Current or historic USD prices. Coin IDs are SolarMiner's btc, xmr, prl, rvn and etc. */
     @GetMapping("/coin-prices")
     public ResponseEntity<Map<String, Double>> coinPrices(@RequestParam(name = "date", required = false) LocalDate date) {
         return coinPrices.prices(date == null ? LocalDate.now(java.time.ZoneOffset.UTC) : date)
                 .map(prices -> ResponseEntity.ok(prices.getPrices())).orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/mining-networks")
+    public java.util.List<MiningNetworkDataService.PublicSnapshot> miningNetworks() {
+        return miningNetworks.snapshots();
+    }
+
+    @GetMapping("/mining-networks/{coin}")
+    public ResponseEntity<MiningNetworkDataService.PublicSnapshot> miningNetwork(@PathVariable String coin) {
+        return miningNetworks.snapshot(coin).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
 
     public record BitcoinNetworkStatsDTO(

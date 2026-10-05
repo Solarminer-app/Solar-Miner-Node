@@ -4,15 +4,13 @@ import de.verdox.solarminer.pcagent.mining.NodeAssessmentService;
 import de.verdox.solarminer.pcagent.mining.AgentControlSettingsService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /** LAN contract for the Node's economic/PV decision; no economic calculation lives in the agent. */
 @RestController
-@RequestMapping("/api/agent/node-assessment")
+@RequestMapping("/api/agent/local/node-assessment")
 public class NodeAssessmentController {
     private final NodeAssessmentService assessments;
     private final AgentControlSettingsService controls;
@@ -32,8 +30,6 @@ public class NodeAssessmentController {
     public record NodeAssessmentStatus(String decision, String reason, String source,
                                        java.time.Instant evaluatedAt, boolean connected) { }
 
-    @PostMapping
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void update(@RequestBody NodeAssessmentService.Assessment assessment) {
         if (!controls.get().externalControlEnabled())
             throw new org.springframework.web.server.ResponseStatusException(HttpStatus.FORBIDDEN,

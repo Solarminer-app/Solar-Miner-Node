@@ -4,7 +4,7 @@ let retrying = false;
 if (gate && retryButton) {
 async function checkSensorAccess() {
   try {
-    const response = await fetch('/api/agent/telemetry', { cache: 'no-store' });
+    const response = await fetch('/api/agent/local/telemetry', { cache: 'no-store' });
     if (!response.ok) return;
     const data = await response.json();
     const windows = (data.platform || '').toLowerCase().includes('windows');
@@ -27,7 +27,7 @@ retryButton.addEventListener('click', async () => {
   retryButton.disabled = true;
   retryButton.textContent = 'Windows-Freigabe wird angefordert …';
   try {
-    const response = await fetch('/api/agent/telemetry/restart', { method: 'POST' });
+    const response = await fetch('/api/agent/local/telemetry/restart', { method: 'POST' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     await response.json();
   } catch (error) {

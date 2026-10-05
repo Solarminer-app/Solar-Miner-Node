@@ -58,7 +58,16 @@
                     <svg id="power-chart" viewBox="0 0 600 150" role="img" aria-label="Leistungsverlauf"></svg>
                     <small>CPU- und GPU-Sensoren</small></article>
             </div>
-            <div id="worker-grid" class="worker-grid"></div>
+            <div class="section-head miner-telemetry-head">
+                <div><p class="kicker">LAUFENDE MINER</p><h2>Worker-Telemetrie</h2></div>
+                <small>Share-Zähler stammen aus der lokalen Miner-API.</small>
+            </div>
+            <div class="worker-telemetry-scroll">
+                <table class="worker-telemetry-table">
+                    <thead><tr><th>Worker</th><th>Algorithmus</th><th>Status</th><th>Hashrate</th><th>Shares</th><th>Temperatur</th><th>Leistung</th></tr></thead>
+                    <tbody id="worker-grid"></tbody>
+                </table>
+            </div>
         </section>
         <section class="section panel earnings-compact">
             <div class="section-head">

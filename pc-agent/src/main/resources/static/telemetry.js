@@ -65,7 +65,7 @@ function render(data) {
 }
 async function refresh() {
   try {
-    const response = await fetch('/api/agent/telemetry', { cache: 'no-store' });
+    const response = await fetch('/api/agent/local/telemetry', { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     render(await response.json());
     $('connection').className = 'badge online'; text('connection', 'Agent verbunden');

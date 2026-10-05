@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** Local JSON interface for dashboards and other software on the miner host/LAN. */
 @RestController
-@RequestMapping("/api/agent/telemetry")
+@RequestMapping("/api/agent/local/telemetry")
 @Tag(name = "PC mining agent", description = "Local PC hardware telemetry")
 public class TelemetryController {
     private final HardwareTelemetryService telemetryService;

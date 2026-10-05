@@ -50,8 +50,25 @@ public record MinerStats(
             List<Pools> pools,
             String hardwareType,
             String hardwareModel,
-            String deviceId
+            String deviceId,
+            Long acceptedShares,
+            Long rejectedShares
     ) {
+        /**
+         * Compatibility constructor for miner backends that do not expose share counters.
+         * Share counters are nullable because not every miner API (notably ASIC APIs) reports them.
+         */
+        public Worker(
+                MinerStatus miningStatus, String workerDisplayName, String currentAlgorithm,
+                double terahashPerSecond, double temperatureCelsius,
+                long powerTargetWatts, long minPowerTarget, long defaultPowerTarget, long maxPowerTarget,
+                long approximatedPowerUsageWatts, List<Pools> pools,
+                String hardwareType, String hardwareModel, String deviceId
+        ) {
+            this(miningStatus, workerDisplayName, currentAlgorithm, terahashPerSecond, temperatureCelsius,
+                    powerTargetWatts, minPowerTarget, defaultPowerTarget, maxPowerTarget,
+                    approximatedPowerUsageWatts, pools, hardwareType, hardwareModel, deviceId, null, null);
+        }
     }
 
     public enum MinerStatus {

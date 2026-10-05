@@ -14,8 +14,8 @@ async function activate(mode) {
   if (mode === 'external' && !$('external-form').reportValidity()) return;
   busy = true; controls();
   try {
-    if (mode === 'external') await command('/api/agent/proxy?host=' + encodeURIComponent($('external-host').value.trim()));
-    await command('/api/agent/proxy/mode?mode=' + mode); hostDirty = false;
+    if (mode === 'external') await command('/api/agent/local/proxy?host=' + encodeURIComponent($('external-host').value.trim()));
+    await command('/api/agent/local/proxy/mode?mode=' + mode); hostDirty = false;
     notice('Verbindung geändert. Alle Miner wurden pausiert. Starte sie auf der Miner-Seite erneut.');
   } catch (error) { notice(error.message, true); }
   finally { busy = false; await refresh(); controls(); }
@@ -38,7 +38,7 @@ function render(data) {
 }
 async function refresh() {
   if (refreshing) return; refreshing = true;
-  try { const response = await fetch('/api/agent/overview', {cache:'no-store'}); if (!response.ok) throw new Error('HTTP ' + response.status); render(await response.json()); if ($('notice').dataset.kind === 'connection') $('notice').hidden = true; $('connection').className = 'badge online'; text('connection','Agent verbunden'); text('updated','Aktualisiert ' + new Date().toLocaleTimeString(window.SolarMinerI18n.locale)); }
+  try { const response = await fetch('/api/agent/local/overview', {cache:'no-store'}); if (!response.ok) throw new Error('HTTP ' + response.status); render(await response.json()); if ($('notice').dataset.kind === 'connection') $('notice').hidden = true; $('connection').className = 'badge online'; text('connection','Agent verbunden'); text('updated','Aktualisiert ' + new Date().toLocaleTimeString(window.SolarMinerI18n.locale)); }
   catch (error) { current = null; controls(); $('connection').className = 'badge offline'; text('connection','Agent nicht erreichbar'); notice('Proxy-Daten konnten nicht geladen werden: ' + error.message,true,'connection'); }
   finally { refreshing = false; }
 }
@@ -48,7 +48,7 @@ $('proxy-local').addEventListener('click',()=>activate('local'));
 $('proxy-discover').addEventListener('click',async()=>{
   if (busy) return; busy=true; controls(); text('discovery-status','Suche im lokalen Netzwerk …'); $('proxy-candidates').replaceChildren();
   try {
-    const response=await fetch('/api/agent/proxy/discover',{method:'POST'}); if (!response.ok) throw new Error('HTTP ' + response.status); const candidates=await response.json();
+    const response=await fetch('/api/agent/local/proxy/discover',{method:'POST'}); if (!response.ok) throw new Error('HTTP ' + response.status); const candidates=await response.json();
     text('discovery-status', candidates.length ? 'Wähle einen gefundenen Proxy. Die Verbindung wird erst beim Aktivieren geändert.' : 'Kein Proxy gefunden. Du kannst einen bekannten Host manuell eintragen.');
     for (const candidate of candidates) {
       const button=document.createElement('button'); button.type='button'; button.className='button subtle'; button.textContent=candidate.host + ' ' + t('auswählen');

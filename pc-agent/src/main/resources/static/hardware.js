@@ -36,7 +36,7 @@ function rangeControl(gpu, enabled) {
     const value = drafts.get(gpu.deviceId); if (!value || saving) return;
     saving = true; save.disabled = reset.disabled = min.disabled = max.disabled = true;
     try {
-      const response = await fetch('/api/agent/power-control/gpus/' + encodeURIComponent(gpu.deviceId) + '/limits', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(value)});
+      const response = await fetch('/api/agent/local/power-control/gpus/' + encodeURIComponent(gpu.deviceId) + '/limits', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(value)});
       if (!response.ok) throw new Error('Die Treiber haben diese Grenzen abgelehnt. Der Entwurf bleibt zum Prüfen erhalten.');
       drafts.delete(gpu.deviceId); gpu.userMinPowerLimitWatts = value.minimumWatts; gpu.userMaxPowerLimitWatts = value.maximumWatts; state.classList.remove('hardware-draft'); state.textContent = i18n.t('Leistungsgrenzen gespeichert.'); notice(gpu.model + ': ' + i18n.t('Leistungsgrenzen gespeichert.')); save.blur();
     } catch (error) { notice(error.message, true); }
@@ -52,7 +52,7 @@ function renderSettings(data) {
   input.addEventListener('change', async () => {
     saving = true; input.disabled = true;
     try {
-      const response = await fetch('/api/agent/power-control/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...data, dynamicPowerScalingEnabled:input.checked})});
+      const response = await fetch('/api/agent/local/power-control/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...data, dynamicPowerScalingEnabled:input.checked})});
       if (!response.ok) throw new Error('Die lokale Einstellung konnte nicht gespeichert werden.');
       notice('Leistungsregelung aktualisiert.');
     } catch (error) { input.checked = !input.checked; notice(error.message, true); }
@@ -82,7 +82,7 @@ function render(data) {
 async function refresh() {
   if (refreshing) return; refreshing = true;
   try {
-    const response = await fetch('/api/agent/power-control', {cache:'no-store'}); if (!response.ok) throw new Error('HTTP ' + response.status);
+    const response = await fetch('/api/agent/local/power-control', {cache:'no-store'}); if (!response.ok) throw new Error('HTTP ' + response.status);
     render(await response.json()); if ($('notice').dataset.kind === 'connection') $('notice').hidden = true; $('connection').className = 'badge online'; $('connection').textContent = i18n.t('Agent verbunden'); $('updated').textContent = i18n.t('Aktualisiert ' + new Date().toLocaleTimeString(i18n.locale));
   } catch (error) { $('connection').className = 'badge offline'; $('connection').textContent = i18n.t('Agent nicht erreichbar'); notice('Hardwaredaten konnten nicht geladen werden: ' + error.message, true, 'connection'); }
   finally { refreshing = false; }

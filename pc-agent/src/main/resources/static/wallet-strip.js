@@ -86,8 +86,8 @@
   async function load() {
     try {
       const [balancesResult, forecastsResult] = await Promise.allSettled([
-        fetch('/api/agent/wallet-balances', {cache: 'no-store'}),
-        fetch('/api/agent/earnings', {cache: 'no-store'})
+        fetch('/api/agent/local/wallet-balances', {cache: 'no-store'}),
+        fetch('/api/agent/local/earnings', {cache: 'no-store'})
       ]);
       if (balancesResult.status === 'fulfilled' && balancesResult.value.ok) {
         const received = await balancesResult.value.json();

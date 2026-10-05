@@ -20,8 +20,8 @@ class MinerConsoleControllerTest {
                 "ethereumclassic", "ethereumclassic-AMD-1"}) {
             when(consoles.read(eq(name), eq(0L)))
                     .thenReturn(new MinerConsoleService.ConsoleChunk(0, "run", "", false));
-            api.perform(get("/api/agent/console/{name}", name)).andExpect(status().isOk());
+            api.perform(get("/api/agent/local/console/{name}", name)).andExpect(status().isOk());
         }
-        api.perform(get("/api/agent/console/unknown")).andExpect(status().isNotFound());
+        api.perform(get("/api/agent/local/console/unknown")).andExpect(status().isNotFound());
     }
 }

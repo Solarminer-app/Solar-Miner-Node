@@ -13,7 +13,7 @@ import java.util.Map;
 
 /** Program-controlled, algorithm-specific mining settings exposed to the local agent UI. */
 @RestController
-@RequestMapping("/api/agent/optimizations/randomx")
+@RequestMapping("/api/agent/local/optimizations/randomx")
 public class MiningOptimizationController {
     private final XmrConfigService config;
     private final WindowsHugePagesService windowsHugePages;

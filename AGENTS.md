@@ -1,6 +1,6 @@
 # Agent entry point — Solar-Miner-Node
 
-Read [the repository wiki](docs/agent-wiki/README.md) before changing code. For PC-Agent work, also read [its ownership map](docs/agent-wiki/pc-agent.md). Check `git status` first and preserve existing changes.
+Read [the repository wiki](docs/agent-wiki/README.md) before changing code. For PC-Agent work, also read [its ownership map](docs/agent-wiki/pc-agent.md). When adding another miner implementation to an existing coin, read and follow [the PC-Agent miner integration guide](pc-agent/MINER-INTEGRATION-GUIDE.md). Check `git status` first and preserve existing changes.
 
 For Java work, check whether IntelliJ IDEA MCP is available and choose it when IDE navigation, references, diagnostics, or run configurations would help; otherwise use repository tools. Keep MCP queries focused.
 

@@ -15,7 +15,7 @@ import java.time.Instant;
 
 /** Stable LAN contract for PV controllers. It intentionally hides CPU/GPU allocation details. */
 @RestController
-@RequestMapping("/api/agent/power-control")
+@RequestMapping("/api/agent/local/power-control")
 public class AgentPowerController {
     private final MiningService mining;
     private final LocalGpuPowerService gpus;
@@ -34,7 +34,6 @@ public class AgentPowerController {
     }
 
     /** Node-only view omits locally opted-out devices and their identifiers. */
-    @GetMapping("/external-status")
     public PowerStatus externalStatus() {
         return status(true);
     }
@@ -69,7 +68,6 @@ public class AgentPowerController {
     }
 
     /** Node-only command path; local dashboard actions intentionally use their existing endpoints. */
-    @PostMapping("/external/target")
     public PowerStatus externalTarget(@RequestParam long watts) {
         return withControl(() -> {
             // Dynamic GPU regulation is optional. When it is off, a positive target
@@ -86,14 +84,12 @@ public class AgentPowerController {
         }, true);
     }
 
-    @PostMapping("/external/pause")
     public boolean externalPause() { return withControl(() -> {
         boolean success = mining.pauseExternally();
         if (success) logExternalChange("Mining paused remotely");
         return success;
     }, true); }
 
-    @PostMapping("/external/resume")
     public boolean externalResume() { return withControl(() -> {
         boolean success = mining.resumeExternally();
         if (success) logExternalChange("Mining resumed remotely");

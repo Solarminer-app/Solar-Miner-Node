@@ -43,14 +43,24 @@
             <section id="catalog-view">
                 <div class="section-head catalog-heading">
                     <div><p class="kicker">MINER-BIBLIOTHEK</p>
-                        <h2>Deine Miner</h2>
-                        <p>Öffne einen installierten Miner oder ergänze einen für deine CPU oder GPU.</p></div>
+                        <h2>Mining-Software</h2>
+                        <p>Ein Paket kann mehrere Coins bereitstellen. Wähle alle gewünschten Miner und starte die Installation gemeinsam.</p></div>
+                    <div class="catalog-summary" aria-live="polite">
+                        <strong id="catalog-installed-count">0 installiert</strong>
+                        <span id="catalog-available-count">0 verfügbar</span>
+                    </div>
                 </div>
                 <div id="catalog-notice" class="notice" role="status" hidden></div>
-                <div class="hardware-filter" role="group" aria-label="Hardware wählen">
-                    <button type="button" class="filter-button selected" data-device="all">Alle</button>
-                    <button type="button" class="filter-button" data-device="CPU">CPU Mining</button>
-                    <button type="button" class="filter-button" data-device="GPU">GPU Mining</button>
+                <div class="catalog-toolbar">
+                    <div class="hardware-filter" role="group" aria-label="Hardware wählen">
+                        <button type="button" class="filter-button selected" data-device="all">Alle</button>
+                        <button type="button" class="filter-button" data-device="CPU">CPU</button>
+                        <button type="button" class="filter-button" data-device="GPU">GPU</button>
+                    </div>
+                    <div class="bulk-install-actions">
+                        <button id="select-installable" class="button subtle" type="button">Verfügbare auswählen</button>
+                        <button id="install-selected" class="button primary" type="button" disabled>Auswahl installieren</button>
+                    </div>
                 </div>
                 <div id="catalog-grid" class="catalog-grid"><p class="muted" role="status">Miner werden geladen …</p></div>
             </section>
@@ -77,7 +87,13 @@
                     <article class="stat"><span>PROGNOSE / TAG</span><strong id="earnings">—</strong><small
                             id="earnings-note">Netzwerkdaten werden geladen</small></article>
                 </section>
-                <section class="section panel" aria-labelledby="miner-details-title">
+                <nav class="miner-subnav" aria-label="Miner-Bereich">
+                    <button type="button" class="selected" data-pane="status">Status</button>
+                    <button type="button" data-pane="setup">Einrichtung</button>
+                    <button type="button" data-pane="diagnostics">Diagnose</button>
+                </nav>
+                <div id="miner-status-pane" class="miner-pane" data-pane-content="status">
+                <section id="miner-overview-panel" class="section panel" aria-labelledby="miner-details-title">
                     <div class="section-head">
                         <div><p class="kicker">MINER-ÜBERSICHT</p>
                             <h2 id="miner-details-title">Miner</h2></div>
@@ -87,6 +103,7 @@
                     <div class="detail"><span>Installation</span><strong id="detail-installation">—</strong></div>
                     <div class="detail"><span>Konfiguration</span><strong id="detail-configuration">—</strong></div>
                     <div class="detail"><span>Mining-Verbindung</span><strong id="detail-connection">—</strong></div>
+                    <div class="detail"><span>Shares dieser Session</span><strong id="detail-shares">—</strong></div>
                 </section>
                 <section id="optimization-panel" class="section panel" aria-labelledby="optimization-title">
                     <div class="section-head">
@@ -105,6 +122,8 @@
                     </div>
                     <div id="gpu-processes" class="gpu-processes"></div>
                 </section>
+                </div>
+                <div id="miner-diagnostics-pane" class="miner-pane" data-pane-content="diagnostics" hidden>
                 <section class="section panel miner-console-panel" aria-labelledby="miner-console-title">
                     <div class="section-head">
                         <div><p class="kicker">LIVE-AUSGABE</p>
@@ -127,6 +146,8 @@
                         <span id="coins-summary" class="muted">Lade …</span></div>
                     <div id="coin-grid" class="coin-grid"></div>
                 </section>
+                </div>
+                <div id="miner-setup-pane" class="miner-pane" data-pane-content="setup" hidden>
                 <div class="two-col">
                     <section class="panel" aria-labelledby="setup-title">
                         <div class="section-head">
@@ -240,7 +261,7 @@
                         <a class="button telemetry-link" href="/telemetry.html">Hardware & Telemetrie öffnen →</a>
                     </section>
                 </div>
-
+                </div>
             </div>
             <section id="node-profile" class="automation-profile panel" aria-labelledby="automation-title">
                 <div class="section-head"><div><p class="kicker">AUTOMATISIERUNG</p>

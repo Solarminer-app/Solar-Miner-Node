@@ -84,6 +84,34 @@ function drawChart(id, values) {
   svg.setAttribute('aria-label', t('Messverlauf seit Öffnen dieser Seite'));
 }
 function track(key, value) { history[key].push(Number.isFinite(value) ? value : NaN); if (history[key].length > 48) history[key].shift(); drawChart(`${key === 'hashrate' ? 'hashrate' : key === 'temperature' ? 'temperature' : 'power'}-chart`, history[key]); }
+function workerTemperature(worker, telemetry) {
+  if (Number(worker.temperatureCelsius) > 0) return Number(worker.temperatureCelsius);
+  if (worker.hardwareType === 'CPU') return telemetry.metrics?.['cpu.temperature']?.available ? Number(telemetry.metrics['cpu.temperature'].value) : NaN;
+  const gpu = (telemetry.gpus || []).find(item => item.deviceId === worker.deviceId);
+  const metric = gpu && telemetry.metrics?.[`gpu.nvidia.${gpu.index}.temperature`];
+  return metric?.available ? Number(metric.value) : NaN;
+}
+function shareText(worker) {
+  if (worker.acceptedShares == null && worker.rejectedShares == null) return '—';
+  return `${worker.acceptedShares == null ? '—' : number(worker.acceptedShares, 0)} akzeptiert · ${worker.rejectedShares == null ? '—' : number(worker.rejectedShares, 0)} abgelehnt`;
+}
+function renderWorkerTelemetry(workers, telemetry) {
+  const table = $('worker-grid'); table.replaceChildren();
+  if (!workers.length) {
+    const row = document.createElement('tr'), cell = document.createElement('td');
+    cell.colSpan = 7; cell.className = 'worker-telemetry-empty'; cell.textContent = t('Noch keine eingerichteten Worker.'); row.append(cell); table.append(row); return;
+  }
+  for (const worker of workers) {
+    const temperature = workerTemperature(worker, telemetry);
+    const row = document.createElement('tr');
+    const values = [worker.workerDisplayName || 'Worker', worker.currentAlgorithm || '—', t(label[worker.miningStatus] || '—'),
+      hashrate((Number(worker.terahashPerSecond) || 0) * 1e12), shareText(worker),
+      Number.isFinite(temperature) ? `${number(temperature, 0)} °C` : '—',
+      Number(worker.approximatedPowerUsageWatts) > 0 ? `${number(worker.approximatedPowerUsageWatts, 0)} W` : '—'];
+    values.forEach((value, index) => { const cell = document.createElement('td'); cell.textContent = value; if (index === 2) cell.className = `worker-status ${String(worker.miningStatus || '').toLowerCase()}`; row.append(cell); });
+    table.append(row);
+  }
+}
 function renderTelemetry(data, overview) {
   const workers = overview.stats?.workers || [];
   const algorithms = [...new Set(workers.map(w => w.currentAlgorithm).filter(Boolean))];
@@ -108,12 +136,7 @@ function renderTelemetry(data, overview) {
   $('chart-power').textContent = total?.available ? `${number(total.value, 0)} W` : '—';
   $('chart-workers').textContent = t('Nur dieser Algorithmus · Verlauf seit Seitenaufruf');
   track('hashrate', rate); track('temperature', temp); track('power', total?.available ? total.value : NaN);
-  $('worker-grid').replaceChildren(...workers.map(worker => {
-    const card = document.createElement('article'); card.className = 'worker-card';
-    const name = document.createElement('strong'); name.textContent = worker.workerDisplayName || 'Worker';
-    const details = document.createElement('span'); details.textContent = `${worker.currentAlgorithm || '—'} · ${hashrate((Number(worker.terahashPerSecond) || 0) * 1e12)} · ${t(label[worker.miningStatus] || '—')}`;
-    card.append(name, details); return card;
-  }));
+  renderWorkerTelemetry(workers, data);
 }
 function render(data) {
   renderEarnings(data);
@@ -123,14 +146,14 @@ function render(data) {
 }
 async function refresh() {
   try {
-    const response = await fetch('/api/agent/overview', {cache: 'no-store'});
+    const response = await fetch('/api/agent/local/overview', {cache: 'no-store'});
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const overview = await response.json(); currentOverview = overview; render(overview);
     window.SolarMinerMiningCache?.write(overview);
     if (!$('earnings-grid').children.length) $('earnings-grid').textContent = t('Ertragsprognosen erscheinen, sobald ein Miner eingerichtet ist und Hashrate liefert.');
-    const optional = await Promise.allSettled(['/api/agent/power-control/settings', '/api/agent/node-assessment'].map(async url => { const r = await fetch(url, {cache: 'no-store'}); return r.ok ? r.json() : null; }));
+    const optional = await Promise.allSettled(['/api/agent/local/power-control/settings', '/api/agent/local/node-assessment'].map(async url => { const r = await fetch(url, {cache: 'no-store'}); return r.ok ? r.json() : null; }));
     renderReadiness(overview, optional[0].status === 'fulfilled' ? optional[0].value : null, optional[1].status === 'fulfilled' ? optional[1].value : null);
-    const telemetry = await fetch('/api/agent/telemetry', {cache: 'no-store'});
+    const telemetry = await fetch('/api/agent/local/telemetry', {cache: 'no-store'});
     if (telemetry.ok) { currentTelemetry = await telemetry.json(); renderTelemetry(currentTelemetry, overview); } else { $('chart-temperature').textContent = $('chart-power').textContent = '—'; $('chart-temperature-label').textContent = t('Sensorwerte konnten nicht geladen werden'); }
   } catch (error) {
     $('connection').className = 'badge offline'; $('connection').textContent = 'Agent nicht erreichbar';

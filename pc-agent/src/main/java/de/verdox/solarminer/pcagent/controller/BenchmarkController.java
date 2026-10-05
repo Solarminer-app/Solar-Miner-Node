@@ -9,7 +9,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/agent/benchmarks")
+@RequestMapping("/api/agent/local/benchmarks")
 public class BenchmarkController {
     private final BenchmarkSessionService sessions;
     private final BenchmarkSharingService sharing;

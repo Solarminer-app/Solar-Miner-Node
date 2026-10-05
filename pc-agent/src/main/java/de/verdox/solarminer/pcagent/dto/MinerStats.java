@@ -50,7 +50,9 @@ public record MinerStats(
             List<Pools> pools,
             String hardwareType,
             String hardwareModel,
-            String deviceId
+            String deviceId,
+            Long acceptedShares,
+            Long rejectedShares
     ) {
     }
 

@@ -583,6 +583,8 @@ export interface MinerDetailsPageDto {
         hashrateThs: number;
         temperatureCelsius: number;
         powerUsageWatts: number;
+        acceptedShares: number | null;
+        rejectedShares: number | null;
     }>;
     historySummary: {
         from: string;

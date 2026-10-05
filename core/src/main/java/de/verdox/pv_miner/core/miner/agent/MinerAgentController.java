@@ -22,7 +22,7 @@ public class MinerAgentController implements MinerController {
     public boolean startMining(MinerDetails details) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            return Boolean.TRUE.equals(restClient.post().uri("/api/agent/power-control/external/resume").retrieve().body(Boolean.class));
+            return Boolean.TRUE.equals(restClient.post().uri("/api/agent/external/resume").retrieve().body(Boolean.class));
         } catch (Throwable e) {
             return false;
         }
@@ -32,7 +32,7 @@ public class MinerAgentController implements MinerController {
     public boolean stopMining(MinerDetails details) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            return Boolean.TRUE.equals(restClient.post().uri("/api/agent/power-control/external/pause").retrieve().body(Boolean.class));
+            return Boolean.TRUE.equals(restClient.post().uri("/api/agent/external/pause").retrieve().body(Boolean.class));
         } catch (Throwable e) {
             return false;
         }
@@ -52,7 +52,7 @@ public class MinerAgentController implements MinerController {
     public boolean setPowerTarget(MinerDetails details, long watts) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            Map<?, ?> result = restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/power-control/external/target")
+            Map<?, ?> result = restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/external/power-target")
                     .queryParam("watts", watts).build()).retrieve().body(Map.class);
             return result != null;
         } catch (Throwable e) {
@@ -64,7 +64,7 @@ public class MinerAgentController implements MinerController {
     public boolean incrementPowerTarget(MinerDetails details, long watts) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/increasePowerTarget").queryParam("powerTarget", watts).build()).retrieve().body(Boolean.class));
+            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/external/power-target/increment").queryParam("watts", watts).build()).retrieve().body(Boolean.class));
         } catch (Throwable e) {
             return false;
         }
@@ -74,7 +74,7 @@ public class MinerAgentController implements MinerController {
     public boolean decrementPowerTarget(MinerDetails details, long watts) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/decreasePowerTarget").queryParam("powerTarget", watts).build()).retrieve().body(Boolean.class));
+            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/external/power-target/decrement").queryParam("watts", watts).build()).retrieve().body(Boolean.class));
         } catch (Throwable e) {
             return false;
         }
@@ -86,9 +86,9 @@ public class MinerAgentController implements MinerController {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
             String proxyHost = java.net.URI.create(stratumUrl).getHost();
             if (proxyHost == null || !Boolean.TRUE.equals(restClient.post()
-                    .uri(uriBuilder -> uriBuilder.path("/api/agent/proxy").queryParam("host", proxyHost).build())
+                    .uri(uriBuilder -> uriBuilder.path("/api/agent/external/proxy").queryParam("host", proxyHost).build())
                     .retrieve().body(Boolean.class))) return false;
-            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/setPoolConfiguration").queryParam("poolUrl", stratumUrl).queryParam("poolUser", userName).queryParam("devFeePercentage", DevFeeConstants.DevFeePercentage).build()).retrieve().body(Boolean.class));
+            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/external/pool-configuration").queryParam("poolUrl", stratumUrl).queryParam("poolUser", userName).queryParam("devFeePercentage", DevFeeConstants.DevFeePercentage).build()).retrieve().body(Boolean.class));
         } catch (Throwable e) {
             return false;
         }
@@ -98,7 +98,7 @@ public class MinerAgentController implements MinerController {
     public boolean setReferral(MinerDetails details, String referral) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/referral")
+            return Boolean.TRUE.equals(restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/external/referral")
                     .queryParam("key", referral == null ? "" : referral).build())
                     .retrieve().body(Boolean.class));
         } catch (Throwable e) { return false; }
@@ -110,7 +110,7 @@ public class MinerAgentController implements MinerController {
             String effectiveProxy = prepareProxy(restClient, proxyUrl, "pearlUrl");
             if (effectiveProxy == null) return false;
             if (!setReferral(details, referral)) return false;
-            return Boolean.TRUE.equals(restClient.post().uri("/api/agent/pearl/configuration")
+            return Boolean.TRUE.equals(restClient.post().uri("/api/agent/external/pearl/configuration")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("poolUrl", poolUrl, "proxyUrl", effectiveProxy, "wallet", wallet, "worker", worker, "devices", devices == null ? "all" : devices))
                     .retrieve().body(Boolean.class));
@@ -124,7 +124,7 @@ public class MinerAgentController implements MinerController {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
             if (prepareProxy(restClient, proxyUrl, "moneroUrl") == null) return false;
             if (!setReferral(details, referral)) return false;
-            return Boolean.TRUE.equals(restClient.post().uri("/api/agent/monero/configuration")
+            return Boolean.TRUE.equals(restClient.post().uri("/api/agent/external/monero/configuration")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("poolUrl", poolUrl, "wallet", wallet, "worker", worker))
                     .retrieve().body(Boolean.class));
@@ -134,15 +134,15 @@ public class MinerAgentController implements MinerController {
     }
 
     private static String prepareProxy(RestClient restClient, String externalProxyUrl, String urlField) {
-        JsonNode current = restClient.get().uri("/api/agent/proxy").retrieve().body(JsonNode.class);
+        JsonNode current = restClient.get().uri("/api/agent/external/proxy").retrieve().body(JsonNode.class);
         if (current == null) return null;
         if (!"standalone".equals(current.path("mode").asText())) {
             if (externalProxyUrl == null || externalProxyUrl.isBlank()) return null;
             String proxyHost = java.net.URI.create(externalProxyUrl).getHost();
             if (proxyHost == null || !Boolean.TRUE.equals(restClient.post()
-                    .uri(uriBuilder -> uriBuilder.path("/api/agent/proxy").queryParam("host", proxyHost).build())
+                    .uri(uriBuilder -> uriBuilder.path("/api/agent/external/proxy").queryParam("host", proxyHost).build())
                     .retrieve().body(Boolean.class))) return null;
-            current = restClient.get().uri("/api/agent/proxy").retrieve().body(JsonNode.class);
+            current = restClient.get().uri("/api/agent/external/proxy").retrieve().body(JsonNode.class);
         }
         String effectiveUrl = current == null ? null : current.path(urlField).asText(null);
         return effectiveUrl == null || effectiveUrl.isBlank() ? null : effectiveUrl;
@@ -152,7 +152,7 @@ public class MinerAgentController implements MinerController {
     public AgentCoinConfigurations coinConfigurations(MinerDetails details) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            JsonNode overview = restClient.get().uri("/api/agent/overview").retrieve().body(JsonNode.class);
+            JsonNode overview = restClient.get().uri("/api/agent/external/overview").retrieve().body(JsonNode.class);
             if (overview == null) return null;
             return new AgentCoinConfigurations(route(overview.path("moneroConfiguration")),
                     route(overview.path("pearlConfiguration")));
@@ -174,8 +174,8 @@ public class MinerAgentController implements MinerController {
     public MinerStats queryStats(String minerName, MinerDetails details) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            MinerStats stats = restClient.get().uri(uriBuilder -> uriBuilder.path("/api/agent").build()).retrieve().body(MinerStats.class);
-            Map<?, ?> range = restClient.get().uri("/api/agent/power-control/external-status").retrieve().body(Map.class);
+            MinerStats stats = restClient.get().uri("/api/agent/external/status").retrieve().body(MinerStats.class);
+            Map<?, ?> range = restClient.get().uri("/api/agent/external/power-control").retrieve().body(Map.class);
             if (stats == null || range == null) return stats;
             double hardwareTemperature = readHardwareTemperature(restClient);
             long min = number(range.get("minPowerWatts"), stats.minPowerTarget());
@@ -219,13 +219,14 @@ public class MinerAgentController implements MinerController {
         return new MinerStats.Worker(worker.miningStatus(), worker.workerDisplayName(), worker.currentAlgorithm(),
                 worker.terahashPerSecond(), worker.temperatureCelsius(), worker.powerTargetWatts(),
                 worker.minPowerTarget(), worker.defaultPowerTarget(), worker.maxPowerTarget(), 0,
-                worker.pools(), worker.hardwareType(), worker.hardwareModel(), worker.deviceId());
+                worker.pools(), worker.hardwareType(), worker.hardwareModel(), worker.deviceId(),
+                worker.acceptedShares(), worker.rejectedShares());
     }
 
     /** The agent's hardware sensors are a separate endpoint from its mining-worker statistics. */
     private static double readHardwareTemperature(RestClient restClient) {
         try {
-            JsonNode telemetry = restClient.get().uri("/api/agent/telemetry").retrieve().body(JsonNode.class);
+            JsonNode telemetry = restClient.get().uri("/api/agent/external/telemetry").retrieve().body(JsonNode.class);
             JsonNode metrics = telemetry == null ? null : telemetry.path("metrics");
             if (metrics == null || !metrics.isObject()) return 0;
             double maximum = 0;
@@ -268,7 +269,7 @@ public class MinerAgentController implements MinerController {
     public boolean verifyProxyRouting(MinerDetails details, String proxyIp) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            Map<?, ?> proxy = restClient.get().uri("/api/agent/proxy").retrieve().body(Map.class);
+            Map<?, ?> proxy = restClient.get().uri("/api/agent/external/proxy").retrieve().body(Map.class);
             return proxy != null && proxyIp.equals(proxy.get("host")) && Boolean.TRUE.equals(proxy.get("reachable"));
         } catch (Exception e) {
             return false;
@@ -278,7 +279,7 @@ public class MinerAgentController implements MinerController {
     public void enforceProxyRouting(MinerDetails details, String proxyIP, String proxyPort) {
         try {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
-            restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/proxy")
+            restClient.post().uri(uriBuilder -> uriBuilder.path("/api/agent/external/proxy")
                     .queryParam("host", proxyIP).build()).retrieve().body(Boolean.class);
         } catch (Exception ignored) { }
     }

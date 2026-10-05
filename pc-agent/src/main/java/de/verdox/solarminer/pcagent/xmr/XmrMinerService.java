@@ -8,6 +8,7 @@ import de.verdox.solarminer.pcagent.mining.MinerStopContext;
 import de.verdox.solarminer.pcagent.mining.MinerConsoleService;
 import de.verdox.solarminer.pcagent.mining.PayoutDefaultsService;
 import de.verdox.solarminer.pcagent.mining.MinerProcessRegistry;
+import de.verdox.solarminer.pcagent.mining.MinerShareTelemetry;
 import de.verdox.solarminer.pcagent.xmr.download.XmrDownloadService;
 import de.verdox.solarminer.pcagent.lowlevel.sensor.HardwareSensorReader;
 import jakarta.annotation.PreDestroy;
@@ -69,6 +70,9 @@ public class XmrMinerService {
             .build();
 
     private volatile long currentHashesPerSecond = 0;
+    // Null means that XMRig has not supplied a counter yet; unknown is not zero shares.
+    private volatile Long acceptedShares;
+    private volatile Long rejectedShares;
     private int apiErrorCount = 0;
     private volatile int crashRestartAttempts;
 
@@ -110,7 +114,7 @@ public class XmrMinerService {
         if (!isManagedProcessAlive() && !MinerProcessRegistry.running("xmrig").isEmpty()) {
             return new MinerStats.Worker(MinerStats.MinerStatus.MINING, processorName + " (extern gestartet)", "RandomX",
                     0, readCPUTemperature(), desiredPowerUsage, 0, estimatedMaxCpuWattage,
-                    estimatedMaxCpuWattage, 0, List.of(configService.readUserPoolFromConfig()), "CPU", processorName, "cpu");
+                    estimatedMaxCpuWattage, 0, List.of(configService.readUserPoolFromConfig()), "CPU", processorName, "cpu", null, null);
         }
         if (minerStatus == MinerStats.MinerStatus.MINING && !isMiningProcessAlive()) {
             minerStatus = MinerStats.MinerStatus.ERROR;
@@ -128,7 +132,9 @@ public class XmrMinerService {
                 estimatedMaxCpuWattage,
                 estimatedMaxCpuWattage,
                 getWattage(),
-                List.of(configService.readUserPoolFromConfig()), "CPU", processorName, "cpu");
+                List.of(configService.readUserPoolFromConfig()), "CPU", processorName, "cpu",
+                minerStatus == MinerStats.MinerStatus.MINING ? acceptedShares : null,
+                minerStatus == MinerStats.MinerStatus.MINING ? rejectedShares : null);
     }
 
     public boolean readyForStart() {
@@ -188,6 +194,8 @@ public class XmrMinerService {
         }
         console.started("monero");
         lastStartError = null;
+        acceptedShares = null;
+        rejectedShares = null;
 
         ensureDefaultConfiguration();
 
@@ -297,6 +305,8 @@ public class XmrMinerService {
         minerStatus = MinerStats.MinerStatus.STOPPED;
         crashRestartAttempts = 0;
         currentHashesPerSecond = 0;
+        acceptedShares = null;
+        rejectedShares = null;
         minerProcess = null;
     }
 
@@ -323,6 +333,9 @@ public class XmrMinerService {
                     this.currentHashesPerSecond = (long) hashrateNode.get(0).asDouble();
                     this.apiErrorCount = 0; // Reset error count on success
                 }
+                MinerShareTelemetry.Counters shares = MinerShareTelemetry.xmrig(root.path("results"));
+                acceptedShares = shares.accepted();
+                rejectedShares = shares.rejected();
             } else {
                 handleApiError();
             }

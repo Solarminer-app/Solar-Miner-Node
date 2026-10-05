@@ -25,6 +25,9 @@
 | [PC-Agent Mining UX and Node defaults](pc-agent-ux-profile.md) | Persistent per-device defaults, local/benchmark-only exclusion, browser and backend verification; 2026-10-03. |
 | [PC-Agent ownership and gaps](pc-agent.md) | Code-checked map and review queue, checked 2026-10-01. |
 | [PC-Agent pool API research](pc-agent-pool-api-research-2026-10-04.md) | Public wallet balance and payout API candidates for XMR, PRL, RVN and ETC; research only, checked 2026-10-04. |
+| [PC-Agent miner candidates](pc-agent-miner-candidates.md) | Modular per-coin miner-catalog contract, candidate matrix and explicit adoption gates for XMR/PRL/RVN/ETC; checked 2026-10-05. |
+| [PC-Agent miner integration guide](../../pc-agent/MINER-INTEGRATION-GUIDE.md) | Mandatory checklist for future agents adding a miner implementation to an existing PC-Agent coin. |
+| [Public currency/network data](currency-data.md) | C9 snapshot schema, providers, units, refresh/freshness behavior and PC-Agent consumer evidence for XMR/PRL/RVN/ETC. |
 | [RVN / ETC integration](rvn-etc-integration.md) | In-progress PC-Agent GPU contract and unverified gates; neither coin is enabled. |
 | [API](../API.md), [mining targets](../MINING-TARGETS.md) | Interface references; verify endpoints and behavior in code before changing them. |
 | [device protocol roadmap](../DEVICE_PROTOCOL_ROADMAP.md), [21energy status](../21ENERGY-SOFTWARE-STATUS.md) | Roadmap/status; follow [21energy integration guide](../../../21ENERGY-INTEGRATION.md) for related changes. |
