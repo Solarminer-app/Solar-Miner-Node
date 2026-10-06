@@ -1,5 +1,13 @@
 # Public currency and mining-network data
 
+> **Service side moved out of this repository.** The Currency Service is the
+> separate Git repository [`../../../currency-service`](../../../currency-service)
+> (`https://github.com/Solarminer-app/currency-service`); its C9 record is
+> [`currency-service/docs/agent-wiki/currency-data.md`](../../../currency-service/docs/agent-wiki/currency-data.md)
+> and is the version to update. This file keeps only the Node/PC-Agent consumer
+> view. The `currency-rates/` source tree in this repository is a leftover copy
+> from the 2026-10-04 migration and is not evidence of current service behavior.
+
 Checked against `currency-rates` and `pc-agent` on 2026-10-04. This is the implementation record for contract C9; deployment at `currency.solarminer.app` remains a separate rollout step.
 
 ## Public contract
@@ -28,10 +36,12 @@ Successful snapshots replace the row keyed by canonical coin. Failed or incomple
 | `pearl` / PRL | [`pearlchain.live/api/explorer/stats`](https://pearlchain.live/api/explorer/stats) | [Pearl price response](https://pearlchain.live/api/explorer/price), currently identifying CoinPaprika | Provider reward, target and provider stale flag |
 | `ravencoin` / RVN | [2Miners public RVN stats](https://rvn.2miners.com/api/stats) | [CoinGecko](https://docs.coingecko.com/reference/simple-price) | 5,000 RVN shifted each 2,100,000-block era; provider average block seconds. The interval and initial subsidy are defined in [Ravencoin Core `chainparams.cpp`](https://github.com/RavenProject/Ravencoin/blob/master/src/chainparams.cpp). |
 | `ethereumclassic` / ETC | [2Miners public ETC stats](https://etc.2miners.com/api/stats) | [CoinGecko](https://docs.coingecko.com/reference/simple-price) | 5 ETC × 0.8 per 5,000,000-block era under [ECIP-1017](https://ecips.ethereumclassic.org/ECIPs/ecip-1017); provider average block seconds. Transaction fees, uncle rewards and MEV are intentionally absent. |
+| `conflux` / CFX | [2Miners public CFX stats](https://cfx.2miners.com/api/stats) | [CoinGecko](https://docs.coingecko.com/reference/simple-price) (`conflux-token`) | Octopus; provider average block seconds and live `blockReward`. Incomplete reward data must not be substituted with a fixed subsidy. |
+| `decred` / DCR | [2Miners public DCR stats](https://dcr.2miners.com/api/stats) | [CoinGecko](https://docs.coingecko.com/reference/simple-price) (`decred`) | BLAKE3; network values from 2Miners and PoW-only subsidy from dcrdata `work_reward` (atoms converted by 1e8). |
 
-The 2Miners values are public aggregated network statistics, not user pool balances or proof of SolarMiner share credit. The PC-Agent uses one central request only, caches it for ten minutes and publishes forecasts for RandomX, PearlHash, KAWPOW and ETCHash. Its source list retains both `currency.solarminer.app` and upstream provenance.
+The 2Miners values are public aggregated network statistics, not user pool balances or proof of SolarMiner share credit. The PC-Agent uses one central request only, caches it for ten minutes and publishes forecasts for RandomX, PearlHash, KAWPOW, ETCHash and BLAKE3. Its source list retains `currency.solarminer.app` and upstream provenance. CFX remains unexposed in PC-Agent forecasts until a managed Octopus miner path exists.
 
-The local Node consumer treats the agent forecast array as additive and ignores coin keys that are not yet registered in the Node's complete `MiningCoin` path. Consequently RVN/ETC forecasts are available in the PC-Agent without falsely enabling those coins in Node profitability automation; their full Node registration still follows the new-coin guide.
+The local Node consumer treats the agent forecast array as additive and ignores coin keys that are not yet registered in the Node's complete `MiningCoin` path. Consequently RVN/ETC forecasts are available in the PC-Agent without falsely enabling those coins in Node profitability automation; their full Node registration still follows the new-coin guide. The central Currency Service now collects CFX data, but PC-Agent forecasts do not expose CFX. DCR forecast inputs are wired to the current managed SRBMiner path, but execution remains blocked until SolarMiner fee targets and real pool/proxy share accounting are verified.
 
 ## Coin-guide scope
 

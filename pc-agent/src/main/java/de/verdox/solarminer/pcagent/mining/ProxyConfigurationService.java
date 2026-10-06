@@ -23,6 +23,8 @@ public class ProxyConfigurationService {
     private final int pearlPort;
     private final int ravenPort;
     private final int etcPort;
+    private final int decredPort;
+    private final int quantusPort;
     private final int apiPort;
     private final Path modeFile;
     private final ObjectMapper mapper;
@@ -42,6 +44,8 @@ public class ProxyConfigurationService {
             @Value("${solarminer.agent.proxy.pearl-port:3334}") int pearlPort,
             @Value("${solarminer.agent.proxy.ravencoin-port:3336}") int ravenPort,
             @Value("${solarminer.agent.proxy.ethereumclassic-port:3337}") int etcPort,
+            @Value("${solarminer.agent.proxy.decred-port:3338}") int decredPort,
+            @Value("${solarminer.agent.proxy.quantus-port:3339}") int quantusPort,
             @Value("${solarminer.agent.proxy.api-port:8090}") int apiPort,
             @Value("${solarminer.agent.proxy-mode-file:./solarminer-agent/proxy-mode.txt}") String modePath,
             @Value("${solarminer.agent.standalone:false}") boolean standalone) {
@@ -53,6 +57,8 @@ public class ProxyConfigurationService {
         this.pearlPort = pearlPort;
         this.ravenPort = ravenPort;
         this.etcPort = etcPort;
+        this.decredPort = decredPort;
+        this.quantusPort = quantusPort;
         this.apiPort = apiPort;
         this.modeFile = Path.of(modePath).toAbsolutePath().normalize();
         String savedMode = readMode();
@@ -125,6 +131,8 @@ public class ProxyConfigurationService {
     public String pearlUrl() { return url(pearlPort); }
     public String ravencoinUrl() { return url(ravenPort); }
     public String ethereumclassicUrl() { return url(etcPort); }
+    public String decredUrl() { return url(decredPort); }
+    public String quantusUrl() { return url(quantusPort); }
 
     private String url(int port) {
         String currentHost = host();
@@ -141,6 +149,8 @@ public class ProxyConfigurationService {
                 case "pearl" -> pearlPort;
                 case "ravencoin" -> ravenPort;
                 case "ethereumclassic" -> etcPort;
+                case "decred" -> decredPort;
+                case "quantus" -> quantusPort;
                 default -> -1;
             };
             return "stratum+tcp".equals(uri.getScheme()) && currentHost.equalsIgnoreCase(uri.getHost())
@@ -166,10 +176,13 @@ public class ProxyConfigurationService {
         }
     }
 
-    /** The standalone miner may start only after the local proxy has a real fee target. */
+    /**
+     * A miner may start only when the fee service has a usable SolarMiner house
+     * target for this coin. Unknown coins and missing/unavailable targets fail closed.
+     */
     public boolean feeReady(String coin) {
         String currentHost = host();
-        if (currentHost == null || !java.util.Set.of("monero", "pearl", "ravencoin", "ethereumclassic").contains(coin)) return false;
+        if (currentHost == null || coin == null || !coin.matches("[a-z0-9_-]{1,32}")) return false;
         long now = System.currentTimeMillis();
         if (now - feeCheckedAt.getOrDefault(coin, 0L) < 3000) return feeCache.getOrDefault(coin, false);
         synchronized (this) {
@@ -185,10 +198,10 @@ public class ProxyConfigurationService {
                 if (response.statusCode() == 200) {
                     JsonNode targets = mapper.readTree(response.body());
                     if (targets.isArray()) for (JsonNode target : targets) {
-                        if (target.path("percentage").asDouble() > 0
-                                && (!java.util.Set.of("ravencoin", "ethereumclassic").contains(coin)
-                                    || target.path("house").asBoolean(false))
-                                && !target.path("poolAddress").asText("").isBlank()
+                        if (target.path("house").asBoolean(false)
+                                && target.path("percentage").asDouble() > 0
+                                && !target.path("targetId").asText("").isBlank()
+                                && validPoolAddress(target.path("poolAddress").asText(""))
                                 && !target.path("workerName").asText("").isBlank()) ready = true;
                     }
                 }
@@ -209,19 +222,38 @@ public class ProxyConfigurationService {
 
     public boolean miningReady(String coin) {
         return (!standalone || managedProxy.running()) && isReachable()
-                && (!java.util.Set.of("ravencoin", "ethereumclassic").contains(coin) || stratumReachable(coin))
-                && (!java.util.Set.of("ravencoin", "ethereumclassic").contains(coin) || feeReady(coin))
+                && (!java.util.Set.of("ravencoin", "ethereumclassic", "decred", "quantus").contains(coin) || stratumReachable(coin))
+                && (!java.util.Set.of("ravencoin", "ethereumclassic", "decred", "quantus").contains(coin) || feeReady(coin))
                 && (!standalone || feeReady(coin));
     }
 
     private boolean stratumReachable(String coin) {
         String currentHost = host();
         if (currentHost == null) return false;
-        int port = "ravencoin".equals(coin) ? ravenPort : etcPort;
+        int port = switch (coin) {
+            case "ravencoin" -> ravenPort;
+            case "ethereumclassic" -> etcPort;
+            case "decred" -> decredPort;
+            case "quantus" -> quantusPort;
+            default -> -1;
+        };
         try (java.net.Socket socket = new java.net.Socket()) {
             socket.connect(new java.net.InetSocketAddress(currentHost, port), 1500);
             return true;
         } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static boolean validPoolAddress(String value) {
+        try {
+            URI uri = URI.create(value);
+            return ("stratum+tcp".equals(uri.getScheme()) || "stratum+ssl".equals(uri.getScheme()))
+                    && uri.getHost() != null && uri.getPort() > 0 && uri.getPort() <= 65535
+                    && uri.getRawUserInfo() == null
+                    && (uri.getRawPath() == null || uri.getRawPath().isEmpty())
+                    && uri.getRawQuery() == null && uri.getRawFragment() == null;
+        } catch (IllegalArgumentException e) {
             return false;
         }
     }

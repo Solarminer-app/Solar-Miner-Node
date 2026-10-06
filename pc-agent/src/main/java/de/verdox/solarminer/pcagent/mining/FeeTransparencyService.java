@@ -42,7 +42,7 @@ public class FeeTransparencyService {
     public List<FeeOverview> overview() {
         // Four independent HTTP deadlines must not add up when the proxy is slow/unavailable.
         try (var lookups = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
-            var results = List.of("monero", "pearl", "ravencoin", "ethereumclassic").stream()
+            var results = List.of("monero", "pearl", "ravencoin", "ethereumclassic", "decred", "quantus").stream()
                     .map(coin -> java.util.concurrent.CompletableFuture.supplyAsync(() -> forCoin(coin), lookups))
                     .toList();
             return results.stream().map(java.util.concurrent.CompletableFuture::join).toList();
@@ -73,7 +73,10 @@ public class FeeTransparencyService {
             }
         } catch (Exception ignored) { }
         String pool = poolFor(coin);
-        FeeReference poolFee = poolFee(pool);
+        FeeReference poolFee = "quantus".equals(coin)
+                ? new FeeReference("Kryptex QTC Pool", 0, false,
+                    "Pool fee varies between published guide and live page; verify before estimating")
+                : poolFee(pool);
         parts.add(new FeePart("POOL", poolFee.label, poolFee.percentage, poolFee.known, poolFee.source));
         FeeReference minerFee = switch (coin) {
             case "monero" -> new FeeReference("XMRig Entwickler-Spende", 1.0, true, "https://xmrig.com/docs/miner/config/network");
@@ -81,6 +84,10 @@ public class FeeTransparencyService {
                     "SRBMiner-MULTI 3.7.1 --list-algorithms");
             case "ethereumclassic" -> new FeeReference("SRBMiner-MULTI ETCHash Entwicklergebühr", 0.65, true,
                     "SRBMiner-MULTI 3.7.1 --list-algorithms");
+            case "decred" -> new FeeReference("SRBMiner-MULTI BLAKE3-Decred Entwicklergebühr", 0, false,
+                    "Gebühr für die gewählte SRBMiner-Version muss vor Start verifiziert werden");
+            case "quantus" -> new FeeReference("SRBMiner-MULTI QPoW Entwicklergebühr", 2.5, true,
+                    "https://pool.kryptex.com/qtc");
             default -> new FeeReference("SRBMiner-MULTI Entwicklergebühr", 2.0, true, "https://github.com/doktor83/SRBMiner-Multi");
         };
         parts.add(new FeePart("MINER", minerFee.label, minerFee.percentage, minerFee.known, minerFee.source));

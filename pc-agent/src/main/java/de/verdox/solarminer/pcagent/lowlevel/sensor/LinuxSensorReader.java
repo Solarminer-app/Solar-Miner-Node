@@ -62,18 +62,19 @@ public class LinuxSensorReader implements HardwareSensorReader {
 
     @Override
     public double getCpuTemperatureCelsius() {
-        // Prefer package-labelled hwmon temperatures, then any CPU thermal zone.
+        // Do not treat an arbitrary hwmon value (for example an NVMe temperature)
+        // as the CPU temperature. Restrict hwmon candidates to known CPU chips/labels.
         List<Path> inputs = tempInputs();
-        Path preferred = inputs.stream().filter(path -> sensorLabel(path).contains("package")
-                        || sensorLabel(path).contains("tctl") || sensorLabel(path).contains("cpu"))
+        Path preferred = inputs.stream().filter(this::isCpuTemperature)
                 .findFirst().orElse(null);
-        if (preferred == null) preferred = inputs.stream().findFirst().orElse(null);
         Double value = readTemperature(preferred);
         if (value != null) return value;
 
         try (Stream<Path> zones = Files.list(THERMAL)) {
             for (Path zone : zones.filter(path -> path.getFileName().toString().matches("thermal_zone\\d+"))
                     .sorted(Comparator.comparing(Path::toString)).toList()) {
+                String type = readText(zone.resolve("type"));
+                if (!isCpuLabel(type)) continue;
                 Double temp = readTemperature(zone.resolve("temp"));
                 if (temp != null) return temp;
             }
@@ -128,6 +129,24 @@ public class LinuxSensorReader implements HardwareSensorReader {
         try {
             return Files.readString(chipName).trim().toLowerCase(Locale.ROOT);
         } catch (IOException ignored) { return ""; }
+    }
+
+    private boolean isCpuTemperature(Path input) {
+        String label = sensorLabel(input);
+        String chip = readText(input.getParent().resolve("name"));
+        return isCpuLabel(label) || isCpuLabel(chip);
+    }
+
+    private static boolean isCpuLabel(String label) {
+        String value = label == null ? "" : label.toLowerCase(Locale.ROOT);
+        return value.contains("cpu") || value.contains("package") || value.contains("tctl")
+                || value.contains("tdie") || value.contains("coretemp") || value.contains("k10temp")
+                || value.contains("zenpower") || value.contains("x86_pkg") || value.contains("soc_thermal");
+    }
+
+    private static String readText(Path path) {
+        try { return Files.readString(path).trim(); }
+        catch (IOException | SecurityException ignored) { return ""; }
     }
 
     private Double readTemperature(Path path) {

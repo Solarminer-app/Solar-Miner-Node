@@ -4,280 +4,58 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0b1020">
-    <title>SolarMiner · Mining</title>
+    <title>SolarMiner · Miner</title>
     <link rel="stylesheet" href="/agent.css">
     <link rel="stylesheet" href="/workspace.css">
+    <link rel="stylesheet" href="/design.css">
     <link rel="stylesheet" href="/mining.css">
     <script src="/i18n.js" defer></script>
     <script src="/workspace.js" defer></script>
+    <script src="/wallet-strip.js" defer></script>
     <script src="/telemetry-gate.js" defer></script>
-    <script src="/mining-cache.js" defer></script>
-    <script src="/agent.js" defer></script>
-    <script src="/mining-workspace.js" defer></script>
+    <script src="/components.js" defer></script>
+    <script src="/software.js" defer></script>
 </head>
 <body class="mining-page">
 <div class="shell">
     <header class="topbar"><a class="brand" href="/">☼ <span>SolarMiner <small>PC-Agent</small></span></a>
-        <nav class="nav"><a href="/">Overview</a><a class="selected" href="/mining.html">Mining</a><a
-                href="/benchmarks.html">Benchmarks</a><a href="/hardware.html">Hardware</a><a href="/telemetry.html">Telemetrie</a><a
-                href="/proxy.html">Proxy</a></nav>
+        <nav class="nav"><a href="/">Dashboard</a><a class="selected" href="/mining.html">Miner</a><a
+                href="/workers.html">Worker</a><a href="/pools.html">Pools</a><a href="/benchmarks.html">Benchmarks</a><a
+                href="/hardware.html">Leistungsgrenzen</a><a href="/telemetry.html">Sensoren</a><a
+                href="/proxy.html">Verbindung</a></nav>
         <div class="top-actions"><span id="connection" class="badge">Verbinde …</span>
             <button id="refresh" type="button" class="button subtle">Aktualisieren</button>
         </div>
     </header>
     <section id="wallet-strip" class="wallet-strip" aria-label="Wallet-Kontostände"></section>
-    <div class="mining-layout">
-        <aside class="miner-rail" aria-label="Installierte Miner">
-            <button id="add-miner" type="button" class="rail-add" title="Miner installieren"
-                    aria-label="Miner installieren">+
-            </button>
-            <div id="installed-rail" class="rail-items"></div>
-        </aside>
-        <main class="mining-main">
-            <div class="page-title mining-page-heading">
-                <div><p class="kicker">BETRIEB</p><h1>Miner</h1>
-                    <p>Miner lokal steuern und Geräte für die Automatisierung zuordnen.</p></div>
-                <button id="open-node-profile" class="button subtle" type="button">Node-Profil öffnen</button>
+    <main>
+        <div class="page-title mining-page-heading">
+            <div><p class="kicker">SOFTWARE</p><h1>Miner-Software</h1>
+                <p>Mining-Programme installieren, aktualisieren, reparieren oder entfernen. Coins, Geräte und Starts
+                    ordnest du anschließend im Bereich Worker zu.</p></div>
+            <a class="button primary" href="/workers.html">Worker einrichten →</a>
+        </div>
+        <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+        <section class="panel software-overview" aria-labelledby="software-title">
+            <div class="panel-head">
+                <div><p class="kicker">LOKALE BIBLIOTHEK</p><h2 id="software-title">Verfügbare Programme</h2>
+                    <p class="muted">Jedes Softwarepaket erscheint genau einmal – auch wenn es mehrere Coins unterstützt.</p></div>
+                <div class="catalog-summary" aria-live="polite"><strong id="catalog-installed-count">0 installiert</strong>
+                    <span id="catalog-available-count">0 verfügbar</span></div>
             </div>
-            <p id="mining-refresh-state" class="notice" role="status" aria-live="polite" hidden></p>
-            <section id="catalog-view">
-                <div class="section-head catalog-heading">
-                    <div><p class="kicker">MINER-BIBLIOTHEK</p>
-                        <h2>Mining-Software</h2>
-                        <p>Ein Paket kann mehrere Coins bereitstellen. Wähle alle gewünschten Miner und starte die Installation gemeinsam.</p></div>
-                    <div class="catalog-summary" aria-live="polite">
-                        <strong id="catalog-installed-count">0 installiert</strong>
-                        <span id="catalog-available-count">0 verfügbar</span>
-                    </div>
-                </div>
-                <div id="catalog-notice" class="notice" role="status" hidden></div>
-                <div class="catalog-toolbar">
-                    <div class="hardware-filter" role="group" aria-label="Hardware wählen">
-                        <button type="button" class="filter-button selected" data-device="all">Alle</button>
-                        <button type="button" class="filter-button" data-device="CPU">CPU</button>
-                        <button type="button" class="filter-button" data-device="GPU">GPU</button>
-                    </div>
-                    <div class="bulk-install-actions">
-                        <button id="select-installable" class="button subtle" type="button">Verfügbare auswählen</button>
-                        <button id="install-selected" class="button primary" type="button" disabled>Auswahl installieren</button>
-                    </div>
-                </div>
-                <div id="catalog-grid" class="catalog-grid"><p class="muted" role="status">Miner werden geladen …</p></div>
-            </section>
-            <div id="miner-view" hidden>
-                <div class="page-title miner-heading">
-                    <div class="miner-identity"><span id="miner-emblem" class="miner-emblem" aria-hidden="true">—</span><div><p class="kicker">MANUELLE STEUERUNG</p>
-                        <h2 id="miner-view-title">Mining</h2>
-                        <p id="updated">Warte auf Daten</p>
-                        <p id="view-note" class="muted">CPU- und GPU-Miner können parallel laufen.</p></div></div>
-                    <div class="hero-actions">
-                        <button id="resume" type="button" class="button primary" disabled>Miner starten</button>
-                        <button id="pause" type="button" class="button" disabled>Miner pausieren</button>
-
-                    </div>
-                </div>
-                <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
-                <section class="stat-grid" aria-label="Mining-Status">
-                    <article class="stat"><span>STATUS</span><strong id="status">—</strong><small
-                            id="coin-label">—</small></article>
-                    <article class="stat"><span>HASHRATE</span><strong id="hashrate">—</strong><small
-                            id="hashrate-note">—</small></article>
-                    <article class="stat"><span>LEISTUNGSZIEL</span><strong id="power-target">—</strong><small
-                            id="power-range">—</small></article>
-                    <article class="stat"><span>PROGNOSE / TAG</span><strong id="earnings">—</strong><small
-                            id="earnings-note">Netzwerkdaten werden geladen</small></article>
-                </section>
-                <nav class="miner-subnav" aria-label="Miner-Bereich">
-                    <button type="button" class="selected" data-pane="status">Status</button>
-                    <button type="button" data-pane="setup">Einrichtung</button>
-                    <button type="button" data-pane="diagnostics">Diagnose</button>
-                </nav>
-                <div id="miner-status-pane" class="miner-pane" data-pane-content="status">
-                <section id="miner-overview-panel" class="section panel" aria-labelledby="miner-details-title">
-                    <div class="section-head">
-                        <div><p class="kicker">MINER-ÜBERSICHT</p>
-                            <h2 id="miner-details-title">Miner</h2></div>
-                    </div>
-                    <div class="detail"><span>Algorithmus</span><strong id="detail-algorithm">—</strong></div>
-                    <div class="detail"><span>Hardware</span><strong id="detail-hardware">—</strong></div>
-                    <div class="detail"><span>Installation</span><strong id="detail-installation">—</strong></div>
-                    <div class="detail"><span>Konfiguration</span><strong id="detail-configuration">—</strong></div>
-                    <div class="detail"><span>Mining-Verbindung</span><strong id="detail-connection">—</strong></div>
-                    <div class="detail"><span>Shares dieser Session</span><strong id="detail-shares">—</strong></div>
-                </section>
-                <section id="optimization-panel" class="section panel" aria-labelledby="optimization-title">
-                    <div class="section-head">
-                        <div><p class="kicker">PLATTFORMTIPPS</p>
-                            <h2 id="optimization-title">Voraussetzungen & Optimierungen</h2></div>
-                        <span id="optimization-platform" class="tag">—</span></div>
-                    <p class="muted">Ein Haken zeigt eine Einstellung an, die SolarMiner für den Miner aktiviert hat. Ob
-                        der Miner sie vollständig nutzen kann, siehst du in seiner Ausgabe.</p>
-                    <p id="optimization-message" class="optimization-message" role="status" hidden></p>
-                    <div id="optimization-checklist" class="optimization-list"></div>
-                </section>
-                <section id="gpu-processes-panel" class="section panel" aria-labelledby="gpu-processes-title" hidden>
-                    <div class="section-head">
-                        <div><p class="kicker">PARALLELE GPU-PROZESSE</p>
-                            <h2 id="gpu-processes-title">Pearl pro GPU</h2></div>
-                    </div>
-                    <div id="gpu-processes" class="gpu-processes"></div>
-                </section>
-                </div>
-                <div id="miner-diagnostics-pane" class="miner-pane" data-pane-content="diagnostics" hidden>
-                <section class="section panel miner-console-panel" aria-labelledby="miner-console-title">
-                    <div class="section-head">
-                        <div><p class="kicker">LIVE-AUSGABE</p>
-                            <h2 id="miner-console-title">Miner-Konsole</h2></div>
-                        <div class="console-actions"><label id="console-gpu-label" for="console-gpu" class="muted"
-                                                            hidden>Konsole <select id="console-gpu"
-                                                                                   aria-label="GPU-Konsole auswählen"></select></label><span
-                                id="console-status" class="muted" role="status">Lade …</span>
-                            <button id="console-bottom" class="button subtle" type="button">Zum Ende</button>
-                            <a id="console-download" class="button subtle" href="#" download hidden>Gesamtes Log
-                                herunterladen</a></div>
-                    </div>
-                    <pre id="miner-console" class="miner-console" aria-label="Vollständige Miner-Ausgabe"
-                         tabindex="0"></pre>
-                </section>
-                <section class="section" aria-labelledby="coins-title" hidden>
-                    <div class="section-head">
-                        <div><p class="kicker">MINING</p>
-                            <h2 id="coins-title">Coins & Miner</h2></div>
-                        <span id="coins-summary" class="muted">Lade …</span></div>
-                    <div id="coin-grid" class="coin-grid"></div>
-                </section>
-                </div>
-                <div id="miner-setup-pane" class="miner-pane" data-pane-content="setup" hidden>
-                <div class="two-col">
-                    <section class="panel" aria-labelledby="setup-title">
-                        <div class="section-head">
-                            <div><p class="kicker">KONFIGURATION</p>
-                                <h2 id="setup-title">Mining einrichten</h2></div>
-                        </div>
-                        <form id="monero-form" class="form-block"><h3>Monero · RandomX / CPU</h3><label
-                                for="monero-pool-select">Mining-Pool</label><select id="monero-pool-select">
-                            <option value="solarminer">SolarMiner-Standard · ohne eigene Auszahlung</option>
-                            <option value="stratum+tcp://xmr.kryptex.network:7029">Kryptex · Global</option>
-                            <option value="stratum+tcp://xmr-eu.kryptex.network:7029">Kryptex · Europa</option>
-                            <option value="stratum+tcp://xmr-us.kryptex.network:7029">Kryptex · Nordamerika</option>
-                            <option value="custom">Erweitert · eigene Pool-Adresse</option>
-                        </select>
-                            <div id="monero-pool-custom" class="advanced-pool" hidden><label for="monero-pool">Eigene
-                                Pool-Adresse</label><input id="monero-pool" type="text"
-                                                           placeholder="stratum+tcp://pool.example:3333"
-                                                           autocomplete="off" spellcheck="false">
-                                <p>Format: stratum+tcp://host:port oder stratum+ssl://host:port</p></div>
-                            <label for="monero-wallet">XMR Wallet</label><input id="monero-wallet" type="text"
-                                                                                maxlength="120" autocomplete="off">
-                            <p id="monero-payout-note" class="muted"></p>
-                            <div class="input-row">
-                                <div class="field"><label for="monero-worker">Worker</label><input id="monero-worker"
-                                                                                                   type="text"
-                                                                                                   value="pc"
-                                                                                                   pattern="[A-Za-z0-9_\-]{1,32}"
-                                                                                                   title="1–32 Buchstaben, Zahlen, _ oder -"
-                                                                                                   required></div>
-                                <button id="monero-submit" class="button" type="submit">Speichern</button>
-                            </div>
-                            <p id="monero-help"></p>
-                            <p id="monero-save-feedback" class="notice form-feedback" role="status" aria-live="polite"
-                               hidden></p></form>
-                        <form id="pearl-form" class="form-block" hidden><h3>Pearl · PearlHash / GPU</h3>
-                            <p id="pearl-readiness">Status wird geladen …</p><label
-                                    for="pearl-pool-select">Mining-Pool</label><select id="pearl-pool-select">
-                                <option value="solarminer">SolarMiner-Standard · ohne eigene Auszahlung</option>
-                                <option value="stratum+ssl://prl.kryptex.network:8048">Kryptex · Global · SSL</option>
-                                <option value="stratum+ssl://prl-eu.kryptex.network:8048">Kryptex · Europa · SSL
-                                </option>
-                                <option value="stratum+ssl://prl-us.kryptex.network:8048">Kryptex · Nordamerika · SSL
-                                </option>
-                                <option value="custom">Erweitert · eigene Pool-Adresse</option>
-                            </select>
-                            <div id="pearl-pool-custom" class="advanced-pool" hidden><label for="pearl-pool">Eigene
-                                Pool-Adresse</label><input id="pearl-pool" type="text"
-                                                           placeholder="stratum+ssl://pool.example:8048"
-                                                           autocomplete="off" spellcheck="false">
-                                <p>Format: stratum+tcp://host:port oder stratum+ssl://host:port</p></div>
-                            <label for="pearl-wallet">PRL Wallet</label><input id="pearl-wallet" type="text"
-                                                                               placeholder="prl1…" autocomplete="off">
-                            <p id="pearl-payout-note" class="muted"></p>
-                            <div class="input-row">
-                                <div class="field"><label for="pearl-worker">Worker</label><input id="pearl-worker"
-                                                                                                  type="text" value="pc"
-                                                                                                  pattern="[A-Za-z0-9_\-]{1,32}"
-                                                                                                  title="1–32 Buchstaben, Zahlen, _ oder -"
-                                                                                                  required></div>
-                                <div class="field"><span id="pearl-devices-label"
-                                                         class="field-label">GPUs auswählen</span>
-                                    <div id="pearl-devices" class="gpu-selection" role="group"
-                                         aria-labelledby="pearl-devices-label"
-                                         aria-describedby="pearl-devices-help"></div>
-                                    <small id="pearl-devices-help" class="muted"></small></div>
-                            </div>
-                            <button id="pearl-submit" class="button" type="submit">Konfiguration speichern</button>
-                            <p id="pearl-save-feedback" class="notice form-feedback" role="status" aria-live="polite"
-                               hidden></p>
-                            <button id="pearl-download" class="button subtle" type="button" hidden>SRBMiner erneut
-                                herunterladen
-                            </button>
-                            <p>SRBMiner hat eine zusätzliche Miner-Gebühr von 2 %.</p></form>
-                        <form id="power-form" class="form-block" hidden><h3>GPU-Leistungsziel</h3><label
-                                for="power-input">Gesamtleistung <span id="power-limits"></span></label>
-                            <div class="input-row"><input id="power-input" type="number" step="1" required>
-                                <button id="power-submit" class="button" type="submit">Übernehmen</button>
-                            </div>
-                        </form>
-                        <details class="miner-maintenance"><summary>Installation verwalten</summary><p class="muted">Beim Entfernen wird der Miner angehalten. Deine Pool- und Wallet-Konfiguration bleibt gespeichert.</p>                        <button id="remove-current-miner" type="button" class="button subtle" hidden>Miner entfernen
-                        </button></details>
-                    </section>
-                    <section id="proxy-panel" class="panel" hidden aria-labelledby="proxy-title">
-                        <div class="section-head">
-                            <div><p class="kicker">VERBINDUNG</p>
-                                <h2 id="proxy-title">Stratum-Proxy</h2></div>
-                            <span id="proxy-mode" class="tag">—</span></div>
-                        <p id="proxy-description" class="muted"></p>
-                        <div class="detail"><span>Status</span><strong id="proxy-state">—</strong></div>
-                        <div class="detail"><span>Monero-Route</span><strong id="proxy-xmr">—</strong></div>
-                        <div class="detail"><span>Pearl-Route</span><strong id="proxy-pearl">—</strong></div>
-                        <div class="detail"><span>RVN-Route</span><strong id="proxy-ravencoin">—</strong></div>
-                        <div class="detail"><span>ETC-Route</span><strong id="proxy-ethereumclassic">—</strong></div>
-                        <div class="detail"><span>Monero Dev-Fee-Ziel</span><strong id="fee-monero">—</strong></div>
-                        <div class="detail"><span>Pearl Dev-Fee-Ziel</span><strong id="fee-pearl">—</strong></div>
-                        <div class="detail"><span>RVN Dev-Fee-Ziel</span><strong id="fee-ravencoin">—</strong></div>
-                        <div class="detail"><span>ETC Dev-Fee-Ziel</span><strong id="fee-ethereumclassic">—</strong></div>
-                        <p id="proxy-detail" class="muted"></p>
-                        <form id="proxy-form" class="form-block"><label for="proxy-host">Externer Proxy-Host</label>
-                            <div class="input-row"><input id="proxy-host" type="text" placeholder="192.168.1.20"
-                                                          required autocomplete="off">
-                                <button id="proxy-submit" class="button" type="submit">Speichern</button>
-                            </div>
-                        </form>
-                        <div id="proxy-discovery" class="proxy-discovery">
-                            <button id="proxy-discover" class="button subtle" type="button">Proxy im Netzwerk suchen
-                            </button>
-                            <span id="discovery-status" class="muted"></span>
-                            <div id="proxy-candidates" class="candidate-list"></div>
-                        </div>
-                        <a class="button telemetry-link" href="/telemetry.html">Hardware & Telemetrie öffnen →</a>
-                    </section>
-                </div>
+            <div class="software-toolbar">
+                <input id="software-search" class="scope-search" type="search" placeholder="Programm, Coin oder Algorithmus suchen">
+                <div class="hardware-filter" role="group" aria-label="Hardware wählen">
+                    <button type="button" class="filter-button selected" data-device="all">Alle</button>
+                    <button type="button" class="filter-button" data-device="CPU">CPU</button>
+                    <button type="button" class="filter-button" data-device="GPU">GPU</button>
                 </div>
             </div>
-            <section id="node-profile" class="automation-profile panel" aria-labelledby="automation-title">
-                <div class="section-head"><div><p class="kicker">AUTOMATISIERUNG</p>
-                <h2 id="automation-title">Node-Profil</h2></div>
-                <label class="automation-switch"><input id="automation-enabled" type="checkbox" disabled> Node-Steuerung erlauben</label></div>
-                <details id="automation-editor"><summary>Geräte & Standard-Coins zuordnen</summary>
-                <p class="muted">Lege pro Gerät den Standard-Coin fest. „Nur lokal / Benchmarks“ schließt das Gerät von automatischen Starts und der Leistungsplanung des Node aus. Du kannst es weiterhin manuell nutzen.</p>
-                <div id="automation-devices" class="automation-devices" aria-busy="true"><p class="muted">Geräte werden geladen …</p></div>
-                </details>
-                <div class="automation-foot"><span id="automation-summary" class="muted">Lade Node-Profil …</span><a href="/hardware.html">Leistungsgrenzen einstellen →</a></div>
-                <p id="automation-feedback" class="notice" role="status" aria-live="polite" hidden></p>
-            </section>
-                <footer>SolarMiner PC-Agent · <a id="api-docs" hidden href="/swagger-ui/index.html" target="_blank"
-                                                 rel="noopener noreferrer">API-Dokumentation ↗</a></footer>
-        </main>
-    </div>
+            <div id="software-grid" class="software-grid" aria-live="polite"></div>
+        </section>
+        <footer>SolarMiner PC-Agent · <a id="api-docs" hidden href="/swagger-ui/index.html" target="_blank"
+                                         rel="noopener noreferrer">API-Dokumentation ↗</a></footer>
+    </main>
 </div>
 </body>
 </html>

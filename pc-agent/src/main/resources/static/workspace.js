@@ -8,13 +8,15 @@
     return el;
   };
   const groups = [
-    ['BETRIEB', [['/', 'Übersicht', 'home'], ['/mining.html', 'Miner', 'mining']]],
+    ['BETRIEB', [['/', 'Dashboard', 'home'], ['/mining.html', 'Miner-Software', 'mining'], ['/workers.html', 'Worker', 'worker'], ['/pools.html', 'Pools', 'pool']]],
     ['OPTIMIERUNG', [['/hardware.html', 'Leistungsgrenzen', 'hardware'], ['/benchmarks.html', 'Benchmarks', 'benchmarks']]],
     ['SYSTEM', [['/telemetry.html', 'Sensoren', 'telemetry'], ['/proxy.html', 'Verbindung', 'proxy']]]
   ];
   const paths = {
     home: 'M3 10 12 3l9 7v10H3Z M9 20v-7h6v7',
     mining: 'M4 7h16v10H4Z M8 3v4m8-4v4M8 17v4m8-4v4M8 11h1m6 0h1',
+    worker: 'M4 5h16v14H4Z M8 9h8v6H8Z M9 2v3m6-3v3M9 19v3m6-3v3',
+    pool: 'M3 8c3-3 6 3 9 0s6-3 9 0M3 14c3-3 6 3 9 0s6-3 9 0',
     hardware: 'M4 7h16M4 17h16M9 4v6m6 4v6',
     benchmarks: 'M5 20V11m7 9V4m7 16v-6',
     telemetry: 'M3 12h4l3-7 4 14 3-7h4',
@@ -26,7 +28,7 @@
   const subtitle = make('p', 'app-instance', 'Dein lokaler Mining-Agent'); sidebar.append(subtitle);
   const nav = make('nav', 'app-nav'); nav.setAttribute('aria-label', t('Hauptnavigation'));
   const pathname = location.pathname === '/index.html' ? '/' : location.pathname;
-  let currentLabel = 'Übersicht', currentGroup = 'BETRIEB';
+  let currentLabel = 'Dashboard', currentGroup = 'BETRIEB';
   for (const [group, links] of groups) {
     const section = make('div', 'app-nav-group'); section.append(make('p', 'app-nav-label', group));
     for (const [href, title, icon] of links) {
@@ -78,10 +80,8 @@
   header.after(connectionNotice);
   const connection = document.getElementById('connection');
   new MutationObserver(() => { connectionNotice.hidden = !connection.classList.contains('offline'); document.body.classList.toggle('agent-offline', !connectionNotice.hidden); }).observe(connection, {attributes: true, attributeFilter: ['class']});
-  // Money belongs to the overview; keep the mining page focused on devices.
+  // Balances are global context. Keep the compact strip directly below the page header on
+  // operational pages, matching the Solar-Miner-Node shell instead of hiding money at the footer.
   const wallets = document.getElementById('wallet-strip');
-  if (wallets && pathname === '/') {
-    const walletSection = make('details', 'wallet-section');
-    walletSection.append(make('summary', '', 'Kontostände & Auszahlung'), wallets); main.querySelector('footer').before(walletSection);
-  } else if (wallets) wallets.remove();
+  if (wallets) wallets.classList.add('wallet-strip--global');
 })();

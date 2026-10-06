@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 const i18n = window.SolarMinerI18n;
 const fmt = (value, digits = 2) => new Intl.NumberFormat(i18n.locale, { maximumFractionDigits: digits }).format(value);
 let currentTelemetry;
+let refreshing = false;
 const text = (id, value) => { $(id).textContent = value; };
 function el(tag, className, value) { const n = document.createElement(tag); if (className) n.className = className; if (value !== undefined) n.textContent = value; return n; }
 function meter(value, maximum, className = '') { const bar = el('div', `telemetry-meter ${className}${value == null ? ' unavailable' : ''}`); const fill = el('i'); fill.style.width = `${Math.max(0, Math.min(100, value == null ? 0 : value / maximum * 100))}%`; bar.append(fill); return bar; }
@@ -38,7 +39,21 @@ function render(data) {
     const card = el('article', 'telemetry-device gpu-device');
     const head = el('div', 'telemetry-device-head'); head.append(el('span', 'device-kind', cardData?.vendor || 'GPU'), el('strong', '', name));
     const max = cardData?.maxWatts || 1, draw = cardData?.currentWatts;
-    const values = el('div', 'telemetry-device-values'); values.append(el('span', '', draw != null ? `${fmt(draw, 0)} W` : '—'), el('span', '', cardData?.currentPowerLimitWatts ? `Limit ${fmt(cardData.currentPowerLimitWatts, 0)} W` : '—'));
+    const metrics = data.metrics || {};
+    const gpuTemperature = cardData?.vendor === 'NVIDIA'
+      ? metrics[`gpu.nvidia.${cardData.index}.temperature`]
+      : cardData?.vendor === 'AMD'
+        ? Object.entries(metrics).find(([key, value]) => key.startsWith(`gpu.amd.card${cardData.index}.`)
+          && key.endsWith('.temperature') && value.available)?.[1]
+          || (Object.entries(metrics).filter(([key, value]) => key.startsWith('gpu.amd.')
+            && key.endsWith('.temperature') && value.available).length === 1
+            ? Object.entries(metrics).find(([key, value]) => key.startsWith('gpu.amd.')
+              && key.endsWith('.temperature') && value.available)?.[1] : null)
+        : null;
+    const values = el('div', 'telemetry-device-values'); values.append(
+      el('span', '', draw != null ? `${fmt(draw, 0)} W` : '—'),
+      el('span', '', gpuTemperature?.available ? `${fmt(gpuTemperature.value, 0)} °C` : '—'),
+      el('span', '', cardData?.currentPowerLimitWatts ? `Limit ${fmt(cardData.currentPowerLimitWatts, 0)} W` : '—'));
     card.append(head, meter(draw, max, 'power'), values);
     devices.append(card);
   });
@@ -64,15 +79,30 @@ function render(data) {
   text('sensor-status', sensorLabels[status] || `Sensorzugriff: ${status}`);
 }
 async function refresh() {
+  if (refreshing) return;
+  refreshing = true;
   try {
-    const response = await fetch('/api/agent/local/telemetry', { cache: 'no-store' });
+    const response = await fetch('/api/agent/local/telemetry', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    render(await response.json());
+    const data = await response.json();
+    try {
+      render(data);
+    } catch (error) {
+      $('connection').className = 'badge online'; text('connection', 'Agent verbunden');
+      $('sensor-status').className = 'tag blocked';
+      text('sensor-status', i18n.t('Sensoranzeige fehlgeschlagen'));
+      text('updated', `Sensordaten konnten nicht dargestellt werden: ${error.message}`);
+      return;
+    }
     $('connection').className = 'badge online'; text('connection', 'Agent verbunden');
     text('updated', i18n.t(`Aktualisiert ${new Date().toLocaleTimeString(i18n.locale)}`));
   } catch (error) {
     $('connection').className = 'badge offline'; text('connection', 'Agent nicht erreichbar');
+    $('sensor-status').className = 'tag blocked';
+    text('sensor-status', i18n.t(error.name === 'TimeoutError' ? 'Zeitüberschreitung beim Sensorabruf' : 'Sensor-API nicht erreichbar'));
     text('updated', `Telemetrie konnte nicht geladen werden: ${error.message}`);
+  } finally {
+    refreshing = false;
   }
 }
 $('refresh').addEventListener('click', refresh);

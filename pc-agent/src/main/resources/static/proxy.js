@@ -25,6 +25,7 @@ function render(data) {
   text('proxy-heading', local ? 'Lokaler Proxy ausgewählt' : 'Externer Proxy ausgewählt'); text('proxy-mode', local ? 'LOKAL' : 'EXTERN');
   text('proxy-state', current?.reachable ? 'Proxy erreichbar' : 'Proxy nicht erreichbar');
   text('proxy-description', local ? current?.managedStatus === 'running' ? 'Der enthaltene Proxy läuft auf diesem PC.' : current?.managedDetail || 'Der lokale Proxy ist noch nicht bereit.' : current?.host || 'Kein externer Host gespeichert.');
+  $('proxy-dashboard-link').hidden = !(local && current?.managedStatus === 'running');
   $('local-mode').classList.toggle('active', local); $('external-mode').classList.toggle('active', !local);
   text('local-state', local ? 'AUSGEWÄHLT' : 'AUF DIESEM PC'); text('external-state', local ? 'IM NETZWERK' : 'AUSGEWÄHLT');
   if (!hostDirty && document.activeElement !== $('external-host')) $('external-host').value = current?.host || '';

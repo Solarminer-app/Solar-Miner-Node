@@ -49,6 +49,8 @@ public class ManagedProxyService {
                     "--proxy.coins.bitcoin.port=3333", "--proxy.coins.monero.port=3335",
                     "--proxy.coins.pearl.port=3334",
                     "--proxy.coins.ravencoin.port=3336", "--proxy.coins.ethereumclassic.port=3337",
+                    "--proxy.coins.decred.port=3338",
+                    "--proxy.coins.quantus.port=3339",
                     "--proxy.discovery.enabled=false",
                     "--proxy.pearl.enabled=true");
             status = proxyContext.isActive() ? "running" : "failed";

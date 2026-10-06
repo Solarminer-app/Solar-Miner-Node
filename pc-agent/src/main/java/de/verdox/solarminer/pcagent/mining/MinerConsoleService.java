@@ -83,12 +83,12 @@ public class MinerConsoleService {
     }
 
     public Path file(String miner) {
-        if (miner.matches("(pearl|ravencoin|ethereumclassic)-(NVIDIA|AMD)-[0-9]{1,5}"))
+        if (miner.matches("(pearl|ravencoin|ethereumclassic|decred|quantus)-(NVIDIA|AMD)-[0-9]{1,5}"))
             return directory.resolve(miner + "-console.log");
         return directory.resolve(switch (miner) {
             case "monero" -> "xmrig-console.log";
             case "pearl" -> "srbminer-console.log";
-            case "ravencoin", "ethereumclassic" -> miner + "-console.log";
+            case "ravencoin", "ethereumclassic", "decred", "quantus" -> miner + "-console.log";
             default -> throw new IllegalArgumentException("Unknown miner");
         });
     }

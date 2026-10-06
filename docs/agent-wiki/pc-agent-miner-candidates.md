@@ -25,8 +25,11 @@ The API also supports an explicit software installation at `POST /api/agent/loca
 | ETC | SRBMiner-MULTI (existing experimental path) | AMD, NVIDIA, Intel GPU / ETCHash | 0.65% | Keep only as prepared/experimental route; does not satisfy end-to-end release gates. |
 | ETC | TeamRedMiner | AMD GPU / ETCHash | 0.75% Polaris, 1% other GPU (Ethash table) | Candidate for AMD only. Its ETCHash mode/stratum behavior and fee switching must be tested through the SolarMiner proxy. |
 | ETC | lolMiner | AMD and NVIDIA / Ethash/Etchash | upstream release material reports 0.7–1%; confirm exact version at adoption | Candidate worth a separate verification spike because it covers AMD and NVIDIA, but its proprietary release and API/process contract need review. |
+| QTC | SRBMiner-MULTI (prepared, blocked) | GPU / QPoW (Poseidon2) | 2.5% per Kryptex guide | Existing shared package and generic GPU adapter path are wired, but selection stays disabled until SolarMiner supplies a house wallet and accepted user/house/referral shares are proven. Kryptex's live fee display and guide differ; pool fee estimate is intentionally unknown. |
 
 Primary sources: [XMRig donation source](https://github.com/xmrig/xmrig/blob/master/src/donate.h), [SRBMiner algorithms and fees](https://github.com/doktor83/SRBMiner-Multi/blob/master/README.md), [TeamRedMiner algorithms/API](https://github.com/todxx/teamredminer/blob/master/USAGE.txt), [TeamRedMiner fee table](https://github.com/todxx/teamredminer), [lolMiner official releases](https://github.com/Lolliedieb/lolMiner-releases), [PrimeAI Pearl Miner](https://github.com/PrimeAI-Foundation/Pearl-Miner).
+
+QTC sources and current integration gates are recorded in [the Quantus integration record](quantus-integration.md). Kryptex documents SRBMiner `--algorithm quantus` and port 7049; QTCScan provides public estimated network snapshots. The official Quantus external miner protocol is QUIC, and the Quantus native pool uses WebSocket, so neither is interchangeable with the selected Stratum route.
 
 ## Recommended implementation order
 

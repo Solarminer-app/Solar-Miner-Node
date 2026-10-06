@@ -73,6 +73,7 @@ public class XmrMinerService {
     // Null means that XMRig has not supplied a counter yet; unknown is not zero shares.
     private volatile Long acceptedShares;
     private volatile Long rejectedShares;
+    private volatile MinerShareTelemetry.Counters poolCounters = MinerShareTelemetry.Counters.unavailable();
     private int apiErrorCount = 0;
     private volatile int crashRestartAttempts;
 
@@ -114,7 +115,8 @@ public class XmrMinerService {
         if (!isManagedProcessAlive() && !MinerProcessRegistry.running("xmrig").isEmpty()) {
             return new MinerStats.Worker(MinerStats.MinerStatus.MINING, processorName + " (extern gestartet)", "RandomX",
                     0, readCPUTemperature(), desiredPowerUsage, 0, estimatedMaxCpuWattage,
-                    estimatedMaxCpuWattage, 0, List.of(configService.readUserPoolFromConfig()), "CPU", processorName, "cpu", null, null);
+                    estimatedMaxCpuWattage, 0, List.of(configService.readUserPoolFromConfig()), "CPU", processorName, "cpu", null, null,
+                    MinerStats.PoolTelemetry.unavailable());
         }
         if (minerStatus == MinerStats.MinerStatus.MINING && !isMiningProcessAlive()) {
             minerStatus = MinerStats.MinerStatus.ERROR;
@@ -134,7 +136,15 @@ public class XmrMinerService {
                 getWattage(),
                 List.of(configService.readUserPoolFromConfig()), "CPU", processorName, "cpu",
                 minerStatus == MinerStats.MinerStatus.MINING ? acceptedShares : null,
-                minerStatus == MinerStats.MinerStatus.MINING ? rejectedShares : null);
+                minerStatus == MinerStats.MinerStatus.MINING ? rejectedShares : null,
+                poolTelemetry());
+    }
+
+    /** Pool readings only while the managed miner runs; a stopped miner must not keep an old difficulty on screen. */
+    private MinerStats.PoolTelemetry poolTelemetry() {
+        if (minerStatus != MinerStats.MinerStatus.MINING) return MinerStats.PoolTelemetry.unavailable();
+        MinerShareTelemetry.Counters counters = poolCounters;
+        return new MinerStats.PoolTelemetry(counters.difficulty(), counters.bestShare(), counters.stale(), counters.latencyMs());
     }
 
     public boolean readyForStart() {
@@ -196,6 +206,7 @@ public class XmrMinerService {
         lastStartError = null;
         acceptedShares = null;
         rejectedShares = null;
+        poolCounters = MinerShareTelemetry.Counters.unavailable();
 
         ensureDefaultConfiguration();
 
@@ -307,6 +318,7 @@ public class XmrMinerService {
         currentHashesPerSecond = 0;
         acceptedShares = null;
         rejectedShares = null;
+        poolCounters = MinerShareTelemetry.Counters.unavailable();
         minerProcess = null;
     }
 
@@ -333,9 +345,10 @@ public class XmrMinerService {
                     this.currentHashesPerSecond = (long) hashrateNode.get(0).asDouble();
                     this.apiErrorCount = 0; // Reset error count on success
                 }
-                MinerShareTelemetry.Counters shares = MinerShareTelemetry.xmrig(root.path("results"));
+                MinerShareTelemetry.Counters shares = MinerShareTelemetry.xmrig(root.path("results"), root.path("connection"));
                 acceptedShares = shares.accepted();
                 rejectedShares = shares.rejected();
+                poolCounters = shares;
             } else {
                 handleApiError();
             }

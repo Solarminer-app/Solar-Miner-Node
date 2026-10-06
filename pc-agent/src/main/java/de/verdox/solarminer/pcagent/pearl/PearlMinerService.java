@@ -76,6 +76,7 @@ public class PearlMinerService {
         volatile double hashesPerSecond;
         volatile Long acceptedShares;
         volatile Long rejectedShares;
+        volatile MinerShareTelemetry.Counters poolCounters = MinerShareTelemetry.Counters.unavailable();
         int apiPort;
 
         GpuRun(LocalGpuPowerService.Gpu gpu) {
@@ -298,6 +299,7 @@ public class PearlMinerService {
             run.detail = "SRBMiner is starting";
             run.acceptedShares = null;
             run.rejectedShares = null;
+            run.poolCounters = MinerShareTelemetry.Counters.unavailable();
             run.jobReceived = false;
             run.poolHealthy = false;
             run.output.set("");
@@ -497,6 +499,7 @@ public class PearlMinerService {
         run.hashesPerSecond = 0;
         run.acceptedShares = null;
         run.rejectedShares = null;
+        run.poolCounters = MinerShareTelemetry.Counters.unavailable();
         run.detail = "Miner pausiert";
         Process process = run.process;
         if (process == null || !process.isAlive()) return true;
@@ -568,14 +571,18 @@ public class PearlMinerService {
         return cards.stream().filter(this::selected).map(gpu -> {
             GpuRun run = runs.get(gpu.vendor() + ":" + gpu.index());
             boolean externalMiner = hasExternalMiner();
+            boolean reported = run != null && !externalMiner && run.status == MinerStats.MinerStatus.MINING;
+            MinerShareTelemetry.Counters counters = run == null ? MinerShareTelemetry.Counters.unavailable() : run.poolCounters;
             return new MinerStats.Worker(externalMiner ? MinerStats.MinerStatus.MINING : run == null ? MinerStats.MinerStatus.PAUSED : run.visibleStatus(),
                     "SRBMiner " + gpu.model() + " (" + gpu.vendor() + ":" + gpu.index() + ")", "PearlHash",
                     run == null || externalMiner ? 0.0 : run.hashesPerSecond / 1_000_000_000_000.0, 0.0,
                     gpuPowerService.appliedTarget(gpu), gpu.minWatts(), gpu.maxWatts(), gpu.maxWatts(),
                     gpu.currentWatts() == null ? 0 : Math.round(gpu.currentWatts()), pools,
                     "GPU", gpu.model(), gpu.deviceId(),
-                    run == null || externalMiner || run.status != MinerStats.MinerStatus.MINING ? null : run.acceptedShares,
-                    run == null || externalMiner || run.status != MinerStats.MinerStatus.MINING ? null : run.rejectedShares);
+                    reported ? run.acceptedShares : null,
+                    reported ? run.rejectedShares : null,
+                    reported ? new MinerStats.PoolTelemetry(counters.difficulty(), counters.bestShare(), counters.stale(), counters.latencyMs())
+                            : MinerStats.PoolTelemetry.unavailable());
         }).toList();
     }
 
@@ -584,6 +591,7 @@ public class PearlMinerService {
         MinerShareTelemetry.Counters counters = MinerShareTelemetry.srbMiner(pool);
         run.acceptedShares = counters.accepted();
         run.rejectedShares = counters.rejected();
+        run.poolCounters = counters;
     }
 
     private boolean hasExternalMiner() {

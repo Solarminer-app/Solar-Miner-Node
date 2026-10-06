@@ -12,7 +12,7 @@
 | `pc-agent/` | Local CPU/GPU mining and hardware-specific power control | Node sends a target or decision, not per-GPU driver commands. See [PC-Agent map](pc-agent.md). |
 | `pv-api/` | Shared profile serialization contract | Configurator must use the same serializer; see contract C3. |
 | `react-frontend/` | Local operator UI | API and decisions stay in backend services. |
-| `currency-rates/` | Public currency and mining-network data service | Serves Nodes and public clients at `https://currency.solarminer.app/api/v1/public/**`; keep market data separate from miner control. |
+| `currency-rates/` | **Nothing — leftover copy, do not touch.** | The Currency Service is the separate Git repository [`../../../currency-service`](../../../currency-service) (`https://github.com/Solarminer-app/currency-service`). This copy is frozen at the 2026-10-04 migration state, is behind the live service, and is not edited, tested, released or documented here; see its own [warning file](../../currency-rates/AGENTS.md). This repository only consumes the deployed HTTP API. |
 | `device-profiles/`, `tools/` | Bundled profiles and import tooling | Runtime community profile source is separate. |
 
 ## Documentation catalog
@@ -22,28 +22,33 @@
 | [Setup UX and PV discovery](setup-and-discovery.md) | Beginner-oriented device setup, bounded discovery API, verification and remaining hardware/UX gates; reviewed 2026-10-02. |
 | [UI/UX audit](ui-ux-audit-2026-10-02.md) | Source and Chrome desktop/mobile review of the local Node UI, reproducible usability findings and proposed redesign priorities; 2026-10-02. Proposals are not implemented behavior. |
 | [PC-Agent gesamtes UI/UX-Konzept](pc-agent-design-concept.md) | Bewertung, Aufgabenstruktur und umgesetzte Gestaltung aller sechs PC-Agent-Seiten mit Browser-Evidenz; 2026-10-03. |
+| [PC-Agent UI/UX-Redesign](pc-agent-ui-redesign.md) | Verbindliche Spezifikation und Nachweis des Umbaus: Dashboard-KPIs, Miner-Instanzmodell (Coin × Build), neue Seiten Worker und Pools, gemeinsames Komponentenmodul, additive Pool-Telemetrie; mit Browser- und Test-Evidenz, 2026-10-05. |
+| [PC-Agent Operations UI & energy journal](pc-agent-operations-ui.md) | Aktueller Seitenvertrag: Miner als reine Softwareverwaltung, Worker als vollständige Zuweisungs-/Steuerungsfläche, globaler Balance-Header und persistentes lokales Session-Energiejournal; 2026-10-06. Ersetzt für diese vier Seiten das ältere Coin×Build-Interaktionsmodell. |
 | [PC-Agent Mining UX and Node defaults](pc-agent-ux-profile.md) | Persistent per-device defaults, local/benchmark-only exclusion, browser and backend verification; 2026-10-03. |
 | [PC-Agent ownership and gaps](pc-agent.md) | Code-checked map and review queue, checked 2026-10-01. |
 | [PC-Agent pool API research](pc-agent-pool-api-research-2026-10-04.md) | Public wallet balance and payout API candidates for XMR, PRL, RVN and ETC; research only, checked 2026-10-04. |
 | [PC-Agent miner candidates](pc-agent-miner-candidates.md) | Modular per-coin miner-catalog contract, candidate matrix and explicit adoption gates for XMR/PRL/RVN/ETC; checked 2026-10-05. |
+| [Quantus (QTC) integration](quantus-integration.md) | GPU/Stratum candidate wiring and explicit missing house-wallet, pool-share and rollout gates; 2026-10-06. |
 | [PC-Agent miner integration guide](../../pc-agent/MINER-INTEGRATION-GUIDE.md) | Mandatory checklist for future agents adding a miner implementation to an existing PC-Agent coin. |
-| [Public currency/network data](currency-data.md) | C9 snapshot schema, providers, units, refresh/freshness behavior and PC-Agent consumer evidence for XMR/PRL/RVN/ETC. |
+| [Public currency/network data](currency-data.md) | **Superseded for the service side** — the C9 provider/schema record now lives in [`../../../currency-service/docs/agent-wiki/currency-data.md`](../../../currency-service/docs/agent-wiki/currency-data.md). This file keeps only the Node/PC-Agent consumer view. |
 | [RVN / ETC integration](rvn-etc-integration.md) | In-progress PC-Agent GPU contract and unverified gates; neither coin is enabled. |
 | [API](../API.md), [mining targets](../MINING-TARGETS.md) | Interface references; verify endpoints and behavior in code before changing them. |
 | [device protocol roadmap](../DEVICE_PROTOCOL_ROADMAP.md), [21energy status](../21ENERGY-SOFTWARE-STATUS.md) | Roadmap/status; follow [21energy integration guide](../../../21ENERGY-INTEGRATION.md) for related changes. |
 | [PC-Agent PV power control](../../PC-AGENT-PV-POWER-CONTROL.md) | Design and verification checklist; some API and GPU control code now exists, so it is not a complete current-state description. |
 | [standalone PC-Agent](../../pc-agent/standalone/README.md), [Docker](../../pc-agent/standalone/DOCKER.md) | Run and packaging instructions; check scripts/workflows before relying on release claims. |
-| [main README](../../README.md), [core help](../../core/HELP.md), [currency help](../../currency-rates/HELP.md) | Component guides; code is authoritative. |
-| [currency public deployment](../../currency-rates/PUBLIC-DEPLOYMENT.md) | Central Traefik/MariaDB deployment for `currency.solarminer.app`; local Compose remains internal. |
+| [main README](../../README.md), [core help](../../core/HELP.md) | Component guides; code is authoritative. |
+| Currency Service guides | In the separate repository: [`AGENTS.md`](../../../currency-service/AGENTS.md), [`README.md`](../../../currency-service/README.md), [`PUBLIC-DEPLOYMENT.md`](../../../currency-service/PUBLIC-DEPLOYMENT.md). The copies under `currency-rates/` here are leftovers and are not maintained. |
 | `src/main/resources/markdowns/` | Product help shown to users, not agent operating instructions. |
 
 ## Feature workflow
 
 ### Public currency and mining-network data
 
+**Ownership:** this service is no longer code in this repository. It is the separate Git repository [`../../../currency-service`](../../../currency-service) (`https://github.com/Solarminer-app/currency-service`), which owns the providers, persistence, public routes, tests and the C9 record. The `currency-rates/` directory here is a leftover copy from the 2026-10-04 migration: never read it as current behavior and never change it. Node and PC-Agent code may only call the deployed API.
+
 `currency-rates` is a public central service, not a trust-LAN endpoint. Production Nodes use `CURRENCY_MICRO_SERVICE_URL`, defaulting to `https://currency.solarminer.app`; local Compose may use the internal `http://currency-service:8080`. Only versioned, read-only aggregated snapshots belong under `/api/v1/public/**`. Wallets, worker names, pools, referrals, individual telemetry and administration do not.
 
-For every mining coin that becomes relevant to Node or public profitability calculations, extend this service first with both price and mining-network collection. Record the canonical key/ticker, provider, units and precision, timestamp, refresh cadence, persisted snapshot, stale/unavailable behavior and tests. A coin-price record alone is not a network-statistics contract. Follow C9 in the workspace contracts and the currency-data requirement in `NEW-MINING-COIN-GUIDE.md`; do not add another coin-specific BTC-style table for new assets.
+For every mining coin that becomes relevant to Node or public profitability calculations, extend that repository first with both price and mining-network collection. Record the canonical key/ticker, provider, units and precision, timestamp, refresh cadence, persisted snapshot, stale/unavailable behavior and tests. A coin-price record alone is not a network-statistics contract. Follow C9 in the workspace contracts and the currency-data requirement in `NEW-MINING-COIN-GUIDE.md`; do not add another coin-specific BTC-style table for new assets.
 
 ### Public telemetry egress
 

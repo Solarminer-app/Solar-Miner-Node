@@ -1,5 +1,6 @@
 import org.springframework.boot.gradle.tasks.bundling.BootJar
 import org.springframework.boot.gradle.tasks.run.BootRun
+import org.gradle.language.jvm.tasks.ProcessResources
 
 plugins {
     java
@@ -39,6 +40,13 @@ val validateEmbeddedProxySource = tasks.register("validateEmbeddedProxySource") 
 }
 tasks.named(embeddedProxy.compileJavaTaskName) {
     dependsOn(validateEmbeddedProxySource)
+}
+tasks.named<ProcessResources>(embeddedProxy.processResourcesTaskName) {
+    // Keep proxy assets out of the PC-Agent's root static namespace while still
+    // packaging them into the shared runtime classpath under a dedicated path.
+    from(proxyProjectDir.resolve("src/main/resources/static")) {
+        into("static/proxy-dashboard")
+    }
 }
 
 configurations[embeddedProxy.implementationConfigurationName].extendsFrom(configurations.implementation.get())

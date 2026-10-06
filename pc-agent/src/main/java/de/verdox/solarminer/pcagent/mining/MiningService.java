@@ -200,7 +200,7 @@ public class MiningService {
         // Node assignments are exclusive per physical GPU.
         boolean stopped = true;
         if (!"pearl".equals(coin)) stopped = pearlMinerService.stopGpu(vendor, index);
-        for (String other : List.of("ravencoin", "ethereumclassic"))
+        for (String other : List.of("ravencoin", "ethereumclassic", "decred", "quantus"))
             if (!other.equals(coin)) stopped = gpuCoins.stopGpu(other, vendor, index) && stopped;
         if (!stopped) return false;
         return "pearl".equals(coin) ? pearlMinerService.startGpu(vendor, index) : gpuCoins.startGpu(coin, vendor, index);
@@ -344,7 +344,9 @@ public class MiningService {
         boolean pearlStopped = pearlMinerService.stop();
         boolean ravenStopped = gpuCoins.stop("ravencoin");
         boolean etcStopped = gpuCoins.stop("ethereumclassic");
-        boolean gpuStopped = pearlStopped && ravenStopped && etcStopped;
+        boolean decredStopped = gpuCoins.stop("decred");
+        boolean quantusStopped = gpuCoins.stop("quantus");
+        boolean gpuStopped = pearlStopped && ravenStopped && etcStopped && decredStopped && quantusStopped;
         xmrMinerService.hardStopMining();
         return gpuStopped;
     }
@@ -484,6 +486,8 @@ public class MiningService {
                     case "pearl" -> "pearlhash".equalsIgnoreCase(worker.currentAlgorithm());
                     case "ravencoin" -> "kawpow".equalsIgnoreCase(worker.currentAlgorithm());
                     case "ethereumclassic" -> "etchash".equalsIgnoreCase(worker.currentAlgorithm());
+                    case "decred" -> "blake3_decred".equalsIgnoreCase(worker.currentAlgorithm());
+                    case "quantus" -> "quantus".equalsIgnoreCase(worker.currentAlgorithm());
                     default -> false;
                 }).toList();
     }
@@ -493,7 +497,7 @@ public class MiningService {
         workers.add(xmrMinerService.getWorkerStats());
         workers.addAll(pearlMinerService.workerStats(discoveredGpus == null ? gpuPowerService.discover() : discoveredGpus));
         List<LocalGpuPowerService.Gpu> cards = discoveredGpus == null ? gpuPowerService.discover() : discoveredGpus;
-        for (String coin : List.of("ravencoin", "ethereumclassic"))
+        for (String coin : List.of("ravencoin", "ethereumclassic", "decred", "quantus"))
             if (coin.equals(activeCoin) || gpuCoins.running(coin) || (controls.get().workerCoins() != null && controls.get().workerCoins().containsValue(coin)))
                 workers.addAll(gpuCoins.workerStats(coin, cards));
         return workers;

@@ -94,6 +94,6 @@ class NodeMiningProfileTest {
     }
 
     private static MinerStats.Worker worker(String id, String algorithm) {
-        return new MinerStats.Worker(MinerStats.MinerStatus.MINING, id, algorithm, 1, 50, 200, 100, 200, 250, 200, List.of(), "GPU", "Test", id, null, null);
+        return new MinerStats.Worker(MinerStats.MinerStatus.MINING, id, algorithm, 1, 50, 200, 100, 200, 250, 200, List.of(), "GPU", "Test", id, null, null, MinerStats.PoolTelemetry.unavailable());
     }
 }

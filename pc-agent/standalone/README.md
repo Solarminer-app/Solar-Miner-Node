@@ -39,6 +39,12 @@ Pearl requires a saved valid configuration, the explicitly installed SRBMiner
 binary, a selected supported GPU and a reachable local proxy with a loaded fee
 route. It does not start automatically.
 
+Decred is listed as an experimental SRBMiner GPU option. Its local proxy listener
+uses the Decred Haste subscribe shape. Mining remains unavailable until the fee
+service returns a valid SolarMiner house target for DCR; the Agent checks this
+automatically and fails closed while the target is missing. Do not treat the
+pool preset or installer selection as production support.
+
 The Mining page shows a separate live console for each agent-managed miner. Output is appended to `./solarminer-agent/logs/xmrig-console.log` and `./solarminer-agent/logs/srbminer-console.log`, including previous runs, and can be downloaded from the miner view. The page reads the files in chunks via `/api/agent/local/console/{monero|pearl}`. Each active log is capped at 10 MiB; when that limit is reached, the previous log is retained once as `.log.1`. These local files may contain pool login details.
 
 Opening a miner tab only changes the dashboard view. XMRig and SRBMiner can run at the same time; each selected Pearl GPU has its own SRBMiner process, API port, status, controls and console. The CPU and GPU start/pause buttons affect only the viewed miner. Saving a Pearl configuration that merely adds GPUs keeps existing GPU processes running; changing its pool, wallet, worker or proxy stops the affected Pearl processes. Changing the proxy host stops both coin paths because their routes must be revalidated.

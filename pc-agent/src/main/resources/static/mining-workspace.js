@@ -1,8 +1,8 @@
 // Local view state is independent of the persistent Node mining profile.
 (() => {
   const byId = id => document.getElementById(id);
-  const labels = {none: 'Nur lokal / Benchmarks', monero: 'Monero · XMR', pearl: 'Pearl · PRL', ravencoin: 'Ravencoin · RVN', ethereumclassic: 'Ethereum Classic · ETC'};
-  let overview, settings, power, saving = false, loading = false, view = 'status', initialProfile = true;
+  const labels = {none: 'Nur lokal / Benchmarks', monero: 'Monero · XMR', pearl: 'Pearl · PRL', ravencoin: 'Ravencoin · RVN', ethereumclassic: 'Ethereum Classic · ETC', decred: 'Decred · DCR', quantus: 'Quantus · QTC'};
+  let overview, settings, power, saving = false, loading = false, initialProfile = true;
   const element = (tag, cls, text) => {
     const el = document.createElement(tag); el.className = cls || '';
     if (text !== undefined) el.textContent = text;
@@ -55,7 +55,7 @@
       const label = element('label', '', 'Standard für den Node');
       const select = element('select'); select.id = `node-coin-${device.deviceId}`; label.htmlFor = select.id;
       select.setAttribute('aria-label', `${device.model}: Standard-Coin für den Node`); select.disabled = saving;
-      for (const key of device.kind === 'CPU' ? ['none', 'monero'] : ['none', 'pearl', 'ravencoin', 'ethereumclassic']) {
+      for (const key of device.kind === 'CPU' ? ['none', 'monero'] : ['none', 'pearl', 'ravencoin', 'ethereumclassic', 'decred', 'quantus']) {
         const option = element('option', '', labels[key]); option.value = key;
         const catalog = overview.coins?.find(c => c.id === key);
         if (key !== 'none' && key !== coin && (!catalog?.binaryAvailable || !catalog?.configured || catalog?.experimental)) option.disabled = true;
@@ -85,7 +85,8 @@
         const link = element('a', '', 'Miner einrichten →'); link.href = `#${coin}`;
         link.addEventListener('click', event => {
           event.preventDefault();
-          if (typeof showView === 'function') { showView(catalog?.binaryAvailable ? coin : 'catalog'); view = 'setup'; renderTabs(); }
+          window.SolarMinerMining?.openCoin(catalog?.binaryAvailable ? coin : 'library');
+          byId('instance-view').scrollIntoView({behavior: 'smooth', block: 'start'});
         }); card.append(link);
       }
       root.append(card);
@@ -110,7 +111,6 @@
     finally { saving = false; renderProfile(); }
   });
 
-  const container = byId('miner-view');
   const editor = byId('automation-editor');
   byId('open-node-profile').addEventListener('click', () => {
     editor.open = true;
@@ -120,32 +120,9 @@
   });
   editor.open = location.hash === '#profile' || sessionStorage.getItem('mining-profile-open') === 'true';
   editor.querySelector('summary').addEventListener('click', () => setTimeout(() => sessionStorage.setItem('mining-profile-open', String(editor.open)), 0));
-  const navigation = element('nav', 'miner-subnav'); navigation.setAttribute('aria-label', 'Miner-Bereiche');
-  const panes = {};
-  for (const [key, title] of [['status', 'Status & Geräte'], ['setup', 'Einrichtung'], ['diagnostics', 'Konsole & Diagnose']]) {
-    const button = element('button', '', title); button.type = 'button'; button.dataset.view = key;
-    button.addEventListener('click', () => { view = key; renderTabs(); }); navigation.append(button);
-    panes[key] = element('div', 'miner-pane'); panes[key].id = `miner-pane-${key}`;
-    button.setAttribute('aria-controls', panes[key].id);
-  }
-  container.querySelector('.stat-grid').after(navigation);
-  const details = byId('miner-details-title').closest('section');
-  panes.status.append(details, byId('gpu-processes-panel'));
-  panes.status.classList.add('miner-status-layout');
-  panes.setup.append(container.querySelector('.two-col'));
-  panes.diagnostics.append(byId('optimization-panel'), container.querySelector('.miner-console-panel'));
-  for (const pane of Object.values(panes)) navigation.after(pane);
-  function renderTabs() {
-    for (const [key, pane] of Object.entries(panes)) pane.hidden = key !== view;
-    for (const button of navigation.children) {
-      button.classList.toggle('selected', button.dataset.view === view);
-      button.setAttribute('aria-current', button.dataset.view === view ? 'page' : 'false');
-    }
-    const fees = byId('fee-panel'); if (fees) panes.setup.append(fees);
-  }
-  window.addEventListener('mining-rendered', event => { overview = event.detail; renderTabs(); renderProfile(); });
+  window.addEventListener('mining-rendered', event => { overview = event.detail; renderProfile(); });
   // The first overview may have arrived before this deferred script.
   if (typeof latest !== 'undefined' && latest) overview = latest;
-  renderTabs(); loadProfile();
+  loadProfile();
   setInterval(() => { if (!document.hidden) loadProfile(); }, 5000);
 })();

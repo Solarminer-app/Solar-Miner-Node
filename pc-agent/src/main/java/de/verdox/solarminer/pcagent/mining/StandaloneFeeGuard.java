@@ -36,7 +36,7 @@ public class StandaloneFeeGuard {
             LOGGER.warning("Stopping SRBMiner-MULTI: standalone proxy or Pearl fee target unavailable");
             pearl.stop();
         }
-        for (String coin : java.util.List.of("ravencoin", "ethereumclassic")) {
+        for (String coin : java.util.List.of("ravencoin", "ethereumclassic", "decred", "quantus")) {
             if (gpuCoins.running(coin) && !proxy.miningReady(coin)) {
                 LOGGER.warning("Stopping SRBMiner-MULTI: " + coin + " fee route unavailable");
                 gpuCoins.stop(coin);

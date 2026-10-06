@@ -4,22 +4,26 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0b1020">
-    <title>SolarMiner · PC-Agent</title>
+    <title>SolarMiner · Dashboard</title>
     <link rel="stylesheet" href="/agent.css">
     <link rel="stylesheet" href="/workspace.css">
+    <link rel="stylesheet" href="/design.css">
     <script src="/i18n.js" defer></script>
     <script src="/workspace.js" defer></script>
     <script src="/wallet-strip.js" defer></script>
     <script src="/telemetry-gate.js" defer></script>
     <script src="/mining-cache.js" defer></script>
+    <script src="/components.js" defer></script>
+    <script src="/pool-catalog.js" defer></script>
     <script src="/overview.js" defer></script>
 </head>
-<body>
+<body class="dashboard-page">
 <div class="shell">
     <header class="topbar"><a class="brand" href="/">☼ <span>SolarMiner <small>PC-Agent</small></span></a>
-        <nav class="nav"><a class="selected" href="/">Overview</a><a href="/mining.html">Mining</a><a
-                href="/benchmarks.html">Benchmarks</a><a href="/hardware.html">Hardware</a><a href="/telemetry.html">Telemetrie</a><a
-                href="/proxy.html">Proxy</a></nav>
+        <nav class="nav"><a class="selected" href="/">Dashboard</a><a href="/mining.html">Miner</a><a
+                href="/workers.html">Worker</a><a href="/pools.html">Pools</a><a href="/benchmarks.html">Benchmarks</a><a
+                href="/hardware.html">Leistungsgrenzen</a><a href="/telemetry.html">Sensoren</a><a
+                href="/proxy.html">Verbindung</a></nav>
         <div class="top-actions"><span id="connection" class="badge">Verbinde …</span>
             <button id="refresh" type="button" class="button subtle">Aktualisieren</button>
         </div>
@@ -28,55 +32,25 @@
     <main>
         <div class="page-title">
             <div><p class="kicker">DEIN PC IM ÜBERBLICK</p>
-                <h1>Übersicht</h1>
+                <h1>Dashboard</h1>
                 <p id="updated">Warte auf Daten</p></div>
-            <a class="button primary" href="/mining.html">Mining öffnen →</a></div>
-        <div id="notice" class="notice error" role="status" hidden></div>
-        <section class="agent-summary" aria-labelledby="summary-title">
-            <div><p class="kicker">DEIN MINING-BETRIEB</p><h2 id="summary-title">Status wird geladen …</h2><p id="summary-description">Laufende Miner, Node-Freigabe und Verbindungsstatus auf einen Blick.</p></div>
-            <div class="summary-metrics"><article><span>AKTIVE WORKER</span><strong id="summary-workers">—</strong><small id="summary-workers-detail">Warte auf Daten</small></article><article><span>NODE-PROFIL</span><strong id="summary-profile">—</strong><small id="summary-profile-detail">Warte auf Daten</small></article></div>
-        </section>
-        <section id="readiness-list" class="readiness-list" aria-label="Betriebsbereitschaft"></section>
-        <section id="next-action" class="next-action" aria-live="polite" hidden><div><h2 id="next-title"></h2><p id="next-description"></p></div><a id="next-link" class="button primary" href="/mining.html">Miner einrichten →</a></section>
-        <section class="section telemetry-dashboard">
-            <div class="section-head">
-                <div><p class="kicker">LIVE-TELEMETRIE</p>
-                    <h2>Aktuelle Messwerte</h2></div>
-                <a href="/telemetry.html">Alle Sensoren →</a></div>
-            <div class="dashboard-chart-grid">
-                <article class="dashboard-chart">
-                    <div class="chart-heading"><span>Hashrate je Algorithmus</span><strong id="chart-hashrate">—</strong></div>
-                    <select id="chart-algorithm" class="chart-selection" aria-label="Algorithmus für Hashrate-Verlauf"></select>
-                    <svg id="hashrate-chart" viewBox="0 0 600 150" role="img" aria-label="Hashrate-Verlauf"></svg>
-                    <small id="chart-workers">Warte auf Worker-Daten</small></article>
-                <article class="dashboard-chart">
-                    <div class="chart-heading"><span>Temperatur</span><strong id="chart-temperature">—</strong></div>
-                    <svg id="temperature-chart" viewBox="0 0 600 150" role="img" aria-label="Temperatur-Verlauf"></svg>
-                    <small id="chart-temperature-label">CPU und GPU</small></article>
-                <article class="dashboard-chart">
-                    <div class="chart-heading"><span>Leistungsaufnahme</span><strong id="chart-power">—</strong></div>
-                    <svg id="power-chart" viewBox="0 0 600 150" role="img" aria-label="Leistungsverlauf"></svg>
-                    <small>CPU- und GPU-Sensoren</small></article>
-            </div>
-            <div class="section-head miner-telemetry-head">
-                <div><p class="kicker">LAUFENDE MINER</p><h2>Worker-Telemetrie</h2></div>
-                <small>Share-Zähler stammen aus der lokalen Miner-API.</small>
-            </div>
-            <div class="worker-telemetry-scroll">
-                <table class="worker-telemetry-table">
-                    <thead><tr><th>Worker</th><th>Algorithmus</th><th>Status</th><th>Hashrate</th><th>Shares</th><th>Temperatur</th><th>Leistung</th></tr></thead>
-                    <tbody id="worker-grid"></tbody>
-                </table>
-            </div>
-        </section>
-        <section class="section panel earnings-compact">
-            <div class="section-head">
-                <div><p class="kicker">ERTRAGSPROGNOSE</p>
-                    <h2>Ertrag pro Tag</h2></div>
-                <span class="muted">Brutto-Schätzung</span></div>
-            <p class="forecast-note">Brutto-Prognose aus aktueller Hashrate und Netzwerkdaten. Gebühren und Stromkosten sind noch nicht abgezogen; dies ist keine Pool-Gutschrift.</p>
-            <div id="earnings-grid" class="earnings-grid"></div>
-        </section>
+            <a class="button primary" href="/workers.html">Worker steuern →</a></div>
+        <div id="status-strip" class="sticky-strip" aria-label="Betriebsstatus"></div>
+        <div id="notice" class="notice error" role="status" aria-live="polite" hidden></div>
+        <section id="alerts" class="alert-list" aria-label="Meldungen"></section>
+        <div class="dashboard-live-layout">
+            <section id="live-workers" class="section live-workers panel" aria-labelledby="live-workers-title">
+                <div class="panel-head"><div><p class="kicker">LIVE-BETRIEB</p><h2 id="live-workers-title">Was gerade arbeitet</h2></div>
+                    <a href="/workers.html">Alle Worker →</a></div>
+                <div id="live-worker-grid" class="live-worker-grid"></div>
+            </section>
+            <section id="energy-summary" class="section panel energy-summary" aria-labelledby="energy-title">
+                <div class="panel-head"><div><p class="kicker">ENERGIE</p><h2 id="energy-title">Verbrauch & Kosten</h2></div>
+                    <button id="energy-settings" class="button subtle" type="button">Tarif</button></div>
+                <div id="energy-kpis" class="energy-kpis"></div>
+                <p id="energy-note" class="muted"></p>
+            </section>
+        </div>
         <footer>SolarMiner PC-Agent</footer>
     </main>
 </div>

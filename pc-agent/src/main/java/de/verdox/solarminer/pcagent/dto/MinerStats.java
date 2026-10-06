@@ -52,8 +52,14 @@ public record MinerStats(
             String hardwareModel,
             String deviceId,
             Long acceptedShares,
-            Long rejectedShares
+            Long rejectedShares,
+            PoolTelemetry pool
     ) {
+    }
+
+    /** Pool-side quality readings straight from the miner API; a null member means "not reported", never zero. */
+    public record PoolTelemetry(Double difficulty, Double bestShareDifficulty, Long staleShares, Long latencyMs) {
+        public static PoolTelemetry unavailable() { return new PoolTelemetry(null, null, null, null); }
     }
 
     public enum MinerStatus {

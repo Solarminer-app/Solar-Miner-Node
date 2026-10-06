@@ -47,6 +47,8 @@ public class GpuCoinMinerService {
     private final LocalGpuPowerService power;
     private final MinerConsoleService console;
     private final Path configDirectory;
+    @Value("${solarminer.quantus.enabled:false}")
+    private boolean quantusEnabled;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(1)).build();
     private final Map<String, Config> configs = new ConcurrentHashMap<>();
     private final Map<String, Run> runs = new ConcurrentHashMap<>();
@@ -62,6 +64,7 @@ public class GpuCoinMinerService {
         volatile double hashrate;
         volatile Long acceptedShares;
         volatile Long rejectedShares;
+        volatile MinerShareTelemetry.Counters poolCounters = MinerShareTelemetry.Counters.unavailable();
         volatile String detail = "Noch nicht gestartet";
         volatile String error;
         volatile int apiPort;
@@ -76,7 +79,7 @@ public class GpuCoinMinerService {
                                @Value("${solarminer.gpu-coin.config-directory:./solarminer-agent/srbminer}") String directory) {
         this.mapper = mapper; this.proxy = proxy; this.pearl = pearl; this.power = power; this.console = console;
         this.configDirectory = Path.of(directory).toAbsolutePath().normalize();
-        for (String coin : List.of("ravencoin", "ethereumclassic")) {
+        for (String coin : List.of("ravencoin", "ethereumclassic", "decred", "quantus")) {
             try {
                 Path file = file(coin);
                 if (Files.isRegularFile(file)) {
@@ -90,8 +93,16 @@ public class GpuCoinMinerService {
         }
     }
 
-    public static boolean supported(String coin) { return "ravencoin".equals(coin) || "ethereumclassic".equals(coin); }
-    public static String algorithm(String coin) { return "ravencoin".equals(coin) ? "kawpow" : "etchash"; }
+    public static boolean supported(String coin) { return "ravencoin".equals(coin) || "ethereumclassic".equals(coin) || "decred".equals(coin) || "quantus".equals(coin); }
+    public static String algorithm(String coin) {
+        return switch (coin) {
+            case "ravencoin" -> "kawpow";
+            case "ethereumclassic" -> "etchash";
+            case "decred" -> "blake3_decred";
+            case "quantus" -> "quantus";
+            default -> throw new IllegalArgumentException("Unbekannter GPU-Coin");
+        };
+    }
     private Path file(String coin) { return configDirectory.resolve("solarminer-" + coin + ".json"); }
     public Config configuration(String coin) { return configs.get(coin); }
     public boolean binaryAvailable() { return pearl.binaryAvailable(); }
@@ -106,8 +117,13 @@ public class GpuCoinMinerService {
         if (config.proxyUrl() == null || !config.proxyUrl().matches("^stratum\\+tcp://[A-Za-z0-9.-]+:[1-9][0-9]{0,4}$")
                 || URI.create(config.proxyUrl()).getPort() > 65535)
             throw new IllegalArgumentException("Proxy muss stratum+tcp://host:port sein");
-        boolean validWallet = "ravencoin".equals(coin) ? validRavencoinAddress(config.wallet())
-                : config.wallet() != null && config.wallet().matches("^0x[0-9a-fA-F]{40}$");
+        boolean validWallet = switch (coin) {
+            case "ravencoin" -> validRavencoinAddress(config.wallet());
+            case "ethereumclassic" -> config.wallet() != null && config.wallet().matches("^0x[0-9a-fA-F]{40}$");
+            case "decred" -> validDecredAddress(config.wallet());
+            case "quantus" -> config.wallet() != null && config.wallet().matches("qz[1-9A-HJ-NP-Za-km-z]{38,58}");
+            default -> false;
+        };
         if (!validWallet)
             throw new IllegalArgumentException("Ungültige " + coin + "-Wallet");
         if (config.worker() == null || !config.worker().matches("^[A-Za-z0-9_-]{1,32}$"))
@@ -139,8 +155,34 @@ public class GpuCoinMinerService {
         } catch (NoSuchAlgorithmException e) { throw new IllegalStateException("SHA-256 unavailable", e); }
     }
 
+    static boolean validDecredAddress(String address) {
+        final String alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+        if (address == null || address.length() < 30 || address.length() > 40) return false;
+        BigInteger value = BigInteger.ZERO;
+        for (char letter : address.toCharArray()) {
+            int digit = alphabet.indexOf(letter);
+            if (digit < 0) return false;
+            value = value.multiply(BigInteger.valueOf(58)).add(BigInteger.valueOf(digit));
+        }
+        byte[] bytes = value.toByteArray();
+        if (bytes.length > 0 && bytes[0] == 0) bytes = Arrays.copyOfRange(bytes, 1, bytes.length);
+        int zeros = 0;
+        while (zeros < address.length() && address.charAt(zeros) == '1') zeros++;
+        byte[] decoded = new byte[zeros + bytes.length];
+        System.arraycopy(bytes, 0, decoded, zeros, bytes.length);
+        if (decoded.length != 26 || (decoded[0] & 0xff) != 0x07
+                || ((decoded[1] & 0xff) != 0x3f && (decoded[1] & 0xff) != 0x1a)) return false;
+        try {
+            MessageDigest sha = MessageDigest.getInstance("SHA-256");
+            byte[] checksum = sha.digest(sha.digest(Arrays.copyOf(decoded, 22)));
+            return Arrays.equals(Arrays.copyOfRange(decoded, 22, 26), Arrays.copyOf(checksum, 4));
+        } catch (NoSuchAlgorithmException e) { throw new IllegalStateException("SHA-256 unavailable", e); }
+    }
+
     public synchronized void configure(String coin, Config config) throws IOException {
         validate(coin, config);
+        if ("quantus".equals(coin) && !quantusEnabled)
+            throw new IllegalArgumentException("QTC-Mining ist bis zur Freigabe gesperrt");
         if (!proxy.matches(config.proxyUrl(), coin)) throw new IllegalArgumentException("SolarMiner-Proxy-Route stimmt nicht");
         if (!stop(coin)) throw new IOException("GPU-Miner konnten nicht angehalten werden");
         Files.createDirectories(configDirectory);
@@ -168,7 +210,7 @@ public class GpuCoinMinerService {
     }
 
     public synchronized boolean start(String coin) {
-        if (!supported(coin)) return false;
+        if (!supported(coin) || ("quantus".equals(coin) && !quantusEnabled)) return false;
         manuallyPaused.removeIf(key -> key.startsWith(coin + ":"));
         boolean success = !selected(coin).isEmpty();
         for (LocalGpuPowerService.Gpu gpu : selected(coin)) success = startGpu(coin, gpu.vendor(), gpu.index()) && success;
@@ -177,7 +219,7 @@ public class GpuCoinMinerService {
     }
 
     public synchronized boolean startGpu(String coin, String vendor, int index) {
-        if (!supported(coin)) return false;
+        if (!supported(coin) || ("quantus".equals(coin) && !quantusEnabled)) return false;
         LocalGpuPowerService.Gpu gpu = selected(coin).stream()
                 .filter(card -> card.vendor().equals(vendor) && card.index() == index).findFirst().orElse(null);
         if (gpu == null) return false;
@@ -193,7 +235,7 @@ public class GpuCoinMinerService {
             return fail(run, "SRBMiner läuft bereits für einen anderen Coin oder außerhalb des PC-Agent");
         try {
             int gpuId = pearl.mappedGpuId(gpu);
-            int apiPort = 13000 + ("ravencoin".equals(coin) ? 0 : 1000) + gpuId;
+            int apiPort = 13000 + switch (coin) { case "ravencoin" -> 0; case "ethereumclassic" -> 1000; case "decred" -> 2000; default -> 3000; } + gpuId;
             String suffix = "-" + (vendor.equals("NVIDIA") ? "n" : "a") + index;
             String worker = config.worker().substring(0, Math.min(config.worker().length(), 32 - suffix.length())) + suffix;
             String login = encodedLogin(config, worker);
@@ -204,6 +246,7 @@ public class GpuCoinMinerService {
             run.process = process; run.apiPort = apiPort; run.status = MinerStats.MinerStatus.MINING;
             run.healthy = false; run.error = null; run.detail = "Warte auf Pool-Job";
             run.acceptedShares = null; run.rejectedShares = null;
+            run.poolCounters = MinerShareTelemetry.Counters.unavailable();
             lastError = null;
             // The aggregate coin console belongs to the whole GPU worker set.
             // Reset it only for the first worker; starting a second GPU must not
@@ -326,7 +369,7 @@ public class GpuCoinMinerService {
         Run run = runs.get(coin + ":" + vendor + ":" + index);
         if (run == null) return true;
         run.status = MinerStats.MinerStatus.PAUSED; run.healthy = false; run.hashrate = 0;
-        run.acceptedShares = null; run.rejectedShares = null; run.detail = "Pausiert";
+        run.acceptedShares = null; run.rejectedShares = null; run.poolCounters = MinerShareTelemetry.Counters.unavailable(); run.detail = "Pausiert";
         Process process = run.process;
         if (process == null || !process.isAlive()) return true;
         console.append(run.consoleId(), "[SolarMiner] Stop: " + MinerStopContext.source());
@@ -380,20 +423,25 @@ public class GpuCoinMinerService {
         return gpuStates(coin, cards).stream().filter(GpuState::selected).map(state -> {
             LocalGpuPowerService.Gpu gpu = cards.stream().filter(card -> card.vendor().equals(state.vendor()) && card.index() == state.index()).findFirst().orElseThrow();
             Run run = runs.get(coin + ":" + gpu.vendor() + ":" + gpu.index());
+            boolean reported = run != null && run.status == MinerStats.MinerStatus.MINING;
+            MinerShareTelemetry.Counters counters = run == null ? MinerShareTelemetry.Counters.unavailable() : run.poolCounters;
             return new MinerStats.Worker(state.status(), "SRBMiner " + gpu.model() + " (" + coin + ")", algorithm(coin),
                     run == null ? 0 : run.hashrate / 1_000_000_000_000.0, 0.0,
                     power.appliedTarget(gpu), gpu.minWatts(), gpu.maxWatts(), gpu.maxWatts(),
                     gpu.currentWatts() == null ? 0 : Math.round(gpu.currentWatts()), pools, "GPU", gpu.model(), gpu.deviceId(),
-                    run == null || run.status != MinerStats.MinerStatus.MINING ? null : run.acceptedShares,
-                    run == null || run.status != MinerStats.MinerStatus.MINING ? null : run.rejectedShares);
+                    reported ? run.acceptedShares : null,
+                    reported ? run.rejectedShares : null,
+                    reported ? new MinerStats.PoolTelemetry(counters.difficulty(), counters.bestShare(), counters.stale(), counters.latencyMs())
+                            : MinerStats.PoolTelemetry.unavailable());
         }).toList();
     }
     private static void updateShares(Run run, JsonNode pool) {
         MinerShareTelemetry.Counters counters = MinerShareTelemetry.srbMiner(pool);
         run.acceptedShares = counters.accepted();
         run.rejectedShares = counters.rejected();
+        run.poolCounters = counters;
     }
-    @PreDestroy public void shutdown() { stop("ravencoin"); stop("ethereumclassic"); }
+    @PreDestroy public void shutdown() { stop("ravencoin"); stop("ethereumclassic"); stop("decred"); stop("quantus"); }
     public record Config(String poolUrl, String proxyUrl, String wallet, String worker, String devices) { }
     public record GpuState(String vendor, int index, String model, boolean selected, MinerStats.MinerStatus status,
                            boolean running, boolean poolHealthy, boolean manuallyPaused, String connectionDetail, String lastError) { }

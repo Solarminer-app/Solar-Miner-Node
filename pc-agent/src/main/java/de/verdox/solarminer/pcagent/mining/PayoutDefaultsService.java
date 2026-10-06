@@ -74,7 +74,7 @@ public class PayoutDefaultsService {
         }
 
         private int separator() {
-            return java.util.Set.of("ravencoin", "ethereumclassic").contains(coin)
+            return java.util.Set.of("ravencoin", "ethereumclassic", "decred", "quantus").contains(coin)
                     ? login.lastIndexOf('.') : login.lastIndexOf('/');
         }
 
@@ -144,7 +144,7 @@ public class PayoutDefaultsService {
             }
             // New GPU coins have no legacy fee targets: an unmarked referral target must
             // never become the operator's default payout destination.
-            return java.util.Set.of("ravencoin", "ethereumclassic").contains(coin) ? null : first;
+            return java.util.Set.of("ravencoin", "ethereumclassic", "decred", "quantus").contains(coin) ? null : first;
         } catch (Exception e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             LOGGER.log(Level.FINE, "Fee-backend payout target could not be resolved for " + coin, e);

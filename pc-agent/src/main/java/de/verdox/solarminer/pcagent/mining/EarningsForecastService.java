@@ -37,7 +37,9 @@ public class EarningsForecastService {
             new CoinDefinition("monero", "XMR", "randomx"),
             new CoinDefinition("pearl", "PRL", "pearlhash"),
             new CoinDefinition("ravencoin", "RVN", "kawpow"),
-            new CoinDefinition("ethereumclassic", "ETC", "etchash"));
+            new CoinDefinition("ethereumclassic", "ETC", "etchash"),
+            new CoinDefinition("decred", "DCR", "blake3_decred"),
+            new CoinDefinition("quantus", "QTC", "quantus"));
 
     private final ObjectMapper mapper;
     private final HttpClient httpClient;

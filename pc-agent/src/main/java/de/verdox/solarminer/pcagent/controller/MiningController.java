@@ -101,11 +101,12 @@ public class MiningController {
     public ProxyOverview proxy() {
         return new ProxyOverview(proxyConfigurationService.host(), proxyConfigurationService.moneroUrl(),
                 proxyConfigurationService.pearlUrl(), proxyConfigurationService.ravencoinUrl(),
-                proxyConfigurationService.ethereumclassicUrl(), proxyConfigurationService.isReachable(),
+                proxyConfigurationService.ethereumclassicUrl(), proxyConfigurationService.decredUrl(), proxyConfigurationService.quantusUrl(), proxyConfigurationService.isReachable(),
                 proxyConfigurationService.standalone() ? "standalone" : "external",
                 proxyConfigurationService.managedStatus(), proxyConfigurationService.managedDetail(),
                 proxyConfigurationService.feeReady("monero"), proxyConfigurationService.feeReady("pearl"),
-                proxyConfigurationService.feeReady("ravencoin"), proxyConfigurationService.feeReady("ethereumclassic"));
+                proxyConfigurationService.feeReady("ravencoin"), proxyConfigurationService.feeReady("ethereumclassic"),
+                proxyConfigurationService.feeReady("decred"), proxyConfigurationService.feeReady("quantus"));
     }
 
     /** The node may set this through the LAN API; local edits are intentionally allowed but not authoritative. */
@@ -153,10 +154,10 @@ public class MiningController {
     }
 
     public record ProxyOverview(String host, String moneroUrl, String pearlUrl,
-                                String ravencoinUrl, String ethereumclassicUrl, boolean reachable,
+                                String ravencoinUrl, String ethereumclassicUrl, String decredUrl, String quantusUrl, boolean reachable,
                                 String mode, String managedStatus, String managedDetail,
                                 boolean moneroFeeReady, boolean pearlFeeReady,
-                                boolean ravencoinFeeReady, boolean ethereumclassicFeeReady) { }
+                                boolean ravencoinFeeReady, boolean ethereumclassicFeeReady, boolean decredFeeReady, boolean quantusFeeReady) { }
 
     @PostMapping("/monero/configuration")
     public boolean setMoneroConfiguration(@RequestBody MoneroConfiguration request) throws java.io.IOException {
@@ -267,7 +268,7 @@ public class MiningController {
     @PostMapping("/pearl/remove")
     public boolean removePearlMiner() {
         if ("DOWNLOADING".equals(srbDownloadService.status()) || !pearlMinerService.stop()
-                || !gpuCoins.stop("ravencoin") || !gpuCoins.stop("ethereumclassic")) return false;
+                || !gpuCoins.stop("ravencoin") || !gpuCoins.stop("ethereumclassic") || !gpuCoins.stop("decred") || !gpuCoins.stop("quantus")) return false;
         return srbDownloadService.remove();
     }
 
@@ -357,7 +358,8 @@ public class MiningController {
     public List<MinerInstallation> minerCatalog() {
         return List.of(
                 installation("monero", "Monero"), installation("pearl", "Pearl"),
-                installation("ravencoin", "Ravencoin"), installation("ethereumclassic", "Ethereum Classic"));
+                installation("ravencoin", "Ravencoin"), installation("ethereumclassic", "Ethereum Classic"),
+                installation("decred", "Decred"), installation("quantus", "Quantus"));
     }
 
     private MinerInstallation installation(String coin, String name) {
@@ -405,7 +407,13 @@ public class MiningController {
                             minerCatalog.selectedIsInstalled("ravencoin"), true, minerCatalog.selected("ravencoin"), minerCatalog.options("ravencoin")),
                     new CoinOverview("ethereumclassic", "Ethereum Classic", "ETC", "GPU", "ETCHash",
                             gpuCoins.status("ethereumclassic"), gpuCoins.configuration("ethereumclassic") != null,
-                            minerCatalog.selectedIsInstalled("ethereumclassic"), true, minerCatalog.selected("ethereumclassic"), minerCatalog.options("ethereumclassic")));
+                            minerCatalog.selectedIsInstalled("ethereumclassic"), true, minerCatalog.selected("ethereumclassic"), minerCatalog.options("ethereumclassic")),
+                    new CoinOverview("decred", "Decred", "DCR", "GPU", "BLAKE3",
+                            gpuCoins.status("decred"), gpuCoins.configuration("decred") != null,
+                            minerCatalog.selectedIsInstalled("decred"), true, minerCatalog.selected("decred"), minerCatalog.options("decred")),
+                    new CoinOverview("quantus", "Quantus", "QTC", "GPU", "QPoW (Poseidon2)",
+                            gpuCoins.status("quantus"), gpuCoins.configuration("quantus") != null,
+                            minerCatalog.selectedIsInstalled("quantus"), true, minerCatalog.selected("quantus"), minerCatalog.options("quantus")));
             return new AgentOverview(stats, active, System.getProperty("os.name", "unknown"),
                     System.getProperty("os.arch", "unknown"), coins, earnings, gpus, proxyResult.join(), savedMoneroConfiguration(),
                     pearlMinerService.configuration(),
@@ -419,7 +427,8 @@ public class MiningController {
                             srbDownloadService.installDirectory().toString()),
                     payoutResult.join(), new ReferralOverview(referralConfigurationService.get()), feeResult.join(),
                     java.util.Map.of("ravencoin", gpuOverview("ravencoin", gpus),
-                            "ethereumclassic", gpuOverview("ethereumclassic", gpus)));
+                            "ethereumclassic", gpuOverview("ethereumclassic", gpus),
+                            "decred", gpuOverview("decred", gpus), "quantus", gpuOverview("quantus", gpus)));
         }
     }
 
@@ -431,7 +440,7 @@ public class MiningController {
     /** Fee-backend payout per coin, shown so an empty wallet is never silently an unknown destination. */
     @GetMapping("/payout-defaults")
     public List<PayoutOverview> payoutDefaults() {
-        return java.util.List.of("monero", "pearl", "ravencoin", "ethereumclassic").stream()
+        return java.util.List.of("monero", "pearl", "ravencoin", "ethereumclassic", "decred", "quantus").stream()
                 .map(coin -> {
                     PayoutDefaultsService.DefaultView view = payoutDefaultsService.view(coin);
                     return new PayoutOverview(coin, view.available(), view.targetId(), view.poolUrl(),

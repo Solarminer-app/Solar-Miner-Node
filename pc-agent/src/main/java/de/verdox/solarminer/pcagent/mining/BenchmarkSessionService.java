@@ -250,7 +250,7 @@ public class BenchmarkSessionService {
             return new MinerStats.Worker(w.miningStatus(), w.workerDisplayName(), w.currentAlgorithm(), medianRate,
                     w.temperatureCelsius(), w.powerTargetWatts(), w.minPowerTarget(), w.defaultPowerTarget(),
                     w.maxPowerTarget(), watts, w.pools(), w.hardwareType(), w.hardwareModel(), w.deviceId(),
-                    w.acceptedShares(), w.rejectedShares());
+                    w.acceptedShares(), w.rejectedShares(), w.pool());
         }).toList();
     }
     @PreDestroy public void close() { cancel = true; executor.shutdownNow(); }

@@ -1,5 +1,20 @@
 # Agent work log
 
+## 2026-10-05 — PC-Agent UI/UX redesign: dashboard KPIs, miner-instance model, new Worker and Pools pages
+
+- Scope and owner: complete redesign of the standalone PC-Agent web UI (`pc-agent/src/main/resources/static`), specified in [PC-Agent UI/UX-Redesign](pc-agent-ui-redesign.md). No cross-repository contract changed; the additive `MinerStats.Worker.pool` telemetry added earlier is the only backend input the new pages need.
+- Information architecture: eight pages in three groups (Betrieb / Optimierung / System). New `workers.html` (all CPU/GPU workers across every miner) and `pools.html` (pool target per coin). Existing URLs unchanged; `mining.html` keeps its address but its coin bar became an instance switcher.
+- Mining model: **miner instance = coin × miner build**, matching what `MinerCatalogService` and `selectedMiner` already model. Several builds per coin can be installed, exactly one is the active build, and switching is an explicit action that keeps the pool/wallet/device configuration. The detail view is split into Status, Geräte, Konfiguration (three guided steps with defaults), Erweitert and Konsole; the library groups packages by coin with multi-select install.
+- Shared components: new `components.js` is the single source for number/unit formatting, status pills, sparklines, sortable tables and the scope bar, so Dashboard, Miner, Worker and Pools use one language. New `pool-catalog.js` replaces the hardcoded `<option>` pool lists; `design.css` carries the token-driven visual system.
+- Frontend resilience pattern: SSE `GET /api/agent/local/events` is the primary source; `stream.onerror` only closes the stream, and a 2 s interval reconnects and polls when data is older than 4 s (1.5 s without a stream). Only a failed `fetch` marks data stale, so a blocked event stream no longer freezes the page.
+- Worker table: fixed column layout with the identity and action columns pinned inside the horizontal scroll zone; per-row start/pause resolves GPU routes through `overview.gpus`, because `GpuState` carries only vendor+index while `MinerStats.Worker.deviceId` is the power-service id.
+- Worker list (second round of user feedback: even the paused tab was wrong — the same GPU was listed twice, once running under one coin and once paused under another, which implies more simultaneous miners than the hardware allows). The list is now the running set only (`MINING`, `ERROR`): a paused miner contributes no row and no running coin chip, and there is no status filter at all, because switching between running and idle devices would offer a view that must not exist. Capacity is stated instead of implied — the hashrate KPI reads `2/2 GPUs im Einsatz`, and any card that runs in no miner raises `1 GPU läuft gerade in keinem Miner · Geräte zuteilen →` above the table. Coin, hardware and search stay a separate scope axis with `n ausgeblendet · Filter zurücksetzen`. The dashboard worker panel now uses the same rule through the new shared `ui.operatingRows()` / `ui.idleDeviceNotice()` helpers, so both surfaces list one row per device and name hardware that runs in no miner; its KPI detail reads `Aktiv / gemeldet` because the reported count still includes idle miners.
+- Pool switch: posts the new target together with the existing wallet, worker, proxy route and devices, so switching a pool cannot erase a payout configuration. CPU coins deliberately omit `proxyUrl`/`devices`.
+- Pools headline (same objection, third surface): `Verbundene Worker 0/13` summed every coin's device selection, so one GPU selected for three coins counted three times and the denominator could never be reached by this agent. The first KPI is now `Laufende Geräte n/m` over distinct hardware (GPU cards + CPU) with the stable-pool-contact count as its detail line; the per-coin fact is renamed `Pool-Kontakt` and stays scoped to that one coin's selection, where the ratio is a true statement about a single miner.
+- i18n: German remains the source language; `i18n.js` gained the missing exact entries and regex patterns for the redesigned pages, including dynamic lines such as `1 running worker`, `2/2 GPUs in use`, `No miner is using 1 GPU.`, `1 hidden · Reset filters`, `Pool fee 1%` and `Best share difficulty`. Entries for the dropped status tabs (`Alle Status`, `Fehler anzeigen`, `n/… Worker aktiv`) were deleted instead of left as dead translations.
+- Verification: `.codex-qa/pc-agent-redesign.cjs` (headless Chromium, fixture-driven) — all 14 checks pass: eight pages render without page/console errors and without horizontal overflow at 1440 px and 390 px; mining tabs, per-GPU pause, wizard save payload, library open and per-build install; worker list contains only running workers, the fixture's paused duplicate of `GPU-demo-0` produces no row and no running coin chip, no status filter buttons exist, pausing a card leaves the list and raises the freed-GPU notice plus `1/2 GPUs im Einsatz`, and the scope reset restores the CPU worker; the dashboard worker table is asserted to hold the same running set; pool-switch payload, coin search, and a device denominator that stays at the installed hardware even though both GPUs are selected for three coins; full English rendering on Worker, Pools and Miner. The fixture now applies pause/resume to worker status and GPU `running`, so the capacity statements are exercised instead of asserted against static data. `sh gradlew :pc-agent:test --offline` → BUILD SUCCESSFUL. Screenshots in `.codex-qa/screenshots/pc-agent-redesign/`.
+- Open gate: nothing was exercised against a real XMRig/SRBMiner process, real pools or real GPUs. The fixtures reproduce the verified API shapes; a live agent run must still confirm reported difficulty, latency, stale shares and per-GPU measured watts.
+
 ## 2026-10-05 — Compact multi-miner installation and normalized share telemetry
 
 - Scope and owner: standalone PC-Agent Mining UI and miner-native XMRig/SRBMiner telemetry; the existing additive Core/Node worker-share contract is preserved.
@@ -461,3 +476,102 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - Implementation: `MinerCatalogService.download(coin, minerId)` and `POST /api/agent/local/{coin}/miners/{minerId}/download` address a concrete software ID. The existing coin-default download route remains as compatibility behavior. A selection now succeeds only for an installed, selectable option; the browser disables uninstalled choices and provides an install button for each selectable software option. Installing one software ID does not remove or alter any other installed miner.
 - Contract: the selected miner is persisted per coin, so different coins can retain different selected miner IDs. A shared package such as SRBMiner is intentionally one binary installation serving compatible coins; a future TeamRedMiner installation is independent. The currently displayed TeamRedMiner candidate remains non-selectable until its adapter exists.
 - Verification: added controller coverage for the explicit download route and catalog coverage for direct software-ID dispatch. Java test execution remains blocked by missing Java/JDK in this environment.
+
+## 2026-10-06 — PC-Agent operations UI and persistent local energy journal
+
+- Reframed the four operating pages around operator tasks. Dashboard now leads with live worker cards, per-worker gross USD/day forecast and session energy. Miner is a package-level software library with no process/device controls. Worker lists every physical CPU/GPU, including idle hardware, and owns compatible miner assignment, local/Node permission and start/pause. Pools keeps target management and links back to Worker. The XMR/PRL balance strip now stays directly below the header on all four pages, with a known fiat subtotal.
+- Added additive local APIs: `GET /api/agent/local/workers`, assignment/start/pause per `deviceId`, and `GET /api/agent/local/energy` plus tariff settings. Assignment stops the old worker, rejects unavailable/incompatible software and synchronizes existing GPU coin configurations without implicitly starting a replacement. No Node external, proxy wire, fee or pool accounting contract changed.
+- Added `EnergyJournalService`: five-second server-side integration of positive measured CPU-package/GPU-board watts, per-device sessions, 30-second gap cutoff, atomic active checkpoint, monthly JSONL completion log, tariff settings, measurement coverage and today/7-/30-day summaries. Missing sensors remain unknown; component energy is not claimed as calibrated wall energy.
+- After visual review, collapsed the Dashboard into one desktop operating canvas: live worker cards and energy/cost summary sit side by side. Removed the repeated lower KPI, session-chart, pool, worker-table and earnings blocks; their detail remains in Worker and Pools.
+- Evidence: `JAVA_HOME=/home/lukas/.jdks/graalvm-ce-21.0.2 sh gradlew :pc-agent:test --offline --no-daemon` → 70 tests successful. `node --check` passes for all changed operating-page controllers. `.codex-qa/pc-agent-operations.cjs` passes desktop/mobile Chromium assertions for all four pages, assignment editor, wallet strip, live/energy panels and overflow; screenshots inspected. Real wall-meter comparison, AMD measurements and live long-session recovery remain open. See [operations UI record](pc-agent-operations-ui.md).
+
+## 2026-10-06 — Worker-Zuweisung nicht mehr von Telemetrie blockiert
+
+- Live-Ursache: `/api/agent/local/workers`, Miner-Katalog, Energie und Einstellungen antworteten, während `/api/agent/local/telemetry` länger als acht Sekunden ohne Antwort blieb. `workers.js` wartete mit einem gemeinsamen `Promise.all` auf alle fünf Antworten und renderte deshalb weder Hardwarezeilen noch Zuweisungsaktionen.
+- Änderung: Hardwareinventar und Miner-Katalog sind nun der einzige kritische Ladepfad und werden sofort gerendert. Energie und Node-Einstellungen werden danach optional ergänzt; die langsame Telemetrieabfrage ist für die Zuweisungsseite entfernt. Fehlt kompatible installierte Software, erklärt der Dialog die Sperre und verlinkt direkt zur Installation.
+- Verifikation: Live-Agent auf `127.0.0.1:8084` zeigt fünf Worker ohne Konsolenfehler im Kernpfad. CPU kann frei bleiben, XMR ist bei nicht installiertem XMRig nachvollziehbar gesperrt; GPU/RVN mit installiertem SRBMiner ist auswählbar und der Speichern-Button aktiv. Keine Zuweisung wurde während der Prüfung geschrieben.
+
+## 2026-10-06 — Globale Sprache und Anzeigewährung vereinheitlicht
+
+- Eine browserlokale Sprach- und Währungspräferenz gilt nun auf allen PC-Agent-Seiten. Wallet-Summen, per-Worker-Bruttoertrag, Energiekosten und Stromtarif verwenden denselben locale-sensitiven Formatter; ein Wechsel wird auf der offenen Seite sofort angewendet und bleibt über Navigation/Neuladen erhalten.
+- `FiatRateService` stellt unter `GET /api/agent/local/fiat-rates` stündlich gecachte USD-Basiskurse für EUR/USD/CHF aus dem SolarMiner Currency-Service bereit. Der Browser behält den letzten gültigen Kurs sieben Tage als Offline-Fallback. Ohne verfügbaren Kurs bleibt der Wert in seiner tatsächlichen Ursprungswährung.
+- Ergänzte dynamische Übersetzungen beseitigen gemischte deutsch/englische Texte in Dashboard, Miner-Software und Worker. Verifikation: vollständige `:pc-agent:test --offline`-Suite mit 72 Tests erfolgreich; Chromium-QA wechselt einmal auf CHF und Englisch und bestätigt Persistenz, umgerechnete Werte, keine USD-Reste in Worker-Erträgen sowie keine erkannten deutschen UI-Texte auf den vier Betriebsseiten.
+
+## 2026-10-06 — PC-Agent Englisch als Standardsprache und Übersetzungslücken geschlossen
+
+- Die Standardsprache ist nun Englisch, wenn im Browser noch keine Sprache gewählt wurde. Eine gespeicherte Deutsch-Auswahl bleibt erhalten; Dokument-`lang`, Beschriftung und Formatierungs-Locale folgen der aktiven Sprache.
+- Durchsuchte alle PC-Agent-HTML-, JavaScript- und CSS-Dateien auf sichtbare deutsche Texte. Ergänzte zentrale englische Übersetzungen für Seitenbeschreibungen, Worker-Zuweisung, Sensorzugriff, Proxy-Aktionen, Status-/Fehlermeldungen und die neue Operations-Navigation. Keine API- oder Mining-Verträge geändert.
+- Verifikation: `node --check pc-agent/src/main/resources/static/i18n.js` und `git diff --check` erfolgreich. Kein Browserlauf in diesem Änderungsschritt; die bestehende Chromium-QA im vorherigen Eintrag deckt die vier Betriebsseiten ab, aber die übrigen Agent-Seiten sind hier nur per Quelltextsuche geprüft.
+
+## 2026-10-06 — Decred-BLAKE3 experimenteller PC-Agent-Pfad
+
+- Currency Service now publishes canonical `decred`/DCR price and mining-network inputs; the PC-Agent consumes them for its gross forecast. Miner catalog, worker assignment and SRBMiner command construction include `blake3_decred`; the user pool preset is Suprnova Stratum.
+- The bundled/external proxy recognizes a Decred protocol bean on port 3338 and the PC-Agent validates a mainnet Base58Check DCR payout address. A live fee target is deliberately absent, so `feeReady("decred")` remains false and the managed miner cannot start.
+- No share/proxy/pool capture, accepted DCR share, pool credit or fee account was verified. Protocol implementation, parser fixtures, currency persistence/provider tests and Windows/Linux miner starts still require verification. No tests were added or run in this step.
+
+## 2026-10-06 — Coin-Fee-Gate dynamisch statt DCR-Sonderfreigabe
+
+- Die feste DCR-Sperre wurde entfernt. `feeReady(coin)` prüft jeden syntaktisch
+  gültigen kanonischen Coin-Key und verlangt ein `house:true` Fee-Ziel mit
+  positivem Prozentanteil, Ziel-ID, Pool-Adresse und Worker. Fehlende,
+  referral-only, ungültige oder nicht erreichbare Antworten bleiben gesperrt.
+- Minerstart und SRBMiner-Laufzeitmonitor fragen denselben Fee-Status ab. Damit
+  wird ein neuer Coin automatisch startbar, sobald das Fee-Backend einen
+  gültigen SolarMiner-Account für diesen Coin ausliefert; DCR bleibt bis dahin
+  gesperrt. Das schaltet keine Miner automatisch ein.
+- Verifikation: Quelltextprüfung, keine Tests oder Builds ausgeführt.
+## 2026-10-06 — Quantus QTC PC-Agent GPU path prepared
+
+- Added the QTC forecast consumer, SRBMiner QPoW command selection, GPU worker
+  routing, proxy URL/port `3339`, fee readiness, console routing and UI metadata.
+  The miner catalog entry is non-selectable until the fee account is provisioned.
+- SolarMiner QTC payout address is pending. There is no fee-backend house target,
+  pool submit capture, accepted user/house/referral share, account credit or
+  payout evidence. This is not production mining support.
+- No build or tests were run. See [Quantus integration record](quantus-integration.md)
+  for protocol boundaries, limitations and rollback.
+
+## 2026-10-06 — Zuweisungsgrund für nicht freigegebene Miner anzeigen
+
+- Die Worker-Zuweisung blendet Miner-Einträge mit `selectable=false` nicht mehr
+  kommentarlos aus. Sie zeigt den Kataloggrund an, markiert den Eintrag als
+  derzeit nicht zuweisbar und deaktiviert Speichern sowie den Installationslink.
+- Coins, für die kein Miner freigegeben ist, bleiben in der Coin-Auswahl sichtbar,
+  erscheinen dort aber ausgegraut und tragen den Freigabestatus im Label.
+- Für SRBMiner-MULTI/Quantus bleibt die Zuweisung gesperrt: Das QTC-Hauskonto
+  und verifizierte Pool-/Fee-Gutschriften fehlen weiterhin. Das ist die bereits
+  dokumentierte Integrationsgrenze, keine fehlende SRBMiner-Installation.
+- Keine Backend- oder Mining-Freigabe geändert. Verifikation: Quelltextprüfung;
+  kein Build und keine Tests ausgeführt.
+### 2026-10-06 — Linux CPU-/GPU-Temperaturen im PC-Agent
+
+- Ursache: `LinuxSensorReader` fiel bei fehlender CPU-Beschriftung auf den alphabetisch ersten hwmon-Temperaturwert zurück. Das kann ein NVMe-Sensor sein; auf der verfügbaren Linux-Hostansicht liegt `hwmon0` tatsächlich bei `nvme`, während `k10temp` CPU-Sensoren danach kommen. Die CPU-Anzeige konnte dadurch falsch oder fehlend sein.
+- Änderung: CPU-Temperaturen werden nur noch aus bekannten CPU-/Package-Sensoren (`coretemp`, `k10temp`, `zenpower`, `Tctl`/`Tdie` usw.) beziehungsweise passend benannten Thermal-Zones gelesen. Es wird kein fremder Sensorwert als CPU-Temperatur ausgegeben. Die GPU-Karten in `telemetry.js` rendern jetzt auch die bereits vom Backend gelieferten NVIDIA-/AMD-Temperaturen.
+- Scope: lokaler PC-Agent; kein Node-/Admin-Telemetrie-Wire-Vertrag geändert. AMD-Karten werden anhand DRM-Kartenindex zugeordnet; ein globaler AMD-Fallback wird nur bei genau einem verfügbaren AMD-Temperaturwert verwendet.
+- Verifikation: lokale Sysfs-Namen bestätigen den NVMe-vor-CPU-Fall; `node --check pc-agent/src/main/resources/static/telemetry.js` und `git diff --check` erfolgreich. Java/Gradle sowie ein Lauf auf dem betroffenen Linux-PC waren in dieser Umgebung nicht verfügbar; Hardwareabdeckung bleibt dort zu bestätigen.
+
+### 2026-10-06 — Sensorseite zeigt Fehler statt dauerhaftem Loading
+
+- Die Sensorseite hatte für `GET /api/agent/local/telemetry` kein Timeout. Bei hängendem Request blieb der statische Starttext „Loading sensors“ unbegrenzt stehen; ein Renderfehler wurde ebenfalls nur als Offline-Zustand gemeldet.
+- Der Abruf hat jetzt acht Sekunden Timeout und verhindert parallele Polls. API-Fehler, Timeout und Renderfehler werden im Sensorstatus sichtbar ausgewiesen; die englische Oberfläche hat passende Übersetzungen.
+- Verifikation: `node --check` für `telemetry.js` und `i18n.js`, außerdem `git diff --check`. Kein API-/Wire-Vertrag geändert; ein Live-Agent-Request war hier nicht möglich.
+
+## 2026-10-06 — Embedded Stratum dashboard through the PC-Agent
+
+- The bundled Stratum proxy intentionally binds its HTTP and Stratum listeners to loopback (`127.0.0.1`); its dashboard on port 8090 therefore is not directly available from other hosts. Added a narrow GET-only reverse route on the PC-Agent at `/proxy-dashboard/`, reachable through the Agent web port 8084. The Agent proxies only dashboard HTML/assets and the two read-only dashboard API paths to its loopback proxy; all other paths/methods remain unavailable.
+- The PC-Agent Connection page exposes the dashboard link only while local proxy mode is selected and running. The proxy's own page now uses relative asset/API paths so it renders from both `/` and the Agent mount path. No Stratum or fee contract changed and port 8090 remains loopback-only.
+- Verification: source inspection only; no build, tests, or browser session run. Expected local URL: `http://127.0.0.1:8084/proxy-dashboard/`.
+- Follow-up diagnostic: the reported `/proxy-dashboard/` response is the PC-Agent's normal UI, consistent with the currently running Agent predating this controller. The new explicit slash route is present in source. A Gradle compile was attempted but the sandbox cannot write the existing Gradle wrapper lock under `/home/lukas/.gradle`; no updated JAR was built or deployed here, so the active Agent must be rebuilt and restarted before this URL can route to the dashboard.
+
+## 2026-10-06 — Currency-Service: Zuständigkeit klar dem eigenen Repo zugewiesen
+
+- Anlass: `currency-rates/` in diesem Repo ist ein Überbleibsel der Ausgliederung vom 2026-10-04. Der Service lebt im eigenen Git-Repo `currency-service` (`https://github.com/Solarminer-app/currency-service`); Agenten konnten die Node-Kopie trotzdem als aktuelle Implementierung lesen, weil Wiki, Enzyklopädie und das Coin-Integrations-Guide sie dort verorteten.
+- Änderung: `AGENTS.md` (Workspace und dieses Repo), `docs/agent-wiki/README.md` (Responsibility-Map, Dokumentenkatalog, Feature-Workflow), `docs/agent-wiki/currency-data.md` (Banner: Service-Sicht nach `currency-service` verschoben), `README.md` sowie `NEW-MINING-COIN-GUIDE.md` sagen jetzt eindeutig: Code, Tests, Release und Vertragsdoku des Currency-Service ändern sich ausschließlich in `currency-service`; dieses Repo konsumiert nur die HTTP-API (`CURRENCY_MICRO_SERVICE_URL`). Zusätzlich liegt eine Warndatei in `currency-rates/AGENTS.md`.
+- Evidenz: `git rev-parse --show-toplevel` in `currency-service/` ergibt `.../Solarminer/currency-service`, Remote `Solarminer-app/currency-service`. `diff -rq` der beiden `src`-Bäume zeigt drei abweichende Dateien (`OpenApiConfiguration`, `CoinGeckoPriceService`, `MiningNetworkDataService`) — alle zugunsten des eigenen Repos; die Kopie hier hat keine `conflux`-, `decred`- oder `quantus`-Collector.
+- Offene Aufräum-Gate (nicht ausgeführt, Entscheidung nötig): `settings.gradle.kts` enthält weiterhin `include("currency-rates")`, `docker-compose.node-sim.yml` baut den Port 8081 aus `./Solar-Miner-Node/currency-rates/build/libs`, und `.github/workflows/docker-deploy-currency_rates_service.yml` released bei `currency-rates-v*`-Tags. Ein Build oder Image aus diesem Repo beweist daher nichts über `currency.solarminer.app`.
+
+## 2026-10-06 — Correct embedded dashboard asset namespace
+
+- The user's bootRun log showed the proxy's DispatcherServlet on port 8090, while `/proxy-dashboard/` still returned the PC-Agent home page. Root cause: the embedded proxy source set intentionally omitted proxy resources, and the proxy Spring context shared the PC-Agent classpath, so `GET /` resolved PC-Agent `static/index.html`.
+- The PC-Agent build now packages only the proxy dashboard files under `static/proxy-dashboard/`. The proxy exposes those assets and its dashboard APIs under `/embedded-dashboard/**`; the PC-Agent reverse route maps its public `/proxy-dashboard/**` paths to that namespace. Standalone proxy `/` remains unchanged. Explicit trailing-slash route is included.
+- Verification: `JAVA_HOME=/home/lukas/.jdks/graalvm-ce-21.0.2 ... sh gradlew :pc-agent:compileJava :pc-agent:embeddedProxyClasses --offline --no-daemon` succeeded. Confirmed the three assets are present in `pc-agent/build/resources/embeddedProxy/static/proxy-dashboard/`. No tests or live browser request were run. Restart PC-Agent `:pc-agent:bootRun` to load this packaging change.

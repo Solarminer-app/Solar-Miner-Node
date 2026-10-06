@@ -2,7 +2,72 @@
   const preferenceKey = 'solarminer.pc-agent.language';
   const supported = ['de', 'en'];
   const saved = (() => { try { return localStorage.getItem(preferenceKey); } catch (_) { return null; } })();
-  const locale = supported.includes(saved) ? saved : (navigator.language || 'en').toLowerCase().startsWith('de') ? 'de' : 'en';
+  const locale = supported.includes(saved) ? saved : 'en';
+  const currencyKey = 'solarminer.agent.currency';
+  const fiatCacheKey = 'solarminer.agent.fiat-rates';
+  const supportedCurrencies = ['EUR', 'USD', 'CHF'];
+  let currency = (() => { try { const value = localStorage.getItem(currencyKey); return supportedCurrencies.includes(value) ? value : 'USD'; } catch (_) { return 'USD'; } })();
+  let fiatRates = {USD: 1};
+  let fiatRateDate = null;
+  let fiatRatesStale = true;
+  try {
+    const cached = JSON.parse(localStorage.getItem(fiatCacheKey) || 'null');
+    if (cached?.rates?.USD === 1 && Date.now() - Number(cached.savedAt || 0) < 7 * 86400000) {
+      fiatRates = cached.rates; fiatRateDate = cached.dataUtcDate || null; fiatRatesStale = true;
+    }
+  } catch (_) { }
+
+  const localeTag = () => locale === 'de' ? 'de-DE' : 'en-US';
+  const convertMoney = (value, sourceCurrency = 'USD', targetCurrency = currency) => {
+    const source = String(sourceCurrency || 'USD').toUpperCase(), target = String(targetCurrency || currency).toUpperCase();
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return null;
+    if (source === target) return amount;
+    const sourceRate = fiatRates[source], targetRate = fiatRates[target];
+    return sourceRate > 0 && targetRate > 0 ? amount / sourceRate * targetRate : null;
+  };
+  const money = (value, sourceCurrency = 'USD', options = {}) => {
+    const converted = convertMoney(value, sourceCurrency);
+    const displayCurrency = converted == null ? String(sourceCurrency || 'USD').toUpperCase() : currency;
+    return new Intl.NumberFormat(localeTag(), {style: 'currency', currency: displayCurrency, maximumFractionDigits: 2, ...options})
+      .format(converted == null ? Number(value || 0) : converted);
+  };
+  const notifyPreferences = () => document.dispatchEvent(new CustomEvent('solarminer:preferences-changed', {detail: {language: locale, currency}}));
+  const preferences = {
+    get language() { return locale; }, get locale() { return localeTag(); }, get currency() { return currency; },
+    get currencies() { return [...supportedCurrencies]; }, get rates() { return {...fiatRates}; },
+    get rateDate() { return fiatRateDate; }, get ratesStale() { return fiatRatesStale; },
+    convert: convertMoney, money, moneyFromUsd: value => money(value, 'USD'),
+    setCurrency(value) {
+      if (!supportedCurrencies.includes(value) || value === currency) return;
+      currency = value; try { localStorage.setItem(currencyKey, currency); } catch (_) { }
+      notifyPreferences();
+    },
+    async refreshRates() {
+      try {
+        let snapshot;
+        try {
+          const response = await fetch('/api/agent/local/fiat-rates', {cache: 'no-store'});
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          snapshot = await response.json();
+        } catch (_) {
+          // Compatibility fallback for a UI updated before the local agent process has restarted.
+          const values = await Promise.all(['EUR', 'CHF'].map(async code => {
+            const response = await fetch(`https://api.frankfurter.dev/v2/rate/usd/${code.toLowerCase()}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return [code, Number((await response.json()).rate)];
+          }));
+          snapshot = {rates: Object.fromEntries([['USD', 1], ...values]), dataUtcDate: null, stale: false};
+        }
+        const next = {USD: 1};
+        for (const code of supportedCurrencies) if (Number(snapshot.rates?.[code]) > 0) next[code] = Number(snapshot.rates[code]);
+        fiatRates = next; fiatRateDate = snapshot.dataUtcDate || null; fiatRatesStale = Boolean(snapshot.stale);
+        try { localStorage.setItem(fiatCacheKey, JSON.stringify({rates: fiatRates, dataUtcDate: fiatRateDate, savedAt: Date.now()})); } catch (_) { }
+        notifyPreferences();
+      } catch (_) { /* Values remain truthful in their source currency until a rate is available. */ }
+    }
+  };
+  window.SolarMinerPreferences = preferences;
   const translations = {
     'Hardware-Monitor angehalten': 'Hardware monitor stopped', 'Hardware-Monitor fehlgeschlagen': 'Hardware monitor failed',
     'Lokale Sensor-API deaktiviert': 'Local sensor API disabled', 'Lokale Sensor-API nicht erreichbar': 'Local sensor API unavailable',
@@ -10,6 +75,58 @@
     'LibreHardwareMonitor wird nach Windows-UAC-Freigabe neu gestartet.': 'LibreHardwareMonitor will restart after Windows UAC approval.',
     'LibreHardwareMonitor wird mit Windows-UAC-Rechten gestartet.': 'LibreHardwareMonitor is starting with Windows UAC permissions.',
     "Bereits ausgezahlter Bestand": "Already paid balance",
+    "Miner-Software": "Miner software",
+    "Worker einrichten →": "Configure workers →",
+    "Miner-Software verwalten →": "Manage miner software →",
+    "Kompatible Miner-Software installieren →": "Install compatible miner software →",
+    "Verfügbare Programme": "Available programs",
+    "Mining-Programme installieren, aktualisieren, reparieren oder entfernen. Coins, Geräte und Starts ordnest du anschließend im Bereich Worker zu.": "Install, update, repair or remove mining programs. Assign coins, devices and start controls in the Worker section.",
+    "Jedes Softwarepaket erscheint genau einmal – auch wenn es mehrere Coins unterstützt.": "Each software package appears exactly once, even when it supports multiple coins.",
+    "Die Software ist bereit und kann einem Worker zugewiesen werden.": "The software is ready and can be assigned to a worker.",
+    "LOKALE BIBLIOTHEK": "LOCAL LIBRARY",
+    "SOFTWARE": "SOFTWARE",
+    "Alle Worker": "All workers",
+    "Hier weist du CPU und GPUs einem Coin, einer installierten Miner-Software und einem Steuerungsmodus zu.": "Assign each CPU and GPU to a coin, installed mining software and a control mode here.",
+    "Laufend / erkannte Komponenten": "Running / detected components",
+    "Nur verfügbare Sensorwerte": "Available sensor readings only",
+    "Ändern": "Change",
+    "Leistungs- und Energiewerte werden nur angezeigt, wenn der Agent einen echten Sensorwert erhält. Fehlende Messwerte werden nicht als null Verbrauch gewertet.": "Power and energy values are shown only when the agent receives a real sensor reading. Missing readings are not counted as zero consumption.",
+    "Komponente": "Component",
+    "Zuweisung": "Assignment",
+    "Session-Energie": "Session energy",
+    "Steuerung": "Control",
+    "Nicht zugewiesen": "Unassigned",
+    "Freie Kapazität": "Free capacity",
+    "Standardroute": "Default route",
+    "Node erlaubt": "Node allowed",
+    "Node-Automatik": "Node automation",
+    "Node-Automatik global erlauben": "Allow global Node automation",
+    "Dieses Gerät für die Node freigeben": "Allow the Node to control this device",
+    "Die globale Node-Automatik kann zusätzlich alle Freigaben sperren.": "Global Node automation can additionally block all device permissions.",
+    "Für Node freigegeben": "Available to Node",
+    "erlaubt": "allowed",
+    "gesperrt": "blocked",
+    "Node-Automatik global erlaubt.": "Global Node automation enabled.",
+    "Node-Automatik global gesperrt.": "Global Node automation blocked.",
+    "Energie heute": "Energy today",
+    "Stromkosten heute": "Electricity cost today",
+    "Algorithmen": "Algorithms",
+    "Laufende Sessions": "Running sessions",
+    "Messabdeckung": "Measurement coverage",
+    "ENERGIE-JOURNAL": "ENERGY JOURNAL",
+    "Verbrauch dieser Sessions": "Consumption of these sessions",
+    "LIVE-BETRIEB": "LIVE OPERATION",
+    "Was gerade arbeitet": "What is running now",
+    "Alle Worker →": "All workers →",
+    "Worker öffnen →": "Open worker →",
+    "Verbrauch & Kosten": "Consumption & cost",
+    "Tarif": "Rate",
+    "HEUTE": "TODAY",
+    "Heute": "Today",
+    "Fehlende Sensorintervalle werden nicht geschätzt": "Missing sensor intervals are not estimated",
+    "Zuweisungen & Steuerung →": "Assignments & control →",
+    "Stromtarif": "Electricity tariff",
+    "Worker zuweisen": "Assign workers",
     "Unbekannt": "Unknown",
     "Architektur unbekannt": "Unknown architecture",
     "dieses Betriebssystem": "this operating system",
@@ -205,6 +322,10 @@
     "Messverlauf seit Öffnen dieser Seite": "Measurement history since opening this page",
     "Sensorwerte konnten nicht geladen werden": "Could not load sensor readings",
     "Ertrag pro Tag": "Daily earnings",
+    "Ertrag pro kWh": "Earnings per kWh",
+    "brutto · bei gemessener Workerleistung": "gross · at measured worker power",
+    "Hashrate oder gemessene Watt fehlen": "Hashrate or measured watts are missing",
+    "Nur bei laufendem Miner": "Only while the miner runs",
     "Brutto-Prognose aus aktueller Hashrate und Netzwerkdaten. Gebühren und Stromkosten sind noch nicht abgezogen; dies ist keine Pool-Gutschrift.": "Gross forecast from current hashrate and network data. Fees and electricity costs have not been deducted; this is not a pool credit.",
     "Ertragsprognosen erscheinen, sobald ein Miner eingerichtet ist und Hashrate liefert.": "Earnings forecasts appear once a miner is configured and reports hashrate.",
     "Dynamische Leistungsregelung": "Dynamic power control",
@@ -353,6 +474,7 @@
     'Status': 'Status', 'Monero-Route': 'Monero route', 'Pearl-Route': 'Pearl route', 'Monero Dev-Fee-Ziel': 'Monero dev-fee target', 'Pearl Dev-Fee-Ziel': 'Pearl dev-fee target',
     'Externer Proxy-Host': 'External proxy host', 'Proxy im Netzwerk suchen': 'Find proxy on network', 'Hardware & Telemetrie öffnen →': 'Open hardware & telemetry →', 'API-Dokumentation ↗': 'API documentation ↗',
     'HARDWARE & SENSOREN': 'HARDWARE & SENSORS', 'Sensoren werden geladen': 'Loading sensors', 'GESAMTLEISTUNG': 'TOTAL POWER', 'Warte auf Messwerte': 'Waiting for readings',
+    'Sensoranzeige fehlgeschlagen': 'Could not render sensor data', 'Zeitüberschreitung beim Sensorabruf': 'Sensor request timed out', 'Sensor-API nicht erreichbar': 'Sensor API unavailable',
     'PROZESSOR': 'PROCESSOR', 'GRAFIKKARTEN': 'GRAPHICS CARDS', 'Alle erkannten Geräte': 'All detected devices', 'SENSOREN': 'SENSORS', 'GERÄTE': 'DEVICES', 'MESSWERTE': 'READINGS',
     'Alle Telemetriedaten': 'All telemetry data', 'Werte ohne Sensorquelle erscheinen als nicht verfügbar. Gesamtleistung summiert CPU-Package und erkannte GPU-Boardwerte.': 'Values without a sensor source are unavailable. Total power adds CPU package and detected GPU board readings.',
     'JSON-Schnittstelle ↗': 'JSON endpoint ↗', 'Treiberwerte werden vor jeder Änderung geprüft.': 'Driver values are checked before every change.',
@@ -411,7 +533,156 @@
     'Lokaler Mining-Dienst bereit': 'Local mining service ready', 'SolarMiner-Proxy erreichbar': 'SolarMiner proxy reachable',
     'Bitte bestätige die Windows-Sicherheitsabfrage. Der PC-Agent wartet auf die Administratorfreigabe.': 'Please approve the Windows security prompt. The PC agent is waiting for administrator approval.',
     'LibreHardwareMonitor läuft nicht. Windows benötigt eine Administratorfreigabe, um den Hardware-Monitor neu zu starten.': 'LibreHardwareMonitor is not running. Windows requires administrator approval to restart the hardware monitor.',
-    'Warte auf Windows-Freigabe …': 'Waiting for Windows approval …', 'Windows-Freigabe wird angefordert …': 'Requesting Windows approval …'
+    'Warte auf Windows-Freigabe …': 'Waiting for Windows approval …', 'Windows-Freigabe wird angefordert …': 'Requesting Windows approval …',
+    // Redesigned dashboard, miner, worker and pool pages.
+    'Aktiver Build für diesen Coin': 'Active build for this coin', 'Als aktiven Build wählen': 'Set as active build',
+    'Diesen Miner installieren': 'Install this miner', 'Miner-Installation entfernen': 'Remove miner installation',
+    'Pool & Auszahlung': 'Pool & payout', 'Wallet & Worker': 'Wallet & worker', 'Auszahlung & Worker': 'Payout & worker', 'Geräte': 'Devices',
+    'Mining-Pool wählen': 'Choose mining pool', 'Miner-Log wählen': 'Choose miner log', 'Miner anpassen': 'Edit miner',
+    'Miner oder Coin suchen': 'Search miner or coin', 'Worker, Miner oder Pool suchen': 'Search worker, miner or pool',
+    'Worker, Gerät oder Coin suchen': 'Search worker, device or coin', 'Coin, Pool oder Adresse suchen': 'Search coin, pool or address',
+    'Coin wählen': 'Choose coin', 'Worker filtern': 'Filter workers', 'Worker': 'Worker', 'Öffnen': 'Open',
+    'Starten': 'Start', 'Pausieren': 'Pause', 'nicht erreichbar': 'unavailable', 'kein Miner läuft': 'no miner running',
+    'Keine Einträge.': 'No entries.', 'Kein Miner passt zur Suche.': 'No miner matches the search.',
+    'Kein Worker passt zu den Filtern.': 'No worker matches the filters.', 'Ziel noch nicht gewählt': 'Target not selected yet',
+    'Der Agent hat die Änderung abgelehnt.': 'The agent rejected the change.', 'Aktionen sind danach verfügbar.': 'Actions become available afterwards.',
+    'GEBÜHREN': 'FEES', 'Gemessene Worker-Leistung': 'Measured worker power', 'Heißestes Gerät': 'Hottest device',
+    'Höchste Temperatur': 'Highest temperature', 'Laufende Geräte': 'Running devices', 'Pool-Kontakt': 'Pool contact',
+    'Ausgewählte Geräte dieses Coins mit Pool-Kontakt': 'Selected devices of this coin with pool contact', 'Coins mit Pool': 'Coins with a pool',
+    'Aktuelles Pool-Ziel': 'Current pool target', 'Aktuelle Pool-Difficulty': 'Current pool difficulty', 'Verfügbare Ziele': 'Available targets',
+    'Der Miner spricht immer den Proxy an': 'The miner always talks to the proxy', 'Von der Miner-API gemessen': 'Measured by the miner API',
+    'Gemessen von der Miner-API des laufenden Miners': 'Measured by the miner API of the running miner',
+    'Wallet aus der Miner-Konfiguration': 'Wallet from the miner configuration', 'Ohne Fee-Ziel startet der betreffende Miner nicht': 'Without a fee target the miner will not start',
+    'Eigene Pool-Adresse verwenden': 'Use a custom pool address', 'Eigenes Ziel übernehmen': 'Apply custom target',
+    'Wallet und Worker bleiben unverändert. Prüfe, dass die Wallet zum gewählten Pool passt.': 'Wallet and worker stay unchanged. Make sure the wallet matches the selected pool.',
+    'Poolwechsel läuft …': 'Switching pool …', 'Miner läuft': 'Miner running',
+    'Der Proxy ist nicht erreichbar; Poolwechsel ist erst nach der Verbindung möglich.': 'The proxy is unavailable; switching pools works only after connecting.',
+    'Den zugehörigen Miner öffnen': 'Open the related miner', 'Algorithmus für Hashrate und Effizienz': 'Algorithm for hashrate and efficiency',
+    'für Installation auswählen': 'select for installation', 'Noch nicht integriert': 'Not integrated yet',
+    'Vollständiges Log herunterladen': 'Download full log', 'Leistungsziel übernehmen': 'Apply power target',
+    'Pool-Adresse ungültig. Format: stratum+tcp://host:port oder stratum+ssl://host:port': 'Invalid pool address. Format: stratum+tcp://host:port or stratum+ssl://host:port',
+    'Pool-Difficulty wird nicht gemeldet': 'Pool difficulty is not reported', 'Keine GPU erkannt. Prüfe Treiber und die Seite Leistungsgrenzen.': 'No GPU detected. Check the drivers and the Power limits page.',
+    'Kein SolarMiner-Standardziel erreichbar. Eigene Wallet angeben oder Proxy auf der Seite Verbindung prüfen.': 'No SolarMiner standard destination reachable. Enter your own wallet or check the proxy on the Connection page.',
+    'Der Miner läuft nicht. Starten übernimmt die gespeicherte Konfiguration.': 'The miner is not running. Starting uses the saved configuration.',
+    'Dieser Miner ist noch nicht installiert. Nach der Installation kannst du Pool, Wallet und Geräte konfigurieren.': 'This miner is not installed yet. After installation you can configure pool, wallet and devices.',
+    'Eigene Auszahlung: Pool und Wallet müssen zueinander passen.': 'Own payout: pool and wallet must match each other.',
+    'Installation gestartet. Der Fortschritt erscheint in der Miner-Liste.': 'Installation started. The progress appears in the miner list.',
+    'Kein Coin ausgewählt. Öffne die Miner-Bibliothek.': 'No coin selected. Open the miner library.',
+    'Dieser Coin hat noch keinen Miner im Katalog.': 'This coin has no miner in the catalog yet.',
+    'Für diesen Coin ist keine Mining-Software im Katalog.': 'No mining software is in the catalog for this coin.',
+    'Für diesen Hardware-Filter ist keine Mining-Software verfügbar.': 'No mining software is available for this hardware filter.',
+    'Monero läuft auf der CPU. Temperaturen stammen aus der lokalen Sensor-API, der Miner selbst meldet keine.': 'Monero runs on the CPU. Temperatures come from the local sensor API; the miner itself reports none.',
+    'Monero nutzt die CPU; ein Gerät ist immer aktiv.': 'Monero uses the CPU; one device is always active.',
+    'Neustart erforderlich: Die Einstellung und Windows-Berechtigung sind eingerichtet. Starte Windows neu, damit Huge Pages wirksam werden.': 'Restart required: the setting and Windows permission are configured. Restart Windows to make huge pages effective.',
+    'Ich bestätige: Ohne eigene Wallet geht meine gesamte Mining-Auszahlung an das angezeigte SolarMiner-Standardziel. Die vollständigen Gebühren stehen unter Erweitert.': 'I confirm: without my own wallet, my entire mining payout goes to the displayed SolarMiner standard destination. The full fees are listed under Advanced.',
+    'Alle bekannten Abzüge werden live aufgeschlüsselt. SolarMiner nutzt eine verpflichtende Fee-Route; ist sie nicht erreichbar, startet der Miner nicht.': 'All known deductions are itemised live. SolarMiner uses a mandatory fee route; if it is unavailable, the miner will not start.',
+    'Entfernt die gemeinsame SRBMiner-Installation. Alle GPU-Miner (Pearl, Ravencoin, Ethereum Classic) werden vorher gestoppt; gespeicherte Pool- und Wallet-Daten bleiben erhalten.': 'Removes the shared SRBMiner installation. All GPU miners (Pearl, Ravencoin, Ethereum Classic) are stopped first; saved pool and wallet data is kept.',
+    'Entfernt XMRig. Der Miner wird vorher pausiert; gespeicherte Pool- und Wallet-Daten bleiben erhalten.': 'Removes XMRig. The miner is paused first; saved pool and wallet data is kept.',
+    'LEISTUNG UND ZUSTAND': 'PERFORMANCE AND STATE', 'Aktuelle Werte': 'Current values', 'Miner steuern →': 'Control miners →',
+    'SITZUNGSVERLAUF': 'SESSION HISTORY', 'Messwerte seit Seitenaufruf': 'Readings since the page loaded',
+    'Der Agent hält keine Messhistorik vor; der Verlauf beginnt mit diesem Aufruf.': 'The agent keeps no measurement history; the chart starts with this page load.',
+    'MINING-POOLS': 'MINING POOLS', 'Aktive Pools und Verbindung': 'Active pools and connection', 'Pools verwalten →': 'Manage pools →',
+    'ARBEITENDE GERÄTE': 'WORKING DEVICES', 'Laufende Worker im Detail →': 'Running workers in detail →', 'Aktiv / gemeldet': 'Active / reported',
+    'Temperaturen mit der Angabe „Host-Sensor“ stammen von der lokalen Sensor-API, nicht vom Miner selbst.': 'Temperatures labelled “Host-Sensor” come from the local sensor API, not from the miner itself.',
+    'Temperaturen mit der Angabe „Host-Sensor“ stammen von der lokalen Sensor-API, nicht vom Miner selbst. Difficulty, Latenz und veraltete Shares meldet nur die Miner-API des laufenden Miners.': 'Temperatures labelled “Host-Sensor” come from the local sensor API, not from the miner itself. Difficulty, latency and stale shares are reported only by the miner API of the running miner.',
+    'Brutto-Prognose aus aktueller Hashrate und Netzwerkdaten. Gebühren und Stromkosten sind nicht abgezogen; dies ist keine Pool-Gutschrift.': 'Gross projection from current hashrate and network data. Fees and electricity costs are not deducted; this is not a pool credit.',
+    'Ein Miner ist die Kombination aus Coin und Miner-Programm. Mehrere Programme pro Coin sind installierbar; gestartet wird das markierte.': 'A miner is the combination of a coin and a miner program. Several programs per coin can be installed; the marked one is the one that starts.',
+    'Miner-Bibliothek': 'Miner library', 'Hinzufügen': 'Add', 'Programme installieren': 'Install programs',
+    'Ein Programm kann mehrere Coins bedienen. Mehrere Installationen pro Coin sind möglich; gestartet wird je Coin das als aktiv markierte Programm.': 'One program can serve several coins. Multiple installations per coin are possible; per coin, the marked program is the one that starts.',
+    'Alle Geräte über alle Miner hinweg. Ein Worker gehört immer zu genau einem aktiven Miner seines Coins.': 'All devices across all miners. A worker always belongs to exactly one active miner of its coin.',
+    'Miner anpassen →': 'Edit miner →', 'Alle Hardware': 'All hardware', 'Leistungsgrenzen je GPU →': 'Power limits per GPU →',
+    'Der Miner spricht immer den SolarMiner-Proxy an. Hier wählst du, welches Pool-Ziel der Proxy für einen Coin verwendet.': 'The miner always talks to the SolarMiner proxy. Here you choose which pool target the proxy uses for a coin.',
+    'Proxy verbinden →': 'Connect proxy →', 'Worker ansehen →': 'View workers →',
+    'verbunden': 'connected', 'Mining-Verbindung:': 'Mining connection:', 'Coins mit Pool:': 'Coins with a pool:',
+    'lokaler Proxy': 'local proxy', 'lokaler Mining-Dienst': 'local mining service', 'Nicht eingerichtet': 'Not set up',
+    'Summe gemessener Workerleistung': 'Sum of measured worker power', 'gemessener Workerleistung': 'measured worker power',
+    'Hashrate pro Watt': 'Hashrate per watt', 'Hashrate pro Watt gemessener Workerleistung': 'Hashrate per measured worker watt',
+    'Shares akzeptiert': 'Shares accepted', 'Ablehnungsquote': 'Rejection rate',
+    'Abgelehnte Shares an allen gemeldeten Shares': 'Rejected shares of all reported shares', 'Temperatur': 'Temperature', 'Aktion': 'Action',
+    'Host-Sensor': 'Host sensor', 'Proxy-Ziele': 'Proxy targets', 'Ø Latenz': 'Ø Latency', 'Latenz': 'Latency', 'Fee-Ziele geladen': 'Fee targets loaded',
+    'Proxy-Ziel des Miners': 'Proxy target of the miner', 'Auszahlung': 'Payout', 'Eigene Wallet': 'Own wallet',
+    'Vom Proxy verwendet': 'Used by the proxy', 'Nur im laufenden Betrieb messbar': 'Only measurable while running',
+    'POOL ZWECHSELN': 'SWITCH POOL', 'aktives Ziel': 'active target', 'Aktiver Build': 'Active build', 'Installierbar': 'Installable',
+    'Erweitert': 'Advanced', 'Beste Share-Difficulty': 'Best share difficulty', 'Pool-Latenz': 'Pool latency', 'Agent-Modus': 'Agent mode',
+    'Laufende Worker': 'Running workers', 'Geräte zuteilen →': 'Assign devices →',
+    'Kein Miner läuft gerade. Angehaltene Miner zeigt der Bereich Miner.': 'No miner is running. The Miners section shows paused miners.',
+    'Nur Geräte, die gerade mining. Ein GPU gehört immer zu genau einem laufenden Miner; angehaltene Miner zeigen hier keine Geräte, damit keine zusätzliche Kapazität vorgetäuscht wird.':
+      'Only devices that are mining right now. A GPU always belongs to exactly one running miner; paused miners list no devices here, so no extra capacity is implied.'
+    , 'DEIN PC IM ÜBERBLICK': 'YOUR PC AT A GLANCE', 'Warte auf Daten': 'Waiting for data', 'Worker steuern →': 'Control workers →',
+    'Betriebsstatus': 'Operating status', 'Meldungen': 'Notifications', 'ENERGIE': 'ENERGY', 'Verbrauch & Kosten': 'Consumption & cost',
+    'Der Miner spricht immer den SolarMiner-Proxy an. Hier wählst du, welches Pool-Ziel der Proxy für einen Coin verwendet.': 'The miner always connects to the SolarMiner proxy. Choose the pool destination the proxy uses for a coin here.',
+    'Pools durchsuchen': 'Search pools', 'Sensor, Einheit oder Quelle suchen': 'Search sensor, unit or source', 'Sensoren durchsuchen': 'Search sensors',
+    'Nur verfügbare Messwerte': 'Available readings only', 'Programm, Coin oder Algorithmus suchen': 'Search program, coin or algorithm',
+    'Worker filtern': 'Filter workers', 'Hardwareart': 'Hardware type', 'GERÄTE': 'DEVICES', 'Alle Worker': 'All workers',
+    'Schließen': 'Close', 'Abbrechen': 'Cancel', 'Zuweisung speichern': 'Save assignment', 'Coin & Algorithmus': 'Coin & algorithm',
+    'Dieses Gerät für die Node freigeben': 'Allow the Node to control this device', 'Die globale Node-Automatik kann zusätzlich alle Freigaben sperren.': 'Global Node automation can also block all device permissions.',
+    'Fehlende Messwerte werden nicht als null Verbrauch gewertet.': 'Missing readings are not treated as zero consumption.',
+    'Rohwert:': 'Raw value:', 'Letzter Stand': 'Last update', 'Aktionen sind danach verfügbar.': 'Actions are available afterwards.',
+    'Daten veraltet': 'Data stale', 'Hashrate oder gemessene Watt fehlen': 'Hashrate or measured watts missing', 'Nur bei laufendem Miner': 'Only while miner is running',
+    'CPU starten': 'Start CPU', 'Worker-Name': 'Worker name', 'Bezeichnung für diesen PC im Pool, maximal 32 Zeichen aus Buchstaben, Zahlen, _ und -.': 'Name for this PC in the pool, up to 32 letters, digits, underscores or hyphens.',
+    'keine eigene Auszahlung': 'no personal payout', 'Aktivierung fehlgeschlagen:': 'Activation failed:', 'Lade vollständige Ausgabe …': 'Loading full output …',
+    'Live · vollständiger Verlauf': 'Live · full history', 'Noch keine Miner-Ausgabe': 'No miner output yet', 'Auswahl aufheben': 'Clear selection',
+    'Verfügbare auswählen': 'Select available', 'installiert': 'installed', 'installierbar': 'available to install', 'installieren': 'install',
+    'Status konnte nicht geladen werden:': 'Could not load status:', 'Agent-Daten konnten nicht geladen werden:': 'Could not load agent data:',
+    'Hardwaredaten konnten nicht geladen werden:': 'Could not load hardware data:', 'Proxy-Daten konnten nicht geladen werden:': 'Could not load proxy data:',
+    'Keine Worker passen zu den Filtern.': 'No workers match the filters.', 'Keine Software erforderlich.': 'No software required.',
+    'Installiert und einsatzbereit.': 'Installed and ready.', 'Installiere zuerst eine kompatible Software im Bereich Miner-Software.': 'Install compatible software in the Miner software section first.',
+    'Die Komponente bleibt frei und kann nicht gestartet werden.': 'This component remains unassigned and cannot be started.',
+    'Pool eingerichtet': 'Pool configured', 'Pool fehlt': 'Pool missing', 'Leistung —': 'Power —', 'Temperatur —': 'Temperature —',
+    'Zuweisung gespeichert. Ein laufender vorheriger Worker wurde sicher angehalten.': 'Assignment saved. The previous running worker was stopped safely.',
+    'Suche im lokalen Netzwerk …': 'Searching the local network …', 'auswählen': 'Select', 'FEE-ZIEL GELADEN': 'FEE TARGET LOADED',
+    'FEE-ZIEL FEHLT': 'FEE TARGET MISSING', 'VORBEREITET': 'PREPARED', 'Keine Route verfügbar': 'No route available',
+    'Warte auf Windows-Freigabe …': 'Waiting for Windows approval …', 'LibreHardwareMonitor neu starten': 'Restart LibreHardwareMonitor',
+    'Windows-Freigabe wird angefordert …': 'Requesting Windows approval …', 'Neustart konnte nicht angefordert werden:': 'Could not request restart:',
+    'Noch kein Miner installiert': 'No miner installed yet', 'Wähle in der Miner-Bibliothek einen passenden Build und installiere ihn.': 'Choose a compatible build in the miner library and install it.',
+    'Miner installieren →': 'Install miner →', 'Einrichtung unvollständig': 'Setup incomplete', 'Mining-Verbindung getrennt': 'Mining connection disconnected',
+    'Der Proxy ist nicht erreichbar; ohne ihn starten die Miner nicht.': 'The proxy is unavailable; miners cannot start without it.', 'Worker prüfen →': 'Check workers →',
+    'Node-Steuerung erlaubt, aber kein Gerät freigegeben': 'Node control enabled, but no device is assigned',
+    'Ordne im Worker-Bereich mindestens ein Gerät zu, damit der Node automatisch regeln darf.': 'Assign at least one device in Workers so the Node can control it automatically.',
+    'Keine offene Aktion. Die Messwerte unten zeigen den laufenden Betrieb.': 'No action needed. The readings below show current operation.',
+    'Alle Algorithmen · nicht vergleichbar summieren': 'All algorithms · do not add incomparable rates', 'Kein Leistungssensor verfügbar': 'No power sensor available',
+    'Hashrate oder Leistung fehlt': 'Hashrate or power missing', 'Mindestens ein Worker meldet einen Fehler': 'At least one worker reports an error',
+    'Keine Difficulty gemeldet': 'No difficulty reported', 'Kein Worker läuft gerade. Richte Hardware im Bereich Worker ein oder starte eine vorhandene Zuweisung.': 'No worker is running. Configure hardware in Workers or start an existing assignment.',
+    'Bitte gib einen gültigen positiven Strompreis ein.': 'Enter a valid positive electricity rate.', 'Stromtarif konnte nicht gespeichert werden.': 'Could not save the electricity rate.',
+    'Noch keine Worker': 'No workers yet', 'Letzter bekannter Stand · aktuelle Daten werden geprüft.': 'Last known state · checking current data.',
+    'Live-Verbindung wird wiederhergestellt …': 'Restoring live connection …', 'Pool-Adresse': 'Pool address',
+    'Wird installiert': 'Installing', 'Nicht integriert': 'Not integrated', 'Installation läuft …': 'Installation in progress …',
+    'Miner ist geöffnet': 'Miner is open', 'Worker aktiv': 'Worker active', 'Miner-Programm': 'Mining software',
+    'Ertrag': 'Earnings', 'Aktualisieren': 'Refresh', 'Verbinde …': 'Connecting …', 'Aktualisiere …': 'Refreshing …',
+    'Sprache wählen': 'Choose language', 'Navigation öffnen': 'Open navigation', 'Navigation schließen': 'Close navigation',
+    'Dein lokaler Mining-Agent': 'Your local mining agent', 'Auf diesem PC · lokal im Netzwerk': 'On this PC · local network',
+    'Zum Inhalt springen': 'Skip to content', 'Verbindung zum Agent unterbrochen. Angezeigte Werte können veraltet sein.': 'Connection to the agent interrupted. Displayed values may be stale.',
+    'Pools ansehen': 'View pools', 'Stromverbrauch': 'Power consumption', 'Gemessene Leistung': 'Measured power',
+    'Konto': 'Account', 'Wallet-Kontostände': 'Wallet balances', 'Bekannter Wert ≈': 'Known value ≈',
+    'Noch nicht eingerichtet': 'Not configured yet', 'Aktuelle Messwerte': 'Current readings', 'Nicht erkannt': 'Not detected',
+    'Windows benötigt eine Administratorfreigabe, damit der Hardware-Monitor seine Sensoren starten kann.': 'Windows needs administrator approval to let the hardware monitor start its sensors.',
+    'Bestätige die Windows-UAC-Abfrage. Ohne Freigabe fehlen die Windows-Sensoren. Einige Mining-Steuerungsaktionen benötigen diesen Sensorzugriff.': 'Approve the Windows UAC prompt. Without approval, Windows sensors are unavailable. Some mining controls require sensor access.',
+    'Diese Werte beschreiben deinen PC. Leistungsaufnahme und Temperaturen sind von Mining-Hashrate und Node-Leistungsziel getrennt. „—“ bedeutet: kein verfügbarer Messwert.': 'These readings describe your PC. Power use and temperatures are separate from mining hashrate and the Node power target. “—” means no reading is available.',
+    'Hardware-Monitor neu starten': 'Restart hardware monitor', 'Im Netzwerk suchen': 'Search network', 'Externen Proxy aktivieren': 'Enable external proxy',
+    'Hostname oder IP-Adresse. Aktivieren pausiert alle Miner.': 'Hostname or IP address. Enabling this pauses all miners.',
+    'Der PC-Agent funktioniert eigenständig. Ein SolarMiner Node ergänzt später Automatisierung, PV-Überschuss und weitere Homelab-Geräte.': 'The PC agent works on its own. A SolarMiner Node can later add automation, PV surplus and other homelab devices.',
+    'Pools und Verbindung': 'Pools and connection', 'BETRIEB': 'OPERATION', 'OPTIMIERUNG': 'OPTIMIZATION', 'SYSTEM': 'SYSTEM',
+    'Noch kein Miner installiert': 'No miner installed yet', 'Worker einrichten →': 'Configure workers →', 'Verbindung prüfen →': 'Check connection →',
+    'Wo dein Ertrag hingeht': 'Where your earnings go', 'Gebührenmodell wird geladen …': 'Loading fee model …', 'Voraussichtlich für dich': 'Estimated for you',
+    'GPU-Leistungsziel übernommen.': 'GPU power target applied.', 'Referral-Key lokal gespeichert. Der Node kann ihn wieder überschreiben.': 'Referral key saved locally. The Node may overwrite it.',
+    'Poolgebühr': 'Pool fee', 'Pool für': 'Pool for', 'wechseln?': 'switch?', 'Stand': 'As of', 'Daten veraltet': 'Data stale',
+    'Hashrate oder gemessene Watt fehlen': 'Hashrate or measured watts missing', 'Nur bei laufendem Miner': 'Only while miner is running',
+    'CPU starten': 'Start CPU', 'Worker-Name': 'Worker name', 'keine eigene Auszahlung': 'no personal payout',
+    'Für diesen Hardware-Filter ist keine Mining-Software verfügbar.': 'No mining software is available for this hardware filter.',
+    'Kein SolarMiner-Standardziel erreichbar. Eigene Wallet angeben oder Proxy auf der Seite Verbindung prüfen.': 'No SolarMiner default destination is available. Enter your own wallet or check the proxy on the Connection page.',
+    'SolarMiner-Proxy für Monero fehlt. Verbinde zuerst den Proxy.': 'SolarMiner proxy for Monero is missing. Connect the proxy first.',
+    'Keine GPU erkannt. Prüfe Treiber und die Seite Leistungsgrenzen.': 'No GPU detected. Check the drivers and the Power limits page.',
+    'Wähle mindestens eine erkannte GPU.': 'Select at least one detected GPU.', 'Noch keine Miner-Ausgabe': 'No miner output yet',
+    'Keine Difficulty gemeldet': 'No difficulty reported', 'Kein Leistungssensor verfügbar': 'No power sensor available',
+    'Wo dein Ertrag hingeht': 'Where your earnings go', 'Verbindung wird geprüft': 'Checking connection',
+    'Worker ist aktiv': 'Worker is active', 'Einrichtung erforderlich': 'Setup required', 'Mining-Pool fehlt': 'Mining pool missing',
+    'Pool:': 'Pool:', 'Keine Worker passen zu den Filtern.': 'No workers match the filters.',
+    'Miner installiert': 'Miner installed', 'Ausgewählter Worker': 'Selected worker', 'Steuerungsmodus': 'Control mode',
+    'nicht verbunden': 'not connected', 'unbekannt': 'unknown', 'getrennt': 'disconnected', 'Proxy im Netzwerk': 'Network proxy',
+    'Kein Worker läuft gerade. Zuweisungen und angehaltene Geräte findest du im Bereich Worker.': 'No worker is running. Find assignments and paused devices in the Workers section.',
+    'SolarMiner-Standardziel · ohne eigene Auszahlung': 'SolarMiner default destination · no personal payout',
+    'Worker, Gerät, Coin oder Miner suchen': 'Search worker, device, coin or miner',
+    'brutto · bei gemessener Workerleistung': 'gross · at measured worker power'
   };
   const backendGerman = {
     'LibreHardwareMonitor is no longer responding. Restart it to continue.': 'LibreHardwareMonitor antwortet nicht mehr. Starte ihn erneut, um fortzufahren.',
@@ -448,6 +719,34 @@
     }
     if (translations[normalized]) return translations[normalized];
     const patterns = [
+      [/^(\d+) ausgeblendet · Filter zurücksetzen$/, '$1 hidden · Reset filters'],
+      [/^(\d+) installiert · (\d+) im Katalog$/, '$1 installed · $2 in catalog'],
+      [/^(\d+) installiert · (\d+) installierbar$/, '$1 installed · $2 installable'],
+      [/^(\d+) installierbar$/, '$1 installable'], [/^(\d+) installiert$/, '$1 installed'], [/^(\d+) verbunden$/, '$1 connected'],
+      [/^(\d+) verfügbar$/, '$1 available'], [/^(\d+) akzeptiert$/, '$1 accepted'], [/^(\d+) abgelehnt$/, '$1 rejected'],
+      [/^(\d+) veraltet$/, '$1 stale'], [/^Latenz (.+)$/, 'Latency $1'], [/^Leistungsziel (.+)$/, 'Power target $1'],
+      [/^Beste Share-Difficulty (.+)$/, 'Best share difficulty $1'], [/^Pool-Latenz (.+)$/, 'Pool latency $1'],
+      [/^(\d+) von (\d+) GPUs ausgewählt\.$/, '$1 of $2 GPUs selected.'],
+      [/^(\d+)\/(\d+) GPUs aktiv$/, '$1/$2 GPUs active'],
+      [/^(\d+)\/(\d+) GPUs im Einsatz$/, '$1/$2 GPUs in use'],
+      [/^1 Worker aktiv$/, '1 worker active'], [/^(\d+) Worker aktiv$/, '$1 workers active'],
+      [/^1 laufende Worker$/, '1 running worker'], [/^(\d+) laufende Worker$/, '$1 running workers'],
+      [/^(\d+) mit stabilem Pool-Kontakt$/, '$1 with a stable pool connection'],
+      [/^(\d+) GPU läuft gerade in keinem Miner\.$/, 'No miner is using $1 GPU.'],
+      [/^(\d+) GPUs laufen gerade in keinem Miner\.$/, 'No miner is using $1 GPUs.'],
+      [/^(\d+) von (\d+) GPU-Minern mit Pool verbunden$/, '$1 of $2 GPU miners connected to a pool'],
+      [/^(\d+) von (\d+) Workern$/, '$1 of $2 workers'], [/^1 Worker$/, '1 worker'], [/^(\d+) Worker$/, '$1 workers'],
+      [/^Installation läuft \((\d+) %\)( · .+)?$/, 'Installation running ($1%)$3'],
+      [/^(\d+) Installationen gestartet\. Du kannst den Fortschritt live verfolgen\.$/, '$1 installations started. You can follow the progress live.'],
+      [/^(\d+) Installation gestartet\. Du kannst den Fortschritt live verfolgen\.$/, '$1 installation started. You can follow the progress live.'],
+      [/^(.+) ist der aktive Build für (.+)\.$/, '$1 is the active build for $2.'],
+      [/^Miner läuft\. (.+)\.$/, 'Miner running. $1.'],
+      [/^Erlaubter Bereich (.+)–(.+) W\. Der Wert gilt für alle gestarteten GPUs dieses Coins zusammen\.$/, 'Allowed range $1–$2 W. The value applies to all started GPUs of this coin together.'],
+      [/^Poolgebühr (\d+) %$/, 'Pool fee $1%'],
+      [/^SolarMiner-Proxy-Route für (.+) fehlt\.$/, 'SolarMiner proxy route for $1 is missing.'],
+      [/^Pool für (.+) wechseln\? Der Miner dieses Coins wird dabei angehalten und startet mit dem neuen Ziel neu\.$/, 'Switch the pool for $1? The miner of this coin is paused and restarts with the new target.'],
+      [/^(.+): Pool übernommen\. Der Miner startet mit dem neuen Ziel\.$/, '$1: pool applied. The miner restarts with the new target.'],
+      [/^Poolwechsel fehlgeschlagen: (.+)$/, 'Pool switch failed: $1'],
       [/^(\d+) von (\d+) Geräten im Node-Profil · (.+)$/, '$1 of $2 devices in Node profile · $3'],
       [/^(\d+) von (\d+) Messwerten verfügbar$/, '$1 of $2 readings available'],
       [/^CPU: (.+) · GPUs: (\d+)\/(\d+) gestartet\. Beide können parallel laufen\.$/, 'CPU: $1 · GPUs: $2/$3 started. Both can run in parallel.'],
@@ -478,6 +777,10 @@
       [/^(.+)-Download gestartet\.$/, '$1 download started.'],
       [/^(.+) gestartet\.$/, '$1 started.'],
       [/^(.+) pausiert\.$/, '$1 paused.'],
+      [/^Node-Automatik konnte nicht geändert werden: (.+)$/, 'Could not change Node automation: $1'],
+      [/^(.+) Stromkosten$/, '$1 electricity cost'],
+      [/^Tarif (.+)$/, 'Rate $1'],
+      [/^Komponentenverbrauch aus verfügbaren CPU-Package- und GPU-Board-Sensoren · Tarif (.+)\. Netzteil- und übrige Systemverluste können fehlen\.$/, 'Component consumption from available CPU package and GPU board sensors · Rate $1. PSU and other system losses may be missing.'],
       [/^≈ (.+) USD · brutto( · Daten veraltet)?$/, '≈ $1 USD · gross$2'],
       [/^(.+) · (.+) · (.+) Mining · (.+)$/, '$1 · $2 · $3 mining · $4'],
       [/^(\d+) Geräte$/, '$1 devices'],
@@ -505,7 +808,7 @@
       (...match) => replacement.replace(/\$(\d+)/g, (_, index) => translate(match[Number(index)] || '')));
     return value;
   }
-  window.SolarMinerI18n = { locale: locale === 'de' ? 'de-DE' : 'en-US', language: locale, t: translate };
+  window.SolarMinerI18n = { locale: localeTag(), language: locale, t: translate };
   document.documentElement.lang = locale;
   function translateTextNode(node) {
     if (node.parentElement?.closest('pre,script,style,[data-no-i18n]')) return;
@@ -549,4 +852,5 @@
     })).observe(document.body, { childList: true, characterData: true, attributes: true,
       attributeFilter: ['title', 'placeholder', 'aria-label'], subtree: true });
   });
+  preferences.refreshRates();
 })();

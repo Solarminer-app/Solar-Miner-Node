@@ -137,7 +137,7 @@ public class AgentPowerController {
     public AgentControlSettingsService.Settings workerCoin(@PathVariable String workerId, @RequestParam String coin) {
         if (!"cpu".equals(workerId) && gpus.discover().stream().noneMatch(g -> g.deviceId().equals(workerId)))
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Gerät wurde nicht erkannt");
-        if (!java.util.Set.of("none", "monero", "pearl", "ravencoin", "ethereumclassic").contains(coin)
+        if (!java.util.Set.of("none", "monero", "pearl", "ravencoin", "ethereumclassic", "decred", "quantus").contains(coin)
                 || ("cpu".equals(workerId) ? !("none".equals(coin) || "monero".equals(coin)) : "monero".equals(coin)))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coin passt nicht zur Hardware");
         return withControl(() -> {

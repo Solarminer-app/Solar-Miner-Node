@@ -76,7 +76,7 @@ public class AgentControlSettingsService {
     }
 
     public synchronized boolean setWorkerCoin(String workerId, String coin) {
-        if (!java.util.Set.of("none", "monero", "pearl", "ravencoin", "ethereumclassic").contains(coin)) return false;
+        if (!java.util.Set.of("none", "monero", "pearl", "ravencoin", "ethereumclassic", "decred", "quantus").contains(coin)) return false;
         if ("cpu".equals(workerId) ? !("none".equals(coin) || "monero".equals(coin)) : "monero".equals(coin)) return false;
         // Retain the old CPU assignment when migrating a pre-profile settings file.
         Map<String, String> next = new java.util.HashMap<>(settings.workerCoins() == null ? Map.of("cpu", settings.coinFor("cpu"), "*", "pearl") : settings.workerCoins());
