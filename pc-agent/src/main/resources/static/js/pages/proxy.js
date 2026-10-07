@@ -3,7 +3,7 @@ const t = window.SolarMinerI18n.t;
 let current, busy = false, refreshing = false, hostDirty = false;
 const text = (id, value) => { $(id).textContent = t(value); };
 function notice(message, error = false, kind = 'action') { const box = $('notice'); box.hidden = false; box.dataset.kind = kind; box.className = 'notice' + (error ? ' error' : ''); box.textContent = t(message); }
-function controls() { $('proxy-local').disabled = busy || !current || current.mode === 'standalone' && current.managedStatus === 'running'; $('proxy-external').disabled = $('proxy-discover').disabled = busy || !current; $('external-host').disabled = busy; }
+function controls() { $('proxy-local').disabled = busy || !current || current.mode === 'standalone' && current.managedStatus === 'running'; $('proxy-external').disabled = $('proxy-discover').disabled = busy || !current; $('external-host').disabled = busy; const local = current?.mode === 'standalone'; $('roll-random').disabled = $('roll-stateful').disabled = busy || !local; $('roll-random').classList.toggle('primary', current?.feeRollMode !== 'stateful'); $('roll-stateful').classList.toggle('primary', current?.feeRollMode === 'stateful'); text('roll-mode-state', current?.feeRollMode === 'stateful' ? 'AUSGEWOGEN' : 'ZUFÄLLIG'); }
 async function command(url) {
   const response = await fetch(url, {method:'POST'});
   if (!response.ok) { const body = await response.json().catch(() => null); throw new Error(body?.message || body?.detail || 'HTTP ' + response.status); }
@@ -51,6 +51,17 @@ async function refresh() {
   finally { refreshing = false; }
 }
 $('external-host').addEventListener('input',()=>{hostDirty=true;});
+async function setRollMode(mode) {
+  if (busy) return;
+  busy = true; controls();
+  try {
+    await command('/api/agent/local/proxy/roll-mode?mode=' + mode);
+    notice('Fee-Verteilung geändert. Der lokale Proxy wurde neu gestartet und alle Miner wurden pausiert. Starte sie auf der Miner-Seite erneut.');
+  } catch (error) { notice(error.message, true); }
+  finally { busy = false; await refresh(); controls(); }
+}
+$('roll-random').addEventListener('click',()=>setRollMode('random'));
+$('roll-stateful').addEventListener('click',()=>setRollMode('stateful'));
 $('external-form').addEventListener('submit',event=>{event.preventDefault(); activate('external');});
 $('proxy-local').addEventListener('click',()=>activate('local'));
 $('proxy-discover').addEventListener('click',async()=>{

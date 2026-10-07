@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.pv_miner.miningpool.WatchedWalletEntity;
 import de.verdox.pv_miner.miningpool.MiningCoin;
 import de.verdox.pv_miner.miningpool.WatchedWalletRepository;
+import de.verdox.pv_miner.miningpool.KryptexPoolApiService;
+import de.verdox.pv_miner.miningpool.KryptexRewardService;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,13 +32,18 @@ public class WatchedWalletController {
     private final WatchedWalletRepository wallets;
     private final PVSiteRepository sites;
     private final ObjectMapper mapper;
+    private final KryptexPoolApiService kryptex;
+    private final KryptexRewardService rewards;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final ConcurrentHashMap<String, BalanceSnapshot> cache = new ConcurrentHashMap<>();
 
-    public WatchedWalletController(WatchedWalletRepository wallets, PVSiteRepository sites, ObjectMapper mapper) {
+    public WatchedWalletController(WatchedWalletRepository wallets, PVSiteRepository sites, ObjectMapper mapper,
+                                   KryptexPoolApiService kryptex, KryptexRewardService rewards) {
         this.wallets = wallets;
         this.sites = sites;
         this.mapper = mapper;
+        this.kryptex = kryptex;
+        this.rewards = rewards;
     }
 
     @GetMapping
@@ -44,11 +51,16 @@ public class WatchedWalletController {
         requireSite(siteId);
         return wallets.findBySiteIdOrderByLabelAsc(siteId).parallelStream().map(wallet -> {
             BalanceSnapshot balance = readBalance(wallet.getCoin(), wallet.getAddress());
+            MiningCoin coin = MiningCoin.from(wallet.getCoin());
+            KryptexPoolApiService.Snapshot pool = coin.kryptexTicker() == null
+                    ? KryptexPoolApiService.Snapshot.unavailable() : kryptex.read(coin, wallet.getAddress());
             return new WalletDto(wallet.getId(), wallet.getLabel(), wallet.getCoin(), wallet.getAddress(),
                     balance == null ? null : balance.confirmed(),
                     balance == null ? null : balance.unconfirmed(),
                     balance == null ? null : balance.fetchedAt(),
-                    balance == null ? ("monero".equals(wallet.getCoin()) ? "NOT_SUPPORTED" : "UNAVAILABLE") : "AVAILABLE");
+                    balance == null ? ("bitcoin".equals(wallet.getCoin()) || "pearl".equals(wallet.getCoin()) ? "UNAVAILABLE" : "NOT_SUPPORTED") : "AVAILABLE",
+                    pool.amount(), pool.fetchedAt(), coin.kryptexTicker() == null ? "UNSUPPORTED_POOL"
+                            : pool.amount() == null ? "UNAVAILABLE" : "AVAILABLE");
         }).toList();
     }
 
@@ -78,8 +90,10 @@ public class WatchedWalletController {
         entity.setCoin(coin.key());
         entity.setAddress(address);
         entity = wallets.save(entity);
+        rewards.invalidate(siteId);
         return new WalletDto(entity.getId(), entity.getLabel(), entity.getCoin(), entity.getAddress(), null, null, null,
-                coin == MiningCoin.MONERO ? "NOT_SUPPORTED" : "UNAVAILABLE");
+                coin == MiningCoin.BITCOIN || coin == MiningCoin.PEARL ? "UNAVAILABLE" : "NOT_SUPPORTED",
+                null, null, coin.kryptexTicker() == null ? "UNSUPPORTED_POOL" : "UNAVAILABLE");
     }
 
     @DeleteMapping("/{walletId}")
@@ -88,6 +102,7 @@ public class WatchedWalletController {
         WatchedWalletEntity entity = wallets.findById(walletId).filter(wallet -> siteId.equals(wallet.getSiteId()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Watched wallet not found"));
         wallets.delete(entity);
+        rewards.invalidate(siteId);
         cache.remove(entity.getCoin() + ":" + entity.getAddress());
         return ResponseEntity.noContent().build();
     }
@@ -133,6 +148,7 @@ public class WatchedWalletController {
 
     public record WalletRequest(String label, String coin, String address) { }
     public record WalletDto(UUID id, String label, String coin, String address, BigDecimal confirmedBalance,
-                            BigDecimal unconfirmedBalance, Instant fetchedAt, String balanceStatus) { }
+                            BigDecimal unconfirmedBalance, Instant fetchedAt, String balanceStatus,
+                            BigDecimal poolBalance, Instant poolBalanceFetchedAt, String poolBalanceStatus) { }
     private record BalanceSnapshot(BigDecimal confirmed, BigDecimal unconfirmed, Instant fetchedAt) { }
 }

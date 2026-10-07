@@ -27,6 +27,7 @@ public class ProxyConfigurationService {
     private final int quantusPort;
     private final int apiPort;
     private final Path modeFile;
+    private final Path rollModeFile;
     private final ObjectMapper mapper;
     private final ManagedProxyService managedProxy;
     private final ReferralConfigurationService referralConfigurationService;
@@ -34,6 +35,8 @@ public class ProxyConfigurationService {
     private volatile String host;
     private volatile boolean standalone;
     private volatile boolean modeStored;
+    /** Operator choice for how the proxy rolls fee targets per job: "random" or "stateful". */
+    private volatile String rollMode = "random";
     private final java.util.concurrent.ConcurrentHashMap<String, Long> feeCheckedAt = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.concurrent.ConcurrentHashMap<String, Boolean> feeCache = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -61,9 +64,11 @@ public class ProxyConfigurationService {
         this.quantusPort = quantusPort;
         this.apiPort = apiPort;
         this.modeFile = Path.of(modePath).toAbsolutePath().normalize();
+        this.rollModeFile = this.modeFile.resolveSibling("fee-roll-mode.txt");
         String savedMode = readMode();
         this.modeStored = savedMode != null;
         this.standalone = savedMode == null ? standalone : "local".equals(savedMode);
+        this.rollMode = readRollMode();
         try {
             String saved = Files.readString(configFile).strip();
             if (validHost(saved)) host = saved;
@@ -71,8 +76,24 @@ public class ProxyConfigurationService {
     }
 
     public void activateStoredMode() {
+        managedProxy.setRollMode(rollMode);
         managedProxy.setStandalone(standalone);
     }
+
+    /**
+     * Persists the operator's fee-roll choice and applies it to the managed proxy. The proxy
+     * child restarts with the new flag, so the caller must pause miners first, like a mode switch.
+     */
+    public synchronized boolean setRollMode(String mode) {
+        if (!"random".equalsIgnoreCase(mode) && !"stateful".equalsIgnoreCase(mode)) return false;
+        String normalized = "stateful".equalsIgnoreCase(mode) ? "stateful" : "random";
+        if (!writeRollMode(normalized)) return false;
+        rollMode = normalized;
+        managedProxy.setRollMode(normalized);
+        return true;
+    }
+
+    public String rollMode() { return rollMode; }
 
     public synchronized boolean configure(String nextHost) {
         if (standalone) return false;
@@ -102,6 +123,7 @@ public class ProxyConfigurationService {
     public synchronized boolean setMode(String mode) {
         boolean local = "local".equals(mode);
         if (!local && !"external".equals(mode)) return false;
+        managedProxy.setRollMode(rollMode);
         if (local == standalone) {
             if (local && !managedProxy.setStandalone(true)) return false;
             if (!writeMode(local)) return false;
@@ -284,6 +306,34 @@ public class ProxyConfigurationService {
             if ("local".equals(saved) || "external".equals(saved)) return saved;
         } catch (IOException ignored) { }
         return null;
+    }
+
+    private String readRollMode() {
+        try {
+            String saved = Files.readString(rollModeFile).strip();
+            if ("stateful".equalsIgnoreCase(saved)) return "stateful";
+        } catch (IOException ignored) { }
+        return "random";
+    }
+
+    private boolean writeRollMode(String mode) {
+        try {
+            Files.createDirectories(rollModeFile.getParent());
+            Path temp = Files.createTempFile(rollModeFile.getParent(), "fee-roll-mode-", ".tmp");
+            try {
+                Files.writeString(temp, mode);
+                try {
+                    Files.move(temp, rollModeFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                    Files.move(temp, rollModeFile, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                Files.deleteIfExists(temp);
+            }
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     private boolean writeMode(boolean local) {

@@ -103,6 +103,7 @@ public class MiningController {
                 proxyConfigurationService.pearlUrl(), proxyConfigurationService.ravencoinUrl(),
                 proxyConfigurationService.ethereumclassicUrl(), proxyConfigurationService.decredUrl(), proxyConfigurationService.quantusUrl(), proxyConfigurationService.isReachable(),
                 proxyConfigurationService.standalone() ? "standalone" : "external",
+                proxyConfigurationService.rollMode(),
                 proxyConfigurationService.managedStatus(), proxyConfigurationService.managedDetail(),
                 proxyConfigurationService.managedVersion(),
                 proxyConfigurationService.feeReady("monero"), proxyConfigurationService.feeReady("pearl"),
@@ -148,6 +149,19 @@ public class MiningController {
         return true;
     }
 
+    /**
+     * Chooses how the proxy rolls fee targets per job: "random" (stateless independent rolls)
+     * or "stateful" (a persistent per-coin urn that keeps the realised share on target).
+     * The managed proxy restarts with the new flag, so miners are paused first.
+     */
+    @PostMapping("/proxy/roll-mode")
+    public boolean configureProxyRollMode(@RequestParam String mode) {
+        if (!lhmBootstrapService.readyForAgent()) return false;
+        if (!"random".equals(mode) && !"stateful".equals(mode)) return false;
+        if (!miningService.pauseAll("Fee roll mode was configured")) return false;
+        return proxyConfigurationService.setRollMode(mode);
+    }
+
     @PostMapping("/proxy/discover")
     public List<ProxyDiscoveryService.ProxyCandidate> discoverProxy() throws java.io.IOException {
         if (!lhmBootstrapService.readyForAgent()) return List.of();
@@ -156,7 +170,7 @@ public class MiningController {
 
     public record ProxyOverview(String host, String moneroUrl, String pearlUrl,
                                 String ravencoinUrl, String ethereumclassicUrl, String decredUrl, String quantusUrl, boolean reachable,
-                                String mode, String managedStatus, String managedDetail, String managedVersion,
+                                String mode, String feeRollMode, String managedStatus, String managedDetail, String managedVersion,
                                 boolean moneroFeeReady, boolean pearlFeeReady,
                                 boolean ravencoinFeeReady, boolean ethereumclassicFeeReady, boolean decredFeeReady, boolean quantusFeeReady) { }
 
@@ -463,13 +477,53 @@ public class MiningController {
                 login[1].substring(workerSeparator + 1));
     }
 
-    @GetMapping("/wallet-balances")
-    public List<WalletBalanceService.Balance> walletBalances() {
+    /**
+     * The configured payout targets per coin — the light slice the wallet strip needs.
+     * The strip must not pull the full overview (driver discovery, fees, forecasts) just
+     * to learn which wallets exist.
+     */
+    @GetMapping("/wallet-targets")
+    public List<WalletTarget> walletTargets() {
         MoneroConfiguration monero = savedMoneroConfiguration();
         PearlMinerService.Config pearl = pearlMinerService.configuration();
-        return walletBalanceService.balances(
-                monero == null ? null : monero.poolUrl(), monero == null ? null : monero.wallet(),
-                pearl == null ? null : pearl.poolUrl(), pearl == null ? null : pearl.wallet());
+        List<WalletTarget> targets = new java.util.ArrayList<>();
+        if (monero != null && monero.wallet() != null && !monero.wallet().isBlank())
+            targets.add(new WalletTarget("monero", "Monero", "XMR", monero.wallet(), monero.poolUrl()));
+        if (pearl != null && pearl.wallet() != null && !pearl.wallet().isBlank())
+            targets.add(new WalletTarget("pearl", "Pearl", "PRL", pearl.wallet(), pearl.poolUrl()));
+        for (var entry : COIN_IDENTITIES) {
+            GpuCoinMinerService.Config config = gpuCoins.configuration(entry.id());
+            if (config != null && config.wallet() != null && !config.wallet().isBlank())
+                targets.add(new WalletTarget(entry.id(), entry.name(), entry.ticker(), config.wallet(), config.poolUrl()));
+        }
+        return List.copyOf(targets);
+    }
+
+    /** Same coin identities the overview exposes; kept here so the strip never pulls the overview. */
+    private record CoinIdentity(String id, String name, String ticker) { }
+    private static final List<CoinIdentity> COIN_IDENTITIES = List.of(
+            new CoinIdentity("ravencoin", "Ravencoin", "RVN"),
+            new CoinIdentity("ethereumclassic", "Ethereum Classic", "ETC"),
+            new CoinIdentity("decred", "Decred", "DCR"),
+            new CoinIdentity("quantus", "Quantus", "QTC"));
+
+    public record WalletTarget(String coin, String name, String ticker, String wallet, String poolUrl) { }
+
+    /** Batched wallet-strip snapshot: one push channel, one REST fallback, never the full overview. */
+    public record WalletsSnapshot(List<WalletTarget> targets,
+                                  List<WalletBalanceService.Balance> balances,
+                                  java.util.Map<String, Double> prices) { }
+
+    @GetMapping("/wallet-snapshot")
+    public WalletsSnapshot walletSnapshot() {
+        return new WalletsSnapshot(walletTargets(), walletBalances(), marketPrices());
+    }
+
+    @GetMapping("/wallet-balances")
+    public List<WalletBalanceService.Balance> walletBalances() {
+        return walletBalanceService.balances(walletTargets().stream()
+                .map(target -> new WalletBalanceService.Target(target.coin(), target.poolUrl(), target.wallet()))
+                .toList());
     }
 
     public record AgentOverview(MinerStats stats, String activeCoin, String platform, String architecture,

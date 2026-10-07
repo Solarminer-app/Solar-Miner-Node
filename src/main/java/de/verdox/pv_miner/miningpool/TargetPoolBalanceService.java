@@ -14,7 +14,10 @@ public class TargetPoolBalanceService {
     public TargetPoolBalanceService(KryptexPoolApiService kryptex) { this.kryptex = kryptex; }
 
     public Snapshot read(MiningTargetEntity target) {
-        if (!"monero".equals(target.getCoin()) && !"pearl".equals(target.getCoin())) return null;
+        MiningCoin coin;
+        try { coin = MiningCoin.from(target.getCoin()); }
+        catch (IllegalArgumentException ignored) { return null; }
+        if (coin.kryptexTicker() == null) return null;
         if (target.getPayoutAddress() == null) return null;
         URI pool;
         try { pool = URI.create(target.getStratumUrl()); }
@@ -22,7 +25,7 @@ public class TargetPoolBalanceService {
         String host = pool.getHost();
         if (host == null || !(host.equalsIgnoreCase("kryptex.network")
                 || host.toLowerCase(java.util.Locale.ROOT).endsWith(".kryptex.network"))) return null;
-        KryptexPoolApiService.Snapshot snapshot = kryptex.read(MiningCoin.from(target.getCoin()), target.getPayoutAddress());
+        KryptexPoolApiService.Snapshot snapshot = kryptex.read(coin, target.getPayoutAddress());
         return new Snapshot(snapshot.amount(), snapshot.fetchedAt(), snapshot.expiresAt());
     }
 

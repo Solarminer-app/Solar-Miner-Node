@@ -76,6 +76,9 @@
     if (existing) return existing;
     const created = new Channel(name, options);
     channels.set(name, created);
+    // A channel added after the stream opened must join it: reconnecting re-delivers
+    // every subscribed channel, so the new one is covered without a separate request.
+    if (stream) { close(); open(); }
     return created;
   }
 

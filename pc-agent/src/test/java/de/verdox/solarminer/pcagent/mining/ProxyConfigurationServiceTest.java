@@ -95,6 +95,22 @@ class ProxyConfigurationServiceTest {
         assertFalse(reloaded.standalone());
     }
 
+    @Test
+    void feeRollModeDefaultsToRandomAndPersistsTheOperatorChoice() {
+        Path file = directory.resolve("proxy-host.txt");
+        ProxyConfigurationService proxy = proxy(file);
+        assertEquals("random", proxy.rollMode());
+
+        assertTrue(proxy.setRollMode("stateful"));
+        assertEquals("stateful", proxy.rollMode());
+
+        ProxyConfigurationService reloaded = proxy(file);
+        assertEquals("stateful", reloaded.rollMode());
+
+        assertFalse(proxy.setRollMode("nonsense"));
+        assertEquals("stateful", proxy.rollMode());
+    }
+
     private static ProxyConfigurationService proxy(Path file) {
         return proxy(file, false);
     }

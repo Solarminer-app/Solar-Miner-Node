@@ -41,6 +41,13 @@ public class AgentWriteAccessFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         String path = request.getRequestURI().substring(request.getContextPath().length());
         if (path.equals(EXTERNAL_API) || path.startsWith(EXTERNAL_API + "/")) {
+            // Discovery is read-only and must remain available when the operator disables
+            // remote control. Keep every other external endpoint behind the global gate.
+            if ("GET".equalsIgnoreCase(request.getMethod())
+                    && path.equals(EXTERNAL_API + "/identity")) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             if (controls.get().externalControlEnabled()) {
                 filterChain.doFilter(request, response);
                 return;

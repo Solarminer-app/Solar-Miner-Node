@@ -12,6 +12,7 @@ import de.verdox.pv_miner.miningpool.MiningPoolStatisticsAccumulator;
 import de.verdox.pv_miner.miningpool.MiningPoolStatisticsPerDay;
 import de.verdox.pv_miner.miningpool.KryptexRewardService;
 import de.verdox.pv_miner.miningpool.MiningCoinDailyReward;
+import de.verdox.pv_miner.miningpool.MiningCoin;
 import de.verdox.pv_miner.pvsite.*;
 import de.verdox.pv_miner.util.Money;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
@@ -225,13 +226,13 @@ public class PVFinanceService {
             boolean valued = amount == 0 || converted >= 0;
             if (!valued) revenueComplete = false;
             if (converted > 0) otherRevenue += converted;
-            coinLines.add(new CoinMiningDayDto(reward.getCoin(), "monero".equals(reward.getCoin()) ? "XMR" : "PRL",
+            coinLines.add(new CoinMiningDayDto(reward.getCoin(), MiningCoin.from(reward.getCoin()).symbol(),
                     reward.getPayoutAddress(), amount, valued ? money(Math.max(0, converted), targetCurrency) : null,
                     "KRYPTEX_REWARD_CHART", valued ? "AVAILABLE" : "PRICE_UNAVAILABLE"));
         }
         for (KryptexRewardService.Route route : activeRoutes) if (!observedRoutes.contains(route)) {
             revenueComplete = false;
-            coinLines.add(new CoinMiningDayDto(route.coin(), "monero".equals(route.coin()) ? "XMR" : "PRL",
+            coinLines.add(new CoinMiningDayDto(route.coin(), MiningCoin.from(route.coin()).symbol(),
                     route.address(), null, null, "KRYPTEX_REWARD_CHART", "HISTORY_UNAVAILABLE"));
         }
         double totalMiningRevenue = btcHistoricFiat + otherRevenue;

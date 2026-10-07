@@ -18,11 +18,18 @@ class AgentWriteAccessFilterTest {
     private final AgentWriteAccessFilter filter = new AgentWriteAccessFilter(controls);
 
     @Test
-    void disabledNodeControlRejectsEveryExternalReadAndWrite() throws Exception {
+    void disabledNodeControlAllowsDiscoveryIdentityButRejectsOtherExternalReadsAndWrites() throws Exception {
         disabled();
+        MockHttpServletRequest identity = request("GET", "/api/agent/external/identity");
+        MockHttpServletResponse identityResponse = new MockHttpServletResponse();
+        MockFilterChain identityChain = new MockFilterChain();
+        filter.doFilter(identity, identityResponse, identityChain);
+        assertThat(identityResponse.getStatus()).isEqualTo(200);
+        assertThat(identityChain.getRequest()).isSameAs(identity);
+
         for (RequestCase requestCase : List.of(
                 new RequestCase("GET", "/api/agent/external/status"),
-                new RequestCase("GET", "/api/agent/external/identity"),
+                new RequestCase("POST", "/api/agent/external/identity"),
                 new RequestCase("POST", "/api/agent/external/pause"),
                 new RequestCase("POST", "/api/agent/external/resume"),
                 new RequestCase("POST", "/api/agent/external/power-target"),

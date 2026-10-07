@@ -24,12 +24,12 @@ public class KryptexPoolApiService {
     public KryptexPoolApiService(ObjectMapper mapper) { this.mapper = mapper; }
 
     public Snapshot read(MiningCoin coin, String address) {
-        if (coin != MiningCoin.MONERO && coin != MiningCoin.PEARL || address == null || address.isBlank()) return Snapshot.unavailable();
+        if (coin.kryptexTicker() == null || address == null || address.isBlank()) return Snapshot.unavailable();
         String key = coin.key() + ":" + address;
         Snapshot previous = cache.get(key);
         if (previous != null && previous.expiresAt().isAfter(Instant.now())) return previous;
         try {
-            String ticker = coin == MiningCoin.MONERO ? "xmr" : "prl";
+            String ticker = coin.kryptexTicker();
             JsonNode balance = fetch("/" + ticker + "/api/v1/miner/balance/" + address);
             Snapshot snapshot = new Snapshot(parseBalance(balance), Instant.now(), Instant.now().plusSeconds(60));
             cache.put(key, snapshot);
@@ -56,6 +56,6 @@ public class KryptexPoolApiService {
     }
 
     public record Snapshot(BigDecimal amount, Instant fetchedAt, Instant expiresAt) {
-        static Snapshot unavailable() { return new Snapshot(null, null, Instant.now().plusSeconds(15)); }
+        public static Snapshot unavailable() { return new Snapshot(null, null, Instant.now().plusSeconds(15)); }
     }
 }

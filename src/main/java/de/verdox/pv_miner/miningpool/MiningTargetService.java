@@ -49,6 +49,7 @@ public class MiningTargetService {
     }
 
     public void apply(UUID siteId, MiningCoin coin, boolean force) {
+        if (!coin.supportsNodeTargetControl()) return;
         var site = sites.findById(siteId).orElse(null);
         if (site == null) return;
         List<MiningTargetEntity> candidates = list(siteId).stream()

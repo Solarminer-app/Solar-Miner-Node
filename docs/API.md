@@ -238,7 +238,7 @@ Controller source: [`MiningController`](../pc-agent/src/main/java/de/verdox/sola
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/agent/external/identity` | Node discovery; gated like every external route. |
+| `GET` | `/api/agent/external/identity` | Read-only Node discovery; remains available when external Node control is disabled. Every other external route is gated. |
 | `GET` | `/api/agent/external/status` | Node-visible CPU/GPU worker statistics. |
 | `GET` | `/api/agent/external/power-control` | Node-visible power range and applied target. |
 | `GET` | `/api/agent/external/{telemetry|overview|proxy|earnings}` | Node read contracts. |

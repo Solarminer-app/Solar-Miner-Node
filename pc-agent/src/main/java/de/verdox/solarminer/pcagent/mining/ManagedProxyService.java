@@ -47,6 +47,8 @@ public class ManagedProxyService {
     private final int decredPort;
     private final int quantusPort;
     private volatile boolean standalone;
+    /** Fee-target roll mode handed to the proxy child: "random" (stateless) or "stateful" (urn). */
+    private volatile String rollMode = "random";
     private volatile Process process;
     private volatile String status = "external";
     private volatile String detail = "";
@@ -65,6 +67,7 @@ public class ManagedProxyService {
             @Value("${solarminer.agent.proxy.ethereumclassic-port:3337}") int etcPort,
             @Value("${solarminer.agent.proxy.decred-port:3338}") int decredPort,
             @Value("${solarminer.agent.proxy.quantus-port:3339}") int quantusPort,
+            @Value("${solarminer.agent.fee-roll-mode:random}") String rollMode,
             @Value("${solarminer.agent.standalone:false}") boolean standalone) {
         this.releases = releases;
         this.apiPort = apiPort;
@@ -75,6 +78,7 @@ public class ManagedProxyService {
         this.etcPort = etcPort;
         this.decredPort = decredPort;
         this.quantusPort = quantusPort;
+        this.rollMode = "stateful".equalsIgnoreCase(rollMode) ? "stateful" : "random";
         this.standalone = standalone;
         if (standalone) status = "starting";
         // Covers every JVM exit path, including the tray "Exit" item that calls System.exit.
@@ -85,7 +89,7 @@ public class ManagedProxyService {
     public ManagedProxyService(boolean standalone, String ignoredProxyJar) {
         this(new ProxyReleaseService(new ObjectMapper(), "Solarminer-app/solarminer-stratum-proxy",
                         Path.of(System.getProperty("java.io.tmpdir"), "solarminer-proxy-fixture").toString()),
-                8090, 3333, 3335, 3334, 3336, 3337, 3338, 3339, standalone);
+                8090, 3333, 3335, 3334, 3336, 3337, 3338, 3339, "random", standalone);
         this.gateOpen = true;
     }
 
@@ -179,6 +183,7 @@ public class ManagedProxyService {
         command.add("--server.port=" + apiPort);
         command.add("--proxy.bind-address=127.0.0.1");
         command.add("--proxy.fee.required=true");
+        command.add("--proxy.fee.roll-mode=" + rollMode);
         command.add("--proxy.coins.bitcoin.port=" + bitcoinPort);
         command.add("--proxy.coins.monero.port=" + moneroPort);
         command.add("--proxy.coins.pearl.port=" + pearlPort);
@@ -261,6 +266,19 @@ public class ManagedProxyService {
         return true;
     }
 
+    /** Switches the fee-target roll mode of the managed proxy at runtime, restarting the child when needed. */
+    public synchronized boolean setRollMode(String mode) {
+        String normalized = "stateful".equalsIgnoreCase(mode) ? "stateful" : "random";
+        if (normalized.equals(rollMode)) return true;
+        rollMode = normalized;
+        if (running()) stopProcess();
+        lastStartAttempt = 0;
+        startIfNeeded();
+        return true;
+    }
+
+    public String rollMode() { return rollMode; }
+
     public boolean standalone() { return standalone; }
     public boolean running() { Process current = process; return current != null && current.isAlive(); }
     public String status() { return running() ? "running" : status; }
@@ -268,16 +286,36 @@ public class ManagedProxyService {
     public String version() { return releases.version(); }
     public boolean gateOpen() { return gateOpen; }
 
-    public ProxyGate gate() {
-        if (running()) return new ProxyGate(true, "running", 100, releases.version(), "");
+    public synchronized ProxyGate gate() {
+        Process current = process;
+        if (current != null && !current.isAlive()) {
+            process = null;
+            status = "failed";
+            detail = "Der lokale Proxy wurde beendet (Exit-Code " + current.exitValue() + "). Protokoll: " + logFile();
+        }
+        if (standalone && gateOpen && !running()) gateOpen = false;
+
+        // The dashboard gate is also polled during boot. Let that request kick off a cached
+        // release instead of relying exclusively on the scheduled maintenance task.
+        if (!gateOpen && releases.state().equals("FAILED") && releases.useCachedRelease()) {
+            status = "starting";
+            detail = "";
+        }
+        if (!gateOpen && releases.ready()) startIfNeeded();
+
+        if (running()) {
+            return gateOpen
+                    ? new ProxyGate(true, "running", 100, releases.version(), "")
+                    : new ProxyGate(false, "starting", 100, releases.version(), detail);
+        }
         if (!gateOpen) {
             String releaseState = releases.state();
             if (releaseState.equals("CHECKING"))
                 return new ProxyGate(false, "checking", 0, releases.version(), detail);
             if (releaseState.equals("DOWNLOADING"))
                 return new ProxyGate(false, "downloading", releases.progress(), releases.version(), detail);
-            if (status.equals("starting")) return new ProxyGate(false, "starting", 100, releases.version(), detail);
             String failure = detail.isBlank() ? releases.detail() : detail;
+            if (failure.isBlank()) failure = "Der lokale Proxy-Prozess wurde noch nicht gestartet.";
             return new ProxyGate(false, "failed", 0, releases.version(), failure);
         }
         return new ProxyGate(true, "running", 100, releases.version(), detail);

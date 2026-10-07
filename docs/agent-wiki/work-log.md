@@ -714,3 +714,53 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - Sämtliche Wallets-Texte laufen nun über `SolarMinerI18n`; dynamisch erzeugte Status-, Formular- und Fehlermeldungen werden ebenfalls übersetzt.
 - Katalogeinträge führen einen Pool-Anbieternamen. Die Auswahl zeigt zum Beispiel `Kryptex · Europe · 1 % Pool fee` beziehungsweise `Suprnova · Europe`; die Pool-URL bleibt dabei unverändert.
 - Verifikation: `node --check` für `wallets.js`, `pool-catalog.js` und `i18n.js`, keine verbliebenen Verweise auf die entfernte Pools-Ansicht sowie `git diff --check` erfolgreich. Kein Browser- oder Live-Agent-Lauf ausgeführt.
+
+## 2026-10-07 — Fee-Verteilungsmodus im PC-Agent wählbar (Zufällig/Ausgewogen)
+
+- Der PC-Agent reicht die Operator-Wahl jetzt an den verwalteten Proxy durch: neuer Schalter `solarminer.agent.fee-roll-mode` (`random` Standard | `stateful`) wird in `ManagedProxyService.commandFor` als `--proxy.fee.roll-mode=` übergeben; `setRollMode` startet den Kindprozess bei Änderung neu.
+- Persistenz wie beim Proxy-Modus: `./solarminer-agent/fee-roll-mode.txt` neben `proxy-mode.txt`; `ProxyConfigurationService.setRollMode` validiert, speichert atomar und aktiviert sofort. `activateStoredMode`/`setMode` übernehmen die Einstellung bei jedem Start/Moduswechsel.
+- Neuer Endpunkt `POST /api/agent/local/proxy/roll-mode?mode=random|stateful` (pausiert vorher alle Miner, wie der Moduswechsel) und `feeRollMode` im `ProxyOverview`. Der Proxy-Tab zeigt ein neues Feld „Fee-Verteilung" mit den Buttons Zufällig/Ausgewogen, Status-Tag und i18n-Katalogeinträgen. Gilt nur für den lokalen Proxy; ein externer Proxy behält seine eigene Einstellung.
+- Verifikation: `JAVA_HOME=/home/lukas/.jdks/graalvm-ce-21.0.2 sh gradlew :pc-agent:compileJava :pc-agent:test` → BUILD SUCCESSFUL, inkl. neuem Test `feeRollModeDefaultsToRandomAndPersistsTheOperatorChoice` (Standard random, Persistenz über Neuladen, unbekannte Werte abgelehnt). Proxy-Seite: siehe `solarminer-stratum-proxy` Work-Log (32 Tests grün).
+- Nicht verifiziert: kein Browser- und kein Live-Agent-Lauf; der Neustart des Proxy-Kindprozesses beim Moduswechsel wurde nicht gegen einen laufenden Miner erprobt.
+
+## 2026-10-07 — Proxy-Startfenster bleibt offen oder zeigt leeren Text
+
+- Ursache im Frontend: Das Proxy-Gate abonnierte den SSE-Kanal, startete aber nicht den `SolarMinerLive`-Watchdog. Wenn der EventStream nach einem nicht bereiten Snapshot stillstand, wurde der REST-Snapshot nicht erneut gelesen; das blockierende Fenster konnte so trotz gestartetem Proxy offen bleiben. Titel und Beschreibung waren bis zum ersten Event leer.
+- Änderung: Das Gate startet den vorhandenen Watchdog und zeigt sofort verständlichen Starttext. Ungültige/leere Snapshots überschreiben den Text nicht; der Fehlerfall ohne Status bleibt sichtbar.
+- Verifikation: Codepfad und EventStream/Watchdog-Verhalten geprüft. Kein Test, Browserlauf oder Live-Agent-Lauf ausgeführt.
+
+### Follow-up: laufender Agent meldete dauerhaft `starting`
+
+- Read-only-Abfrage gegen den laufenden PC-Agent zeigte `ready=false`, `state=starting`, Version `1.0.4`, leere Detailmeldung; auf Proxy-Port 8090 lauschte kein Prozess. Der bestehende Retry-Endpunkt startete denselben gespeicherten Proxy, danach meldete das Gate `ready=true`, `state=running`.
+- Ursache/Härtung: Der Boot-Start war vom geplanten `keepRunning()`-Zyklus abhängig. `gate()` startet nun einen verfügbaren Release selbst, meldet `ready` erst nach erfolgreicher Health-Probe und gibt bei einem festhängenden Start einen Fehlerstatus statt eines endlosen `starting` zurück.
+- Verifikation: `:pc-agent:compileJava` und `:pc-agent:standaloneJar --offline --no-daemon` erfolgreich. Kein Testlauf. Der neu gebaute Standalone-JAR ist erstellt; der laufende Agent wurde nicht neu gestartet. Sein aktueller Proxy wurde über Retry erfolgreich gestartet.
+
+## 2026-10-07 — Wallet-Salden über Pool-Adapter vereinheitlicht
+
+- `WalletBalanceService` nimmt jetzt die konfigurierten Wallet-/Pool-Paare aller PC-Agent-Coins entgegen und delegiert an `PoolBalanceProvider`-Implementierungen. Der neue Kryptex-Adapter mappt Monero, Pearl, Ravencoin, Ethereum Classic und Quantus auf die Kryptex-API-Coin-IDs. Cache und Fehlerstatus sind je Provider/Coin/Wallet getrennt; der Pearl-On-Chain-Saldo bleibt separat.
+- `WalletTarget` liefert die gespeicherte Pool-URL mit. Die globale Wallet-Anzeige richtet sich nach dem Backend-Status und nicht nach einer UI-seitigen XMR/PRL-Allowlist. DCR bleibt `UNSUPPORTED_POOL`, bis es einen Adapter für das konfigurierte Suprnova gibt.
+- Verifikation: `git diff --check` und JavaScript-Syntaxprüfung erfolgreich. Der Java-Compile wurde mit `:pc-agent:compileJava --offline --no-daemon` versucht, konnte Gradle aber wegen `Failed to load native library 'libnative-platform.so'` in der Sandbox nicht starten. Kein Test, Browser- oder Live-Wallet-Abruf durchgeführt. Kryptex-API-Endpunkt und sichtbare Coin-Pools anhand der [offiziellen API-Doku](https://pool.kryptex.com/en/api) und [Poolseiten](https://pool.kryptex.com/qtc) abgeglichen. Auszahlungshistorie bleibt außerhalb dieses Umfangs.
+
+## 2026-10-07 — Proxy-Gate beim Seitenwechsel verborgen halten
+
+- Das Proxy-Gate wird jetzt zunächst mit `hidden` angelegt. Es wird erst sichtbar, wenn ein empfangener Agent-Status meldet, dass der Proxy noch nicht bereit ist; ein bereiter Proxy schließt es weiterhin direkt. Damit erzeugt die Statusabfrage beim Navigieren zwischen Seiten kein sichtbares Popup.
+- Verifikation: JavaScript-Syntaxprüfung und `git diff --check`; Standalone-JAR neu gebaut. Kein Browser-Test; der laufende PC-Agent wurde nicht neu gestartet.
+## 2026-10-07 — PC-Agent coin compatibility audit
+
+- Verglichen: PC-Agent EarningsForecastService coin catalogue mit Node Agent-Earnings-Adapter, MiningCoin/Wallet-API, Dashboard „Mining result today“ und Finanzhistorie.
+- Ergebnis: vollständige Kette fehlt für RVN/ETC/DCR/QTC; Node registriert aktuell nur BTC/XMR/PRL. Wallets und tatsächliche tägliche Finanzwerte sind ebenfalls nur BTC/XMR/PRL-fähig (XMR-Adresse ohne öffentlichen Saldo). CFX ist auch im PC-Agent kein Mining-Forecast.
+- Detaillierte Coin-Matrix, Quellpfade und Folgeschritte: [PC-Agent/Node Kompatibilitätsaudit](pc-agent-node-coin-compatibility-2026-10-07.md).
+- Nur Quellprüfung; keine Produktcodeänderung und keine Tests. Vorhandene uncommitted Arbeit blieb unangetastet.
+## 2026-10-07 — Node Coin-Anzeige und Finanzdaten an PC-Agent angeglichen
+
+- `MiningCoin` kennt nun XMR/PRL/RVN/ETC/DCR/QTC und mappt die Agent-Algorithmus-IDs case-insensitiv. Neue Coins erscheinen in Watch-Wallets und Ertragsprognosen. Die Node-Target-Verwaltung bleibt sicher auf BTC/XMR/PRL begrenzt, da Agent-Config-Write-Endpunkte für RVN/ETC/DCR/QTC noch fehlen; Backend lehnt solche Target-Schreibvorgänge ausdrücklich ab.
+- Kryptex-Balances unterstützen XMR/PRL/RVN/ETC/QTC. Watch-Wallets können Kryptex-Konten zur tatsächlichen Reward-Historie beitragen; Tages- und Finanzansichten zeigen die tatsächlichen Reward-/Preis-Chartdaten und kennzeichnen fehlende Daten unbewertet. DCR bleibt in Pool-Balance und Reward-Historie `UNSUPPORTED`/`HISTORY_UNAVAILABLE`, weil für den aktuellen PC-Agent-Pool kein Node-Adapter vorhanden ist.
+- Dashboard-Gesamtertrag und Mining-Netto werden nicht mehr als BTC-only ausgegeben; wenn ein beobachteter Coin-Rewardsource oder historische Kurs fehlt, bleiben Betrag und Netto nicht verfügbar. BTC-Verkauf/Bestand/Kosten-pro-BTC bleiben BTC-spezifisch. UI-Texte und globale Coin-Symbole wurden ergänzt.
+- Verifikation: `react-frontend/node_modules/.bin/tsc --noEmit --pretty false` erfolgreich. Java-Kompilierung blockiert: `./gradlew` ist nicht ausführbar; `sh ./gradlew` konnte den Gradle-Lock im read-only `/home/lukas/.gradle/wrapper/dists` nicht anlegen. Direkter Gradle-Lauf mit Cache-Kopie in `/tmp` scheiterte vor Buildstart mit `Could not determine a usable wildcard IP for this machine`. Keine Tests ausgeführt. Offizielle Kryptex-API-Doku führt Miner-Balance und Reward-Chart auf: https://pool.kryptex.com/en/api.
+- Vollständige Matrix und Grenzen: [Kompatibilitätsaudit](pc-agent-node-coin-compatibility-2026-10-07.md).
+
+## 2026-10-07 — PC-Agent bleibt bei deaktivierter Node-Steuerung auffindbar
+
+- `GET /api/agent/external/identity` ist eine gezielte Ausnahme vom globalen externen Steuerungs-Gate. Node Discovery kann den Agenten dadurch weiterhin erkennen, auch wenn der Betreiber Remote-Steuerung deaktiviert hat.
+- Alle anderen externen Agent-Routen bleiben hinter `externalControlEnabled`; die Ausnahme gilt nur für GET auf exakt `/identity`.
+- Filter-Test aktualisiert für erlaubte Erkennung und weiterhin abgelehnte Status-/Steuerungsrouten. Tests wurden in diesem Schritt nicht ausgeführt.
