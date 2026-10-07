@@ -54,6 +54,13 @@ class EarningsForecastServiceTest {
             exchange.getResponseBody().write(body);
             exchange.close();
         });
+        server.createContext("/api/v1/public/coin-prices", exchange -> {
+            byte[] body = "{\"btc\":84035,\"dcr\":18.04,\"qtc\":101.97}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
         server.start();
         try {
             URI endpoint = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/api/v1/public/mining-networks");
@@ -65,6 +72,8 @@ class EarningsForecastServiceTest {
             assertThat(result.get("monero").priceUsd()).isEqualTo(542.46d);
             assertThat(result.get("ravencoin").blockReward()).isEqualTo(1250d);
             assertThat(result.get("ravencoin").collectedAt()).isEqualTo(Instant.parse("2026-10-04T12:00:00Z"));
+            assertThat(service.prices()).containsEntry("BTC", 84035d).containsEntry("DCR", 18.04d)
+                    .containsEntry("QTC", 101.97d);
         } finally {
             server.stop(0);
         }

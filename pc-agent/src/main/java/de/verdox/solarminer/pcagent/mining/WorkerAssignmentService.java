@@ -161,10 +161,7 @@ public class WorkerAssignmentService {
         return switch (coin) {
             case "monero" -> "RandomX";
             case "pearl" -> "PearlHash";
-            case "ravencoin" -> "KAWPOW";
-            case "ethereumclassic" -> "ETCHash";
-            case "decred" -> "BLAKE3 (Decred)";
-            case "quantus" -> "QPoW (Poseidon2)";
+            case "ravencoin", "ethereumclassic", "decred", "quantus" -> GpuCoinMinerService.algorithm(coin);
             default -> null;
         };
     }

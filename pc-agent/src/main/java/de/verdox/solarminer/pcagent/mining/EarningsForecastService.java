@@ -44,21 +44,58 @@ public class EarningsForecastService {
     private final ObjectMapper mapper;
     private final HttpClient httpClient;
     private final URI miningNetworksUrl;
+    private final URI coinPricesUrl;
     private final AtomicBoolean refreshing = new AtomicBoolean();
     private final Map<String, NetworkSnapshot> snapshots = new ConcurrentHashMap<>();
     private volatile Instant nextRefreshAt = Instant.EPOCH;
+    private volatile Instant nextPriceRefreshAt = Instant.EPOCH;
+    private volatile Instant pricesUpdatedAt = Instant.EPOCH;
+    private volatile Map<String, Double> marketPrices = Map.of();
 
     @Autowired
     public EarningsForecastService(
             ObjectMapper mapper,
-            @Value("${solarminer.earnings.mining-networks-url:https://currency.solarminer.app/api/v1/public/mining-networks}") URI miningNetworksUrl) {
-        this(mapper, miningNetworksUrl, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(4)).build());
+            @Value("${solarminer.earnings.mining-networks-url:https://currency.solarminer.app/api/v1/public/mining-networks}") URI miningNetworksUrl,
+            @Value("${solarminer.earnings.coin-prices-url:https://currency.solarminer.app/api/v1/public/coin-prices}") URI coinPricesUrl) {
+        this(mapper, miningNetworksUrl, coinPricesUrl, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(4)).build());
     }
 
     EarningsForecastService(ObjectMapper mapper, URI miningNetworksUrl, HttpClient httpClient) {
+        this(mapper, miningNetworksUrl, URI.create(miningNetworksUrl.toString().replace("/mining-networks", "/coin-prices")), httpClient);
+    }
+
+    EarningsForecastService(ObjectMapper mapper, URI miningNetworksUrl, URI coinPricesUrl, HttpClient httpClient) {
         this.mapper = mapper;
         this.miningNetworksUrl = miningNetworksUrl;
+        this.coinPricesUrl = coinPricesUrl;
         this.httpClient = httpClient;
+    }
+
+    /** Coin quotes are independent of mining-network availability (notably BTC, DCR and QTC). */
+    public synchronized Map<String, Double> prices() {
+        Instant now = Instant.now();
+        if (now.isAfter(nextPriceRefreshAt)) {
+            nextPriceRefreshAt = now.plus(CACHE_TIME);
+            try {
+                HttpRequest request = HttpRequest.newBuilder(coinPricesUrl).timeout(Duration.ofSeconds(8))
+                        .header("Accept", "application/json").header("User-Agent", "SolarMiner-PC-Agent/1.0").GET().build();
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() != 200) throw new IllegalStateException("Currency prices HTTP " + response.statusCode());
+                JsonNode root = mapper.readTree(response.body());
+                if (!root.isObject()) throw new IllegalArgumentException("Currency prices response is not an object");
+                Map<String, Double> fresh = new LinkedHashMap<>();
+                root.fields().forEachRemaining(entry -> {
+                    double value = entry.getValue().asDouble();
+                    if (Double.isFinite(value) && value > 0) fresh.put(entry.getKey().toUpperCase(java.util.Locale.ROOT), value);
+                });
+                if (fresh.isEmpty()) throw new IllegalArgumentException("Currency prices response is empty");
+                marketPrices = Map.copyOf(fresh);
+                pricesUpdatedAt = Instant.now();
+            } catch (Exception exception) {
+                LOGGER.log(Level.WARNING, "Could not update coin prices", exception);
+            }
+        }
+        return Instant.now().isAfter(pricesUpdatedAt.plus(Duration.ofHours(2))) ? Map.of() : marketPrices;
     }
 
     public List<Forecast> forecasts(List<MinerStats.Worker> workers) {

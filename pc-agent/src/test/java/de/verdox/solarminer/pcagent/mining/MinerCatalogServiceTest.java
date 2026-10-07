@@ -42,6 +42,7 @@ class MinerCatalogServiceTest {
         verify(xmrig).retry();
         assertFalse(catalog.select("monero", "not-a-miner"));
         assertFalse(catalog.select("ravencoin", "teamredminer"));
+        assertTrue(catalog.options("quantus").stream().findFirst().orElseThrow().selectable());
 
         assertTrue(catalog.download("monero", "xmrig"));
 

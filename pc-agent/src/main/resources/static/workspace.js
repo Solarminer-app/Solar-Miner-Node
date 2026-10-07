@@ -8,15 +8,15 @@
     return el;
   };
   const groups = [
-    ['BETRIEB', [['/', 'Dashboard', 'home'], ['/mining.html', 'Miner-Software', 'mining'], ['/workers.html', 'Worker', 'worker'], ['/pools.html', 'Pools', 'pool']]],
+    ['BETRIEB', [['/', 'Dashboard', 'home'], ['/mining.html', 'Miner-Software', 'mining'], ['/wallets.html', 'Wallets', 'wallet'], ['/workers.html', 'Worker', 'worker']]],
     ['OPTIMIERUNG', [['/hardware.html', 'Leistungsgrenzen', 'hardware'], ['/benchmarks.html', 'Benchmarks', 'benchmarks']]],
     ['SYSTEM', [['/telemetry.html', 'Sensoren', 'telemetry'], ['/proxy.html', 'Verbindung', 'proxy']]]
   ];
   const paths = {
     home: 'M3 10 12 3l9 7v10H3Z M9 20v-7h6v7',
     mining: 'M4 7h16v10H4Z M8 3v4m8-4v4M8 17v4m8-4v4M8 11h1m6 0h1',
+    wallet: 'M5 5h14v14H5Z M8 9h8m-8 4h5m-5 4h8',
     worker: 'M4 5h16v14H4Z M8 9h8v6H8Z M9 2v3m6-3v3M9 19v3m6-3v3',
-    pool: 'M3 8c3-3 6 3 9 0s6-3 9 0M3 14c3-3 6 3 9 0s6-3 9 0',
     hardware: 'M4 7h16M4 17h16M9 4v6m6 4v6',
     benchmarks: 'M5 20V11m7 9V4m7 16v-6',
     telemetry: 'M3 12h4l3-7 4 14 3-7h4',

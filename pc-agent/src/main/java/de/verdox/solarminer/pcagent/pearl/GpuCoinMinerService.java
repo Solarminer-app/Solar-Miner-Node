@@ -41,14 +41,13 @@ import java.util.concurrent.TimeUnit;
 /** Manages RVN/ETC GPU processes through the same SRBMiner installation as Pearl. */
 @Service
 public class GpuCoinMinerService {
+    private static final Duration HASHRATE_GRACE = Duration.ofSeconds(20);
     private final ObjectMapper mapper;
     private final ProxyConfigurationService proxy;
     private final PearlMinerService pearl;
     private final LocalGpuPowerService power;
     private final MinerConsoleService console;
     private final Path configDirectory;
-    @Value("${solarminer.quantus.enabled:false}")
-    private boolean quantusEnabled;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(1)).build();
     private final Map<String, Config> configs = new ConcurrentHashMap<>();
     private final Map<String, Run> runs = new ConcurrentHashMap<>();
@@ -59,6 +58,7 @@ public class GpuCoinMinerService {
         final String coin;
         final LocalGpuPowerService.Gpu gpu;
         volatile Process process;
+        volatile de.verdox.solarminer.pcagent.mining.GpuStratumRelay relay;
         volatile MinerStats.MinerStatus status = MinerStats.MinerStatus.PAUSED;
         volatile boolean healthy;
         volatile double hashrate;
@@ -181,8 +181,6 @@ public class GpuCoinMinerService {
 
     public synchronized void configure(String coin, Config config) throws IOException {
         validate(coin, config);
-        if ("quantus".equals(coin) && !quantusEnabled)
-            throw new IllegalArgumentException("QTC-Mining ist bis zur Freigabe gesperrt");
         if (!proxy.matches(config.proxyUrl(), coin)) throw new IllegalArgumentException("SolarMiner-Proxy-Route stimmt nicht");
         if (!stop(coin)) throw new IOException("GPU-Miner konnten nicht angehalten werden");
         Files.createDirectories(configDirectory);
@@ -210,7 +208,7 @@ public class GpuCoinMinerService {
     }
 
     public synchronized boolean start(String coin) {
-        if (!supported(coin) || ("quantus".equals(coin) && !quantusEnabled)) return false;
+        if (!supported(coin)) return false;
         manuallyPaused.removeIf(key -> key.startsWith(coin + ":"));
         boolean success = !selected(coin).isEmpty();
         for (LocalGpuPowerService.Gpu gpu : selected(coin)) success = startGpu(coin, gpu.vendor(), gpu.index()) && success;
@@ -219,7 +217,7 @@ public class GpuCoinMinerService {
     }
 
     public synchronized boolean startGpu(String coin, String vendor, int index) {
-        if (!supported(coin) || ("quantus".equals(coin) && !quantusEnabled)) return false;
+        if (!supported(coin)) return false;
         LocalGpuPowerService.Gpu gpu = selected(coin).stream()
                 .filter(card -> card.vendor().equals(vendor) && card.index() == index).findFirst().orElse(null);
         if (gpu == null) return false;
@@ -239,12 +237,16 @@ public class GpuCoinMinerService {
             String suffix = "-" + (vendor.equals("NVIDIA") ? "n" : "a") + index;
             String worker = config.worker().substring(0, Math.min(config.worker().length(), 32 - suffix.length())) + suffix;
             String login = encodedLogin(config, worker);
-            List<String> command = buildCommand(pearl.executablePath(), coin, config, login, apiPort, gpuId);
+            if (run.relay != null) run.relay.close();
+            var relay = new de.verdox.solarminer.pcagent.mining.GpuStratumRelay(config.proxyUrl(), login, mapper);
+            run.relay = relay;
+            Config relayed = new Config(config.poolUrl(), relay.localUrl(), config.wallet(), config.worker(), config.devices());
+            List<String> command = buildCommand(pearl.executablePath(), coin, relayed, login, apiPort, gpuId);
             Process process = new ProcessBuilder(command).directory(pearl.executablePath().getParent().toFile())
                     .redirectErrorStream(true).start();
             MinerProcessRegistry.registerGpuCoin(process, gpu.deviceId());
             run.process = process; run.apiPort = apiPort; run.status = MinerStats.MinerStatus.MINING;
-            run.healthy = false; run.error = null; run.detail = "Warte auf Pool-Job";
+            run.healthy = false; run.hashrate = 0; run.error = null; run.detail = "Warte auf Pool-Job";
             run.acceptedShares = null; run.rejectedShares = null;
             run.poolCounters = MinerShareTelemetry.Counters.unavailable();
             lastError = null;
@@ -259,12 +261,16 @@ public class GpuCoinMinerService {
             Thread.ofVirtual().name(coin + "-output-" + index).start(() -> drain(run, process, config));
             Thread.ofVirtual().name(coin + "-health-" + index).start(() -> monitor(run, process));
             process.onExit().thenAccept(done -> {
+                relay.close();
                 MinerProcessRegistry.unregisterGpuCoin(done);
                 if (run.process == done && run.status == MinerStats.MinerStatus.MINING)
                     fail(run, "SRBMiner beendet (Code " + done.exitValue() + ")");
             });
             return true;
-        } catch (IOException e) { return fail(run, "SRBMiner-Start fehlgeschlagen: " + e.getMessage()); }
+        } catch (IOException e) {
+            if (run.relay != null) run.relay.close();
+            return fail(run, "SRBMiner-Start fehlgeschlagen: " + e.getMessage());
+        }
     }
 
     public synchronized boolean startForBudget(String coin) {
@@ -287,10 +293,14 @@ public class GpuCoinMinerService {
     static List<String> buildCommand(Path executable, String coin, Config config, String login,
                                      int apiPort, int gpuId) {
         URI uri = URI.create(config.proxyUrl());
-        return List.of(executable.toString(), "--disable-cpu", "--algorithm-gpu", algorithm(coin),
+        List<String> command = new ArrayList<>(List.of(executable.toString(), "--disable-cpu", "--algorithm-gpu", algorithm(coin),
                 "--pool", uri.getHost() + ":" + uri.getPort(), "--wallet", login,
                 "--tls", "false", "--api-enable", "--api-port", Integer.toString(apiPort),
-                "--gpu-id", Integer.toString(gpuId));
+                "--gpu-id", Integer.toString(gpuId)));
+        // Select the proxy's dialect explicitly, including extranonce negotiation.
+        if ("ethereumclassic".equals(coin)) command.addAll(List.of("--esm", "2"));
+        if ("ravencoin".equals(coin)) command.addAll(List.of("--nicehash", "true"));
+        return List.copyOf(command);
     }
 
     private boolean hasUnmanagedMiner() {
@@ -317,18 +327,22 @@ public class GpuCoinMinerService {
 
     private void monitor(Run run, Process process) {
         Instant launched = Instant.now(), lastPoolConnection = launched, lastHashrate = launched;
+        Instant lastPositiveHashrate = null;
         boolean hadJob = false, hadHashrate = false;
         while (process.isAlive() && run.process == process) {
             try {
                 HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + run.apiPort + "/"))
                         .timeout(Duration.ofSeconds(2)).GET().build();
                 HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+                if (run.process != process || !process.isAlive() || run.status != MinerStats.MinerStatus.MINING) return;
+                if (response.statusCode() != 200) throw new IOException("Miner-API HTTP " + response.statusCode());
                 JsonNode algorithms = mapper.readTree(response.body()).path("algorithms");
                 JsonNode info = algorithms.isArray() && !algorithms.isEmpty() ? algorithms.get(0) : mapper.createObjectNode();
                 JsonNode pool = info.path("pool");
-                double rate = info.path("hashrate").path("gpu").path("total").asDouble(0);
-                if (rate <= 0) rate = info.path("hashrate").path("1min").asDouble(0);
-                run.hashrate = rate;
+                double rate = reportedHashrate(info);
+                Instant now = Instant.now();
+                if (rate > 0) lastPositiveHashrate = now;
+                run.hashrate = displayedHashrate(rate, run.hashrate, lastPositiveHashrate, now);
                 updateShares(run, pool);
                 long age = pool.path("last_job_received").asLong(0);
                 boolean poolConnected = response.statusCode() == 200 && pool.path("uptime").asLong(0) > 0;
@@ -340,11 +354,15 @@ public class GpuCoinMinerService {
                 if (poolConnected) lastPoolConnection = Instant.now();
                 if (hasUsablePoolJob(poolConnected, recentJob, rate)) hadJob = true;
                 run.healthy = poolConnected && rate > 0;
-                if (rate > 0) { hadHashrate = true; lastHashrate = Instant.now(); }
+                if (rate > 0) { hadHashrate = true; lastHashrate = now; }
                 if (run.healthy) run.detail = "GPU hasht, letzter Pool-Job vor " + age + " s";
                 else if (poolConnected) run.detail = "Pool verbunden, warte auf GPU-Hashrate";
                 else run.detail = "Warte auf Pool-Job";
-            } catch (Exception e) { run.healthy = false; run.detail = "Miner-API nicht erreichbar"; }
+            } catch (Exception e) {
+                if (run.process != process || !process.isAlive() || run.status != MinerStats.MinerStatus.MINING) return;
+                run.hashrate = displayedHashrate(0, run.hashrate, lastPositiveHashrate, Instant.now());
+                run.healthy = false; run.detail = "Miner-API nicht erreichbar";
+            }
             if (run.status != MinerStats.MinerStatus.MINING) return;
             if ((!hadJob && Duration.between(launched, Instant.now()).toSeconds() >= 90)
                     || (hadJob && Duration.between(lastPoolConnection, Instant.now()).toSeconds() >= 120)
@@ -361,6 +379,20 @@ public class GpuCoinMinerService {
         }
     }
 
+    static double reportedHashrate(JsonNode info) {
+        JsonNode hashrate = info.path("hashrate");
+        for (JsonNode value : List.of(hashrate.path("gpu").path("total"), hashrate.path("1m"), hashrate.path("1min"))) {
+            double rate = value.asDouble(0);
+            if (Double.isFinite(rate) && rate > 0) return rate;
+        }
+        return 0;
+    }
+
+    static double displayedHashrate(double reported, double previous, Instant lastPositive, Instant now) {
+        if (Double.isFinite(reported) && reported > 0) return reported;
+        return previous > 0 && lastPositive != null && !now.isAfter(lastPositive.plus(HASHRATE_GRACE)) ? previous : 0;
+    }
+
     static boolean hasUsablePoolJob(boolean poolConnected, boolean recentJob, double hashrate) {
         return poolConnected && (recentJob || hashrate > 0);
     }
@@ -371,6 +403,7 @@ public class GpuCoinMinerService {
         run.status = MinerStats.MinerStatus.PAUSED; run.healthy = false; run.hashrate = 0;
         run.acceptedShares = null; run.rejectedShares = null; run.poolCounters = MinerShareTelemetry.Counters.unavailable(); run.detail = "Pausiert";
         Process process = run.process;
+        if (run.relay != null) run.relay.close();
         if (process == null || !process.isAlive()) return true;
         console.append(run.consoleId(), "[SolarMiner] Stop: " + MinerStopContext.source());
         process.destroy();
@@ -401,7 +434,8 @@ public class GpuCoinMinerService {
     }
     public boolean running(String coin) { return runs.values().stream().anyMatch(run -> run.coin.equals(coin) && run.running()); }
     public MinerStats.MinerStatus status(String coin) {
-        if (runs.values().stream().anyMatch(run -> run.coin.equals(coin) && run.running() && run.healthy)) return MinerStats.MinerStatus.MINING;
+        if (runs.values().stream().anyMatch(run -> run.coin.equals(coin) && run.running()
+                && run.status == MinerStats.MinerStatus.MINING)) return MinerStats.MinerStatus.MINING;
         if (runs.values().stream().anyMatch(run -> run.coin.equals(coin) && run.status == MinerStats.MinerStatus.ERROR)) return MinerStats.MinerStatus.ERROR;
         return MinerStats.MinerStatus.PAUSED;
     }
@@ -411,7 +445,7 @@ public class GpuCoinMinerService {
             String key = coin + ":" + gpu.vendor() + ":" + gpu.index();
             Run run = runs.get(key);
             return new GpuState(gpu.vendor(), gpu.index(), gpu.model(), selected.contains(gpu.vendor() + ":" + gpu.index()),
-                    run == null ? MinerStats.MinerStatus.PAUSED : run.running() && !run.healthy ? MinerStats.MinerStatus.PAUSED : run.status,
+                    run == null ? MinerStats.MinerStatus.PAUSED : run.status,
                     run != null && run.running(), run != null && run.healthy, manuallyPaused.contains(key),
                     run == null ? "Noch nicht gestartet" : run.detail, run == null ? null : run.error);
         }).toList();
@@ -426,7 +460,7 @@ public class GpuCoinMinerService {
             boolean reported = run != null && run.status == MinerStats.MinerStatus.MINING;
             MinerShareTelemetry.Counters counters = run == null ? MinerShareTelemetry.Counters.unavailable() : run.poolCounters;
             return new MinerStats.Worker(state.status(), "SRBMiner " + gpu.model() + " (" + coin + ")", algorithm(coin),
-                    run == null ? 0 : run.hashrate / 1_000_000_000_000.0, 0.0,
+                    reported ? run.hashrate / 1_000_000_000_000.0 : 0, 0.0,
                     power.appliedTarget(gpu), gpu.minWatts(), gpu.maxWatts(), gpu.maxWatts(),
                     gpu.currentWatts() == null ? 0 : Math.round(gpu.currentWatts()), pools, "GPU", gpu.model(), gpu.deviceId(),
                     reported ? run.acceptedShares : null,

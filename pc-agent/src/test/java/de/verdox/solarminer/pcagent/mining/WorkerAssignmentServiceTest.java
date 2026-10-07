@@ -13,12 +13,43 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class WorkerAssignmentServiceTest {
+    @Test
+    void gpuWorkersUseTheMinerAlgorithmForLiveStatus() {
+        var gpu = new LocalGpuPowerService.Gpu("NVIDIA", 0, "GPU-a", "Test GPU", 100, 250,
+                100, 250, 200, 150.0, "measured", true, null);
+        LocalGpuPowerService power = mock(LocalGpuPowerService.class);
+        when(power.discover()).thenReturn(List.of(gpu));
+        AgentControlSettingsService controls = mock(AgentControlSettingsService.class);
+        MiningService mining = mock(MiningService.class);
+        GpuCoinMinerService gpuCoins = mock(GpuCoinMinerService.class);
+        when(gpuCoins.configuration(anyString())).thenReturn(new GpuCoinMinerService.Config(
+                "stratum+tcp://pool.example:3333", "stratum+tcp://127.0.0.1:3339", "wallet", "pc", "NVIDIA:0"));
+        WorkerAssignmentService service = new WorkerAssignmentService(controls, mining, power,
+                mock(MinerCatalogService.class), mock(PearlMinerService.class), gpuCoins);
+
+        for (String coin : List.of("ravencoin", "ethereumclassic", "decred", "quantus")) {
+            String algorithm = GpuCoinMinerService.algorithm(coin);
+            when(controls.get()).thenReturn(new AgentControlSettingsService.Settings(true, false,
+                    Map.of(), Map.of(gpu.deviceId(), coin)));
+            var live = new MinerStats.Worker(MinerStats.MinerStatus.MINING, "SRBMiner", algorithm,
+                    0, 0, 0, 0, 0, 0, 0, List.of(), "GPU", gpu.model(), gpu.deviceId(),
+                    null, null, MinerStats.PoolTelemetry.unavailable());
+            when(mining.getStats(anyList())).thenReturn(new MinerStats(MinerStats.DEFAULT.minerIdentity(),
+                    "Test", MinerStats.MinerStatus.MINING, 0, 0, 0, 0, 0, 0, 0, List.of(), List.of(live)));
+
+            WorkerAssignmentService.WorkerView worker = service.workers().get(1);
+            assertEquals(MinerStats.MinerStatus.MINING, worker.status(), coin);
+            assertEquals(live, worker.telemetry(), coin);
+        }
+    }
+
     @Test
     void cpuAssignmentSelectsInstalledSoftwareWithoutStartingIt() throws Exception {
         AgentControlSettingsService controls = mock(AgentControlSettingsService.class);

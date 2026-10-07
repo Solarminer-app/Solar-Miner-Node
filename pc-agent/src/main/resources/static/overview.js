@@ -11,7 +11,7 @@
     temperature: {title: 'Höchste Temperatur', className: 'heat', unit: value => ui.temperature(value)},
     efficiency: {title: 'Effizienz', className: 'efficiency', unit: value => ui.efficiency(value, 1)}
   };
-  let overview, telemetry, settings, assessment, energy;
+  let overview, telemetry, settings, assessment, energy, energyError = null;
   let selectedAlgorithm = '', sort = {key: 'hashrateHps', direction: 'desc'}, workerFilter = '';
   let stream = null, refreshing = false, queued = false, savedAt = null;
 
@@ -143,11 +143,13 @@
       head.append(identity, ui.statusPill(row.status)); card.append(head);
       const forecast = (data.earnings || []).find(item => item.coin === row.coin && item.available);
       const ratio = forecast && coinHashrates[row.coin] > 0 ? row.hashrateHps / coinHashrates[row.coin] : 0;
+      const usdPerDay = forecast ? forecast.usdPerDay * ratio : null;
       const metrics = ui.element('div', 'live-worker-metrics');
       for (const [label, value] of [
         ['Hashrate', ui.hashrate(row.hashrateHps)], ['Leistung', row.watts ? ui.power(row.watts) : '—'],
         ['Temperatur', row.temperature.value != null ? ui.temperature(row.temperature.value) : '—'],
-        ['Ertrag', forecast ? `≈ ${preferences.moneyFromUsd(forecast.usdPerDay * ratio)}/Tag` : '—']]) {
+        ['Ertrag', usdPerDay != null ? `≈ ${preferences.moneyFromUsd(usdPerDay)}/Tag` : '—'],
+        ['Ertrag pro kWh', ui.moneyPerKwh(ui.revenuePerKwh(usdPerDay, row.watts))]]) {
         const item = ui.element('div'); item.append(ui.element('span', '', label), ui.element('strong', '', value)); metrics.append(item);
       }
       card.append(metrics);
@@ -162,7 +164,13 @@
 
   function renderEnergy() {
     const root = $('energy-kpis');
-    if (!energy) { root.replaceChildren(ui.element('div', 'skeleton')); return; }
+    $('energy-settings').disabled = !energy;
+    if (!energy) {
+      root.replaceChildren(ui.element('div', energyError ? 'notice-line warn' : 'skeleton',
+        energyError ? 'Energiedaten konnten nicht geladen werden.' : undefined));
+      $('energy-note').textContent = energyError ? `${t('Energie-API:')} ${t(energyError)}` : '';
+      return;
+    }
     const activeWh = (energy.activeSessions || []).reduce((sum, session) => sum + Number(session.wattHours || 0), 0);
     const activeSeconds = (energy.activeSessions || []).reduce((sum, session) => Math.max(sum, Number(session.runtimeSeconds || 0)), 0);
     const money = value => preferences.money(value, energy.settings.currency);
@@ -253,8 +261,8 @@
         connected ? 'Pool verbunden' : row.running ? 'Verbinde mit Pool' : 'Gestoppt'));
       if (!row.feeReady && (data.proxy?.mode === 'standalone' || ['pearl', 'ravencoin', 'ethereumclassic'].includes(row.coin)))
         actions.append(ui.element('span', 'pill tone-warn', 'Fee-Ziel fehlt'));
-      const link = ui.element('a', 'button subtle', 'Pool wechseln');
-      link.href = `/pools.html?coin=${row.coin}`;
+      const link = ui.element('a', 'button subtle', 'Wallet & Pool bearbeiten');
+      link.href = '/wallets.html';
       actions.append(link);
       card.append(identity, target, connection, latency, diff, actions);
       return card;
@@ -356,11 +364,19 @@
       window.SolarMinerMiningCache?.write(data);
       render(data);
       const optional = await Promise.allSettled(['/api/agent/local/power-control/settings', '/api/agent/local/node-assessment', '/api/agent/local/telemetry', '/api/agent/local/energy']
-        .map(url => fetch(url, {cache: 'no-store'}).then(answer => answer.ok ? answer.json() : null)));
+        .map(url => fetch(url, {cache: 'no-store', signal: AbortSignal.timeout(5000)})
+          .then(answer => {
+            if (!answer.ok) throw new Error(`HTTP ${answer.status}`);
+            return answer.json();
+          })));
       settings = optional[0].status === 'fulfilled' ? optional[0].value : null;
       assessment = optional[1].status === 'fulfilled' ? optional[1].value : null;
       telemetry = optional[2].status === 'fulfilled' ? optional[2].value : null;
       energy = optional[3].status === 'fulfilled' ? optional[3].value : null;
+      energyError = optional[3].status === 'rejected'
+        ? (optional[3].reason?.message === 'HTTP 404' ? 'HTTP 404 · PC-Agent neu starten oder aktualisieren.'
+          : optional[3].reason?.name === 'TimeoutError' ? 'Zeitüberschreitung'
+            : optional[3].reason?.message || 'Verbindung fehlgeschlagen') : null;
       render(data);
       $('connection').className = 'badge online';
       $('notice').hidden = true;

@@ -19,7 +19,7 @@ import static org.mockito.Mockito.*;
 class FeeTransparencyServiceTest {
     @Test
     void slowCoinLookupsStartTogetherAndKeepCatalogOrder() throws Exception {
-        CountDownLatch arrived = new CountDownLatch(4), release = new CountDownLatch(1);
+        CountDownLatch arrived = new CountDownLatch(6), release = new CountDownLatch(1);
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try (var requests = Executors.newVirtualThreadPerTaskExecutor();
              var reader = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -43,13 +43,13 @@ class FeeTransparencyServiceTest {
                     mock(XmrConfigService.class), mock(PearlMinerService.class), mock(GpuCoinMinerService.class),
                     server.getAddress().getPort());
             var result = reader.submit(service::overview);
-            try { assertTrue(arrived.await(2, TimeUnit.SECONDS), "All four requests must arrive before any completes"); }
+            try { assertTrue(arrived.await(2, TimeUnit.SECONDS), "All six requests must arrive before any completes"); }
             finally { release.countDown(); }
             var fees = result.get(5, TimeUnit.SECONDS);
-            assertEquals(java.util.List.of("monero", "pearl", "ravencoin", "ethereumclassic"),
+            assertEquals(java.util.List.of("monero", "pearl", "ravencoin", "ethereumclassic", "decred", "quantus"),
                     fees.stream().map(FeeTransparencyService.FeeOverview::coin).toList());
             assertTrue(fees.stream().allMatch(FeeTransparencyService.FeeOverview::routeAvailable));
-            assertEquals(4, fees.size());
+            assertEquals(6, fees.size());
         } finally { release.countDown(); server.stop(0); }
     }
 }

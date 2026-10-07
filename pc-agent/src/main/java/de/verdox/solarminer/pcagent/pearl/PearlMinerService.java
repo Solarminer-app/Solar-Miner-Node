@@ -88,8 +88,7 @@ public class PearlMinerService {
         boolean running() { return process != null && process.isAlive(); }
 
         MinerStats.MinerStatus visibleStatus() {
-            return running() && status == MinerStats.MinerStatus.MINING
-                    ? (poolHealthy ? MinerStats.MinerStatus.MINING : MinerStats.MinerStatus.PAUSED) : status;
+            return status;
         }
     }
 

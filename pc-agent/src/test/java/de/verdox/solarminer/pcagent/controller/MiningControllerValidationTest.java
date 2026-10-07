@@ -54,7 +54,7 @@ class MiningControllerValidationTest {
 
     MiningControllerValidationTest() {
         when(sensors.readyForAgent()).thenReturn(true);
-        for (String coin : java.util.List.of("monero", "pearl", "ravencoin", "ethereumclassic")) {
+        for (String coin : java.util.List.of("monero", "pearl", "ravencoin", "ethereumclassic", "decred", "quantus")) {
             MinerCatalogService.MinerOption option = new MinerCatalogService.MinerOption(
                     coin.equals("monero") ? "xmrig" : "srbminer-multi", coin, "test", coin.equals("monero") ? "CPU" : "GPU",
                     "test", null, java.util.List.of(), java.util.List.of(), "https://example.test", coin.equals("ravencoin") || coin.equals("ethereumclassic"), true, "READY", "ready", true, null);

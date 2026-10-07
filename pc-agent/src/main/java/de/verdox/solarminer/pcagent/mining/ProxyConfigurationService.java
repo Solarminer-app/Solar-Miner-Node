@@ -237,10 +237,22 @@ public class ProxyConfigurationService {
             case "quantus" -> quantusPort;
             default -> -1;
         };
-        try (java.net.Socket socket = new java.net.Socket()) {
-            socket.connect(new java.net.InetSocketAddress(currentHost, port), 1500);
-            return true;
-        } catch (IOException e) {
+        try {
+            // TCP connect/close is indistinguishable from a miner to Stratum V1.
+            // The dashboard reports the server's actual bound listener state.
+            HttpRequest request = HttpRequest.newBuilder(URI.create("http://" + currentHost + ":" + apiPort + "/api/dashboard"))
+                    .timeout(Duration.ofSeconds(3)).GET().build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) return false;
+            JsonNode coins = mapper.readTree(response.body()).path("coins");
+            if (!coins.isArray()) return false;
+            for (JsonNode entry : coins) {
+                if (coin.equals(entry.path("coin").asText()) && port == entry.path("port").asInt()
+                        && "online".equals(entry.path("listenerStatus").asText())) return true;
+            }
+            return false;
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             return false;
         }
     }

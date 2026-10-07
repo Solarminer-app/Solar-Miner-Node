@@ -294,13 +294,17 @@
   }
 
   /** Normalized worker rows shared by the dashboard and the worker page. */
+  const minerAlgorithms = {monero: 'RandomX', pearl: 'PearlHash', ravencoin: 'kawpow',
+    ethereumclassic: 'etchash', decred: 'blake3_decred', quantus: 'quantus'};
+  const matchesAlgorithm = (coin, worker) =>
+    (minerAlgorithms[coin.id] || coin.algorithm).toLowerCase() === String(worker.currentAlgorithm || '').toLowerCase();
   function workerRows(overview, telemetry) {
     const gpus = overview.gpus || [];
     return (overview.stats?.workers || []).map(worker => {
       const heat = temperatureOf(worker, telemetry, gpus);
       const watts = Number(worker.approximatedPowerUsageWatts) > 0 ? Number(worker.approximatedPowerUsageWatts) : null;
       const hashes = (Number(worker.terahashPerSecond) || 0) * 1e12;
-      const coin = (overview.coins || []).find(entry => entry.algorithm === worker.currentAlgorithm
+      const coin = (overview.coins || []).find(entry => matchesAlgorithm(entry, worker)
         && (entry.device === worker.hardwareType || entry.id === 'monero' && worker.hardwareType === 'CPU'));
       const pool = worker.pool || {};
       return {
@@ -330,8 +334,7 @@
       const gpuStates = states(coin.id);
       const workers = (overview.stats?.workers || []).filter(worker =>
         (coin.id === 'monero' ? worker.hardwareType === 'CPU' : false)
-        || (coin.id !== 'monero' && (overview.coins.find(entry => entry.id === coin.id)?.algorithm || '')
-          .toLowerCase() === String(worker.currentAlgorithm || '').toLowerCase()));
+        || (coin.id !== 'monero' && matchesAlgorithm(coin, worker)));
       const running = coin.id === 'pearl' ? Boolean(pearl.running) : coin.id === 'monero'
         ? coin.status === 'MINING' : Boolean(overview.gpuCoins?.[coin.id]?.running);
       const connected = coin.id === 'monero' ? (running && coin.status === 'MINING' ? 1 : 0)

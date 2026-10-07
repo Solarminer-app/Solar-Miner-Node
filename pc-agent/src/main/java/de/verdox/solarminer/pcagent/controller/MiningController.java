@@ -505,6 +505,11 @@ public class MiningController {
         return earningsForecastService.forecasts(miningService.getWorkerStats());
     }
 
+    @GetMapping("/market-prices")
+    public java.util.Map<String, Double> marketPrices() {
+        return earningsForecastService.prices();
+    }
+
     @PostMapping("/miners/{coin}/resume")
     public boolean resumeMiner(@PathVariable String coin) {
         return miningService.resumeMining(coin);

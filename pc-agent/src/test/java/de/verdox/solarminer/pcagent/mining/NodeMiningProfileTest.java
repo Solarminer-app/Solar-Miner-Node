@@ -61,6 +61,8 @@ class NodeMiningProfileTest {
         when(coins.eligible("ravencoin")).thenReturn(List.of(gpu));
         when(pearl.stopGpu("NVIDIA", 0)).thenReturn(true);
         when(coins.stopGpu("ethereumclassic", "NVIDIA", 0)).thenReturn(true);
+        when(coins.stopGpu("decred", "NVIDIA", 0)).thenReturn(true);
+        when(coins.stopGpu("quantus", "NVIDIA", 0)).thenReturn(true);
         when(coins.startGpu("ravencoin", "NVIDIA", 0)).thenReturn(true);
         when(power.setTotalPowerTarget(anyLong(), anyList())).thenReturn(true);
         var mining = new MiningService(cpu, pearl, coins, power, mock(HardwareIdentityService.class), controls, directory.resolve("coin.txt").toString());

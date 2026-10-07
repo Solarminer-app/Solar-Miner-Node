@@ -1,6 +1,6 @@
 # Quantus (QTC) GPU integration record
 
-Status: **fee target configured locally; miner selection/start remain blocked pending end-to-end validation; no production support claim** (2026-10-07).
+Status: **the PC-Agent has no Quantus-specific local rollout gate; start remains conditioned on a live valid fee target; no production support claim** (2026-10-07).
 
 ## Contract and candidate path
 
@@ -17,26 +17,29 @@ Status: **fee target configured locally; miner selection/start remain blocked pe
 | Pool fee | Kryptex currently publishes changing/inconsistent values across its live UI and guide; do not treat the local transparency estimate as authoritative |
 | SolarMiner / referral targets | House target configured in fee-backend source and local runtime config at 2.5%; no referral QTC target configured |
 
-The quantusminer.com native pool exposes a custom WebSocket protocol and its native Quantus node miner uses authenticated QUIC, not Stratum. Those paths are intentionally not adapted to the SolarMiner V1 Stratum listener. Kryptex documents SRBMiner-MULTI with `--algorithm quantus`, QTC wallet and port 7049, so it is the candidate for the proxy adapter. The proxy adapter extends the shared GPU JSON-RPC path (`mining.subscribe`, `mining.authorize`, `mining.set_difficulty`, `mining.notify`, `mining.submit`); actual Kryptex message compatibility is not yet captured.
+The quantusminer.com native WebSocket and Quantus node authenticated QUIC paths are not adapted to this listener. Kryptex documents SRBMiner-MULTI and port 7049. A bounded 2026-10-06 diagnostic confirmed the pool uses `login` with named params and returns `result.id`, `status:OK` and an embedded object job with `job_id`, `mining_hash`, `target`, `extranonce` and `difficulty`. The old Ethereum-like adapter was replaced by a dedicated `QuantusStratumProtocol`; its named `submit` and fee-session routing have fixture coverage, and local SRBMiner consoles now report accepted shares. Pool-side credit remains unverified. See the [repair record](../../../solarminer-stratum-proxy/docs/agent-wiki/gpu-stratum-repair-2026-10-06.md).
+
+On 2026-10-07, local SRBMiner 3.7.1 QTC logs showed real jobs and miner-reported accepted shares but also `PARSE error: Quantus notification has no job object` followed by reconnects. The sibling proxy sent subsequent `job` notifications with fields directly under `params`; SRBMiner requires `params.job` and optional `params.clean_jobs`. The proxy now emits that nested notification while retaining the direct `result.job` login shape. The updated proxy is included in the rebuilt standalone PC-Agent JAR; sustained runtime, proxy fee switching and pool-side share credit remain to be verified.
 
 ## Implemented source path
 
 - Currency Service uses CoinGecko's `quantus` ID and QTCScan `/explorer-data.json`. It reads schema 1, difficulty, one-hour estimated network hashrate in H/s, target block seconds and block reward already in QTC. Provider `updated_at` is retained as the snapshot time and becomes stale after three minutes. Missing values reject the refresh and preserve the previous complete row.
 - Proxy registers `quantusStratumProtocol` and a configured port `3339`; PC-Agent standalone proxy startup configures the same port.
-- PC-Agent GPU worker, forecast, software catalog, console, proxy reachability, and fee-readiness paths recognize `quantus`. The managed process uses SRBMiner and cannot start unless its SolarMiner proxy route and house fee target are ready. The operator supplied the SolarMiner QTC payout address; fee-backend now has a local/default house target for Kryptex at `qtc.kryptex.network:7049`, worker suffix `/solarminer`, and the standard 2.5% share. Catalog selection remains disabled, and a separate `solarminer.quantus.enabled=false` runtime gate prevents direct API calls from starting/configuring it while rollout is pending.
+- PC-Agent GPU worker, forecast, software catalog, console, proxy reachability, and fee-readiness paths recognize `quantus`. The managed process uses SRBMiner and cannot start unless its SolarMiner proxy route and house fee target are ready. The operator supplied the SolarMiner QTC payout address; fee-backend now has a local/default house target for Kryptex at `qtc.kryptex.network:7049`, worker suffix `/solarminer`, and the standard 2.5% share. There is no Quantus-specific local feature flag or catalog/start/configuration block: `ProxyConfigurationService.feeReady("quantus")` determines whether a valid target is available at start time.
+- PC-Agent reads SRBMiner's current `hashrate.1m` as a fallback when `hashrate.gpu.total` is zero, while retaining the legacy `1min` fallback. One missing/zero API sample no longer blanks Dashboard and Worker immediately: the last positive value is held for at most 20 seconds for the same running process. This display smoothing does not extend the raw-hashrate health timeout. The exact intermittent QTC API payload still needs capture on a running miner.
 
 ## Gates and non-applicable scope
 
-- **Blocking:** the QTC house target is only in source/default and this workspace's ignored runtime config; the deployed fee service has not been provisioned or reloaded. No referral QTC target exists yet. The portal needs a documented compatible account/worker contract. Agent selection/start remain disabled until the deployed house target is returned through the proxy and real user/house shares and pool credits are verified.
+- **Operational prerequisite:** the QTC house target must be deployed and returned through the configured proxy. The PC-Agent fails closed when that live target is absent, invalid, or unreachable; no local setting can override this. The Admin portal now stores/masks per-referral QTC wallets and can form a Kryptex `wallet/worker` target, but its production routing flag defaults to false. Real user/house/referral shares and pool credits remain unverified.
 - External proxy deployments must publish TCP `3339` and permit it through the host/network firewall; Dockerfile `EXPOSE` is metadata only. This repository has no proxy Compose/firewall configuration to update.
-- No real GPU start, Kryptex subscribe/login/job/submit capture, accepted share, house/referral share, pool credit, or payout has been verified. Generic GPU adapter reuse is not proof of QTC Stratum compatibility.
+- A live Kryptex login/embedded-job response was observed without any share submission or real payout address. No real GPU start, submit capture, accepted user/house/referral share, pool credit or payout has been verified. Login success is not proof of address validation or mining support.
 - No Quantus browser miner or Quantus-native WebSocket pool adapter is applicable to this Stratum route; those are different transports and miner protocols.
 - Solar-Miner-Node's ASIC/Braiins control, integrated wallet, Lightning, and BTC payment paths are not applicable to the standalone PC-Agent QTC mining/pool-payout path. Node-side public profitability display, portal referral provisioning and rollout still need explicit integration work before a cross-product support claim.
 - Hardware-specific optimization checklist, current miner binary version/release digest and platform matrix remain unverified. The existing SRBMiner installer is shared because this is the same executable package, but QTC-specific version support and local API fields need capture.
 
 ## Verification and rollback
 
-No tests or builds were run for this change. The fee gate is designed to keep the route stopped. Rollback consists of removing the QTC catalog/worker exposure and proxy port configuration; no existing coin configuration is rewritten. Before opening the gate, deploy/reload the fee target, test the QTC adapter with a fake pool, then the Kryptex test path, record real accepted shares and house/referral credits, and verify start/stop and one-GPU exclusivity on each claimed OS/GPU family.
+The 2026-10-06 protocol repair runs full proxy/PC-Agent regression suites and builds the standalone PC-Agent with its updated embedded proxy (see work log). It adds a process-scoped loopback relay supplying the route before the miner's handshake; external proxy mode requires both components to be upgraded together. No existing pool/wallet settings are rewritten. Before claiming operational support, record real accepted user/house/referral shares, credits, nonce changes, start/stop and one-GPU exclusivity on each claimed OS/GPU family.
 
 ## Sources
 

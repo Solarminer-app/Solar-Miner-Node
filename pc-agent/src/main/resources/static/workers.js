@@ -5,7 +5,9 @@
   const t = ui.t;
   const preferences = window.SolarMinerPreferences;
   let workers = [], miners = [], energy = null, sensors = null, controlSettings = null;
-  let search = '', coin = null, hardware = 'all', busy = false, selected = null;
+  let search = '', coin = null, hardware = 'all', settingsBusy = false, selected = null;
+  const pendingWorkers = new Set();
+  let loadRevision = 0;
 
   const notice = (message, error = false) => {
     const node = $('notice'); node.textContent = t(message); node.className = `notice${error ? ' error' : ''}`; node.hidden = !message;
@@ -113,11 +115,11 @@
     {label: 'Steuerung', key: 'externalControlEnabled', width: '10%', render: worker => worker.coin === 'none' ? '—' : worker.externalControlEnabled ? 'Für Node freigegeben' : 'Lokal'},
     {label: 'Aktion', key: 'status', width: '16%', align: 'right', render: worker => {
       const wrap = ui.element('div', 'row-actions');
-      const configure = ui.element('button', 'button subtle', worker.coin === 'none' ? 'Einrichten' : 'Ändern'); configure.type = 'button'; configure.disabled = busy;
+      const configure = ui.element('button', 'button subtle', worker.coin === 'none' ? 'Einrichten' : 'Ändern'); configure.type = 'button'; configure.disabled = pendingWorkers.has(worker.deviceId);
       configure.addEventListener('click', event => { event.stopPropagation(); openEditor(worker); }); wrap.append(configure);
       if (worker.coin !== 'none') {
         const running = worker.status === 'MINING'; const toggle = ui.element('button', `button ${running ? 'subtle' : 'primary'}`, running ? 'Pausieren' : 'Starten');
-        toggle.type = 'button'; toggle.disabled = busy || !worker.minerInstalled || !worker.configured;
+        toggle.type = 'button'; toggle.disabled = pendingWorkers.has(worker.deviceId) || !worker.minerInstalled || !worker.configured;
         toggle.addEventListener('click', event => { event.stopPropagation(); action(worker, running ? 'pause' : 'start'); }); wrap.append(toggle);
       }
       return wrap;
@@ -183,38 +185,56 @@
     const box = $('worker-pool-summary'); box.replaceChildren();
     if (coinId === 'none') { box.textContent = t('Die Komponente bleibt frei und kann nicht gestartet werden.'); return; }
     const text = ui.element('span', '', configured ? `Pool: ${poolUrl || 'SolarMiner-Standardroute'}` : 'Vor dem Start muss für diesen Coin ein Pool eingerichtet werden.');
-    const link = ui.element('a', '', 'Pools öffnen →'); link.href = '/pools.html'; box.append(text, link);
+    const link = ui.element('a', '', 'Wallet & Pool bearbeiten →'); link.href = '/wallets.html'; box.append(text, link);
   }
 
   async function save(event) {
     event.preventDefault();
     if (event.submitter?.value === 'cancel') { $('worker-editor').close(); return; }
-    if (!selected || busy) return;
-    busy = true; $('worker-save').disabled = true;
+    if (!selected || settingsBusy || pendingWorkers.has(selected.deviceId)) return;
+    const worker = selected;
+    const assignment = {
+      coin: $('worker-coin').value, minerSoftwareId: $('worker-coin').value === 'none' ? null : $('worker-miner').value,
+      externalControlEnabled: $('worker-node-control').checked
+    };
+    pendingWorkers.add(worker.deviceId);
+    $('global-node-control').disabled = true;
+    $('worker-editor').close();
+    selected = null;
+    renderTable();
     try {
-      const response = await fetch(`/api/agent/local/workers/${encodeURIComponent(selected.deviceId)}/assignment`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
-          coin: $('worker-coin').value, minerSoftwareId: $('worker-coin').value === 'none' ? null : $('worker-miner').value,
-          externalControlEnabled: $('worker-node-control').checked
-        })
+      const response = await fetch(`/api/agent/local/workers/${encodeURIComponent(worker.deviceId)}/assignment`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(assignment)
       });
       if (!response.ok) { const body = await response.json().catch(() => null); throw new Error(body?.message || body?.detail || `HTTP ${response.status}`); }
-      $('worker-editor').close(); notice('Zuweisung gespeichert. Ein laufender vorheriger Worker wurde sicher angehalten.'); await load();
+      notice('Zuweisung gespeichert. Ein laufender vorheriger Worker wurde sicher angehalten.'); await load();
     } catch (error) { notice(`Zuweisung fehlgeschlagen: ${error.message}`, true); }
-    finally { busy = false; $('worker-save').disabled = false; }
+    finally {
+      pendingWorkers.delete(worker.deviceId);
+      $('global-node-control').disabled = !controlSettings || settingsBusy || pendingWorkers.size > 0;
+      renderTable();
+    }
   }
 
   async function action(worker, command) {
-    if (busy) return; busy = true; renderTable();
+    if (pendingWorkers.has(worker.deviceId)) return;
+    pendingWorkers.add(worker.deviceId);
+    $('global-node-control').disabled = true;
+    renderTable();
     try {
       const response = await fetch(`/api/agent/local/workers/${encodeURIComponent(worker.deviceId)}/${command}`, {method: 'POST'});
       if (!response.ok || await response.json() !== true) throw new Error(`HTTP ${response.status}`);
       notice(command === 'start' ? `${worker.hardwareModel} wurde gestartet.` : `${worker.hardwareModel} wurde pausiert.`); await load();
     } catch (error) { notice(`Worker-Aktion fehlgeschlagen: ${error.message}`, true); }
-    finally { busy = false; }
+    finally {
+      pendingWorkers.delete(worker.deviceId);
+      $('global-node-control').disabled = !controlSettings || settingsBusy || pendingWorkers.size > 0;
+      renderTable();
+    }
   }
 
   async function load() {
+    const revision = ++loadRevision;
     try {
       // Hardware and catalog are the only data required to assign a worker. Never let an
       // optional sensor endpoint keep the complete table (and its assignment actions) empty.
@@ -223,19 +243,23 @@
         fetch('/api/agent/local/miner-options', {cache: 'no-store'})
       ]);
       if (!workerResponse.ok || !minerResponse.ok) throw new Error(`HTTP ${workerResponse.status}/${minerResponse.status}`);
-      workers = await workerResponse.json(); miners = await minerResponse.json();
+      const [nextWorkers, nextMiners] = await Promise.all([workerResponse.json(), minerResponse.json()]);
+      if (revision !== loadRevision) return;
+      workers = nextWorkers; miners = nextMiners;
       $('connection').className = 'badge online'; $('connection').textContent = t('Agent verbunden'); render();
 
       const optional = await Promise.allSettled([
         fetch('/api/agent/local/energy', {cache: 'no-store'}).then(response => response.ok ? response.json() : null),
         fetch('/api/agent/local/power-control/settings', {cache: 'no-store'}).then(response => response.ok ? response.json() : null)
       ]);
+      if (revision !== loadRevision) return;
       if (optional[0].status === 'fulfilled' && optional[0].value) energy = optional[0].value;
       if (optional[1].status === 'fulfilled' && optional[1].value) controlSettings = optional[1].value;
-      $('global-node-control').disabled = !controlSettings;
+      $('global-node-control').disabled = !controlSettings || settingsBusy || pendingWorkers.size > 0;
       $('global-node-control').checked = Boolean(controlSettings?.externalControlEnabled);
       render();
     } catch (error) {
+      if (revision !== loadRevision) return;
       $('connection').className = 'badge offline'; $('connection').textContent = t('Agent nicht erreichbar');
       notice(`Worker konnten nicht geladen werden: ${error.message}`, true);
     }
@@ -248,8 +272,11 @@
   $('worker-form').addEventListener('submit', save);
   $('global-node-control').disabled = true;
   $('global-node-control').addEventListener('change', async event => {
-    if (!controlSettings || busy) return;
-    busy = true;
+    if (!controlSettings || settingsBusy || pendingWorkers.size > 0) {
+      event.target.checked = Boolean(controlSettings?.externalControlEnabled);
+      return;
+    }
+    settingsBusy = true; event.target.disabled = true;
     try {
       const response = await fetch('/api/agent/local/power-control/settings', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({
         dynamicPowerScalingEnabled: controlSettings.dynamicPowerScalingEnabled,
@@ -259,7 +286,7 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       controlSettings = await response.json(); notice(event.target.checked ? 'Node-Automatik global erlaubt.' : 'Node-Automatik global gesperrt.'); renderStatus();
     } catch (error) { event.target.checked = !event.target.checked; notice(`Node-Automatik konnte nicht geändert werden: ${error.message}`, true); }
-    finally { busy = false; }
+    finally { settingsBusy = false; event.target.disabled = false; }
   });
   $('refresh').addEventListener('click', load);
   document.addEventListener('solarminer:preferences-changed', () => { if (workers.length) render(); });

@@ -1,5 +1,62 @@
 # Agent work log
 
+## 2026-10-07 — GPU-Hashrate bleibt bei kurzen SRBMiner-Lücken sichtbar
+
+- Ursache im Agenten: `GpuCoinMinerService` überschreibt die an Dashboard und Worker gelieferte Hashrate bei jeder API-Antwort sofort mit null, wenn `gpu.total` und das ältere `1min` fehlen oder null sind. SRBMiner nennt seit 3.7.0 `1m` als Statistikintervall; dieses Feld wird jetzt zusätzlich gelesen. Eine positive Hashrate wird bei einzelnen Nullwerten oder kurzen API-Fehlern maximal 20 Sekunden für denselben laufenden Miner vorgehalten.
+- Die Health-/Abbruchprüfung bleibt auf dem Rohwert; Stop, Fehler, Prozessneustart oder längere Datenlücken löschen den angezeigten Wert. Die Änderung betrifft den lokalen PC-Agent und keinen Proxy-, Fee- oder Cross-Repository-Vertrag.
+- Verifikation: fokussierter `GpuCoinMinerServiceTest` mit `1m`/`1min`/`gpu.total` und Cache-Ablauf erfolgreich (`:pc-agent:test --tests ...GpuCoinMinerServiceTest --offline --no-daemon`), `git diff --check` erfolgreich. Kein laufender QTC-Miner war aus dieser Umgebung zugänglich; die genaue lückenhafte API-Antwort bleibt unbestätigt.
+
+## 2026-10-07 — QTC SRBMiner reconnect cause in proxy job format
+
+- Local `quantus-NVIDIA-2` and `quantus-NVIDIA-3` miner consoles recorded `PARSE error: Quantus notification has no job object` immediately before repeated reconnects. Both had received jobs and reported accepted shares, so the events represented real miner sessions rather than only dashboard noise. The sibling proxy's QTC adapter now wraps follow-up jobs under `params.job` and keeps the login job under `result.job`.
+- Focused proxy tests passed and `:pc-agent:standaloneJar --offline --no-daemon` rebuilt the Agent with the corrected embedded proxy. The artifact was not started or deployed; live stability, fee switching and pool-credit checks remain open.
+
+## 2026-10-07 — Dashboard-Energiekarte zeigt Ladefehler statt Endlos-Platzhalter
+
+- Bei einem fehlgeschlagenen `/api/agent/local/energy`-Abruf blieb „Verbrauch & Kosten“ dauerhaft im Ladezustand; ein Klick auf „Tarif“ hatte ohne geladene Einstellungen keine Wirkung. Die vier optionalen Dashboard-Abrufe haben nun je fünf Sekunden Zeitlimit. Die Energiekarte zeigt den Fehler, bei HTTP 404 mit Neustart-/Update-Hinweis; der Tarifknopf ist bis zum erfolgreichen Laden deaktiviert. Wiederholte Aktualisierungen können die Karte nach einer Erholung des Endpunkts füllen.
+- Der Energie-Endpunkt und seine Mess-/Kostenberechnung wurden nicht geändert. Ein lokaler Live-Agent war in dieser Sandbox nicht erreichbar; dessen konkreter HTTP-Status ist daher nicht verifiziert. Verifikation: JavaScript-Syntaxprüfung und `git diff --check`.
+
+## 2026-10-07 — Ertrag pro kWh in den laufenden Dashboard-Workern
+
+- Die Live-Worker-Karten zeigen neben dem Tagesertrag nun den Bruttoertrag pro kWh in der vom Nutzer gewählten Anzeigewährung. Die Berechnung verwendet denselben anteiligen Tagesertrag wie die Karte und die gemessene Workerleistung; ohne Prognose oder positive Leistung erscheint „—“. Kein API- oder Mining-Vertrag geändert.
+- Verifikation: `node --check pc-agent/src/main/resources/static/overview.js` und `git diff --check` erfolgreich. Kein Live-Browser- oder Hardwarelauf ausgeführt.
+
+## 2026-10-07 — GPU relay preamble excluded from proxy miner events
+
+- The sibling proxy now waits for a real SRBMiner frame before opening visible miner telemetry. A connection carrying only the PC-Agent relay's internal `solarminer.route` preamble no longer emits `Miner connected/disconnected` for RVN, ETC, DCR or QTC. The proxy regression covers all four coins; `:pc-agent:standaloneJar --offline --no-daemon` rebuilt successfully with the changed embedded proxy source.
+- No PC-Agent route or fee policy changed. The rebuilt JAR was not restarted or deployed, and a live proxy/miner log is still required to determine whether the reported running process also has genuine upstream reconnects.
+
+## 2026-10-07 — PC-Agent coin quotes and saved-wallet header
+
+- Added a separate `/api/agent/local/market-prices` read of Currency Service `/coin-prices`, so BTC/DCR/QTC quotes are not blocked by missing mining-network snapshots. Forecasts still require a complete fresh C9 network row; an isolated quote is not a profitability result. Market quotes use a ten-minute refresh and at most two-hour last-good age.
+- The global header now derives its wallet chips from the saved per-coin configurations in Agent overview. Saving a wallet immediately triggers a header reload, including DCR/QTC and other configured GPU coins. XMR/PRL retain their real pool/on-chain balances where supported; other coins explicitly show that pool credit is unavailable instead of presenting zero as a balance. BTC quote is shown independently, since this PC-Agent has no BTC wallet/miner configuration.
+- Full `:pc-agent:test :pc-agent:standaloneJar --offline --no-daemon` passed; JavaScript syntax checks passed. The central public Currency Service still omitted DCR/QTC at observation time; its own repository needs rollout. No running Agent or central service was restarted or deployed; browser/device and real pool-balance checks remain open.
+
+## 2026-10-07 — PC-Agent Worker actions use per-device pending state
+
+- Cause: `workers.js` used one `busy` flag for all rows, so starting, pausing or changing one worker disabled every other worker's Start/Pause and Change buttons until the request and reload completed.
+- Change: the Worker page tracks pending requests by `deviceId`; it disables only the affected row and closes a submitted assignment dialog so other workers can be controlled. The global Node-control switch remains guarded while a worker request changes the shared settings profile. No API contract changed.
+- Verification: JavaScript syntax and `git diff --check` pass. Concurrent browser interaction has not been exercised against a live PC-Agent.
+
+## 2026-10-07 — PC-Agent miner status during GPU startup
+
+- Cause: the RVN/ETC/DCR/QTC GPU service marked a live SRBMiner process `PAUSED` until its pool/API health flag became true; Pearl did the same for individual GPUs. The worker API compared display algorithm labels with miner identifiers, so a running Quantus worker fell back to `STOPPED`. The shared dashboard mapper likewise failed to associate technical GPU algorithm identifiers with their coins.
+- Change: managed GPU process state now stays `MINING` during pool connection and API warm-up, with `poolHealthy`/connection detail still reporting readiness. Worker and shared browser mappings use the miner's technical algorithm identifiers for RVN, ETC, DCR and QTC. No mining route or proxy contract changed.
+- Verification: focused `WorkerAssignmentServiceTest` and `GpuCoinMinerServiceTest` passed with Gradle offline; Node syntax check and a direct shared-component mapping check passed for all four GPU coins. Live miner/pool startup was not available for this change.
+
+## 2026-10-07 — PC-Agent ETC readiness without Stratum probe traffic
+
+- The running GPU monitor calls `ProxyConfigurationService.miningReady` about every five seconds. Its former raw TCP connect/close to ETC port 3337 produced the operator's paired proxy `Miner connected`/`Miner disconnected` events with no Stratum message. `stratumReachable` now reads the existing HTTP `/api/dashboard` coin `listenerStatus` and checks the configured port; no miner socket is opened for readiness. The sibling proxy also counts miners only after their first Stratum frame and acknowledges the optional extranonce extension locally.
+- Verification: `ProxyConfigurationServiceTest` exercises an online/offline dashboard with no Stratum listener, and full `:pc-agent:test :pc-agent:standaloneJar --offline --no-daemon` passed (75 tests). The sibling proxy full suite passed (24 tests). The updated standalone JAR is in `pc-agent/build/distributions/solarminer-pc-agent-standalone.jar`; no running process was restarted or deployed. Real SRBMiner longevity, accepted shares and fee accounting remain unverified.
+
+## 2026-10-06 — GPU Stratum connection and Quantus protocol repair
+
+- Owner: PC-Agent `mining/GpuStratumRelay`, `pearl/GpuCoinMinerService`, sibling proxy adapters/MinerSession; shared C2 documentation updated in admin-portal. Existing UI and configuration work was preserved.
+- A process-scoped loopback relay supplies the encoded route to the configured SolarMiner proxy before forwarding unmodified miner bytes. This resolves the subscribe-before-authorize routing deadlock without fake extranonce. It supports miner reconnects and closes sockets/listener on process failure, exit or stop. ETC uses documented SRBMiner `--esm 2`, RVN `--nicehash true`; QTC retains its own login dialect.
+- A bounded Kryptex QTC probe confirmed the old Ethereum-like Quantus adapter was wrong: login returns a pool session token and an object job carrying mining_hash, target, difficulty and extranonce. The embedded source now includes a dedicated Quantus adapter, request-ID correlation, hex RVN/ETC job IDs, negotiated nonce parameters and configured-route handshake replay. See [protocol evidence and gates](../../../solarminer-stratum-proxy/docs/agent-wiki/gpu-stratum-repair-2026-10-06.md).
+- Verification: JDK `/home/lukas/.jdks/graalvm-ce-21.0.2`; `sh gradlew :pc-agent:test :pc-agent:standaloneJar --offline --no-daemon` succeeded. **74 PC-Agent tests pass**, including two real TCP relay tests and command-mode assertions. Three stale mocks/expected coin lists were updated for already-present DCR/QTC paths. Sibling proxy `sh gradlew test --offline --no-daemon` succeeded with **23 tests**, including a Netty/TCP handshake test. Diff checks pass.
+- Artifact: `pc-agent/build/distributions/solarminer-pc-agent-standalone.jar`, containing the updated embedded proxy. No running process was restarted, no GPU mining was started, no real share or payout was submitted, and no service was deployed. External proxy users must upgrade both Agent and proxy. Accepted user/house/referral shares and actual pool credits remain open verification gates.
+
 ## 2026-10-05 — PC-Agent UI/UX redesign: dashboard KPIs, miner-instance model, new Worker and Pools pages
 
 - Scope and owner: complete redesign of the standalone PC-Agent web UI (`pc-agent/src/main/resources/static`), specified in [PC-Agent UI/UX-Redesign](pc-agent-ui-redesign.md). No cross-repository contract changed; the additive `MinerStats.Worker.pool` telemetry added earlier is the only backend input the new pages need.
@@ -575,3 +632,85 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - The user's bootRun log showed the proxy's DispatcherServlet on port 8090, while `/proxy-dashboard/` still returned the PC-Agent home page. Root cause: the embedded proxy source set intentionally omitted proxy resources, and the proxy Spring context shared the PC-Agent classpath, so `GET /` resolved PC-Agent `static/index.html`.
 - The PC-Agent build now packages only the proxy dashboard files under `static/proxy-dashboard/`. The proxy exposes those assets and its dashboard APIs under `/embedded-dashboard/**`; the PC-Agent reverse route maps its public `/proxy-dashboard/**` paths to that namespace. Standalone proxy `/` remains unchanged. Explicit trailing-slash route is included.
 - Verification: `JAVA_HOME=/home/lukas/.jdks/graalvm-ce-21.0.2 ... sh gradlew :pc-agent:compileJava :pc-agent:embeddedProxyClasses --offline --no-daemon` succeeded. Confirmed the three assets are present in `pc-agent/build/resources/embeddedProxy/static/proxy-dashboard/`. No tests or live browser request were run. Restart PC-Agent `:pc-agent:bootRun` to load this packaging change.
+
+## 2026-10-07 — QTC fee-target status after wallet provisioning
+
+- The operator supplied the QTC house payout address and fee-backend now has a
+  local/default target, but no deployed target or accepted pool credit is
+  verified. Updated the catalog explanation so it no longer says the wallet is
+  missing; QTC remains unselectable until the route is confirmed end to end.
+- No mining or start gate was opened. See the [QTC integration record](quantus-integration.md).
+
+## 2026-10-07 — Dashboard link follows the selected proxy
+
+- The PC-Agent Connection page now offers a compact “Proxy-Dashboard öffnen” button for either mode. In local mode it opens the bundled dashboard through the Agent's restricted `/proxy-dashboard/` route, and in external mode it opens the selected proxy host's dashboard on port 8090. The external link is hidden when no host is configured; the local link is hidden until the managed proxy is running.
+- Opens in a separate tab. No proxy API or routing contract changed.
+- Verification: source inspection and `git diff --check`; no build, tests, or browser session run.
+
+## 2026-10-07 — Localize proxy dashboard button
+
+- Added the English translation for the Connection page's proxy dashboard link, so it follows the PC-Agent's saved language preference.
+- Verification: source inspection and `git diff --check`; no build, tests, or browser session run.
+
+## 2026-10-07 — Pools-Seite kompakter und Custom-Ziel stabil
+
+- Pool-Karten verwenden weniger Innenabstände und engere Abstände in Fakten- und Zielauswahl; die Inhalte und Pool-Endpunkte bleiben unverändert.
+- Live-Overview-Updates bauen die Pools-Karten erneut auf. Die Custom-Pool-Angabe speichert deshalb den geöffneten Zustand und den Entwurf pro Coin, sodass beim Tippen das Formular nicht zuklappt oder den Text verliert.
+- Verifikation: `node --check` für `pools.js` und `git diff --check`; keine Builds oder Tests ausgeführt.
+
+## 2026-10-07 — QTC-Kryptex-Pools als Poolvorschläge
+
+- Ergänzte für Quantus die acht auf Kryptex' QTC-Poolseite aufgeführten TCP-Ziele (Global, Europa, Nordamerika, Südamerika, Singapur, Hongkong, Russland und Naher Osten) auf Port 7049.
+- Die Vorschläge zeigen die veröffentlichte Poolgebühr von 3 %. Das ändert keine QTC-Mining- oder Fee-Freigabe; QTC bleibt gemäß dokumentiertem Gate gesperrt.
+- Verifikation: Abgleich der Hosts und Poolgebühr mit der [offiziellen QTC-Poolseite](https://pool.kryptex.com/qtc), `node --check` für `pool-catalog.js` und `git diff --check`. Keine Builds oder Tests ausgeführt.
+
+## 2026-10-07 — QTC activation follows the live fee target
+
+- Removed the PC-Agent-only `solarminer.quantus.enabled` flag and its configuration/start guards. The Quantus SRBMiner catalog option is selectable like the other implemented GPU paths.
+- The existing `ProxyConfigurationService.feeReady("quantus")` check remains the sole activation gate: it requires a reachable proxy response with a valid SolarMiner house target. A missing or invalid target keeps starts stopped; no local configuration can override it.
+- Verification: `MinerCatalogServiceTest` asserts that the Quantus adapter is selectable. `ProxyConfigurationServiceTest` also covers the configured QTC port. `JAVA_HOME=/home/lukas/.jdks/graalvm-ce-21.0.2 sh gradlew :pc-agent:test --tests de.verdox.solarminer.pcagent.mining.MinerCatalogServiceTest --tests de.verdox.solarminer.pcagent.mining.ProxyConfigurationServiceTest --offline --no-daemon` passed.
+
+## 2026-10-07 — Pool-Ansicht trennt Zielwahl von Worker-Einrichtung
+
+- Die Pools-Seite verwendet pro Coin jetzt einen kompakten Auswahl- und Übernehmen-Block statt einer vollständigen Kachel für jedes Pool-Ziel. Besonders die acht QTC-Ziele benötigen dadurch nur noch eine Zeile; das eigene Ziel bleibt einklappbar.
+- Der Status basiert für diese Ansicht auf dem tatsächlich gespeicherten `poolUrl`, nicht auf der separaten Worker-/Miner-Bereitschaft. Ein erfolgreich gespeichertes Quantus-Ziel erscheint daher als „Pool gesetzt“ und nicht mehr irreführend als „Nicht eingerichtet“. Worker-Zuweisung und Miner-Installation bleiben unter „Worker“ getrennt sichtbar.
+- Verifikation: `node --check pc-agent/src/main/resources/static/pools.js`, `node --check pc-agent/src/main/resources/static/components.js` und `git diff --check` erfolgreich. Kein Live-Agent oder Poolwechsel in dieser Umgebung ausgeführt.
+
+## 2026-10-07 — Live-Updates schließen Pool-Auswahl nicht mehr
+
+- `overview`-Events und Polling-Antworten bauen die Pool-Karten nicht mehr neu auf, solange ein Eingabefeld, Textfeld oder Pool-Dropdown aktiv ist. Dadurch bleibt ein gerade geöffnetes natives Auswahlmenü offen und ein getippter Wert stabil.
+- Nach dem Verlassen des Controls rendert die Seite den zuletzt erhaltenen Overview-Stand. Ein erfolgreicher Poolwechsel bleibt unverändert über den normalen Refresh-Pfad sichtbar.
+
+## 2026-10-07 — Poolwechsel ohne versteckten Browserdialog
+
+- „Übernehmen“ ist nun die ausdrückliche Bestätigung des Poolwechsels. Die zusätzliche `window.confirm`-Abfrage wurde entfernt, da sie in der eingebetteten PC-Agent-Oberfläche wie ein wirkungsloser Klick erscheinen konnte.
+- Beim Absenden erscheint sofort „Poolwechsel wird gespeichert …“; anschließend zeigt die Seite entweder die gespeicherte Route oder den API-Fehler, etwa bei einer noch fehlenden QTC-Wallet.
+- Verifikation: `node --check pc-agent/src/main/resources/static/pools.js` und `git diff --check` erfolgreich. Kein Live-Agent-Request in dieser Umgebung.
+
+## 2026-10-07 — Eigene Wallet-Konfiguration pro Coin
+
+- Ergänzt `wallets.html` als klare Auszahlungsseite im Betriebsmenü. Sie speichert je Coin Pool-Ziel, eigene Wallet und Worker-Namen über die bestehenden Coin-Konfigurationsendpunkte. Für GPU-Coins werden vorhandene Geräte übernommen; bei der ersten Konfiguration werden alle erkannten GPUs vorbereitet. Die tatsächliche Zuweisung bleibt getrennt unter Worker.
+- Es gibt bewusst keinen zweiten Wallet-Speicher: Die gespeicherte Miner-Konfiguration ist die Quelle für Wallet, Pool und Worker. Deshalb kann die Pools-Seite die Wallet bei einem späteren Zielwechsel automatisch unverändert weiterverwenden.
+- Miner-Software und Pools führen direkt zur Wallet-Seite. Verifikation: `node --check` für `wallets.js`, `workspace.js` und `pools.js` sowie `git diff --check` erfolgreich. Kein Live-Agent-Request ausgeführt.
+
+## 2026-10-07 — Poolwechsel verlangt gespeicherte eigene Wallet vor dem API-Request
+
+- Die kompakte Pools-Seite sendet beim Wechsel bewusst die bestehende Wallet/Worker-Konfiguration mit. Fehlt sie, endet ein GPU-Coin wie Quantus in der Server-Validierung beziehungsweise im fehlenden Standard-Auszahlungsziel mit HTTP 400.
+- Der Client bricht diesen Fall jetzt vor dem Request ab und zeigt den direkten Hinweis zur Wallet-Seite. Damit wird keine leere QTC-Wallet mehr an `/quantus/configuration` gesendet.
+
+## 2026-10-07 — Wallet-Worker-Muster mit Browser-`v`-Flag kompatibel
+
+- Das HTML-`pattern` für Worker-Namen enthielt ein nicht maskiertes Minuszeichen. Chromium wertet Pattern nun mit dem Unicode-`v`-Flag aus und verwarf deshalb das gesamte Muster; `reportValidity()` blockierte auch bei korrekter Wallet jeden Speicherversuch.
+- Das Minuszeichen ist jetzt explizit maskiert. Erlaubt bleiben 1–32 Buchstaben, Ziffern, Unterstriche und Bindestriche – passend zur Servervalidierung.
+
+## 2026-10-07 — Separate Pools-Ansicht entfernt
+
+- Wallets ist nun die einzige Bedienfläche für die Coin-Konfiguration: Pool-Ziel, Wallet und Worker-Name werden gemeinsam über die bestehenden Coin-Konfigurationsendpunkte gespeichert. Die separate `pools.html`/`pools.js`-Ansicht und ihr Navigationspunkt wurden entfernt; der gemeinsame `pool-catalog.js` bleibt als Auswahlquelle für Wallets erhalten.
+- Dashboard- und Worker-Verweise führen für Änderungen an Wallets statt an die entfernte Ansicht. Keine API-, Proxy-, Fee- oder Mining-Verträge geändert.
+- Verifikation: `node --check` für `workspace.js`, `wallets.js`, `overview.js`, `workers.js` und `pool-catalog.js`, `rg` ohne verbliebene `pools.html`-/`pools.js`-Verweise sowie `git diff --check` erfolgreich. Kein Browser- oder Live-Agent-Lauf ausgeführt.
+
+## 2026-10-07 — Wallets lokalisiert und Pool-Anbieter sichtbar
+
+- Sämtliche Wallets-Texte laufen nun über `SolarMinerI18n`; dynamisch erzeugte Status-, Formular- und Fehlermeldungen werden ebenfalls übersetzt.
+- Katalogeinträge führen einen Pool-Anbieternamen. Die Auswahl zeigt zum Beispiel `Kryptex · Europe · 1 % Pool fee` beziehungsweise `Suprnova · Europe`; die Pool-URL bleibt dabei unverändert.
+- Verifikation: `node --check` für `wallets.js`, `pool-catalog.js` und `i18n.js`, keine verbliebenen Verweise auf die entfernte Pools-Ansicht sowie `git diff --check` erfolgreich. Kein Browser- oder Live-Agent-Lauf ausgeführt.

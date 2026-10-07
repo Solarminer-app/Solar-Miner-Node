@@ -39,6 +39,10 @@ before checking subscribe, extranonce, job and submit messages.
   address and worker. Missing, referral-only, malformed or unavailable fee data
   blocks start. If a valid DCR house target is provisioned later, DCR can pass
   this gate without a code change. No payout address has been invented.
+- The Admin portal now accepts and masks a referrer's DCR wallet and can form a
+  Suprnova referral target, but `ADMIN_DECRED_FEE_ROUTING_ENABLED` defaults to
+  false. No SolarMiner DCR house target or accepted DCR referral share is
+  verified, so this only stores the credential; it does not enable routing.
 
 ## Gates before any enablement
 
@@ -55,8 +59,9 @@ before checking subscribe, extranonce, job and submit messages.
 4. Verify install checksum/release, process/API telemetry, exclusive GPU
    start/stop, wallet validation and accepted user/house/referral shares on
    Windows and Linux. Check mining power and revenue remain denominated in DCR.
-5. Complete Node registry, admin/referrer portal and rollout only after pool
-   credit/payout reconciliation. None of those paths is enabled by this record.
+5. Complete Node registry, admin/referrer portal fee-target enablement and
+   rollout only after pool credit/payout reconciliation. The portal now has a
+   gated credential field; none of those paths is enabled by this record.
 
 No miner start, pool share, proxy fee split, pool credit, payout, fee-backend
 target or deployment was verified. No tests were run for this changeset.
