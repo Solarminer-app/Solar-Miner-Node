@@ -195,9 +195,13 @@ public class DashboardFacadeService {
                 if (Double.isFinite(converted) && converted >= 0) euroValue = converted;
             }
             String symbol;
-            try { symbol = de.verdox.pv_miner.miningpool.MiningCoin.from(reward.getCoin()).symbol(); }
-            catch (IllegalArgumentException ignored) { symbol = reward.getCoin().toUpperCase(Locale.ROOT); }
-            revenueByCoin.computeIfAbsent(reward.getCoin(), key -> new RevenueAccumulator(key, symbol, 0, 0.0))
+            try {
+                symbol = de.verdox.pv_miner.miningpool.MiningCoin.from(reward.getCoin()).symbol();
+            } catch (IllegalArgumentException ignored) {
+                symbol = reward.getCoin().toUpperCase(Locale.ROOT);
+            }
+            final String rewardSymbol = symbol;
+            revenueByCoin.computeIfAbsent(reward.getCoin(), key -> new RevenueAccumulator(key, rewardSymbol, 0D, 0.0))
                     .add(amount, euroValue);
         }
         for (KryptexRewardService.Route route : rewardSnapshot.activeRoutes()) {
@@ -209,7 +213,8 @@ public class DashboardFacadeService {
                     current.markUnavailable();
                     return current;
                 });
-            } catch (IllegalArgumentException ignored) { }
+            } catch (IllegalArgumentException ignored) {
+            }
         }
 
         List<MiningRevenueByCoinDto> byCoin = revenueByCoin.values().stream()
@@ -230,7 +235,7 @@ public class DashboardFacadeService {
         private Double amount;
         private Double euroValue;
 
-        private RevenueAccumulator(String coin, String symbol, double amount, Double euroValue) {
+        private RevenueAccumulator(String coin, String symbol, Double amount, Double euroValue) {
             this.coin = coin;
             this.symbol = symbol;
             this.amount = amount;
@@ -246,7 +251,10 @@ public class DashboardFacadeService {
             }
         }
 
-        private void markUnavailable() { amount = null; euroValue = null; }
+        private void markUnavailable() {
+            amount = null;
+            euroValue = null;
+        }
 
         private MiningRevenueByCoinDto toDto() {
             return new MiningRevenueByCoinDto(coin, symbol, amount, euroValue);
