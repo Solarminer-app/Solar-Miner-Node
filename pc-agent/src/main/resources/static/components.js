@@ -1,7 +1,14 @@
 // Shared view layer for every PC-Agent page: one formatting, one status language, one table.
+// Text rule: user-facing strings go through SolarMinerI18n.t(); agent-provided strings go
+// through s(). See pc-agent/FRONTEND-I18N.md.
 (() => {
   const i18n = () => window.SolarMinerI18n;
-  const t = value => window.SolarMinerI18n?.t(value) ?? value;
+  const t = (value, params) => window.SolarMinerI18n?.t(value, params) ?? value;
+  const s = value => window.SolarMinerI18n?.s(value) ?? value;
+  const $ = id => document.getElementById(id);
+
+  // ------------------------------------------------------------------ formatting
+
   const number = (value, digits = 2) => Number.isFinite(value)
     ? new Intl.NumberFormat(i18n()?.locale || 'de-DE', {maximumFractionDigits: digits}).format(value) : '—';
 
@@ -22,13 +29,31 @@
   const power = watts => Number.isFinite(watts) && watts > 0 ? `${number(watts, 0)} W` : '—';
   const temperature = celsius => Number.isFinite(celsius) && celsius > 0 ? `${number(celsius, 0)} °C` : '—';
   const latency = ms => Number.isFinite(ms) && ms >= 0 ? `${number(ms, 0)} ms` : '—';
-  const percent = value => Number.isFinite(value) ? `${number(value, value >= 10 ? 0 : 1)} %` : '—';
   function efficiency(hashesPerSecond, watts) {
     if (!(hashesPerSecond > 0) || !(watts > 0)) return '—';
     let value = watts / hashesPerSecond, index = 0;
     while (value < 1 && index < hashUnits.length - 1) { value *= 1000; index++; }
     return `${number(value, value >= 100 ? 0 : 2)} J/${hashUnits[index].replace('/s', '')}`;
   }
+  /** Energy always reads as kWh with three decimals; the journal reports watt-hours. */
+  const kilowattHours = (wattHours, digits = 3) => Number.isFinite(wattHours)
+    ? `${new Intl.NumberFormat(i18n()?.locale || 'de-DE', {maximumFractionDigits: digits}).format(wattHours / 1000)} kWh` : '—';
+  function duration(seconds) {
+    const hours = Math.floor((seconds || 0) / 3600), minutes = Math.floor(((seconds || 0) % 3600) / 60);
+    return hours ? `${hours} h ${minutes} min` : `${minutes} min`;
+  }
+  /** Tariff shows in the display currency when a rate exists, in the stored currency when it does not. */
+  function tariff(energy) {
+    const preferences = window.SolarMinerPreferences;
+    if (!energy?.settings) return {value: '—', currency: preferences?.currency || ''};
+    const converted = preferences?.convert(energy.settings.pricePerKwh, energy.settings.currency);
+    const currency = converted == null ? energy.settings.currency : preferences.currency;
+    const amount = converted == null ? energy.settings.pricePerKwh : converted;
+    return {value: new Intl.NumberFormat(preferences?.locale || i18n().locale, {maximumFractionDigits: 4}).format(amount), currency};
+  }
+  const money = (value, currency) => window.SolarMinerPreferences?.money(value, currency)
+    ?? `${number(value)} ${currency || ''}`.trim();
+
   /**
    * Gross revenue per kilowatt-hour a worker consumes — the only figure that makes coins on
    * different hardware comparable. The worker share is taken from the coin forecast exactly as
@@ -45,20 +70,39 @@
   function moneyPerKwh(value) {
     if (!Number.isFinite(value) || value <= 0) return '—';
     const digits = value >= 1 ? 2 : value >= 0.01 ? 3 : 5;
-    const money = window.SolarMinerPreferences?.money;
-    return money ? `${money(value, 'USD', {maximumFractionDigits: digits})} /kWh` : `${number(value, digits)} USD/kWh`;
+    const preferred = window.SolarMinerPreferences?.money;
+    return preferred ? `${preferred(value, 'USD', {maximumFractionDigits: digits})} /kWh` : `${number(value, digits)} USD/kWh`;
   }
-  function shares(counters) {
-    if (!counters || (counters.accepted == null && counters.rejected == null && counters.stale == null)) return null;
-    const total = [counters.accepted, counters.rejected, counters.stale].filter(value => value != null).reduce((sum, value) => sum + value, 0);
-    const rejectedShare = counters.rejected != null && total > 0 ? counters.rejected / total * 100 : null;
-    return {
-      text: [counters.accepted == null ? null : `${number(counters.accepted, 0)} akzeptiert`,
-        counters.rejected == null ? null : `${number(counters.rejected, 0)} abgelehnt`,
-        counters.stale == null ? null : `${number(counters.stale, 0)} veraltet`].filter(Boolean).join(' · '),
-      rejectedShare
-    };
+
+  // ------------------------------------------------------------------ coin identity
+
+  /** Single source for coin id → display identity; every page reads its lists from here. */
+  const coinCatalog = [
+    {id: 'monero', name: 'Monero', ticker: 'XMR', algorithm: 'RandomX', device: 'CPU'},
+    {id: 'pearl', name: 'Pearl', ticker: 'PRL', algorithm: 'PearlHash', device: 'GPU'},
+    {id: 'ravencoin', name: 'Ravencoin', ticker: 'RVN', algorithm: 'KAWPOW', device: 'GPU'},
+    {id: 'ethereumclassic', name: 'Ethereum Classic', ticker: 'ETC', algorithm: 'ETCHash', device: 'GPU'},
+    {id: 'decred', name: 'Decred', ticker: 'DCR', algorithm: 'BLAKE3', device: 'GPU'},
+    {id: 'quantus', name: 'Quantus', ticker: 'QTC', algorithm: 'QPoW (Poseidon2)', device: 'GPU'}
+  ];
+  const coinById = new Map(coinCatalog.map(coin => [coin.id, coin]));
+  const coinName = id => coinById.get(id)?.name || id;
+  const coinTicker = id => id === 'none' ? t('Frei') : coinById.get(id)?.ticker || id;
+  const gpuCoinIds = coinCatalog.filter(coin => coin.device === 'GPU').map(coin => coin.id);
+  /** Algorithm names as the miner reports them differ in case and spelling from the display names. */
+  const minerAlgorithms = {monero: 'RandomX', pearl: 'PearlHash', ravencoin: 'kawpow',
+    ethereumclassic: 'etchash', decred: 'blake3_decred', quantus: 'quantus'};
+  const matchesAlgorithm = (coin, worker) =>
+    (minerAlgorithms[coin.id] || coin.algorithm).toLowerCase() === String(worker.currentAlgorithm || '').toLowerCase();
+
+  /** The overview keeps each coin's configuration in a different place; pages must not each re-derive it. */
+  function configurationFor(overview, coinId) {
+    if (coinId === 'monero') return overview.moneroConfiguration;
+    if (coinId === 'pearl') return overview.pearlConfiguration;
+    return overview.gpuCoins?.[coinId]?.configuration;
   }
+
+  // ------------------------------------------------------------------ status language
 
   const statusLabels = {MINING: 'Mining aktiv', PAUSED: 'Pausiert', STOPPED: 'Gestoppt', ERROR: 'Fehler'};
   function statusPill(status, override) {
@@ -67,25 +111,20 @@
     return pill;
   }
 
-  function element(tag, className, text) {
-    const node = document.createElement(tag);
+  // ------------------------------------------------------------------ DOM builders
+
+  function element(tagName, className, textValue, params) {
+    const node = document.createElement(tagName);
     if (className) node.className = className;
-    if (text !== undefined && text !== null) node.textContent = t(text);
+    if (textValue !== undefined && textValue !== null) node.textContent = t(textValue, params);
     return node;
   }
-  function panel({kicker, title, action, className = '', labelId}) {
-    const section = element('section', `panel ${className}`.trim());
-    if (labelId) section.setAttribute('aria-labelledby', labelId);
-    if (kicker || title || action) {
-      const head = element('div', 'panel-head');
-      const copy = element('div');
-      if (kicker) copy.append(element('p', 'kicker', kicker));
-      if (title) { const heading = element('h2', '', title); if (labelId) heading.id = labelId; copy.append(heading); }
-      head.append(copy);
-      if (action) head.append(action);
-      section.append(head);
-    }
-    return section;
+  /** Two-line table cell: the value on top, its provenance or identifier underneath. */
+  function cellLines(primary, secondary) {
+    const wrap = element('div');
+    wrap.append(element('strong', secondary ? undefined : 'cell-truncate', primary));
+    if (secondary) wrap.append(element('span', 'cell-sub', secondary));
+    return wrap;
   }
   function metric({label, value, detail, tone = '', action}) {
     const card = element('article', `metric${tone ? ` ${tone}` : ''}`);
@@ -96,45 +135,9 @@
     return card;
   }
 
-  /** Session-only sparkline. Missing samples break the line instead of drawing them as zero. */
-  function sparkline(values, {height = 96, label} = {}) {
-    const width = 600, top = 8, bottom = height - 8;
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-    svg.setAttribute('preserveAspectRatio', 'none');
-    svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', t(label || 'Messverlauf seit Öffnen dieser Seite'));
-    const valid = values.filter(Number.isFinite);
-    if (!valid.length) return svg;
-    const low = Math.min(...valid), high = Math.max(...valid), span = high - low || Math.max(1, Math.abs(high) * .1);
-    const step = values.length > 1 ? width / (values.length - 1) : 0;
-    let open = false;
-    const path = values.map((value, index) => {
-      if (!Number.isFinite(value)) { open = false; return ''; }
-      const command = `${open ? 'L' : 'M'}${(index * step).toFixed(1)} ${(bottom - (value - low) / span * (bottom - top)).toFixed(1)}`;
-      open = true;
-      return command;
-    }).join(' ');
-    const grid = document.createElementNS(svg.namespaceURI, 'path');
-    grid.setAttribute('d', `M0 ${top}H${width} M0 ${(top + bottom) / 2}H${width} M0 ${bottom}H${width}`);
-    grid.setAttribute('class', 'spark-grid');
-    const line = document.createElementNS(svg.namespaceURI, 'path');
-    line.setAttribute('d', path); line.setAttribute('class', 'spark-line');
-    svg.append(grid, line);
-    const last = values.at(-1);
-    if (Number.isFinite(last)) {
-      const dot = document.createElementNS(svg.namespaceURI, 'circle');
-      dot.setAttribute('cx', String(width)); dot.setAttribute('r', '3.5');
-      dot.setAttribute('cy', (bottom - (last - low) / span * (bottom - top)).toFixed(1));
-      dot.setAttribute('class', 'spark-dot');
-      svg.append(dot);
-    }
-    return svg;
-  }
-
   /**
-   * One table implementation for dashboard, workers and pools so sorting, alignment
-   * and the "no value" language never diverge between pages.
+   * One table implementation for every page so sorting, alignment and the "no value"
+   * language never diverge. Column labels are translated here because the table builds them.
    */
   function table({columns, rows, empty, sortKey = null, sortDirection = 'desc', rowClass, onRow}) {
     const scroll = element('div', 'table-scroll');
@@ -143,7 +146,7 @@
     for (const column of columns) {
       const cell = document.createElement('th');
       cell.scope = 'col';
-      cell.textContent = column.label;
+      cell.textContent = t(column.label);
       if (column.align) cell.dataset.align = column.align;
       if (column.width) cell.style.width = column.width;
       if (column.sortable) {
@@ -182,110 +185,119 @@
     return scroll;
   }
 
-  /** Tabs with roving arrow-key focus; every page uses the same control. */
-  function tabs({items, active, onChange, label}) {
-    const nav = element('nav', 'tabs');
-    nav.setAttribute('aria-label', t(label || 'Bereich'));
-    const buttons = new Map();
-    for (const item of items) {
-      const button = element('button', '', item.label);
-      button.type = 'button'; button.dataset.tab = item.key;
-      button.setAttribute('aria-controls', `tab-panel-${item.key}`);
-      button.addEventListener('click', () => onChange(item.key));
-      buttons.set(item.key, button);
-      nav.append(button);
+  // ------------------------------------------------------------------ page chrome
+
+  /** Shared status strip: label, coloured pill and an optional jump target. */
+  function statusStrip(strip, entries) {
+    strip.replaceChildren();
+    for (const {label, value, tone, href} of entries) {
+      const item = element('span', 'strip-item');
+      item.append(element('span', '', `${label}: `));
+      const pill = statusPill(null, value);
+      if (tone) pill.classList.add(tone);
+      item.append(pill);
+      if (href) { const link = element('a', '', 'Öffnen'); link.href = href; item.append(link); }
+      strip.append(item);
     }
-    nav.addEventListener('keydown', event => {
-      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-      const keys = items.map(item => item.key);
-      const index = keys.findIndex(key => key === active);
-      const next = keys[(index + (event.key === 'ArrowRight' ? 1 : keys.length - 1)) % keys.length];
-      event.preventDefault();
-      onChange(next);
-      buttons.get(next).focus();
-    });
-    const setActive = key => {
-      active = key;
-      for (const item of items) {
-        const button = buttons.get(item.key);
-        const selected = item.key === key;
-        button.classList.toggle('selected', selected);
-        button.setAttribute('aria-current', selected ? 'page' : 'false');
-        button.tabIndex = selected ? 0 : -1;
-      }
-    };
-    setActive(active);
-    nav.setActive = setActive;
-    return nav;
   }
 
-  /** Coin chips plus a search field: the shared way to jump between coins, miners, workers and pools. */
-  function scopeBar({coins, active, onCoin, onSearch, placeholder, resultLabel}) {
-    const bar = element('div', 'scope-bar');
-    const chips = element('div', 'scope-chips');
-    chips.setAttribute('role', 'group');
-    chips.setAttribute('aria-label', t('Coin wählen'));
-    for (const coin of coins) {
-      const chip = element('button', `scope-chip${coin.id === active ? ' selected' : ''}`, coin.ticker || coin.name);
-      chip.type = 'button';
-      chip.dataset.coin = coin.id;
-      chip.title = coin.name;
-      chip.setAttribute('aria-pressed', String(coin.id === active));
-      if (coin.running) chip.classList.add('running');
-      chip.addEventListener('click', () => onCoin(coin.id));
-      chips.append(chip);
-    }
-    const search = element('input', 'scope-search');
-    search.type = 'search';
-    search.placeholder = t(placeholder || 'Worker, Miner oder Pool suchen');
-    search.setAttribute('aria-label', t(placeholder || 'Worker, Miner oder Pool suchen'));
-    search.addEventListener('input', () => onSearch(search.value.trim()));
-    const counter = element('span', 'scope-count', resultLabel || '');
-    counter.setAttribute('aria-live', 'polite');
-    bar.append(chips, search, counter);
-    bar.search = search;
-    bar.setCount = value => { counter.textContent = t(value); };
-    bar.setActive = (coinId, runningIds = []) => {
-      for (const chip of chips.children) {
-        chip.classList.toggle('selected', chip.dataset.coin === coinId);
-        chip.classList.toggle('running', runningIds.includes(chip.dataset.coin));
-        chip.setAttribute('aria-pressed', String(chip.dataset.coin === coinId));
-      }
-    };
-    return bar;
+  /** One banner per page. `kind` separates operator feedback from connection failures so a
+   *  recovered connection clears its own banner without erasing what the user just did. */
+  function notice(message, {error = false, kind = 'action'} = {}) {
+    const node = $('notice');
+    if (!node) return;
+    node.dataset.kind = kind;
+    node.className = `notice${error ? ' error' : ''}`;
+    node.textContent = t(message);
+    node.hidden = !message;
   }
-  function installSearchShortcut(bar) {
-    document.addEventListener('keydown', event => {
-      if (event.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
-        event.preventDefault();
-        bar.search.focus();
-      }
-    });
+  function clearNotice(kind) {
+    const node = $('notice');
+    if (node && node.dataset.kind === kind) node.hidden = true;
+  }
+  function setConnection(state) {
+    const badge = $('connection');
+    if (!badge) return;
+    badge.className = `badge${state === 'online' ? ' online' : state === 'offline' ? ' offline' : ''}`;
+    badge.textContent = t(state === 'online' ? 'Agent verbunden' : state === 'offline' ? 'Agent nicht erreichbar' : 'Verbinde …');
+  }
+  function setUpdated(at) {
+    const node = $('updated');
+    if (node) node.textContent = t('Aktualisiert {time}', {time: new Date(at ?? Date.now()).toLocaleTimeString(i18n().locale)});
   }
 
-  const gpuKey = gpu => `${gpu.vendor}:${gpu.index}`;
+  /** Filter button groups (`[data-*]` chips) appear on several pages with identical wiring. */
+  function filterButtonGroup(selector, dataKey, choose) {
+    const buttons = [...document.querySelectorAll(selector)];
+    for (const button of buttons) button.addEventListener('click', () => {
+      choose(button.dataset[dataKey]);
+      for (const other of buttons) other.classList.toggle('selected', other === button);
+    });
+    return buttons;
+  }
+  function debounce(fn, ms = 150) {
+    let timer = null;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { timer = null; fn(...args); }, ms);
+    };
+  }
+
+  // ------------------------------------------------------------------ transport
+
+  /** Every page reads the same error language out of an agent response body. */
+  async function readError(response, fallback) {
+    const body = await response.json().catch(() => null);
+    const detail = s(body?.message || body?.detail);
+    return new Error(detail || fallback || `HTTP ${response.status}`);
+  }
+  async function getJson(url, {timeout = 8000} = {}) {
+    const response = await fetch(url, {cache: 'no-store', signal: AbortSignal.timeout(timeout)});
+    if (!response.ok) throw await readError(response);
+    return response.json();
+  }
+  async function postJson(url, body, {confirmation = null} = {}) {
+    if (confirmation && !confirm(t(confirmation))) return null;
+    const response = await fetch(url, {
+      method: 'POST', headers: body === undefined ? {} : {'Content-Type': 'application/json'},
+      body: body === undefined ? undefined : JSON.stringify(body)
+    });
+    if (!response.ok) throw await readError(response);
+    const result = await response.json().catch(() => null);
+    if (result !== true) throw new Error(s(result?.message || result?.detail) || 'Der Agent hat die Änderung abgelehnt.');
+    return true;
+  }
+
+  // ------------------------------------------------------------------ derived models
+
   const sensorKey = value => String(value).toLowerCase().replace(/[^a-z0-9]+/g, '_');
 
   /**
    * A worker temperature is only real when a sensor reports it. GPU workers never had a
    * temperature in the miner payload, so the host sensor is used and the source is named.
+   * One lookup for dashboard, worker and sensor pages: vendor-specific keys first, then a
+   * model-name match, then the single-AMD-sensor case. Missing stays missing.
    */
-  function temperatureOf(worker, telemetry, gpus) {
-    if (Number(worker.temperatureCelsius) > 0) return {value: Number(worker.temperatureCelsius), source: 'Miner'};
+  function temperatureOf(source, telemetry, gpus) {
+    if (Number(source.temperatureCelsius) > 0) return {value: Number(source.temperatureCelsius), source: 'Miner'};
     const metrics = telemetry?.metrics || {};
+    const card = source.deviceId ? (gpus || telemetry?.gpus || []).find(entry => entry.deviceId === source.deviceId) : null;
+    const vendor = String(source.vendor || card?.vendor || '').toLowerCase();
+    const index = source.index ?? card?.index;
+    const model = sensorKey(source.hardwareModel || card?.model || '');
     const candidates = [];
-    if (worker.hardwareType === 'CPU') candidates.push(metrics['cpu.temperature']);
+    if (source.hardwareType === 'CPU') candidates.push(metrics['cpu.temperature']);
     else {
-      const gpu = (gpus || telemetry?.gpus || []).find(card => card.deviceId === worker.deviceId);
-      if (gpu) {
-        if (gpu.vendor === 'NVIDIA') candidates.push(metrics[`gpu.nvidia.${gpu.index}.temperature`]);
-        for (const [key, metric] of Object.entries(metrics)) {
-          if (!/temperature$/i.test(key) || !key.startsWith('gpu.amd.') && !key.startsWith('hardware.')) continue;
-          const model = sensorKey(gpu.model || '');
-          if (model.length > 4 && key.includes(model)) candidates.push(metric);
-        }
-        if (!gpu.model) for (const [key, metric] of Object.entries(metrics))
-          if (key.startsWith('gpu.amd.') && /temperature$/i.test(key)) candidates.push(metric);
+      if (index != null) candidates.push(metrics[`gpu.nvidia.${index}.temperature`]);
+      if (index != null) candidates.push(metrics[`gpu.amd.card${index}.temperature`]);
+      for (const [key, metric] of Object.entries(metrics)) {
+        if (!/temperature$/i.test(key) || !key.startsWith('gpu.amd.') && !key.startsWith('hardware.')) continue;
+        if (model.length > 4 && key.includes(model)) candidates.push(metric);
+      }
+      if (vendor === 'amd') {
+        const amdSensors = Object.entries(metrics)
+          .filter(([key, metric]) => key.startsWith('gpu.amd.') && /temperature$/i.test(key) && metric?.available);
+        if (amdSensors.length === 1) candidates.push(amdSensors[0][1]);
       }
     }
     const usable = candidates.find(metric => metric?.available && Number.isFinite(metric.value) && metric.value > 0);
@@ -294,10 +306,6 @@
   }
 
   /** Normalized worker rows shared by the dashboard and the worker page. */
-  const minerAlgorithms = {monero: 'RandomX', pearl: 'PearlHash', ravencoin: 'kawpow',
-    ethereumclassic: 'etchash', decred: 'blake3_decred', quantus: 'quantus'};
-  const matchesAlgorithm = (coin, worker) =>
-    (minerAlgorithms[coin.id] || coin.algorithm).toLowerCase() === String(worker.currentAlgorithm || '').toLowerCase();
   function workerRows(overview, telemetry) {
     const gpus = overview.gpus || [];
     return (overview.stats?.workers || []).map(worker => {
@@ -341,13 +349,11 @@
         : gpuStates.filter(gpu => gpu.running && gpu.poolHealthy).length;
       const selected = coin.id === 'monero' ? 1 : gpuStates.filter(gpu => gpu.selected).length;
       const pool = workers.map(worker => worker.pool).find(entry => entry?.difficulty != null) || {};
-      const configuration = coin.id === 'monero' ? overview.moneroConfiguration
-        : coin.id === 'pearl' ? overview.pearlConfiguration : overview.gpuCoins?.[coin.id]?.configuration;
       return {
         coin: coin.id, coinName: coin.name, ticker: coin.ticker, algorithm: coin.algorithm, device: coin.device,
         configured: Boolean(coin.configured), experimental: Boolean(coin.experimental),
         proxyUrl: overview.proxy?.[`${coin.id}Url`] || overview.proxy?.moneroUrl && coin.id === 'monero' || '',
-        poolUrl: configuration?.poolUrl || '',
+        poolUrl: configurationFor(overview, coin.id)?.poolUrl || '',
         reachable: Boolean(overview.proxy?.reachable),
         feeReady: Boolean(overview.proxy?.[`${coin.id}FeeReady`]),
         running, selectedWorkers: selected, connectedWorkers: connected,
@@ -358,59 +364,9 @@
     });
   }
 
-  /** A miner instance is a coin paired with one installed build; several builds per coin are manageable. */
-  function instances(overview) {
-    const rows = [];
-    for (const coin of overview.coins || []) {
-      const readiness = coin.id === 'monero' ? overview.monero : coin.id === 'pearl' ? overview.pearl
-        : overview.gpuCoins?.[coin.id];
-      for (const option of coin.miners || []) {
-        rows.push({
-          key: `${coin.id}/${option.id}`,
-          coin: coin.id, coinName: coin.name, ticker: coin.ticker, algorithm: coin.algorithm, device: coin.device,
-          minerId: option.id, minerName: option.name, developerFeePercent: option.developerFeePercent,
-          advantages: option.advantages || [], disadvantages: option.disadvantages || [],
-          projectUrl: option.projectUrl,
-          installed: Boolean(option.installed), selectable: option.selectable !== false,
-          unavailableReason: option.unavailableReason || '',
-          experimental: Boolean(option.experimental),
-          active: coin.selectedMiner?.id === option.id,
-          status: coin.status,
-          running: coin.id === 'pearl' ? Boolean(overview.pearl?.running) : coin.status === 'MINING',
-          configured: Boolean(coin.configured),
-          downloadStatus: option.downloadStatus || readiness?.downloadStatus || 'PENDING',
-          downloadProgress: option.downloadProgress ?? readiness?.downloadProgress ?? 0,
-          downloadDetail: option.downloadDetail || readiness?.downloadDetail || ''
-        });
-      }
-    }
-    return rows;
-  }
-
-  function coinBlockers(coin, overview) {
-    const blocked = [];
-    const standalone = overview.proxy?.mode === 'standalone';
-    const gpuCoin = ['pearl', 'ravencoin', 'ethereumclassic'].includes(coin.id);
-    if (!overview.proxy?.reachable) blocked.push('SolarMiner-Proxy nicht erreichbar');
-    else if (standalone && overview.proxy?.managedStatus !== 'running') blocked.push('Lokaler Proxy läuft nicht');
-    if ((standalone || gpuCoin) && !overview.proxy?.[`${coin.id}FeeReady`]) blocked.push(`${coin.name}-Fee-Ziel nicht geladen`);
-    if (!coin.configured) blocked.push('Pool-Konfiguration fehlt');
-    if (!coin.binaryAvailable) blocked.push('Miner-Binary fehlt');
-    return blocked;
-  }
-
   /** Miner display names carry a tool prefix and a device suffix; tables need the readable part. */
   function shortWorkerName(row) {
     return String(row.name || '').replace(/^(SRBMiner|XMRig)\s+/i, '').replace(/\s*\((NVIDIA|AMD):[0-9]+\)$/i, '');
-  }
-  function shareLines(counters) {
-    const summary = shares(counters);
-    if (!summary) return null;
-    const wrap = element('div', 'cell-lines');
-    wrap.append(element('strong', '', counters.accepted == null ? '—' : `${number(counters.accepted, 0)} akzeptiert`));
-    if (counters.rejected != null) wrap.append(element('span', '', `${number(counters.rejected, 0)} abgelehnt`));
-    if (counters.stale != null) wrap.append(element('span', '', `${number(counters.stale, 0)} veraltet`));
-    return wrap;
   }
 
   // A paused miner keeps reporting its devices, which would list one GPU twice under two coins and imply capacity
@@ -418,24 +374,13 @@
   const operatingStates = new Set(['MINING', 'ERROR']);
   function operatingRows(rows) { return rows.filter(row => operatingStates.has(row.status)); }
 
-  /** Hardware that runs in no miner has to be named, otherwise a running-only list looks like lost hardware. */
-  function idleDeviceNotice(el, overview) {
-    const idle = ((overview && overview.gpus) || []).filter(card => !card.running);
-    el.hidden = idle.length === 0;
-    if (!idle.length) return;
-    el.className = 'notice-line warn';
-    el.replaceChildren(
-      element('span', '', t(idle.length === 1 ? `${idle.length} GPU läuft gerade in keinem Miner.`
-        : `${idle.length} GPUs laufen gerade in keinem Miner.`)),
-      Object.assign(element('a', 'button subtle', 'Geräte zuteilen →'), {href: '/hardware.html'})
-    );
-  }
-
   window.SolarMinerUI = {
-    t, number, hashrate, difficulty, power, temperature, latency, percent, efficiency,
-    workerUsdPerDay, revenuePerKwh, moneyPerKwh, shares,
-    statusLabels, statusPill, element, panel, metric, sparkline, table, tabs, scopeBar, installSearchShortcut,
-    temperatureOf, workerRows, poolRows, instances, coinBlockers, gpuKey, sensorKey, shortWorkerName, shareLines,
-    operatingRows, idleDeviceNotice
+    $, t, s, number, hashrate, difficulty, power, temperature, latency, efficiency,
+    kilowattHours, duration, tariff, money, workerUsdPerDay, revenuePerKwh, moneyPerKwh,
+    statusLabels, statusPill, element, cellLines, metric, table,
+    statusStrip, notice, clearNotice, setConnection, setUpdated, filterButtonGroup, debounce,
+    getJson, postJson, readError,
+    coinCatalog, coinName, coinTicker, gpuCoinIds, configurationFor, matchesAlgorithm,
+    temperatureOf, workerRows, poolRows, shortWorkerName, operatingRows, sensorKey
   };
 })();

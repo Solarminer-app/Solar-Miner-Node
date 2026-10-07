@@ -16,16 +16,17 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
 
-/** Serves the loopback-only bundled proxy dashboard through the local PC-Agent web UI. */
+/** Serves the loopback-only proxy dashboard through the local PC-Agent web UI. */
 @RestController
 public class ProxyDashboardController {
     private static final String PREFIX = "/proxy-dashboard";
+    // The proxy runs as its own process and serves its dashboard from its own web root.
     private static final Map<String, UpstreamPath> ALLOWED_PATHS = Map.of(
-            "/", new UpstreamPath("/embedded-dashboard/", MediaType.TEXT_HTML),
-            "/styles.css", new UpstreamPath("/embedded-dashboard/styles.css", MediaType.valueOf("text/css")),
-            "/app.js", new UpstreamPath("/embedded-dashboard/app.js", MediaType.valueOf("application/javascript")),
-            "/api/dashboard", new UpstreamPath("/embedded-dashboard/api/dashboard", MediaType.APPLICATION_JSON),
-            "/api/dashboard/console", new UpstreamPath("/embedded-dashboard/api/dashboard/console", MediaType.APPLICATION_JSON));
+            "/", new UpstreamPath("/", MediaType.TEXT_HTML),
+            "/styles.css", new UpstreamPath("/styles.css", MediaType.valueOf("text/css")),
+            "/app.js", new UpstreamPath("/app.js", MediaType.valueOf("application/javascript")),
+            "/api/dashboard", new UpstreamPath("/api/dashboard", MediaType.APPLICATION_JSON),
+            "/api/dashboard/console", new UpstreamPath("/api/dashboard/console", MediaType.APPLICATION_JSON));
     private final ManagedProxyService managedProxy;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
 

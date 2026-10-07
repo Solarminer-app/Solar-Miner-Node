@@ -1,5 +1,4 @@
-# The build context must be the Solar-Miner-Node repository root and contain
-# embedded-proxy-src/, populated by the release workflow from the proxy repo.
+# The build context must be the Solar-Miner-Node repository root.
 FROM eclipse-temurin:21-jdk-jammy AS builder
 
 WORKDIR /workspace
@@ -8,7 +7,6 @@ COPY . .
 FROM builder AS agent-builder
 RUN chmod +x gradlew \
     && ./gradlew :pc-agent:standaloneJar \
-        -Psolarminer.proxy.project-dir=embedded-proxy-src \
         --no-daemon
 
 FROM eclipse-temurin:21-jre-jammy AS runtime

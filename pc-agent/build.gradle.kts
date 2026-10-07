@@ -1,6 +1,5 @@
 import org.springframework.boot.gradle.tasks.bundling.BootJar
 import org.springframework.boot.gradle.tasks.run.BootRun
-import org.gradle.language.jvm.tasks.ProcessResources
 
 plugins {
     java
@@ -19,40 +18,6 @@ java {
     }
 }
 
-val proxyProjectDir = providers.gradleProperty("solarminer.proxy.project-dir")
-    .map { rootProject.file(it) }
-    .orElse(rootProject.projectDir.parentFile.resolve("solarminer-stratum-proxy"))
-    .get()
-
-val mainSourceSet = sourceSets.getByName("main")
-val embeddedProxy = sourceSets.create("embeddedProxy") {
-    java.srcDir(proxyProjectDir.resolve("src/main/java"))
-    resources.setSrcDirs(emptyList<String>())
-    compileClasspath += mainSourceSet.output + mainSourceSet.compileClasspath
-}
-
-val validateEmbeddedProxySource = tasks.register("validateEmbeddedProxySource") {
-    doLast {
-        if (!proxyProjectDir.resolve("src/main/java").isDirectory) {
-            throw GradleException("Stratum proxy source is required for PC-Agent builds: $proxyProjectDir")
-        }
-    }
-}
-tasks.named(embeddedProxy.compileJavaTaskName) {
-    dependsOn(validateEmbeddedProxySource)
-}
-tasks.named<ProcessResources>(embeddedProxy.processResourcesTaskName) {
-    // Keep proxy assets out of the PC-Agent's root static namespace while still
-    // packaging them into the shared runtime classpath under a dedicated path.
-    from(proxyProjectDir.resolve("src/main/resources/static")) {
-        into("static/proxy-dashboard")
-    }
-}
-
-configurations[embeddedProxy.implementationConfigurationName].extendsFrom(configurations.implementation.get())
-configurations[embeddedProxy.compileOnlyConfigurationName].extendsFrom(configurations.compileOnly.get())
-configurations[embeddedProxy.annotationProcessorConfigurationName].extendsFrom(configurations.annotationProcessor.get())
-
 repositories {
     mavenCentral()
 }
@@ -68,31 +33,31 @@ dependencies {
     testCompileOnly("org.projectlombok:lombok")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testAnnotationProcessor("org.projectlombok:lombok")
-    add(embeddedProxy.implementationConfigurationName, "io.netty:netty-handler:4.2.15.Final")
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
 }
 
+val mainSourceSet = sourceSets.getByName("main")
+
 tasks.register<BootJar>("standaloneJar") {
     group = "distribution"
-    description = "Builds one executable PC-Agent JAR with the embedded Stratum proxy"
+    description = "Builds one executable PC-Agent JAR; the Stratum proxy is downloaded at runtime"
     dependsOn(tasks.named("classes"))
-    dependsOn(tasks.named(embeddedProxy.classesTaskName))
     archiveFileName.set("solarminer-pc-agent-standalone.jar")
     destinationDirectory.set(layout.buildDirectory.dir("distributions"))
     mainClass.set("de.verdox.solarminer.pcagent.PcAgentApplication")
     targetJavaVersion.set(JavaVersion.VERSION_21)
-    classpath = mainSourceSet.runtimeClasspath + embeddedProxy.runtimeClasspath
+    classpath = mainSourceSet.runtimeClasspath
 }
 
 tasks.named<BootRun>("bootRun") {
     group = "application"
-    description = "Runs the PC-Agent with the bundled proxy available for local proxy mode"
-    dependsOn(tasks.named("classes"), tasks.named(embeddedProxy.classesTaskName))
+    description = "Runs the PC-Agent in local proxy mode, downloading the Stratum proxy release JAR"
+    dependsOn(tasks.named("classes"))
     mainClass.set("de.verdox.solarminer.pcagent.PcAgentApplication")
-    classpath = mainSourceSet.runtimeClasspath + embeddedProxy.runtimeClasspath
+    classpath = mainSourceSet.runtimeClasspath
     javaLauncher.set(javaToolchains.launcherFor {
         languageVersion.set(JavaLanguageVersion.of(21))
     })

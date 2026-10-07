@@ -4,15 +4,13 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
-/** Chooses a LAN proxy once on first start and falls back safely to the bundled loopback proxy. */
+/** Applies the stored routing choice and always starts the downloaded loopback proxy on first start. */
 @Service
 public class ProxyStartupService {
     private final ProxyConfigurationService proxy;
-    private final ProxyDiscoveryService discovery;
 
-    public ProxyStartupService(ProxyConfigurationService proxy, ProxyDiscoveryService discovery) {
+    public ProxyStartupService(ProxyConfigurationService proxy) {
         this.proxy = proxy;
-        this.discovery = discovery;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -21,17 +19,8 @@ public class ProxyStartupService {
             proxy.activateStoredMode();
             return;
         }
-        Thread.ofVirtual().name("proxy-initial-discovery").start(() -> {
-            try {
-                var candidate = discovery.discover().stream().findFirst();
-                if (candidate.isPresent() && proxy.configure(candidate.get().host())) {
-                    proxy.setMode("external");
-                    return;
-                }
-            } catch (Exception ignored) {
-                // A missing LAN proxy is expected on standalone installations.
-            }
-            proxy.setMode("local");
-        });
+        // A LAN proxy is only offered in the dashboard; the agent always downloads and starts its
+        // own proxy first, so the operator never mines through an unreviewed server by accident.
+        proxy.setMode("local");
     }
 }

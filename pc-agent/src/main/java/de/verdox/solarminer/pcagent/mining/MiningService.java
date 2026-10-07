@@ -35,6 +35,7 @@ public class MiningService {
     private final GpuCoinMinerService gpuCoins;
     private final LocalGpuPowerService gpuPowerService;
     private final AgentControlSettingsService controls;
+    private final AgentIdentityService agentIdentity;
     private final Path coinSelectionFile;
     private volatile String activeCoin = "monero";
     private final MinerStats.MinerIdentity minerIdentity;
@@ -42,13 +43,14 @@ public class MiningService {
 
     public MiningService(XmrMinerService xmrMinerService, PearlMinerService pearlMinerService, GpuCoinMinerService gpuCoins,
                          LocalGpuPowerService gpuPowerService, HardwareIdentityService hardwareIdentityService,
-                         AgentControlSettingsService controls,
+                         AgentControlSettingsService controls, AgentIdentityService agentIdentity,
                          @Value("${solarminer.agent.coin-selection-file:./solarminer-agent/active-coin.txt}") String coinSelectionPath) {
         this.xmrMinerService = xmrMinerService;
         this.pearlMinerService = pearlMinerService;
         this.gpuCoins = gpuCoins;
         this.gpuPowerService = gpuPowerService;
         this.controls = controls;
+        this.agentIdentity = agentIdentity;
         this.coinSelectionFile = Path.of(coinSelectionPath).toAbsolutePath().normalize();
         this.activeCoin = readSelectedCoin();
         minerUID = "";
@@ -575,7 +577,9 @@ public class MiningService {
 
         return new MinerStats(
                 identity,
-                "SolarMiner Agent",
+                // The Node lists this agent under its own label, so the operator name travels with
+                // every status read. minerModel stays fixed: it feeds pool worker naming.
+                agentIdentity.displayName(),
                 globalStatus,
                 totalPowerTarget,
                 totalMinPowerTarget,

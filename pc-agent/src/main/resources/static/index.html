@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="/workspace.css">
     <link rel="stylesheet" href="/design.css">
     <script src="/i18n.js" defer></script>
+    <script src="/proxy-gate.js" defer></script>
     <script src="/workspace.js" defer></script>
     <script src="/wallet-strip.js" defer></script>
     <script src="/telemetry-gate.js" defer></script>
@@ -35,6 +36,12 @@
                 <h1>Dashboard</h1>
                 <p id="updated">Warte auf Daten</p></div>
             <a class="button primary" href="/workers.html">Worker steuern →</a></div>
+        <form id="agent-name-form" class="agent-name" autocomplete="off">
+            <label for="agent-name-input">Name dieses Agents</label>
+            <input id="agent-name-input" type="text" maxlength="40" placeholder="SolarMiner PC Agent">
+            <button id="agent-name-save" class="button subtle" type="submit">Speichern</button>
+            <span id="agent-name-state" class="agent-name-state" role="status"></span>
+        </form>
         <div id="status-strip" class="sticky-strip" aria-label="Betriebsstatus"></div>
         <div id="notice" class="notice error" role="status" aria-live="polite" hidden></div>
         <section id="alerts" class="alert-list" aria-label="Meldungen"></section>

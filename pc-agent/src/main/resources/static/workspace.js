@@ -26,6 +26,14 @@
   const closeMenu = make('button', 'app-menu-close', '×'); closeMenu.type = 'button'; closeMenu.setAttribute('aria-label', t('Navigation schließen')); sidebar.append(closeMenu);
   sidebar.append(header.querySelector('.brand'));
   const subtitle = make('p', 'app-instance', 'Dein lokaler Mining-Agent'); sidebar.append(subtitle);
+  // The operator label is what the SolarMiner Node lists this machine under, so it belongs in the
+  // persistent navigation rather than only in the dashboard form.
+  const applyIdentity = name => { subtitle.textContent = name || t('Dein lokaler Mining-Agent'); };
+  window.SolarMinerAgentIdentity = { apply: applyIdentity };
+  fetch('/api/agent/local/power-control/identity', {cache: 'no-store'})
+    .then(response => response.ok ? response.json() : null)
+    .then(identity => { if (identity?.name) applyIdentity(identity.name); })
+    .catch(() => { /* The default label stays until the agent answers. */ });
   const nav = make('nav', 'app-nav'); nav.setAttribute('aria-label', t('Hauptnavigation'));
   const pathname = location.pathname === '/index.html' ? '/' : location.pathname;
   let currentLabel = 'Dashboard', currentGroup = 'BETRIEB';

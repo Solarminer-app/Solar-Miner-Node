@@ -410,12 +410,52 @@
     };
   }
 
+  let agentName = null, agentNameBusy = false, agentNameState = '', agentNameError = false;
+  function renderAgentName() {
+    const input = $('agent-name-input');
+    // The 5-second dashboard poll must never overwrite what the operator is typing.
+    if (!agentNameBusy && document.activeElement !== input) input.value = agentName || '';
+    $('agent-name-save').disabled = agentNameBusy;
+    const note = $('agent-name-state');
+    note.textContent = agentNameState ? t(agentNameState) : '';
+    note.classList.toggle('error', agentNameError);
+  }
+  async function loadAgentName() {
+    try {
+      const response = await fetch('/api/agent/local/power-control/identity', {cache: 'no-store'});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      agentName = (await response.json()).name || null;
+      renderAgentName();
+    } catch (_) { /* The placeholder keeps the product default visible until the agent answers. */ }
+  }
+  $('agent-name-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (agentNameBusy) return;
+    agentNameBusy = true; agentNameError = false; agentNameState = 'Speichern …'; renderAgentName();
+    try {
+      const response = await fetch('/api/agent/local/power-control/identity', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: $('agent-name-input').value.trim()})
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || body.detail || `HTTP ${response.status}`);
+      }
+      agentName = (await response.json()).name || null;
+      window.SolarMinerAgentIdentity?.apply(agentName);
+      agentNameState = agentName ? 'Gespeichert. Der SolarMiner Node zeigt diesen Namen.'
+        : 'Name entfernt. Der Node zeigt wieder SolarMiner PC Agent.';
+    } catch (error) { agentNameState = error.message; agentNameError = true; }
+    finally { agentNameBusy = false; renderAgentName(); }
+  });
+
   $('refresh').addEventListener('click', refresh);
   $('energy-settings').addEventListener('click', editEnergySettings);
   document.addEventListener('solarminer:preferences-changed', () => { if (overview) render(overview); });
   const cached = window.SolarMinerMiningCache?.read();
   if (cached) { savedAt = cached.savedAt; render(cached.overview, false); }
   refresh();
+  loadAgentName();
   connectEvents();
   setInterval(() => { if (!document.hidden) refresh(); }, 5000);
   document.addEventListener('visibilitychange', () => {

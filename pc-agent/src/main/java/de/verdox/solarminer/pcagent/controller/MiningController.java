@@ -104,6 +104,7 @@ public class MiningController {
                 proxyConfigurationService.ethereumclassicUrl(), proxyConfigurationService.decredUrl(), proxyConfigurationService.quantusUrl(), proxyConfigurationService.isReachable(),
                 proxyConfigurationService.standalone() ? "standalone" : "external",
                 proxyConfigurationService.managedStatus(), proxyConfigurationService.managedDetail(),
+                proxyConfigurationService.managedVersion(),
                 proxyConfigurationService.feeReady("monero"), proxyConfigurationService.feeReady("pearl"),
                 proxyConfigurationService.feeReady("ravencoin"), proxyConfigurationService.feeReady("ethereumclassic"),
                 proxyConfigurationService.feeReady("decred"), proxyConfigurationService.feeReady("quantus"));
@@ -155,7 +156,7 @@ public class MiningController {
 
     public record ProxyOverview(String host, String moneroUrl, String pearlUrl,
                                 String ravencoinUrl, String ethereumclassicUrl, String decredUrl, String quantusUrl, boolean reachable,
-                                String mode, String managedStatus, String managedDetail,
+                                String mode, String managedStatus, String managedDetail, String managedVersion,
                                 boolean moneroFeeReady, boolean pearlFeeReady,
                                 boolean ravencoinFeeReady, boolean ethereumclassicFeeReady, boolean decredFeeReady, boolean quantusFeeReady) { }
 

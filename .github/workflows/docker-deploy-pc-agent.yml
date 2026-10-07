@@ -29,11 +29,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/checkout@v4
-        with:
-          repository: Solarminer-app/solarminer-stratum-proxy
-          path: embedded-proxy-src
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -52,8 +47,8 @@ jobs:
           set -euo pipefail
           chmod +x ./gradlew
 
-          VERSION="$(./gradlew -q printPcAgentVersion -Psolarminer.proxy.project-dir=embedded-proxy-src)"
-          IMAGE="$(./gradlew -q printPcAgentImage -Psolarminer.proxy.project-dir=embedded-proxy-src)"
+          VERSION="$(./gradlew -q printPcAgentVersion)"
+          IMAGE="$(./gradlew -q printPcAgentImage)"
 
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
             echo "pcAgentVersion must use x.y or x.y.z, got: $VERSION" >&2
@@ -81,11 +76,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/checkout@v4
-        with:
-          repository: Solarminer-app/solarminer-stratum-proxy
-          path: embedded-proxy-src
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -98,9 +88,17 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x ./gradlew
-          ./gradlew :pc-agent:test :pc-agent:standaloneJar \
-            -Psolarminer.proxy.project-dir=embedded-proxy-src \
-            --no-daemon
+          ./gradlew :pc-agent:test :pc-agent:standaloneJar --no-daemon
+
+      - name: Verify no Stratum proxy is bundled in the PC-Agent JAR
+        shell: bash
+        run: |
+          set -euo pipefail
+          if unzip -l pc-agent/build/distributions/solarminer-pc-agent-standalone.jar \
+              | grep -q 'solarminerstratumproxy'; then
+            echo "The PC-Agent JAR must not contain Stratum proxy classes." >&2
+            exit 1
+          fi
 
       - name: Prepare Windows launcher release assets
         shell: bash

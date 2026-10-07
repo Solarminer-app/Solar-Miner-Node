@@ -453,6 +453,16 @@
     'Windows benötigt eine Administratorfreigabe, damit der Hardware-Monitor seine Sensoren starten kann.': 'Windows requires administrator approval so the hardware monitor can access its sensors.',
     'LibreHardwareMonitor neu starten': 'Restart LibreHardwareMonitor',
     'Bestätige die Windows-UAC-Abfrage. Ohne Freigabe bleiben Agent und Telemetrie gesperrt.': 'Approve the Windows UAC prompt. Without approval, the agent and telemetry remain blocked.',
+    'MINING-PROXY': 'MINING PROXY', 'Mining-Proxy wird vorbereitet': 'Preparing the mining proxy',
+    'Mining-Proxy nicht bereit': 'Mining proxy not ready',
+    'Der PC-Agent sucht die neueste Proxy-Version auf GitHub.': 'The PC-Agent is looking for the newest proxy version on GitHub.',
+    'Der SolarMiner-Stratum-Proxy wird heruntergeladen.': 'The SolarMiner Stratum proxy is downloading.',
+    'Der lokale Mining-Proxy wird gestartet.': 'The local mining proxy is starting.',
+    'Der SolarMiner-Stratum-Proxy konnte nicht geladen oder gestartet werden.': 'The SolarMiner Stratum proxy could not be downloaded or started.',
+    'Ohne Proxy kann dieser PC nicht minen.': 'This PC cannot mine without a proxy.',
+    'Erneut versuchen': 'Try again', 'Erneuter Versuch läuft …': 'Retrying …',
+    'Der PC-Agent ist nicht erreichbar.': 'The PC-Agent is unreachable.',
+    'Erneuter Versuch fehlgeschlagen:': 'Retry failed:',
     'MINER HINZUFÜGEN': 'ADD MINER', 'Wähle deine Hardware und installiere den passenden Miner.': 'Choose your hardware and install the matching miner.',
     'Hardware wählen': 'Choose hardware', 'Alle': 'All', 'CPU Mining': 'CPU mining', 'GPU Mining': 'GPU mining',
     'MINER-BIBLIOTHEK': 'MINER LIBRARY', 'Mining-Software': 'Mining software',
@@ -706,7 +716,11 @@
     'Wallet und Pool-Ziel gespeichert.': 'Wallet and pool destination saved.',
     'Speichern fehlgeschlagen:': 'Saving failed:',
     'Wallet-Daten konnten nicht geladen werden:': 'Could not load wallet data:',
-    'Agent verbunden': 'Agent connected', 'Agent nicht erreichbar': 'Agent unavailable'
+    'Agent verbunden': 'Agent connected', 'Agent nicht erreichbar': 'Agent unavailable',
+    'Name dieses Agents': 'Name of this agent', 'Speichern …': 'Saving …',
+    'Gespeichert. Der SolarMiner Node zeigt diesen Namen.': 'Saved. The SolarMiner Node shows this name.',
+    'Name entfernt. Der Node zeigt wieder SolarMiner PC Agent.': 'Name removed. The Node shows SolarMiner PC Agent again.',
+    'Der Name darf höchstens 40 Zeichen haben und keine Steuerzeichen enthalten': 'The name may be at most 40 characters and must not contain control characters'
   };
   const backendGerman = {
     'LibreHardwareMonitor is no longer responding. Restart it to continue.': 'LibreHardwareMonitor antwortet nicht mehr. Starte ihn erneut, um fortzufahren.',

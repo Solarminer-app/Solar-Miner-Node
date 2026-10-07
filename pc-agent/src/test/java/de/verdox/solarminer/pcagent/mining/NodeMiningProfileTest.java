@@ -24,6 +24,10 @@ class NodeMiningProfileTest {
         return new AgentControlSettingsService(new ObjectMapper(), directory.resolve("controls.json").toString());
     }
 
+    private AgentIdentityService identity() {
+        return new AgentIdentityService(new ObjectMapper(), directory.resolve("agent-identity.json").toString());
+    }
+
     @Test void newInstallDoesNotEnrollHardwareAutomatically() {
         assertFalse(controls().workerEnabled("cpu"));
         assertFalse(controls().workerEnabled("GPU-new"));
@@ -65,7 +69,7 @@ class NodeMiningProfileTest {
         when(coins.stopGpu("quantus", "NVIDIA", 0)).thenReturn(true);
         when(coins.startGpu("ravencoin", "NVIDIA", 0)).thenReturn(true);
         when(power.setTotalPowerTarget(anyLong(), anyList())).thenReturn(true);
-        var mining = new MiningService(cpu, pearl, coins, power, mock(HardwareIdentityService.class), controls, directory.resolve("coin.txt").toString());
+        var mining = new MiningService(cpu, pearl, coins, power, mock(HardwareIdentityService.class), controls, identity(), directory.resolve("coin.txt").toString());
         assertTrue(mining.switchCoin("monero"));
         assertTrue(mining.resumeExternally());
         verify(cpu, never()).startMining();
@@ -87,7 +91,7 @@ class NodeMiningProfileTest {
         when(cpu.getWorkerStats()).thenReturn(worker("cpu", "RandomX"));
         when(pearl.workerStats(anyList())).thenReturn(List.of(worker("GPU-a", "PearlHash")));
         when(coins.workerStats(eq("ravencoin"), anyList())).thenReturn(List.of(worker("GPU-a", "kawpow")));
-        var mining = new MiningService(cpu, pearl, coins, power, mock(HardwareIdentityService.class), controls, directory.resolve("coin.txt").toString());
+        var mining = new MiningService(cpu, pearl, coins, power, mock(HardwareIdentityService.class), controls, identity(), directory.resolve("coin.txt").toString());
         var workers = mining.getExternallyVisibleWorkerStats();
         assertEquals(1, workers.size()); assertEquals("kawpow", workers.getFirst().currentAlgorithm());
         controls.setWorkerCoin("GPU-a", "none");

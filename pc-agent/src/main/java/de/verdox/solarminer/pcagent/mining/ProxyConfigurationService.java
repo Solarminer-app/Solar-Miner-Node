@@ -126,6 +126,9 @@ public class ProxyConfigurationService {
     public boolean standalone() { return standalone; }
     public String managedStatus() { return managedProxy.status(); }
     public String managedDetail() { return managedProxy.detail(); }
+    public String managedVersion() { return managedProxy.version(); }
+    public ManagedProxyService.ProxyGate managedGate() { return managedProxy.gate(); }
+    public boolean retryManagedProxy() { return managedProxy.retry(); }
     public String host() { return standalone ? "127.0.0.1" : host; }
     public String moneroUrl() { return url(moneroPort); }
     public String pearlUrl() { return url(pearlPort); }
@@ -221,7 +224,7 @@ public class ProxyConfigurationService {
     }
 
     public boolean miningReady(String coin) {
-        return (!standalone || managedProxy.running()) && isReachable()
+        return managedProxy.gateOpen() && (!standalone || managedProxy.running()) && isReachable()
                 && (!java.util.Set.of("ravencoin", "ethereumclassic", "decred", "quantus").contains(coin) || stratumReachable(coin))
                 && (!java.util.Set.of("ravencoin", "ethereumclassic", "decred", "quantus").contains(coin) || feeReady(coin))
                 && (!standalone || feeReady(coin));

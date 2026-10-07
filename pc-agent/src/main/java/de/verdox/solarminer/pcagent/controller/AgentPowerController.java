@@ -2,6 +2,7 @@ package de.verdox.solarminer.pcagent.controller;
 
 import de.verdox.solarminer.pcagent.mining.MiningService;
 import de.verdox.solarminer.pcagent.mining.AgentControlSettingsService;
+import de.verdox.solarminer.pcagent.mining.AgentIdentityService;
 import de.verdox.solarminer.pcagent.mining.BenchmarkSessionService;
 import de.verdox.solarminer.pcagent.mining.MinerConsoleService;
 import de.verdox.solarminer.pcagent.pearl.LocalGpuPowerService;
@@ -22,11 +23,21 @@ public class AgentPowerController {
     private final AgentControlSettingsService controls;
     private final BenchmarkSessionService benchmarks;
     private final MinerConsoleService consoles;
+    private final AgentIdentityService agentIdentity;
 
-    public AgentPowerController(MiningService mining, LocalGpuPowerService gpus, AgentControlSettingsService controls, BenchmarkSessionService benchmarks, MinerConsoleService consoles) { this.mining = mining; this.gpus = gpus; this.controls = controls; this.benchmarks = benchmarks; this.consoles = consoles; }
+    public AgentPowerController(MiningService mining, LocalGpuPowerService gpus, AgentControlSettingsService controls, BenchmarkSessionService benchmarks, MinerConsoleService consoles, AgentIdentityService agentIdentity) { this.mining = mining; this.gpus = gpus; this.controls = controls; this.benchmarks = benchmarks; this.consoles = consoles; this.agentIdentity = agentIdentity; }
 
     @GetMapping("/identity")
-    public Identity identity() { return new Identity("solarminer-pc-agent", 1, "SolarMiner PC Agent"); }
+    public Identity identity() { return new Identity("solarminer-pc-agent", 1, "SolarMiner PC Agent", agentIdentity.name()); }
+
+    /** Local dashboard only. A blank name clears the label and restores the product default. */
+    @PostMapping("/identity")
+    public Identity rename(@RequestBody IdentityName request) {
+        if (!agentIdentity.rename(request == null ? null : request.name()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Der Name darf höchstens " + AgentIdentityService.MAX_NAME_LENGTH + " Zeichen haben und keine Steuerzeichen enthalten");
+        return identity();
+    }
 
     @GetMapping
     public PowerStatus status() {
@@ -172,7 +183,9 @@ public class AgentPowerController {
     }
 
     public record UserLimits(int minimumWatts, int maximumWatts) { }
-    public record Identity(String kind, int powerControlProtocolVersion, String model) { }
+    /** {@code name} is the operator label and stays null when unset; {@code model} is the fixed product identity. */
+    public record Identity(String kind, int powerControlProtocolVersion, String model, String name) { }
+    public record IdentityName(String name) { }
     public record PowerStatus(boolean supportsDynamicPowerScaling, boolean dynamicPowerScalingEnabled, boolean externalControlEnabled, long minPowerWatts, long maxPowerWatts,
                               long defaultPowerWatts, long currentTargetWatts, Long currentUsageWatts,
                               String usageMeasurement, boolean miningPaused, Map<String, Boolean> workerExternalControl, List<GpuStatus> gpus,
