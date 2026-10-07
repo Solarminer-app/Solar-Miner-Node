@@ -170,8 +170,8 @@ function SiteLayoutContent({children}: PropsWithChildren) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
     const [walletBalance, setWalletBalance] = useState<{btc: number; formatted: string} | null>(null);
-    const [watchedWallets, setWatchedWallets] = useState<Array<{id: string; label: string; coin: string; confirmedBalance: number | null; balanceStatus: string}>>([]);
-    const [poolBalances, setPoolBalances] = useState<Array<{id: string; name: string; coin: string; balanceCoin: string; balance: number | null}>>([]);
+    const [watchedWallets, setWatchedWallets] = useState<Array<{id: string; label: string; coin: string; address: string; confirmedBalance: number | null; poolBalance?: number | null; balanceStatus: string}>>([]);
+    const [poolBalances, setPoolBalances] = useState<Array<{id: string; name: string; coin: string; balanceCoin: string; balance: number | null; payoutAddress?: string | null}>>([]);
     const {
         locale, setLocale, currency, setCurrency, timeZone, setTimeZone,
     } = useSitePreferences();
@@ -268,7 +268,12 @@ function SiteLayoutContent({children}: PropsWithChildren) {
     const balanceGroups = useMemo(() => {
         const entries: Array<{coin: string; symbol: string; label: string; amount: number | null; source: string}> = [];
         if (walletBalance) entries.push({coin: 'bitcoin', symbol: 'BTC', label: 'Lightning', amount: walletBalance.btc, source: locale === 'de' ? 'Lightning-Wallet' : 'Lightning wallet'});
-        watchedWallets.forEach(wallet => entries.push({coin: wallet.coin, symbol: wallet.coin === 'bitcoin' ? 'BTC' : wallet.coin === 'monero' ? 'XMR' : 'PRL', label: wallet.label, amount: wallet.confirmedBalance, source: locale === 'de' ? 'Wallet' : 'Wallet'}));
+        const symbols: Record<string, string> = {bitcoin: 'BTC', monero: 'XMR', pearl: 'PRL', ravencoin: 'RVN', ethereumclassic: 'ETC', decred: 'DCR', quantus: 'QTC'};
+        watchedWallets.forEach(wallet => {
+            const linkedPool = poolBalances.some(pool => pool.coin === wallet.coin && pool.payoutAddress === wallet.address);
+            const amount = wallet.confirmedBalance ?? (linkedPool ? null : wallet.poolBalance ?? null);
+            if (amount != null) entries.push({coin: wallet.coin, symbol: symbols[wallet.coin] ?? wallet.coin.toUpperCase(), label: wallet.label, amount, source: wallet.confirmedBalance != null ? (locale === 'de' ? 'Wallet' : 'Wallet') : 'Pool'});
+        });
         poolBalances.filter(pool => pool.balance != null).forEach(pool => entries.push({coin: pool.coin, symbol: pool.balanceCoin, label: pool.name, amount: pool.balance, source: 'Pool'}));
         return [...new Set(entries.map(entry => entry.coin))].map(coin => {
             const members = entries.filter(entry => entry.coin === coin);

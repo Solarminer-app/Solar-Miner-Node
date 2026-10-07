@@ -47,14 +47,14 @@ export interface DailyEnergySummaryDto {
     householdSavings: number;
     miningOpportunityCost: number;
     minedSats: number;
-    miningRevenue: number;
-    miningNetResult: number;
+    miningRevenue: number | null;
+    miningNetResult: number | null;
     currencySymbol: string;
-    miningRevenueEuro: number;
+    miningRevenueEuro: number | null;
     miningRevenueByCoin: Array<{
         coin: string;
         symbol: string;
-        amount: number;
+        amount: number | null;
         euroValue: number | null;
     }>;
 }

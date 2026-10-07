@@ -7,7 +7,7 @@ import {ArrowLeft, ArrowRight, CheckCircle2, CircleAlert, Coins, Cpu, Plus, Refr
 import type {MiningPageDto} from '../../../../types';
 import {useSitePreferences} from '../../site-preferences-context';
 
-type Coin = {key: string; symbol: string; algorithm: string; automaticAssignment: boolean};
+type Coin = {key: string; symbol: string; algorithm: string; automaticAssignment: boolean; targetConfigurable?: boolean};
 type Target = {id: string; coin: string; payoutCoin: string; payoutAddress: string | null; algorithm: string; name: string; stratumUrl: string; workerPrefix: string; priority: number; enabled: boolean};
 type Pool = {id: string; source: 'ACCOUNT' | 'TARGET'; coin: string; balanceCoin: string; name: string; stratumUrl: string; balance: number | null; balanceUpdatedAt: string | null; poolWorkerCount: number | null; assignedMiners: Array<{id: string; name: string; status: string}>; suggestedWorkerPrefix: string | null};
 type Assignment = {minerId: string; coin: string; algorithm: string; status: 'ASSIGNED' | 'PENDING' | 'DIFFERENT' | 'MANUAL' | 'UNCONFIGURED' | 'UNAVAILABLE'; targetId: string | null; targetName: string | null; currentPool: string | null};
@@ -25,6 +25,7 @@ export default function MiningTargetsPage() {
     const [targets, setTargets] = useState<Target[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [coins, setCoins] = useState<Coin[]>(catalog);
+    const [agentOnlyCoins, setAgentOnlyCoins] = useState<string[]>([]);
     const [selectedCoin, setSelectedCoin] = useState('bitcoin');
     const [pools, setPools] = useState<Pool[]>([]);
     const [wallets, setWallets] = useState<WatchedWallet[]>([]);
@@ -46,7 +47,8 @@ export default function MiningTargetsPage() {
             const [nextTargets, nextPools, nextMining, nextCoins, nextAssignments, nextWallets] = await Promise.all(responses.map(response => response.json()));
             setTargets(nextTargets);
             setAssignments(nextAssignments);
-            setCoins(nextCoins);
+            setAgentOnlyCoins(nextCoins.filter((coin: Coin) => coin.targetConfigurable === false).map((coin: Coin) => coin.symbol));
+            setCoins(nextCoins.filter((coin: Coin) => coin.targetConfigurable !== false));
             setPools(nextPools);
             setMining(nextMining);
             setWallets(nextWallets);
@@ -118,6 +120,7 @@ export default function MiningTargetsPage() {
             {message && <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm text-emerald-200" role="status">{message}</div>}
 
             <nav className="flex flex-wrap gap-2" aria-label={de ? 'Mining-Coin' : 'Mining coin'}>{coins.map(coin => <button key={coin.key} type="button" aria-current={selectedCoin === coin.key ? 'page' : undefined} className={`rounded-xl border px-4 py-2 text-sm font-semibold ${selectedCoin === coin.key ? 'border-yellow-400/60 bg-yellow-400/10 text-yellow-300' : 'border-white/10 text-[#92929c] hover:text-white'}`} onClick={() => setSelectedCoin(coin.key)}>{coin.symbol} <span className="font-normal text-xs">· {coin.algorithm}</span></button>)}</nav>
+            {agentOnlyCoins.length > 0 && <p className="rounded-xl border border-amber-400/20 bg-amber-400/[.05] p-3 text-xs leading-5 text-amber-100">{de ? `${agentOnlyCoins.join(', ')} werden vom PC-Agent als Mining-Coins geführt, können aber noch nicht über Node-Zielregeln konfiguriert werden. Pool und Wallet direkt im PC-Agent einstellen.` : `${agentOnlyCoins.join(', ')} are PC-Agent mining coins, but Node target rules cannot configure them yet. Set their pool and wallet in the PC-Agent.`}</p>}
 
             <section className="grid gap-3 md:grid-cols-3" aria-label={de ? 'Überblick' : 'Overview'}>
                 <Summary icon={<Coins size={20}/>} label={de ? `Pools · ${currentCoin.symbol}` : `Pools · ${currentCoin.symbol}`} value={String(pools.filter(pool => pool.coin === selectedCoin).length)}/>
@@ -156,7 +159,7 @@ export default function MiningTargetsPage() {
                         {pool.source === 'ACCOUNT' && <div className="mt-3 flex flex-wrap items-center gap-3"><button className="rounded-lg border border-yellow-400/30 px-2.5 py-1.5 text-xs text-yellow-300 hover:bg-yellow-400/10" onClick={() => usePoolAsTarget(pool)} type="button">{de ? 'Als Ziel verwenden' : 'Use as target'}</button><button className="text-xs text-red-300 hover:underline" disabled={busy} onClick={() => { if (window.confirm(de ? `Pool-Konto „${pool.name}“ trennen?` : `Disconnect pool account “${pool.name}”?`)) void mutate(`${base}/pools/${pool.id}`, {method: 'DELETE'}, de ? 'Pool-Konto getrennt.' : 'Pool account disconnected.'); }} type="button">{de ? 'Konto trennen' : 'Disconnect account'}</button></div>}
                     </div>)}{pools.filter(pool => pool.coin === selectedCoin).length === 0 && <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-[#888894]">{de ? `Für ${currentCoin.symbol} ist keine Pool-API verbunden. Zielregeln können mit eigenen Stratum-Daten gespeichert werden; Pool-Guthaben ist hier nicht verfügbar.` : `No pool API is connected for ${currentCoin.symbol}. You can save Stratum targets, but pool balance is unavailable here.`}</p>}</div>
                     <p className="mt-3 text-xs text-[#777783]">{de ? 'Saldo fehlt, wenn die Anbieter-API nicht erreichbar ist.' : 'The balance is unavailable when the provider API cannot be reached.'}</p></section>
-                    <Link className="flex items-center justify-between rounded-2xl border border-white/[.08] bg-[#121216] p-5 hover:border-yellow-400/30" href={`/site/${siteId}/finance/wallets`}><span><strong className="block text-sm">{de ? 'Guthaben & Wallets' : 'Balances & wallets'}</strong><span className="mt-1 block text-xs text-[#888894]">{de ? 'BTC, XMR und PRL-Adressen beobachten; Lightning bleibt BTC.' : 'Watch BTC, XMR and PRL addresses; Lightning remains BTC.'}</span></span><ArrowRight size={17} className="text-yellow-300"/></Link></aside>
+                    <Link className="flex items-center justify-between rounded-2xl border border-white/[.08] bg-[#121216] p-5 hover:border-yellow-400/30" href={`/site/${siteId}/finance/wallets`}><span><strong className="block text-sm">{de ? 'Guthaben & Wallets' : 'Balances & wallets'}</strong><span className="mt-1 block text-xs text-[#888894]">{de ? 'BTC, XMR, PRL, RVN, ETC, DCR und QTC; Lightning bleibt BTC.' : 'BTC, XMR, PRL, RVN, ETC, DCR and QTC; Lightning remains BTC.'}</span></span><ArrowRight size={17} className="text-yellow-300"/></Link></aside>
             </div>
         </div>
 
