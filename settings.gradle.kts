@@ -6,7 +6,6 @@ rootProject.name = "pv-miner"
 
 include("core")
 include("proto")
-include("pc-agent")
 
 include("cgminerapi")
 include("pv-api")

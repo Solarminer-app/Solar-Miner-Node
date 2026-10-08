@@ -163,7 +163,7 @@ jobs:
           chmod -R 777 .
 
           # Use absolute Gradle task paths. An unqualified `bootBuildImage`
-          # also selects tasks with that name in subprojects such as pc-agent.
+          # also selects same-named tasks in subprojects such as core.
           ./gradlew :clean :bootBuildImage \
             --imageName="${IMAGE}:${VERSION}-jvm-${{ matrix.arch }}" \
             --publishImage \
