@@ -13,13 +13,11 @@ val projectGroup = providers.gradleProperty("group")
 
 val frontendVersion = providers.gradleProperty("frontendVersion")
 val coreVersion = providers.gradleProperty("coreVersion")
-val currencyRatesVersion = providers.gradleProperty("currencyRatesVersion")
 val pcAgentVersion = providers.gradleProperty("pcAgentVersion")
 val pvApiVersion = providers.gradleProperty("pvApiVersion")
 
 val frontendImage = providers.gradleProperty("frontendImage")
 val coreImage = providers.gradleProperty("coreImage")
-val currencyRatesImage = providers.gradleProperty("currencyRatesImage")
 val pcAgentImage = providers.gradleProperty("pcAgentImage")
 
 allprojects {
@@ -39,10 +37,6 @@ base {
 
 project(":core") {
     version = coreVersion.get()
-}
-
-project(":currency-rates") {
-    version = currencyRatesVersion.get()
 }
 
 project(":pc-agent") {
@@ -286,15 +280,6 @@ tasks.register("printCoreVersion") {
     }
 }
 
-tasks.register("printCurrencyRatesVersion") {
-    group = "versioning"
-    description = "Prints the currency-rates service version."
-
-    doLast {
-        println(currencyRatesVersion.get())
-    }
-}
-
 tasks.register("printPcAgentVersion") {
     group = "versioning"
     description = "Prints the PC-Agent version."
@@ -328,16 +313,6 @@ tasks.register("printCoreImage") {
 
     doLast {
         println(coreImage.get())
-    }
-}
-
-tasks.register("printCurrencyRatesImage") {
-    group = "versioning"
-    description =
-        "Prints the currency-rates Docker image repository."
-
-    doLast {
-        println(currencyRatesImage.get())
     }
 }
 

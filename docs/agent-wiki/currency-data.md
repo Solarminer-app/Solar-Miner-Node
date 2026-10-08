@@ -5,10 +5,10 @@
 > (`https://github.com/Solarminer-app/currency-service`); its C9 record is
 > [`currency-service/docs/agent-wiki/currency-data.md`](../../../currency-service/docs/agent-wiki/currency-data.md)
 > and is the version to update. This file keeps only the Node/PC-Agent consumer
-> view. The `currency-rates/` source tree in this repository is a leftover copy
-> from the 2026-10-04 migration and is not evidence of current service behavior.
+> view. The leftover `currency-rates/` source tree in this repository was
+> deleted on 2026-10-08.
 
-Checked against `currency-rates` and `pc-agent` on 2026-10-04. This is the implementation record for contract C9; deployment at `currency.solarminer.app` remains a separate rollout step.
+Checked against the `currency-service` repository and `pc-agent` on 2026-10-08 (the leftover `currency-rates/` source tree in this repository was deleted on that date). This is the implementation record for contract C9; deployment at `currency.solarminer.app` remains a separate rollout step.
 
 ## Public contract
 

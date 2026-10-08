@@ -20,7 +20,6 @@ jobs:
       tag: ${{ steps.metadata.outputs.tag }}
       frontend_image: ${{ steps.metadata.outputs.frontend_image }}
       core_image: ${{ steps.metadata.outputs.core_image }}
-      currency_rates_image: ${{ steps.metadata.outputs.currency_rates_image }}
       pc_agent_image: ${{ steps.metadata.outputs.pc_agent_image }}
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +40,6 @@ jobs:
           echo "tag=${GITHUB_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "frontend_image=$(./gradlew -q printFrontendImage)" >> "$GITHUB_OUTPUT"
           echo "core_image=$(./gradlew -q printCoreImage)" >> "$GITHUB_OUTPUT"
-          echo "currency_rates_image=$(./gradlew -q printCurrencyRatesImage)" >> "$GITHUB_OUTPUT"
           echo "pc_agent_image=$(./gradlew -q printPcAgentImage)" >> "$GITHUB_OUTPUT"
 
   build-native-images:
@@ -76,18 +74,6 @@ jobs:
             arch: arm64
             runner: ubuntu-24.04-arm
             image_suffix: jvm-arm64
-          - component: currency-rates
-            task: :currency-rates:bootBuildImage
-            clean_task: :currency-rates:clean
-            arch: amd64
-            runner: ubuntu-latest
-            image_suffix: amd64
-          - component: currency-rates
-            task: :currency-rates:bootBuildImage
-            clean_task: :currency-rates:clean
-            arch: arm64
-            runner: ubuntu-24.04-arm
-            image_suffix: arm64
     steps:
       - uses: actions/checkout@v4
 
@@ -113,7 +99,6 @@ jobs:
           TAG: ${{ needs.metadata.outputs.tag }}
           FRONTEND_IMAGE: ${{ needs.metadata.outputs.frontend_image }}
           CORE_IMAGE: ${{ needs.metadata.outputs.core_image }}
-          CURRENCY_RATES_IMAGE: ${{ needs.metadata.outputs.currency_rates_image }}
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
@@ -123,7 +108,6 @@ jobs:
           case "$COMPONENT" in
             core) IMAGE="$CORE_IMAGE" ;;
             frontend) IMAGE="$FRONTEND_IMAGE" ;;
-            currency-rates) IMAGE="$CURRENCY_RATES_IMAGE" ;;
             *) echo "Unknown component: $COMPONENT" >&2; exit 1 ;;
           esac
 
@@ -256,7 +240,6 @@ jobs:
           TAG: ${{ needs.metadata.outputs.tag }}
           FRONTEND_IMAGE: ${{ needs.metadata.outputs.frontend_image }}
           CORE_IMAGE: ${{ needs.metadata.outputs.core_image }}
-          CURRENCY_RATES_IMAGE: ${{ needs.metadata.outputs.currency_rates_image }}
         run: |
           set -euo pipefail
 
