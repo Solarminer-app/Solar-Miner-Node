@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "owner": "Solar-Miner-Node/core",
+  "algorithm": "SHA-256",
+  "firmwareProfiles": {
+    "BITMAIN_STOCK": {
+      "label": "Bitmain Stock",
+      "supportTier": "CURRENT",
+      "capabilities": ["POOL_ROUTING", "START_STOP"]
+    },
+    "BRAIINS_OS": {
+      "label": "Braiins OS",
+      "supportTier": "CURRENT",
+      "capabilities": ["POOL_ROUTING", "START_STOP", "DYNAMIC_POWER_SCALING"]
+    },
+    "BRAIINS_OS_LEGACY": {
+      "label": "Braiins OS Legacy",
+      "supportTier": "LEGACY",
+      "capabilities": ["POOL_ROUTING", "START_STOP", "DYNAMIC_POWER_SCALING"]
+    }
+  },
+  "modelGroups": [
+    {
+      "id": "antminer-s23",
+      "manufacturer": "Bitmain",
+      "firmwareProfileIds": ["BITMAIN_STOCK"],
+      "models": ["ANTMINER S23", "ANTMINER S23 Hydro", "ANTMINER S23 IMM", "ANTMINER S23 Hydro 3U"]
+    },
+    {
+      "id": "antminer-s21",
+      "manufacturer": "Bitmain",
+      "firmwareProfileIds": ["BITMAIN_STOCK", "BRAIINS_OS"],
+      "models": ["ANTMINER S21", "ANTMINER S21 HYD.", "ANTMINER S21 PRO", "ANTMINER S21 PRO+", "ANTMINER S21+ HYD.", "ANTMINER S21+", "ANTMINER S21 XP", "ANTMINER S21 XP HYD.", "ANTMINER S21E HYD.", "ANTMINER S21E XP HYD.", "ANTMINER S21 XP IMM.", "ANTMINER S21 IMM."]
+    },
+    {
+      "id": "antminer-t21",
+      "manufacturer": "Bitmain",
+      "firmwareProfileIds": ["BITMAIN_STOCK"],
+      "models": ["ANTMINER T21"]
+    },
+    {
+      "id": "antminer-s19",
+      "manufacturer": "Bitmain",
+      "firmwareProfileIds": ["BITMAIN_STOCK", "BRAIINS_OS"],
+      "models": ["ANTMINER S19 XP", "ANTMINER S19J XP", "ANTMINER S19 XP HYD.", "ANTMINER S19 XP+ HYD.", "ANTMINER S19 PRO", "ANTMINER S19 PRO+", "ANTMINER S19 PRO++", "ANTMINER S19 PRO HYD.", "ANTMINER S19 PRO+ HYD.", "ANTMINER S19J", "ANTMINER S19J+", "ANTMINER S19J PRO", "ANTMINER S19J PRO+", "ANTMINER S19", "ANTMINER S19I", "ANTMINER S19A", "ANTMINER S19A PRO", "ANTMINER S19 HYD.", "ANTMINER S19K PRO"]
+    },
+    {
+      "id": "antminer-t19",
+      "manufacturer": "Bitmain",
+      "firmwareProfileIds": ["BITMAIN_STOCK", "BRAIINS_OS"],
+      "models": ["ANTMINER T19", "ANTMINER T19 HYD."]
+    },
+    {
+      "id": "antminer-s17",
+      "manufacturer": "Bitmain",
+      "firmwareProfileIds": ["BITMAIN_STOCK", "BRAIINS_OS_LEGACY"],
+      "models": ["ANTMINER S17", "ANTMINER S17 PRO", "ANTMINER S17+", "ANTMINER S17E"]
+    },
+    {
+      "id": "antminer-t17",
+      "manufacturer": "Bitmain",
+      "firmwareProfileIds": ["BITMAIN_STOCK", "BRAIINS_OS_LEGACY"],
+      "models": ["ANTMINER T17", "ANTMINER T17+", "ANTMINER T17E"]
+    },
+    {
+      "id": "antminer-s9-braiins",
+      "manufacturer": "Bitmain",
+      "firmwareProfileIds": ["BITMAIN_STOCK", "BRAIINS_OS_LEGACY"],
+      "models": ["ANTMINER S9", "ANTMINER S9I", "ANTMINER S9J"]
+    },
+    {
+      "id": "antminer-s9-stock",
+      "manufacturer": "Bitmain",
+      "firmwareProfileIds": ["BITMAIN_STOCK"],
+      "models": ["ANTMINER S9K", "ANTMINER S9 SE", "ANTMINER S9-HYDRO"]
+    },
+    {
+      "id": "antminer-mid-generation-stock",
+      "manufacturer": "Bitmain",
+      "firmwareProfileIds": ["BITMAIN_STOCK"],
+      "models": ["ANTMINER S15", "ANTMINER T15", "ANTMINER S11", "ANTMINER V9", "ANTMINER T9", "ANTMINER T9+"]
+    },
+    {
+      "id": "antminer-legacy-stock",
+      "manufacturer": "Bitmain",
+      "firmwareProfileIds": ["BITMAIN_STOCK"],
+      "models": ["ANTMINER S7", "ANTMINER S7-LN", "ANTMINER S5", "ANTMINER S5+", "ANTMINER R4", "ANTMINER S4", "ANTMINER S4+", "ANTMINER S3", "ANTMINER S2", "ANTMINER C1", "ANTMINER S1", "ANTROUTER R1"]
+    }
+  ]
+}
