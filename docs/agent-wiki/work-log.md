@@ -1,5 +1,19 @@
 # Agent work log
 
+## 2026-10-10 — More reliable PC-Agent LAN discovery
+
+- Core reuses one Java HTTP client for PC-Agent identity probes instead of
+  constructing one client for every host in a `/24` scan. The TCP-connect and
+  complete identity-response deadline is now two seconds rather than 500 ms,
+  allowing a responsive Windows/Linux Agent to answer during local startup or
+  short host load without turning an unavailable host into a long-running scan.
+- Discovery still requires TCP reachability from the Core container to
+  `http://<agent-ip>:8084/api/agent/external/identity`. The read-only identity
+  endpoint remains available even when Node control is disabled in the Agent;
+  private-LAN firewall and Docker routing verification are deployment gates.
+- Verification pending: the local Docker socket is not accessible to the
+  current user, so no running Compose stack or LAN Agent could be probed here.
+
 ## 2026-10-09 — C10 PC-Agent economic-dispatch boundary
 
 - Node Core now proxies the Agent-owned C10 capability and short-lived economic-plan routes through `/agent/economic-capabilities` and `/agent/economic-plan`; `MinerApiClient` exposes additive JSON pass-through methods for the application layer. The Node does not send credentials or GPU driver operations.
@@ -834,3 +848,11 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 
 - Der Beta-Workflow scheiterte im Job "Publish beta manifests" mit `CURRENCY_RATES_IMAGE: unbound variable`: Die Currency-Rates-Entfernung (08.10.) hatte Matrix, Outputs und Jobs bereinigt, aber drei `docker buildx imagetools create`-Blöcke im Manifest-Job übersehen. Currency-Rates-Beta-Releases laufen ausschließlich im `currency-service`-Repo.
 - Fix: die drei Blöcke gelöscht. Verifikation: Workflow-Lauf nach Push.
+
+## 2026-10-09 — Cash-Report (Netzstrom vs. Mining-Umsatz) mit Monatsblöcken und CSV
+
+- `PVStatisticDto` erhält `gridImportKwh` (Netz-Import des Tages aus `PVStatisticPerDay.getImportKwh()`) und `gridPricePerKwh` (Netztarif des Tages, Zielwährung). Der 17-Argument-Kompatibilitätskonstruktor bleibt unverändert (0/`EUR`-Defaults), bestehende Aufrufer brechen nicht.
+- Neuer Report `TaxReportService.generateCashReportCsv` (`GET /api/pv-site/{id}/finance/export/cash-csv`): reine Geldflüsse pro Tag — Netz-Import gesamt, Haushalt (Import minus Mining-Anteil) und Mining getrennt in kWh und Kosten zum Netztarif, Mining-Umsatz zu Tageskursen, plus `MONTH`-Summenzeile je Kalendermonat. Keine Gegenrechnung von PV-Eigenverbrauch; `Net Cash Flow` = Mining-Umsatz minus Mining-Netzstromkosten.
+- React-Finance-Seite: neuer Tab „Cash-Report" mit derselben Tages-/Monatslogik und Export-Button (DE/EN-Lokalisierung).
+- Verifikation: `sh gradlew :test --tests "de.verdox.pv_miner.finance.*"` EXIT 0 inkl. neuem `CashReportCsvTest` (Tag- und Monatssummen); `npx tsc --noEmit` im react-frontend EXIT 0. Kein Live-HTTP-Probe gegen eine laufende Node.
+

@@ -1,6 +1,6 @@
 'use client';
 
-import {FormEvent, useCallback, useEffect, useMemo, useState} from 'react';
+import {FormEvent, Fragment, useCallback, useEffect, useMemo, useState} from 'react';
 import {useParams} from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -44,8 +44,8 @@ import {useSitePreferences} from '../site-preferences-context';
 const translations = {de, en};
 const API_BASE_URL = '/api/pv-site';
 
-type ExportType = 'csv' | 'mining-pdf' | 'pv-pdf' | 'sales-pdf';
-type FinanceTab = 'overview' | 'history' | 'ledger';
+type ExportType = 'csv' | 'cash-csv' | 'mining-pdf' | 'pv-pdf' | 'sales-pdf';
+type FinanceTab = 'overview' | 'history' | 'cash' | 'ledger';
 
 export default function FinancePage() {
     const {siteId} = useParams<{siteId: string}>();
@@ -216,7 +216,7 @@ export default function FinancePage() {
     ];
 
     return <main className="min-h-screen bg-[#0b0b0e] px-3 py-4 text-white sm:px-5 lg:px-7"><div className="mx-auto max-w-[1700px] space-y-4">
-        <header className="flex flex-wrap items-end justify-between gap-4 rounded-2xl border border-white/[0.07] bg-[#131318] px-4 py-4 sm:px-5"><div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-300">{t['finance.eyebrow']}</p><h1 className="mt-1 text-2xl font-bold">{t['finance.title']}</h1><p className="mt-1 text-sm text-[#81818b]">{t['finance.dashboard.subtitle']}</p></div><div className="flex flex-wrap gap-2"><Link className="inline-flex items-center rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs font-semibold text-yellow-300 hover:bg-yellow-400/20" href={`/site/${siteId}/finance/wallets`}>{locale === 'de' ? 'Guthaben & Wallets' : 'Balances & wallets'}</Link><ExportButton active={exporting === 'csv'} icon={<FileSpreadsheet/>} label={t['finance.export.csv']} onClick={() => void exportReport('csv')}/><ExportButton active={exporting === 'mining-pdf'} icon={<FileText/>} label={t['finance.export.mining_pdf']} onClick={() => void exportReport('mining-pdf')}/><ExportButton active={exporting === 'pv-pdf'} icon={<Download/>} label={t['finance.export.pv_pdf']} onClick={() => void exportReport('pv-pdf')}/></div></header>
+        <header className="flex flex-wrap items-end justify-between gap-4 rounded-2xl border border-white/[0.07] bg-[#131318] px-4 py-4 sm:px-5"><div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-300">{t['finance.eyebrow']}</p><h1 className="mt-1 text-2xl font-bold">{t['finance.title']}</h1><p className="mt-1 text-sm text-[#81818b]">{t['finance.dashboard.subtitle']}</p></div><div className="flex flex-wrap gap-2"><Link className="inline-flex items-center rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs font-semibold text-yellow-300 hover:bg-yellow-400/20" href={`/site/${siteId}/finance/wallets`}>{locale === 'de' ? 'Guthaben & Wallets' : 'Balances & wallets'}</Link><ExportButton active={exporting === 'csv'} icon={<FileSpreadsheet/>} label={t['finance.export.csv']} onClick={() => void exportReport('csv')}/><ExportButton active={exporting === 'cash-csv'} icon={<FileSpreadsheet/>} label={t['finance.export.cash_csv']} onClick={() => void exportReport('cash-csv')}/><ExportButton active={exporting === 'mining-pdf'} icon={<FileText/>} label={t['finance.export.mining_pdf']} onClick={() => void exportReport('mining-pdf')}/><ExportButton active={exporting === 'pv-pdf'} icon={<Download/>} label={t['finance.export.pv_pdf']} onClick={() => void exportReport('pv-pdf')}/></div></header>
         {error ? <div className="rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-sm text-red-200">{error}</div> : null}
 
         <section className="grid gap-4 xl:grid-cols-12">
@@ -226,10 +226,11 @@ export default function FinancePage() {
 
         <section className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-white/[0.07] bg-[#101014] p-3"><div className="flex flex-wrap gap-2"><DateField label={t['finance.filter.from']} min={data.setupDate} max={to} value={from} onChange={setFrom}/><DateField label={t['finance.filter.to']} min={from} value={to} onChange={setTo}/><button className="mt-auto inline-flex h-9 items-center gap-2 rounded-lg bg-yellow-400 px-4 text-xs font-bold text-black disabled:opacity-40" disabled={loading || !from || !to} onClick={() => void loadData(from, to)}><RefreshCw className={loading ? 'animate-spin' : ''} size={14}/>{t['finance.filter.apply']}</button></div><span className="text-xs text-[#777781]">{period.daysWithData} {t['finance.period.days']}</span></section>
 
-        <nav className="flex gap-1 rounded-xl bg-[#101014] p-1" aria-label={t['finance.tabs.label']}>{(['overview', 'history', 'ledger'] as FinanceTab[]).map((tab) => <button className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${activeTab === tab ? 'bg-white/[0.08] text-white' : 'text-[#73737d] hover:text-white'}`} key={tab} onClick={() => setActiveTab(tab)}>{t[`finance.tab.${tab}`]}</button>)}</nav>
+        <nav className="flex gap-1 rounded-xl bg-[#101014] p-1" aria-label={t['finance.tabs.label']}>{(['overview', 'history', 'cash', 'ledger'] as FinanceTab[]).map((tab) => <button className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${activeTab === tab ? 'bg-white/[0.08] text-white' : 'text-[#73737d] hover:text-white'}`} key={tab} onClick={() => setActiveTab(tab)}>{t[`finance.tab.${tab}`]}</button>)}</nav>
 
         {activeTab === 'overview' ? <OverviewTab data={data} trendData={trendData} periodTrend={periodTrend} formatMoney={formatMoney} formatNumber={formatNumber} formatDate={formatDate} locale={intlLocale} t={t}/> : null}
         {activeTab === 'history' ? <HistoryTab days={data.days} formatMoney={formatMoney} formatNumber={formatNumber} formatDate={formatDate} t={t}/> : null}
+        {activeTab === 'cash' ? <CashTab days={data.days} currency={currency} exporting={exporting} exportReport={exportReport} formatMoney={formatMoney} formatNumber={formatNumber} formatDate={formatDate} t={t}/> : null}
         {activeTab === 'ledger' ? <LedgerTab currency={currency} data={data} exporting={exporting} saving={saving} saleDate={saleDate} saleBtc={saleBtc} saleFiat={saleFiat} setSaleDate={setSaleDate} setSaleBtc={setSaleBtc} setSaleFiat={setSaleFiat} saveSale={saveSale} deleteSale={deleteSale} exportReport={exportReport} formatMoney={formatMoney} formatNumber={formatNumber} formatDate={formatDate} t={t}/> : null}
     </div></main>;
 }
@@ -254,6 +255,35 @@ function HistoryTab({days, formatMoney, formatNumber, formatDate, t}: {days: PVS
 }
 
 function CoinRewards({coins, formatNumber}: {coins: CoinMiningDayDto[]; formatNumber: (value: number, digits?: number) => string}) { return <div className="space-y-0.5">{coins.filter(coin => coin.amount != null && coin.amount !== 0).map(coin => <div key={`${coin.coin}-${coin.payoutAddress ?? ''}`} className="font-mono text-[11px] text-yellow-100">{formatNumber(coin.amount ?? 0, 8)} {coin.symbol}</div>)}{coins.every(coin => coin.amount == null || coin.amount === 0) ? <span className="text-[#777781]">—</span> : null}</div>; }
+
+function CashTab({days, currency, exporting, exportReport, formatMoney, formatNumber, formatDate, t}: {days: PVStatisticDto[]; currency: string; exporting: ExportType | null; exportReport: (type: ExportType) => Promise<void>; formatMoney: (money: MoneyDto) => string; formatNumber: (value: number, digits?: number) => string; formatDate: (date: string | null) => string; t: Record<string, string>}) {
+    const rows = useMemo(() => {
+        const byMonth = new Map<string, {day: PVStatisticDto; householdGridKwh: number; householdGridCost: number; miningGridCost: number; revenue: number; net: number}[]>();
+        for (const day of [...days].sort((a, b) => a.date.localeCompare(b.date))) {
+            const miningGridKwh = day.miningGridUsage;
+            const householdGridKwh = Math.max(0, (day.gridImportKwh ?? 0) - miningGridKwh);
+            const householdGridCost = householdGridKwh * (day.gridPricePerKwh?.amount ?? 0);
+            const miningGridCost = day.miningGridCost.amount;
+            const revenue = day.miningRevenueHistoric.amount;
+            const month = day.date.slice(0, 7);
+            byMonth.set(month, [...(byMonth.get(month) ?? []), {day, householdGridKwh, householdGridCost, miningGridCost, revenue, net: revenue - miningGridCost}]);
+        }
+        return [...byMonth.entries()];
+    }, [days]);
+    const money = (value: number) => formatMoney({amount: value, currency});
+    return <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-[#81818b]">{t['finance.cash.subtitle']}</p><ExportButton active={exporting === 'cash-csv'} icon={<FileSpreadsheet/>} label={t['finance.export.cash_csv']} onClick={() => void exportReport('cash-csv')}/></div>
+        <div className="overflow-x-auto rounded-2xl border border-white/[0.07] bg-[#111115]"><table className="w-full min-w-[1250px] text-left text-xs"><thead className="border-b border-white/[0.07] text-[#777781]"><tr><th className="px-4 py-3">{t['finance.grid.date']}</th><th>{t['finance.cash.grid_import']}</th><th>{t['finance.cash.household_grid']}</th><th>{t['finance.cash.mining_grid']}</th><th>{t['finance.cash.grid_tariff']}</th><th>{t['finance.cash.household_cost']}</th><th>{t['finance.cash.mining_cost']}</th><th>{t['finance.cash.revenue']}</th><th>{t['finance.cash.net']}</th></tr></thead>
+        <tbody>{rows.map(([month, entries]) => {
+            const totals = entries.reduce((sum, entry) => ({grid: sum.grid + entry.day.gridImportKwh, householdKwh: sum.householdKwh + entry.householdGridKwh, miningKwh: sum.miningKwh + entry.day.miningGridUsage, householdCost: sum.householdCost + entry.householdGridCost, miningCost: sum.miningCost + entry.miningGridCost, revenue: sum.revenue + entry.revenue, net: sum.net + entry.net}), {grid: 0, householdKwh: 0, miningKwh: 0, householdCost: 0, miningCost: 0, revenue: 0, net: 0});
+            return <Fragment key={month}>
+                {entries.map(({day, householdGridKwh, householdGridCost, miningGridCost, revenue, net}) => <tr className="border-t border-white/[0.05] hover:bg-white/[0.02]" key={day.date}><td className="px-4 py-3 font-semibold">{formatDate(day.date)}</td><td>{formatNumber(day.gridImportKwh ?? 0)} kWh</td><td>{formatNumber(householdGridKwh)} kWh</td><td>{formatNumber(day.miningGridUsage)} kWh</td><td>{formatMoney(day.gridPricePerKwh)}/kWh</td><td className="text-red-200">{money(householdGridCost)}</td><td className="text-red-200">{money(miningGridCost)}</td><td className="text-yellow-200">{money(revenue)}</td><td className={net >= 0 ? 'font-semibold text-emerald-300' : 'font-semibold text-red-300'}>{money(net)}</td></tr>)}
+                <tr className="border-t border-white/[0.12] bg-white/[0.04] font-semibold"><td className="px-4 py-3">{month} · {t['finance.cash.month_total']}</td><td>{formatNumber(totals.grid)} kWh</td><td>{formatNumber(totals.householdKwh)} kWh</td><td>{formatNumber(totals.miningKwh)} kWh</td><td>—</td><td className="text-red-200">{money(totals.householdCost)}</td><td className="text-red-200">{money(totals.miningCost)}</td><td className="text-yellow-200">{money(totals.revenue)}</td><td className={totals.net >= 0 ? 'text-emerald-300' : 'text-red-300'}>{money(totals.net)}</td></tr>
+            </Fragment>;
+        })}</tbody></table>{days.length === 0 ? <p className="py-12 text-center text-sm text-[#777781]">{t['finance.history.empty']}</p> : null}</div>
+        <p className="text-[11px] text-[#666670]">{t['finance.cash.note']}</p>
+    </section>;
+}
 
 function LedgerTab({currency, data, exporting, saving, saleDate, saleBtc, saleFiat, setSaleDate, setSaleBtc, setSaleFiat, saveSale, deleteSale, exportReport, formatMoney, formatNumber, formatDate, t}: {currency: string; data: FinancePageDto; exporting: ExportType | null; saving: boolean; saleDate: string; saleBtc: string; saleFiat: string; setSaleDate: (value: string) => void; setSaleBtc: (value: string) => void; setSaleFiat: (value: string) => void; saveSale: (event: FormEvent) => Promise<void>; deleteSale: (sale: BitcoinSaleDto) => Promise<void>; exportReport: (type: ExportType) => Promise<void>; formatMoney: (money: MoneyDto) => string; formatNumber: (value: number, digits?: number) => string; formatDate: (date: string | null) => string; t: Record<string, string>}) {
     return <section className="space-y-4"><div className="flex justify-end"><ExportButton active={exporting === 'sales-pdf'} icon={<FileText/>} label={t['finance.export.sales_pdf']} onClick={() => void exportReport('sales-pdf')}/></div><form className="grid gap-3 rounded-2xl border border-white/[0.07] bg-[#111115] p-4 sm:grid-cols-4 sm:items-end" onSubmit={(event) => void saveSale(event)}><DateField label={t['finance.sale.date']} value={saleDate} onChange={setSaleDate}/><InputField label={t['finance.sale.btc']} min="0.00000001" step="0.00000001" value={saleBtc} onChange={setSaleBtc}/><InputField label={t['finance.sale.fiat'].replace('{currency}', currency)} min="0" step="0.01" value={saleFiat} onChange={setSaleFiat}/><button className="h-9 rounded-lg bg-yellow-400 px-4 text-xs font-bold text-black disabled:opacity-40" disabled={saving} type="submit">{t['finance.sale.add']}</button></form><div className="overflow-x-auto rounded-2xl border border-white/[0.07] bg-[#111115]"><table className="w-full text-left text-xs"><thead className="border-b border-white/[0.07] text-[#777781]"><tr><th className="px-4 py-3">{t['finance.grid.date']}</th><th>{t['finance.sale.sold']}</th><th>{t['finance.sale.revenue']}</th><th className="w-16"/></tr></thead><tbody>{data.sales.map((sale, index) => <tr className="border-t border-white/[0.05]" key={`${sale.saleDate}-${sale.amountBtc}-${index}`}><td className="px-4 py-3">{formatDate(sale.saleDate)}</td><td className="font-mono text-yellow-200">{formatNumber(sale.amountBtc, 8)} BTC</td><td>{formatMoney(sale.fiatValue)}</td><td><button aria-label={t['finance.sale.delete']} className="rounded-lg p-2 text-red-300 hover:bg-red-400/10" disabled={saving} onClick={() => void deleteSale(sale)} type="button"><Trash2 size={15}/></button></td></tr>)}</tbody></table>{data.sales.length === 0 ? <p className="py-12 text-center text-sm text-[#777781]">{t['finance.ledger.empty']}</p> : null}</div></section>;

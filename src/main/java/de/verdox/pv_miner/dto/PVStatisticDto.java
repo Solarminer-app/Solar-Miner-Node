@@ -24,7 +24,9 @@ public record PVStatisticDto(
         MoneyDto miningRevenueHistoric,
         MoneyDto miningRevenueLive,
         boolean miningRevenueComplete,
-        List<CoinMiningDayDto> miningCoins
+        List<CoinMiningDayDto> miningCoins,
+        double gridImportKwh,
+        MoneyDto gridPricePerKwh
 ) {
     public PVStatisticDto(LocalDate date, double totalPvProduction, double minerConsumption, double miningPvUsage,
                           double miningGridUsage, double householdPvUsage, double exportedKwh, double minedBtc,
@@ -35,6 +37,10 @@ public record PVStatisticDto(
                 minedBtc, miningCost, miningGridCost, miningOpportunityCost, effectiveYieldPerKwh, btcLiveValue,
                 btcHistoricValue, householdSavings, feedInRevenue, feedInPricePerKwh, btcHistoricValue, btcLiveValue,
                 true, List.of(new CoinMiningDayDto("bitcoin", "BTC", null, minedBtc, btcHistoricValue,
-                        "POOL_DAILY", "AVAILABLE")));
+                        "POOL_DAILY", "AVAILABLE")), 0, zeroMoney());
+    }
+
+    private static MoneyDto zeroMoney() {
+        return new MoneyDto(0, "EUR");
     }
 }

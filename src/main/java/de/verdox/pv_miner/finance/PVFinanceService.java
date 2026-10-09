@@ -162,6 +162,7 @@ public class PVFinanceService {
         double totalPvProduction = 0.0;
         double miningPvUsage = 0.0;
         double miningGridUsage = minerConsumption;
+        double totalGridImportKwh = 0.0;
 
         double householdEigenverbrauch = 0.0;
         double totalExportKwh = 0.0;
@@ -170,6 +171,7 @@ public class PVFinanceService {
         if (siteDayStat != null) {
             double totalSiteConsumption = siteDayStat.getConsumptionKwh();
             double totalImportKwh = siteDayStat.getImportKwh();
+            totalGridImportKwh = Math.max(0, totalImportKwh);
             totalExportKwh = siteDayStat.getExportKwh();
 
             double totalEigenverbrauch = Math.max(0, totalSiteConsumption - totalImportKwh);
@@ -264,7 +266,9 @@ public class PVFinanceService {
                 money(totalMiningRevenue, targetCurrency),
                 money(btcLiveFiat + otherRevenue, targetCurrency),
                 revenueComplete,
-                List.copyOf(coinLines)
+                List.copyOf(coinLines),
+                totalGridImportKwh,
+                money(gridRate, targetCurrency)
         );
     }
 

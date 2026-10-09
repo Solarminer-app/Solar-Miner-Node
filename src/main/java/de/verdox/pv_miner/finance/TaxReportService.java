@@ -141,6 +141,78 @@ public class TaxReportService {
         }
     }
 
+    /**
+     * Pure cash-flow report: what the grid actually costs per day (household vs.
+     * mining split) against mining revenue at that day's coin prices, with a
+     * summary block per calendar month. No PV self-consumption offsetting.
+     */
+    public InputStream generateCashReportCsv(PVSiteEntity pvSite, LocalDate from, LocalDate to, ReportContext context) {
+        try {
+            List<PVStatisticDto> statistics = new ArrayList<>(pvFinanceService.getFinanceData(pvSite, from, to, context.getZoneId(), context.getCurrency()));
+            statistics.sort(Comparator.comparing(PVStatisticDto::date));
+            StringBuilder sb = new StringBuilder();
+            sb.append("Type;Date;Grid Import (kWh);Household Grid (kWh);Mining Grid (kWh);Grid Tariff;Household Grid Cost;Mining Grid Cost;Mining Revenue;Net Cash Flow\n");
+
+            java.time.YearMonth currentMonth = null;
+            MonthTotals totals = new MonthTotals();
+            for (PVStatisticDto stat : statistics) {
+                java.time.YearMonth month = java.time.YearMonth.from(stat.date());
+                if (currentMonth != null && !month.equals(currentMonth)) {
+                    appendMonthSummary(sb, currentMonth, totals);
+                    totals = new MonthTotals();
+                }
+                currentMonth = month;
+
+                double miningGridKwh = stat.miningGridUsage();
+                double householdGridKwh = Math.max(0, stat.gridImportKwh() - miningGridKwh);
+                double householdGridCost = householdGridKwh * stat.gridPricePerKwh().amount();
+                double miningGridCost = stat.miningGridCost().amount();
+                double revenue = stat.miningRevenueHistoric().amount();
+                double netCash = revenue - miningGridCost;
+
+                sb.append("DAY;").append(stat.date()).append(";")
+                        .append(FormatUtil.formatNumber(stat.gridImportKwh())).append(";")
+                        .append(FormatUtil.formatNumber(householdGridKwh)).append(";")
+                        .append(FormatUtil.formatNumber(miningGridKwh)).append(";")
+                        .append(stat.gridPricePerKwh().amount()).append(";")
+                        .append(round(householdGridCost)).append(";")
+                        .append(round(miningGridCost)).append(";")
+                        .append(round(revenue)).append(";")
+                        .append(round(netCash)).append("\n");
+
+                totals.gridImport += stat.gridImportKwh();
+                totals.householdGrid += householdGridKwh;
+                totals.miningGrid += miningGridKwh;
+                totals.householdCost += householdGridCost;
+                totals.miningCost += miningGridCost;
+                totals.revenue += revenue;
+            }
+            if (currentMonth != null) appendMonthSummary(sb, currentMonth, totals);
+            return new ByteArrayInputStream(sb.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return new ByteArrayInputStream(("Error in CSV Export: " + e.getMessage()).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    private static void appendMonthSummary(StringBuilder sb, java.time.YearMonth month, MonthTotals totals) {
+        sb.append("MONTH;").append(month).append(";")
+                .append(FormatUtil.formatNumber(totals.gridImport)).append(";")
+                .append(FormatUtil.formatNumber(totals.householdGrid)).append(";")
+                .append(FormatUtil.formatNumber(totals.miningGrid)).append(";;")
+                .append(round(totals.householdCost)).append(";")
+                .append(round(totals.miningCost)).append(";")
+                .append(round(totals.revenue)).append(";")
+                .append(round(totals.revenue - totals.miningCost)).append("\n");
+    }
+
+    private static String round(double value) {
+        return String.format(java.util.Locale.ROOT, "%.2f", value);
+    }
+
+    private static final class MonthTotals {
+        double gridImport, householdGrid, miningGrid, householdCost, miningCost, revenue;
+    }
+
     private List<SaleReportDto> calculateFifoSales(List<PVStatisticDto> allTimeStats, List<BitcoinSale> sales, CustomCurrency currency) {
         List<MinedTranche> availableCoins = allTimeStats.stream()
                 .filter(s -> s.minedBtc() > 0)
