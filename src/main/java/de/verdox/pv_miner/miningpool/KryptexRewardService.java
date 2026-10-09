@@ -24,20 +24,26 @@ import java.util.logging.Logger;
 public class KryptexRewardService {
     private static final Logger LOGGER = Logger.getLogger(KryptexRewardService.class.getName());
     private final MiningTargetRepository targets;
+    private final WatchedWalletRepository wallets;
+    private final KryptexPoolApiService poolBalances;
     private final MiningCoinDailyRewardRepository rewards;
     private final ObjectMapper mapper;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final Map<UUID, Instant> refreshed = new ConcurrentHashMap<>();
 
-    public KryptexRewardService(MiningTargetRepository targets, MiningCoinDailyRewardRepository rewards, ObjectMapper mapper) {
+    public KryptexRewardService(MiningTargetRepository targets, WatchedWalletRepository wallets,
+                                KryptexPoolApiService poolBalances,
+                                MiningCoinDailyRewardRepository rewards, ObjectMapper mapper) {
         this.targets = targets;
+        this.wallets = wallets;
+        this.poolBalances = poolBalances;
         this.rewards = rewards;
         this.mapper = mapper;
     }
 
     public Snapshot snapshot(UUID siteId, LocalDate from, LocalDate to) {
         refresh(siteId);
-        Set<Route> routes = supportedRoutes(targets.findBySiteIdOrderByPriorityAsc(siteId));
+        Set<Route> routes = supportedRoutes(siteId);
         return new Snapshot(rewards.findBySiteIdAndDateBetween(siteId, from, to), routes);
     }
 
@@ -46,11 +52,13 @@ public class KryptexRewardService {
     public synchronized void refresh(UUID siteId) {
         Instant previous = refreshed.get(siteId);
         if (previous != null && previous.isAfter(Instant.now().minusSeconds(900))) return;
-        Set<Route> routes = supportedRoutes(targets.findBySiteIdOrderByPriorityAsc(siteId));
+        Set<Route> routes = supportedRoutes(siteId);
         Map<String, Map<LocalDate, BigDecimal>> prices = new HashMap<>();
         boolean complete = true;
         for (Route route : routes) {
             try {
+                if (MiningCoin.from(route.coin()).kryptexTicker() == null)
+                    throw new IllegalStateException("Kryptex reward history is unavailable for " + route.coin());
                 Map<LocalDate, BigDecimal> priceByDay = prices.computeIfAbsent(route.coin(), coin -> {
                     try { return parsePrices(fetch("/api/v1/coin/" + ticker(coin) + "/price/chart?time_range=year")); }
                     catch (Exception e) { LOGGER.log(Level.WARNING, "Kryptex price chart unavailable for " + coin, e); return Map.of(); }
@@ -80,7 +88,9 @@ public class KryptexRewardService {
 
     @Scheduled(fixedDelay = 21_600_000, initialDelay = 60_000)
     public void refreshAll() {
-        for (UUID siteId : targets.findAll().stream().map(MiningTargetEntity::getSiteId).distinct().toList()) refresh(siteId);
+        Set<UUID> siteIds = new HashSet<>(targets.findAll().stream().map(MiningTargetEntity::getSiteId).toList());
+        wallets.findAll().stream().map(WatchedWalletEntity::getSiteId).forEach(siteIds::add);
+        for (UUID siteId : siteIds) refresh(siteId);
     }
 
     private JsonNode fetch(String path) throws Exception {
@@ -95,7 +105,10 @@ public class KryptexRewardService {
         Set<Route> routes = new HashSet<>();
         for (MiningTargetEntity target : targets) {
             if (target.getPayoutAddress() == null || target.getPayoutAddress().isBlank()) continue;
-            if (!"monero".equals(target.getCoin()) && !"pearl".equals(target.getCoin())) continue;
+            MiningCoin coin;
+            try { coin = MiningCoin.from(target.getCoin()); }
+            catch (IllegalArgumentException ignored) { continue; }
+            if (coin.kryptexTicker() == null) continue;
             try {
                 String host = URI.create(target.getStratumUrl()).getHost();
                 if (host != null && (host.equalsIgnoreCase("kryptex.network")
@@ -103,6 +116,22 @@ public class KryptexRewardService {
                     routes.add(new Route(target.getCoin(), target.getPayoutAddress()));
             } catch (IllegalArgumentException ignored) { }
         }
+        return routes;
+    }
+
+    private Set<Route> supportedRoutes(UUID siteId) {
+        Set<Route> routes = ConcurrentHashMap.newKeySet();
+        routes.addAll(supportedRoutes(targets.findBySiteIdOrderByPriorityAsc(siteId)));
+        wallets.findBySiteIdOrderByLabelAsc(siteId).parallelStream().forEach(wallet -> {
+            try {
+                MiningCoin coin = MiningCoin.from(wallet.getCoin());
+                if (coin == MiningCoin.BITCOIN) return;
+                // A public address is only treated as a pool-account route when Kryptex recognizes it.
+                // DCR stays visible as unavailable because the PC-Agent's current Suprnova route has no adapter.
+                if (coin.kryptexTicker() == null || poolBalances.read(coin, wallet.getAddress()).amount() != null)
+                    routes.add(new Route(wallet.getCoin(), wallet.getAddress()));
+            } catch (IllegalArgumentException ignored) { }
+        });
         return routes;
     }
 
@@ -134,7 +163,11 @@ public class KryptexRewardService {
                 entry -> entry.getValue().price()));
     }
 
-    private static String ticker(String coin) { return "monero".equals(coin) ? "xmr" : "prl"; }
+    private static String ticker(String coin) {
+        MiningCoin value = MiningCoin.from(coin);
+        if (value.kryptexTicker() == null) throw new IllegalArgumentException("Kryptex has no data provider for " + coin);
+        return value.kryptexTicker();
+    }
     private record PricePoint(long timestamp, BigDecimal price) { }
 
     public record Route(String coin, String address) { }

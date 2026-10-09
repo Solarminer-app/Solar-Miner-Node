@@ -58,10 +58,28 @@ public record MinerStats(
             List<Pools> pools,
             String hardwareType,
             String hardwareModel,
-            String deviceId
+            String deviceId,
+            Long acceptedShares,
+            Long rejectedShares
     ) {
         public long miningPowerWatts() {
             return miningStatus == MinerStatus.MINING ? approximatedPowerUsageWatts : 0;
+        }
+
+        /**
+         * Compatibility constructor for older core responses and miner integrations that have
+         * no accepted/rejected share counters.
+         */
+        public Worker(
+                MinerStatus miningStatus, String workerDisplayName, String currentAlgorithm,
+                double terahashPerSecond, double temperatureCelsius,
+                long powerTargetWatts, long minPowerTarget, long defaultPowerTarget, long maxPowerTarget,
+                long approximatedPowerUsageWatts, List<Pools> pools,
+                String hardwareType, String hardwareModel, String deviceId
+        ) {
+            this(miningStatus, workerDisplayName, currentAlgorithm, terahashPerSecond, temperatureCelsius,
+                    powerTargetWatts, minPowerTarget, defaultPowerTarget, maxPowerTarget,
+                    approximatedPowerUsageWatts, pools, hardwareType, hardwareModel, deviceId, null, null);
         }
     }
 

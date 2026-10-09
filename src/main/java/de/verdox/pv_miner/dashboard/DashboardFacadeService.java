@@ -11,6 +11,7 @@ import de.verdox.pv_miner.miningpool.MiningPoolData;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.miningpool.MiningCoinDailyReward;
 import de.verdox.pv_miner.miningpool.KryptexRewardService;
+import de.verdox.pv_miner.miningpool.MiningCoin;
 import de.verdox.pv_miner.pvsite.PVSiteDataDTO;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVStatisticPerDay;
@@ -101,10 +102,10 @@ public class DashboardFacadeService {
         double miningGridCost = miningImport * stromPreis;
 
         long minedSats = Math.round(pvSiteEntity.getConnectedMiningPools().stream().mapToDouble(this::safeMiningRewardToday).sum());
-        double btcRate = globalConstantsService.getExchangeRate(CustomCurrency.getInstance("BTC"), userCurrency);
-        double miningRevenue = btcRate > 0 ? minedSats / 100_000_000.0 * btcRate : 0;
-        double miningNetResult = miningRevenue - miningGridCost - miningOpportunityCosts;
         MiningRevenueSummary miningRevenueSummary = calculateMiningRevenueEuro(pvSiteEntity, minedSats);
+        Double miningRevenue = miningRevenueSummary.totalEuro() == null ? null
+                : globalConstantsService.convert(new Money(miningRevenueSummary.totalEuro(), CustomCurrency.getInstance("EUR")), userCurrency).getRawMoneyAmount();
+        Double miningNetResult = miningRevenue == null ? null : miningRevenue - miningGridCost - miningOpportunityCosts;
 
         double batteryPower = pvSiteData.getBatteryPower();
         double batteryCapacityKwh = Math.max(0, pvSiteEntity.getBatteryCapacityWh()) / 1000.0;
@@ -178,41 +179,63 @@ public class DashboardFacadeService {
         CustomCurrency euro = CustomCurrency.getInstance("EUR");
         Map<String, RevenueAccumulator> revenueByCoin = new HashMap<>();
         double btcAmount = minedSats / 100_000_000.0;
-        double btcEuro = globalConstantsService.getExchangeRate(CustomCurrency.getInstance("BTC"), euro) * btcAmount;
+        double btcRateEuro = globalConstantsService.getExchangeRate(CustomCurrency.getInstance("BTC"), euro);
+        Double btcEuro = btcAmount == 0 ? 0.0 : btcRateEuro > 0 ? btcRateEuro * btcAmount : null;
         revenueByCoin.put("bitcoin", new RevenueAccumulator("bitcoin", "BTC", btcAmount, btcEuro));
 
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        for (MiningCoinDailyReward reward : kryptexRewards.snapshot(site.getId(), today, today).rows()) {
+        KryptexRewardService.Snapshot rewardSnapshot = kryptexRewards.snapshot(site.getId(), today, today);
+        java.util.Set<KryptexRewardService.Route> observedRoutes = new java.util.HashSet<>();
+        for (MiningCoinDailyReward reward : rewardSnapshot.rows()) {
+            observedRoutes.add(new KryptexRewardService.Route(reward.getCoin(), reward.getPayoutAddress()));
             double amount = reward.getAmount().doubleValue();
             Double euroValue = null;
             if (reward.getPriceUsd() != null) {
                 double converted = globalConstantsService.convert(new Money(amount * reward.getPriceUsd().doubleValue(), CustomCurrency.getInstance("USD")), euro).getRawMoneyAmount();
                 if (Double.isFinite(converted) && converted >= 0) euroValue = converted;
             }
-            String symbol = "monero".equals(reward.getCoin()) ? "XMR" : "pearl".equals(reward.getCoin()) ? "PRL" : reward.getCoin().toUpperCase(Locale.ROOT);
-            revenueByCoin.computeIfAbsent(reward.getCoin(), key -> new RevenueAccumulator(key, symbol, 0, 0.0))
+            String symbol;
+            try {
+                symbol = de.verdox.pv_miner.miningpool.MiningCoin.from(reward.getCoin()).symbol();
+            } catch (IllegalArgumentException ignored) {
+                symbol = reward.getCoin().toUpperCase(Locale.ROOT);
+            }
+            final String rewardSymbol = symbol;
+            revenueByCoin.computeIfAbsent(reward.getCoin(), key -> new RevenueAccumulator(key, rewardSymbol, 0D, 0.0))
                     .add(amount, euroValue);
+        }
+        for (KryptexRewardService.Route route : rewardSnapshot.activeRoutes()) {
+            if (observedRoutes.contains(route)) continue;
+            try {
+                MiningCoin coin = MiningCoin.from(route.coin());
+                revenueByCoin.compute(route.coin(), (key, current) -> {
+                    if (current == null) return new RevenueAccumulator(route.coin(), coin.symbol(), null, null);
+                    current.markUnavailable();
+                    return current;
+                });
+            } catch (IllegalArgumentException ignored) {
+            }
         }
 
         List<MiningRevenueByCoinDto> byCoin = revenueByCoin.values().stream()
                 .map(RevenueAccumulator::toDto)
                 .sorted(Comparator.comparing(MiningRevenueByCoinDto::symbol))
                 .toList();
-        double totalEuro = byCoin.stream().map(MiningRevenueByCoinDto::euroValue)
-                .filter(java.util.Objects::nonNull).mapToDouble(Double::doubleValue).sum();
+        boolean fullyValued = byCoin.stream().allMatch(item -> item.euroValue() != null);
+        Double totalEuro = fullyValued ? byCoin.stream().mapToDouble(item -> item.euroValue()).sum() : null;
         return new MiningRevenueSummary(totalEuro, byCoin);
     }
 
-    private record MiningRevenueSummary(double totalEuro, List<MiningRevenueByCoinDto> byCoin) {
+    private record MiningRevenueSummary(Double totalEuro, List<MiningRevenueByCoinDto> byCoin) {
     }
 
     private static final class RevenueAccumulator {
         private final String coin;
         private final String symbol;
-        private double amount;
+        private Double amount;
         private Double euroValue;
 
-        private RevenueAccumulator(String coin, String symbol, double amount, Double euroValue) {
+        private RevenueAccumulator(String coin, String symbol, Double amount, Double euroValue) {
             this.coin = coin;
             this.symbol = symbol;
             this.amount = amount;
@@ -220,12 +243,17 @@ public class DashboardFacadeService {
         }
 
         private void add(double additionalAmount, Double additionalEuroValue) {
-            amount += additionalAmount;
+            amount = amount == null ? null : amount + additionalAmount;
             if (additionalEuroValue == null) {
                 euroValue = null;
             } else if (euroValue != null) {
                 euroValue += additionalEuroValue;
             }
+        }
+
+        private void markUnavailable() {
+            amount = null;
+            euroValue = null;
         }
 
         private MiningRevenueByCoinDto toDto() {

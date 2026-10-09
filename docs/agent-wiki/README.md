@@ -9,25 +9,37 @@
 | Root app `src/`, `app/` | Local API, persistence, PV/site orchestration, telemetry | Calls services and stores site state; hardware-specific control belongs in `core` or `pc-agent`. |
 | `core/` | Miner abstractions, dispatch, ASIC/Braiins control, dev-fee path | Must not duplicate PC hardware control; consult [core help](../../core/HELP.md). |
 | `cgminerapi/` | CGMiner TCP framing, commands and response DTOs used by `core` | Transport tests cannot establish framing or timeout suitability on supported ASIC firmware; keep the real-device gate explicit. |
-| `pc-agent/` | Local CPU/GPU mining and hardware-specific power control | Node sends a target or decision, not per-GPU driver commands. See [PC-Agent map](pc-agent.md). |
+| PC-Agent | **Nothing — separate repository.** | The PC-Agent is the separate Git repository [`../../../pc-agent`](../../../pc-agent) (`https://github.com/Solarminer-app/pc-agent`), split out on 2026-10-08. The Node talks to it only over LAN HTTP (`:8084`, `/api/agent/external/**`) and UDP discovery. See its [wiki](../../../pc-agent/docs/agent-wiki/README.md). |
 | `pv-api/` | Shared profile serialization contract | Configurator must use the same serializer; see contract C3. |
 | `react-frontend/` | Local operator UI | API and decisions stay in backend services. |
-| `currency-rates/` | Currency rate service | Keep market rates separate from miner control. |
+| Currency Service | **Nothing — not code in this repository.** | The Currency Service is the separate Git repository [`../../../currency-service`](../../../currency-service) (`https://github.com/Solarminer-app/currency-service`). The leftover `currency-rates/` copy from the 2026-10-04 migration was removed on 2026-10-08 (module, Gradle wiring and release workflow gone). This repository only consumes the deployed HTTP API; the production Compose stack runs the published `verdox/currency-rates-api` image built by that repository. |
 | `device-profiles/`, `tools/` | Bundled profiles and import tooling | Runtime community profile source is separate. |
 
 ## Documentation catalog
 
 | Document | Use / status |
 | --- | --- |
-| [PC-Agent ownership and gaps](pc-agent.md) | Code-checked map and review queue, checked 2026-10-01. |
+| [Setup UX and PV discovery](setup-and-discovery.md) | Beginner-oriented device setup, bounded discovery API, verification and remaining hardware/UX gates; reviewed 2026-10-02. |
+| [UI/UX audit](ui-ux-audit-2026-10-02.md) | Source and Chrome desktop/mobile review of the local Node UI, reproducible usability findings and proposed redesign priorities; 2026-10-02. Proposals are not implemented behavior. |
+| [Quantus (QTC) integration](quantus-integration.md) | GPU/Stratum candidate wiring and explicit missing house-wallet, pool-share and rollout gates; 2026-10-06. |
+| [Public currency/network data](currency-data.md) | **Superseded for the service side** — the C9 provider/schema record now lives in [`../../../currency-service/docs/agent-wiki/currency-data.md`](../../../currency-service/docs/agent-wiki/currency-data.md). This file keeps only the Node/PC-Agent consumer view. |
 | [API](../API.md), [mining targets](../MINING-TARGETS.md) | Interface references; verify endpoints and behavior in code before changing them. |
 | [device protocol roadmap](../DEVICE_PROTOCOL_ROADMAP.md), [21energy status](../21ENERGY-SOFTWARE-STATUS.md) | Roadmap/status; follow [21energy integration guide](../../../21ENERGY-INTEGRATION.md) for related changes. |
-| [PC-Agent PV power control](../../PC-AGENT-PV-POWER-CONTROL.md) | Design and verification checklist; some API and GPU control code now exists, so it is not a complete current-state description. |
-| [standalone PC-Agent](../../pc-agent/standalone/README.md), [Docker](../../pc-agent/standalone/DOCKER.md) | Run and packaging instructions; check scripts/workflows before relying on release claims. |
-| [main README](../../README.md), [core help](../../core/HELP.md), [currency help](../../currency-rates/HELP.md) | Component guides; code is authoritative. |
+| [standalone PC-Agent](../../../pc-agent/standalone/README.md), [Docker](../../../pc-agent/standalone/DOCKER.md) | Run and packaging instructions in the PC-Agent repository; check scripts/workflows before relying on release claims. |
+| [main README](../../README.md), [core help](../../core/HELP.md) | Component guides; code is authoritative. |
+| Currency Service guides | In the separate repository: [`AGENTS.md`](../../../currency-service/AGENTS.md), [`README.md`](../../../currency-service/README.md), [`PUBLIC-DEPLOYMENT.md`](../../../currency-service/PUBLIC-DEPLOYMENT.md). |
+| PC-Agent documentation | In the separate repository: [`docs/agent-wiki/`](../../../pc-agent/docs/agent-wiki/README.md) — ownership map, UI/UX records, miner candidates, pool research, RVN/ETC status, coin compatibility matrix; [`MINER-INTEGRATION-GUIDE.md`](../../../pc-agent/MINER-INTEGRATION-GUIDE.md); [PV power control](../../../pc-agent/docs/PC-AGENT-PV-POWER-CONTROL.md); [standalone run/packaging](../../../pc-agent/standalone/README.md). |
 | `src/main/resources/markdowns/` | Product help shown to users, not agent operating instructions. |
 
 ## Feature workflow
+
+### Public currency and mining-network data
+
+**Ownership:** this service is not code in this repository. It is the separate Git repository [`../../../currency-service`](../../../currency-service) (`https://github.com/Solarminer-app/currency-service`), which owns the providers, persistence, public routes, tests and the C9 record. The leftover `currency-rates/` copy from the 2026-10-04 migration was deleted on 2026-10-08 together with its Gradle and CI wiring. Node and PC-Agent code may only call the deployed API.
+
+`currency-rates` is a public central service, not a trust-LAN endpoint. Production Nodes use `CURRENCY_MICRO_SERVICE_URL`, defaulting to `https://currency.solarminer.app`; local Compose may use the internal `http://currency-service:8080`. Only versioned, read-only aggregated snapshots belong under `/api/v1/public/**`. Wallets, worker names, pools, referrals, individual telemetry and administration do not.
+
+For every mining coin that becomes relevant to Node or public profitability calculations, extend that repository first with both price and mining-network collection. Record the canonical key/ticker, provider, units and precision, timestamp, refresh cadence, persisted snapshot, stale/unavailable behavior and tests. A coin-price record alone is not a network-statistics contract. Follow C9 in the workspace contracts and the currency-data requirement in `NEW-MINING-COIN-GUIDE.md`; do not add another coin-specific BTC-style table for new assets.
 
 ### Public telemetry egress
 
@@ -43,7 +55,7 @@ The standalone PC-Agent exposes its own Benchmarks page and default-off benchmar
 
 ## Current review queue
 
-- The PC-Agent miner paths share some orchestration but still have direct XMR/Pearl dependencies in `MiningService`; see [PC-Agent map](pc-agent.md). Extract a common lifecycle contract when a third miner makes duplication concrete, preserving separate protocol and hardware adapters.
-- C03 defines the desired global power target as deliberately volatile: an agent restart begins idle and cannot replay a stale Node target. The pure plan and its last application result are documented in [the PC-Agent map](pc-agent.md); hardware validation remains open.
+- The PC-Agent miner paths share some orchestration but still have direct XMR/Pearl dependencies in `MiningService`; see the [PC-Agent map](../../../pc-agent/docs/agent-wiki/pc-agent.md). Extract a common lifecycle contract when a third miner makes duplication concrete, preserving separate protocol and hardware adapters.
+- C03 defines the desired global power target as deliberately volatile: an agent restart begins idle and cannot replay a stale Node target. The pure plan and its last application result are documented in [the PC-Agent map](../../../pc-agent/docs/agent-wiki/pc-agent.md); hardware validation remains open.
 - Hardware-specific GPU power behavior needs real driver/OS verification. Source inspection cannot establish that a limit is safely applied on every supported device.
 - CGMiner transport now has loopback coverage for delayed, NUL-terminated, EOF-terminated, timed-out and malformed responses. Before C05 rollout, a device/integration operator must capture framing from supported ASIC firmware and verify that the 5-second connect and 10-second inactive-read limits remain safe under load.

@@ -30,7 +30,7 @@ public class AgentEarningsSource implements MiningEarningsSource {
     @Override public List<MiningEarningsService.CoinEstimate> forecast(MinerEntity<?> miner, MinerStats stats) {
         List<MiningEarningsService.CoinEstimate> result = new ArrayList<>();
         try {
-            URI uri = URI.create("http://" + miner.getIP() + ":8084/api/agent/earnings");
+            URI uri = URI.create("http://" + miner.getIP() + ":8084/api/agent/external/earnings");
             HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(3)).GET().build();
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) throw new IllegalStateException("Agent returned " + response.statusCode());
@@ -40,16 +40,16 @@ public class AgentEarningsSource implements MiningEarningsSource {
                 MiningCoin coin;
                 try { coin = MiningCoin.from(forecast.path("coin").asText()); }
                 catch (IllegalArgumentException ignored) {
-                    result.add(MiningEarningsService.CoinEstimate.unavailable(forecast.path("coin").asText(), "—", "Coin ist im Node nicht registriert"));
+                    // The agent contract is additive. Ignore coins until the Node's full coin path is registered.
                     continue;
                 }
                 double hashrate = forecast.path("hashrateHps").asDouble();
                 boolean minerActive = stats.workers() != null && stats.workers().stream()
-                        .anyMatch(worker -> coin.algorithm().equals(worker.currentAlgorithm())
+                        .anyMatch(worker -> coin.agentAlgorithm().equalsIgnoreCase(worker.currentAlgorithm())
                                 && worker.miningStatus() == MinerStats.MinerStatus.MINING);
                 if (!minerActive) continue;
                 double watts = stats.workers() == null ? 0 : stats.workers().stream()
-                        .filter(worker -> coin.algorithm().equals(worker.currentAlgorithm())
+                        .filter(worker -> coin.agentAlgorithm().equalsIgnoreCase(worker.currentAlgorithm())
                                 && worker.miningStatus() == MinerStats.MinerStatus.MINING)
                         .mapToDouble(MinerStats.Worker::miningPowerWatts).sum();
                 double priceUsd = forecast.path("priceUsd").asDouble();
@@ -81,7 +81,7 @@ public class AgentEarningsSource implements MiningEarningsSource {
         } catch (Exception ignored) {
             String detail = "PC-Agent-Abruf fehlgeschlagen (" + ignored.getClass().getSimpleName() + ")";
             result.add(new MiningEarningsService.CoinEstimate("agent", "—", false, detail, 0, 0, 0, 0, "",
-                    List.of("PC-Agent API :8084/api/agent/earnings"), List.of(detail)));
+                    List.of("PC-Agent API :8084/api/agent/external/earnings"), List.of(detail)));
         }
         return result;
     }

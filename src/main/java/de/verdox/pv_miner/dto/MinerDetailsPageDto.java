@@ -75,7 +75,9 @@ public record MinerDetailsPageDto(
             String status,
             double hashrateThs,
             double temperatureCelsius,
-            long powerUsageWatts
+            long powerUsageWatts,
+            Long acceptedShares,
+            Long rejectedShares
     ) {
     }
 

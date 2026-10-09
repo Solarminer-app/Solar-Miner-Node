@@ -63,6 +63,16 @@ public class SetupController {
         return previewService.preview(request);
     }
 
+    @PostMapping("/pv-devices/scan")
+    public SetupRequests.PvDiscoveryReport scanPvDevices(@RequestBody SetupRequests.PvDiscoveryRequest request) {
+        return setupService.scanPvDevices(request);
+    }
+
+    @GetMapping("/pv-devices/network")
+    public java.util.Map<String, String> discoveryNetwork() {
+        return java.util.Map.of("subnetPrefix", setupService.getDiscoverySubnetPrefix());
+    }
+
     @PostMapping("/options/{kind}/{providerId}/validate")
     public SetupRequests.ProviderValidationDto validateProvider(
             @PathVariable String kind,

@@ -124,14 +124,10 @@ services:
     env_file:
       - .env
     environment:
+      SPRING_PROFILES_ACTIVE: production
       MYSQL_URL: jdbc:mariadb://mariadb-currency-service:3306/currency_rates
       MYSQL_USER: currency_rates
       MYSQL_PASSWORD: ${CURRENCY_DB_PASSWORD}
-    entrypoint:
-      - java
-      - -Dspring.profiles.active=production
-      - -jar
-      - ./currency-rates.jar
     volumes:
       - ./app/currency/backend:/app/storage
 

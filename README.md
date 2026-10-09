@@ -29,13 +29,14 @@ The core component for hardware communication.
 A specialized microservice for financial data.
 *   **Function:** Collects and stores current exchange rates and blockchain data to guarantee accurate conversions and profitability calculations in the main program.
 *   **Data Storage:** Features its own isolated MariaDB instance to prevent database bottlenecks.
+*   **Repository:** This service is maintained in its own Git repository (`https://github.com/Solarminer-app/currency-service`). The Node only consumes its HTTP API (`CURRENCY_MICRO_SERVICE_URL`); the `currency-rates/` directory in this repository is a leftover copy from the split and is not maintained here.
 
 ### 4. Phoenixd Integration (`phoenixd`)
 *   **Function:** The system integrates a full Lightning Network node based on ACINQ's `phoenixd`. This enables the direct processing of payments and transactions via the Bitcoin Lightning Network.
 
-### 5. PC-Agent (`pc-agent`)
-*   **Status:** Work in progress.
-*   **Function:** A native client that will in the future manage CPU and GPU mining workloads on desktop operating systems (Windows, Linux, macOS) in conjunction with the SolarMiner Node.
+### 5. PC-Agent (separate repository)
+* **Repository:** `https://github.com/Solarminer-app/pc-agent` — split out of this repository on 2026-10-08.
+* **Function:** A native client that manages CPU and GPU mining workloads on desktop operating systems (Windows, Linux). The Node discovers and controls it purely over its LAN HTTP API on port 8084.
 
 ## API Documentation
 

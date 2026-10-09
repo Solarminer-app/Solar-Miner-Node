@@ -26,7 +26,10 @@ public class MinerDiscoveryService {
     public record DetectedMiner(MiningOS os, String model) {
     }
 
+    private final ObjectMapper objectMapper;
+
     public MinerDiscoveryService(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
     }
 
     public MinerDiscoveryService.DetectedMiner identifyMinerDetails(String ipv4) {
@@ -66,23 +69,26 @@ public class MinerDiscoveryService {
         try {
             HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofMillis(500)).build();
 
-            HttpRequest request = HttpRequest.newBuilder().uri(URI.create("http://" + ipv4 + ":8084/api/agent/power-control/identity")).timeout(Duration.ofMillis(500)).GET().build();
+            HttpRequest request = HttpRequest.newBuilder().uri(URI.create("http://" + ipv4 + ":8084/api/agent/external/identity")).timeout(Duration.ofMillis(500)).GET().build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-            if (response.statusCode() == 200 && response.body().contains("\"kind\":\"solarminer-pc-agent\"")) {
-                LOGGER.log(Level.INFO, "Found Solar Miner Agent on IP: " + ipv4);
-                return new MinerDiscoveryService.DetectedMiner(MiningOS.AGENT, "Solarminer PC Agent");
-            }
-            // Pre-contract agents expose only the boolean identify endpoint.
-            HttpRequest legacy = HttpRequest.newBuilder().uri(URI.create("http://" + ipv4 + ":8084/api/agent/identify")).timeout(Duration.ofMillis(500)).GET().build();
-            HttpResponse<String> legacyResponse = client.send(legacy, HttpResponse.BodyHandlers.ofString());
-            if (legacyResponse.statusCode() == 200 && legacyResponse.body().trim().equalsIgnoreCase("true"))
-                return new MinerDiscoveryService.DetectedMiner(MiningOS.AGENT, "Solarminer PC Agent (legacy API)");
+            if (response.statusCode() != 200) return null;
+            Identity identity = objectMapper.readValue(response.body(), Identity.class);
+            if (!"solarminer-pc-agent".equals(identity.kind())) return null;
+            LOGGER.log(Level.INFO, "Found Solar Miner Agent on IP: " + ipv4);
+            // The operator label from the agent wins over the fixed product model name.
+            String label = identity.name() != null && !identity.name().isBlank() ? identity.name() : identity.model();
+            return new MinerDiscoveryService.DetectedMiner(MiningOS.AGENT,
+                    label == null || label.isBlank() ? "Solarminer PC Agent" : label);
         } catch (Exception ignored) {
         }
         return null;
     }
+
+    /** Mirrors the PC-Agent {@code Identity} record; unknown fields are ignored. */
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    private record Identity(String kind, int powerControlProtocolVersion, String model, String name) { }
 
     private MinerDiscoveryService.DetectedMiner checkAsicMiner(String ipv4) {
         int port = 4028;

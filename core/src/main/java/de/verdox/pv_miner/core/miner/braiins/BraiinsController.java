@@ -94,7 +94,7 @@ public class BraiinsController implements MinerController {
             int defaultPowerTarget = Math.toIntExact(client.getPowerLimit(minerDetails).defaultValue());
             int maxPowerTarget = Math.toIntExact(client.getPowerLimit(minerDetails).max());
             long approximatePowerUsageWatts = client.getApproximatePowerUsage(minerDetails);
-            var newStats = new MinerStats(identity, minerName, apiStatus, currentPowerTarget, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatePowerUsageWatts, terahashPerSecond, temperatureInDegreeC, pools, List.of(new MinerStats.Worker(apiStatus, identity.minerModel(), "SHA256", terahashPerSecond, temperatureInDegreeC, currentPowerTarget, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatePowerUsageWatts, pools, "ASIC", identity.minerModel(), identity.minerUID())));
+            var newStats = new MinerStats(identity, minerName, apiStatus, currentPowerTarget, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatePowerUsageWatts, terahashPerSecond, temperatureInDegreeC, pools, List.of(new MinerStats.Worker(apiStatus, identity.minerModel(), "SHA256", terahashPerSecond, temperatureInDegreeC, currentPowerTarget, minPowerTarget, defaultPowerTarget, maxPowerTarget, approximatePowerUsageWatts, pools, "ASIC", identity.minerModel(), identity.minerUID(), null, null)));
             lastStats.put(minerDetails, newStats);
             return newStats;
         } catch (BosminerUnavailableException e) {

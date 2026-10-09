@@ -1,6 +1,7 @@
 package de.verdox.pv_miner.core.util;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public record AsicMinerSpec(String model, String algorithm, int watts, long hs) {
@@ -18,6 +19,15 @@ public record AsicMinerSpec(String model, String algorithm, int watts, long hs) 
             return null;
         }
         return KNOWN_SPECS.get(model.toUpperCase());
+    }
+
+    /**
+     * Immutable snapshot used to verify the public compatibility catalogue.
+     * A power specification alone does not prove device support; the catalogue
+     * is the explicit, reviewed support declaration.
+     */
+    public static List<AsicMinerSpec> all() {
+        return List.copyOf(KNOWN_SPECS.values());
     }
 
     static {

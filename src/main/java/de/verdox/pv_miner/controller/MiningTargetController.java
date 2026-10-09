@@ -60,7 +60,7 @@ public class MiningTargetController {
     public List<CoinDto> coins(@PathVariable UUID siteId) {
         requireSite(siteId);
         return Arrays.stream(MiningCoin.values()).map(coin -> new CoinDto(coin.key(), coin.symbol(),
-                coin.algorithm(), coin.automaticAssignment())).toList();
+                coin.algorithm(), coin.automaticAssignment(), coin.supportsNodeTargetControl())).toList();
     }
 
     @PostMapping("/targets")
@@ -75,6 +75,9 @@ public class MiningTargetController {
         MiningCoin coin;
         try { coin = MiningCoin.from(request.coin() == null ? "bitcoin" : request.coin()); }
         catch (IllegalArgumentException exception) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage()); }
+        if (!coin.supportsNodeTargetControl()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Node target control is not available for this coin; configure it in the PC-Agent");
+        }
         if (!coin.algorithm().equals(request.algorithm()) || !coin.key().equals(request.payoutCoin() == null ? coin.key() : request.payoutCoin())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mining coin, algorithm and payout coin do not match");
         }
@@ -171,7 +174,7 @@ public class MiningTargetController {
                                 stats == null ? "UNKNOWN" : stats.miningStatus().name());
                     }).toList();
             return new PoolOverviewDto(pool.getId(), "ACCOUNT", "bitcoin", "BTC", pool.getUrlIdentifier(), pool.getStratumV1Url(),
-                    balance == null ? null : BigDecimal.valueOf(balance), balanceUpdatedAt, workerCount, assigned,
+                    balance == null ? null : BigDecimal.valueOf(balance), balanceUpdatedAt, workerCount, assigned, null,
                     suggestedWorkerPrefix == null ? null : suggestedWorkerPrefix + ".");
         }).toList();
         List<MiningTargetService.Assignment> assignments = service.assignments(siteId);
@@ -188,7 +191,8 @@ public class MiningTargetController {
                                     .map(assignment -> site.getMiners().stream().filter(miner -> miner.getId().equals(assignment.minerId()))
                                             .findFirst().map(miner -> new AssignedMinerDto(miner.getId(),
                                                     miner.getName() == null ? miner.getIP() : miner.getName(), "ASSIGNED"))
-                                            .orElse(null)).filter(java.util.Objects::nonNull).toList(), target.getWorkerPrefix());
+                                            .orElse(null)).filter(java.util.Objects::nonNull).toList(),
+                            target.getPayoutAddress(), target.getWorkerPrefix());
                 }).toList();
         return java.util.stream.Stream.concat(accounts.stream(), configuredTargets.stream()).toList();
     }
@@ -206,8 +210,8 @@ public class MiningTargetController {
                     entity.getWorkerPrefix(), entity.getPriority(), entity.isEnabled());
         }
     }
-    public record CoinDto(String key, String symbol, String algorithm, boolean automaticAssignment) { }
+    public record CoinDto(String key, String symbol, String algorithm, boolean automaticAssignment, boolean targetConfigurable) { }
     public record PoolOverviewDto(UUID id, String source, String coin, String balanceCoin, String name, String stratumUrl, BigDecimal balance, Instant balanceUpdatedAt,
-                                  Integer poolWorkerCount, List<AssignedMinerDto> assignedMiners, String suggestedWorkerPrefix) { }
+                                  Integer poolWorkerCount, List<AssignedMinerDto> assignedMiners, String payoutAddress, String suggestedWorkerPrefix) { }
     public record AssignedMinerDto(UUID id, String name, String status) { }
 }

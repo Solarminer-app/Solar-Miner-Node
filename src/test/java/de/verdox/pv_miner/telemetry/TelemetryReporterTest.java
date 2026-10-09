@@ -45,7 +45,7 @@ class TelemetryReporterTest {
     }
 
     @Test
-    void mintsAndPersistsIdentityForOptedInSitesOnly() {
+    void mintsIdentityForOptedInSitesAndRevocationIdentityForOptedOut() {
         PVSiteEntity optedIn = new PVSiteEntity();
         optedIn.setTelemetryOptIn(true);
         PVSiteEntity optedOut = new PVSiteEntity();
@@ -61,11 +61,15 @@ class TelemetryReporterTest {
                 RestClient.builder(), versionProvider("1.0.0"), "http://127.0.0.1:9", "DE");
         reporter.report();
 
+        // Opted-in site: identity minted for the batch payload.
         verify(pvSiteRepository, times(1)).save(optedIn);
-        verify(pvSiteRepository, never()).save(optedOut);
+        // Opted-out site: identity is still minted so the revocation notice can
+        // reference it (reportRevocation -> ensureIdentity), then the POST fails best-effort.
+        verify(pvSiteRepository, times(1)).save(optedOut);
         assertNotNull(optedIn.getNodeIdentity());
         assertHasUuidShape(optedIn.getNodeIdentity().trim());
-        assertNull(optedOut.getNodeIdentity());
+        assertNotNull(optedOut.getNodeIdentity());
+        assertHasUuidShape(optedOut.getNodeIdentity().trim());
     }
 
     private static void assertHasUuidShape(String s) {

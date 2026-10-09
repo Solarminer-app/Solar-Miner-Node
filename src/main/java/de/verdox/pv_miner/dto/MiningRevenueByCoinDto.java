@@ -4,7 +4,7 @@ package de.verdox.pv_miner.dto;
 public record MiningRevenueByCoinDto(
         String coin,
         String symbol,
-        double amount,
+        Double amount,
         Double euroValue
 ) {
 }

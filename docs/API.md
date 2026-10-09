@@ -109,8 +109,14 @@ Controller source: [`SetupController`](../src/main/java/de/verdox/pv_miner/contr
 | `POST` | `/api/setup/catalog/refresh` | Refresh remotely supplied setup capabilities. |
 | `GET` | `/api/setup/pv-devices/profiles` | Search compatible PV profiles, optionally by provider and name query. |
 | `POST` | `/api/setup/pv-devices/discover` | Discover PV devices and matching logical component profiles, including SunSpec. |
+| `GET` | `/api/setup/pv-devices/network` | Suggested private IPv4 subnet prefix for discovery; operators can override it with `solarminer.discovery.subnet-prefix` / `SOLARMINER_DISCOVERY_SUBNET_PREFIX`. |
+| `POST` | `/api/setup/pv-devices/scan` | Bounded PV discovery with `{devices, subnetPrefix, checkedHosts, totalHosts, complete}`. Supports `AUTO`, `MODBUS_TCP`, `REST_API`; request fields are `providerId`, `subnetPrefix`, `port`, `slaveId`. |
 | `POST` | `/api/setup/options/{kind}/{providerId}/validate` | Validate one provider selection and its credentials/settings. |
 | `POST` | `/api/setup` | Create a PV site from the completed setup request. |
+
+PV scans cover addresses `.1`–`.254` of an explicit private IPv4 prefix (for example `192.168.1.`), with 24 concurrent host probes and a 25-second deadline. `complete:false` means some hosts were not fully checked; an empty result is not proof that no devices exist. Concurrent scans receive HTTP 429 until in-flight probes have stopped. Invalid/public prefixes, invalid ports and invalid device IDs receive HTTP 400 before network access. `AUTO` checks Modbus port 502 and HTTP ports 80/443/8080/8123; a specified protocol honors the requested port, and Modbus honors `slaveId`. The legacy `/discover` response remains an array and defaults to Modbus when no provider is given, but cannot convey completion metadata.
+
+REST discovery only uses GET entries and requires the returned payload to parse for the profile. A 401/403 is not sufficient to identify a device; protected APIs remain available through manual setup. TLS certificate validation remains enabled. In Docker, the suggested interface may belong to the container network; configure the LAN prefix or enter it in setup. When opened through a private IPv4 Node address, the UI uses that address's prefix as its suggestion. Scans are local read probes, not device-control or mining activation commands.
 
 ### PV REST and Modbus/TCP profiles
 
@@ -193,69 +199,29 @@ Controller source: [`MinerController`](../core/src/main/java/de/verdox/pv_miner/
 
 ## Currency Rates API
 
-The Currency Rates API is read-only and already versioned under `/api/v1`. Base URL in the default deployment: `http://<node>:8081`.
+The Currency Rates API is read-only and already versioned under `/api/v1`. The central public base URL is `https://currency.solarminer.app`; a local Node Compose deployment can use `http://<node>:8081`.
 
-Controller source: [`PublicDataController`](../currency-rates/src/main/java/de/verdox/currencyrates/currencyrates/controller/PublicDataController.java)
+Controller source: [`PublicDataController`](../../currency-service/src/main/java/de/verdox/currencyrates/currencyrates/controller/PublicDataController.java) (in the separate `currency-service` repository)
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/v1/public/bitcoin-stats` | Get Bitcoin price, difficulty, hashrate, subsidy and fee statistics for a local date/time zone. |
 | `GET` | `/api/v1/public/exchange-rates` | Get all stored USD-based exchange rates for a local date/time zone. |
 | `GET` | `/api/v1/public/exchange-rates/convert` | Get one historical conversion rate between two currencies. |
+| `GET` | `/api/v1/public/coin-prices` | Get current or dated USD prices keyed by `btc`, `xmr`, `prl`, `rvn` and `etc`. |
+| `GET` | `/api/v1/public/mining-networks` | Get the latest complete price/network snapshots for Monero, Pearl, Ravencoin and Ethereum Classic. |
+| `GET` | `/api/v1/public/mining-networks/{coin}` | Get one snapshot by canonical key or ticker alias; unknown coins return `404`. |
+
+Mining-network snapshots use canonical keys `monero`, `pearl`, `ravencoin` and `ethereumclassic`. Hashrate is H/s, target block time is seconds, reward is native coin per block and price is USD per coin. Each response includes collection time, age, upstream source names and a stale flag. The service retains the last complete snapshot after an upstream failure; it becomes stale after two hours instead of replacing missing inputs with zero.
 
 ## PC Agent API (experimental)
 
-The PC Agent is not part of the default Compose deployment. Its API and DTOs may change while the component remains work in progress.
-
-The agent serves its local dashboard at `http://<agent-host>:8084/`; mining and hardware telemetry have separate pages. The telemetry page shows the CPU and detected GPU names, all reported sensor values and a component power sum. Total watts adds CPU package power to available GPU board readings; it is marked as partial when devices have no power reading. The active coin and external proxy host are stored under `./solarminer-agent/`. XMRig and SRBMiner-MULTI start only when their configured route matches the SolarMiner Stratum proxy and its API responds. Monero uses proxy port `3335`; Pearl uses `3334`. Existing XMRig configs with a direct pool are rejected on start. The former XMRig process-switching developer fee has been removed; fee routing belongs to the proxy. The SRBMiner JSON API supplies Pearl hashrate per managed GPU; GPU temperature remains in the separate hardware telemetry path. Like the rest of the local Node stack, the agent currently relies on the trusted LAN; do not expose port 8084 to the internet.
-
-The Overview and each installed miner view show a gross daily earnings estimate from the current local hashrate. Monero uses current network difficulty/hashrate from `xmrchain.net`, the current coinbase output from the latest block and XMR/USD from Kraken. Pearl uses `pearlchain.live` network stats and PRL/USD price data. The agent caches successful snapshots for ten minutes, keeps the last successful values marked as stale when an upstream fails and never treats missing hashrate or market data as zero earnings. Estimates are probabilistic and do not deduct pool fees, miner fees, stale shares or the SolarMiner developer fee.
-
-The Mining page has an independent console for each agent-managed miner. `GET /api/agent/console/{monero|pearl}?offset=<byte-offset>` returns `{nextOffset,data,hasMore}`, where `data` is base64-encoded UTF-8 console bytes in chunks of at most 64 KiB. `GET /api/agent/console/{monero|pearl}/download` downloads the entire log. Output is appended without truncation to `./solarminer-agent/logs/` across miner and agent restarts; operators should manage disk usage and access to pool login details in those files.
-
-The PC-Agent supports XMRig and SRBMiner concurrently. `POST /api/agent/miners/{monero|pearl}/resume` and `/pause` control only that coin. `POST /api/agent/miners/{monero|pearl}/power-target?powerTarget=<watts>` sets that coin's power target. Each selected Pearl GPU has its own SRBMiner process and can be controlled with `POST /api/agent/pearl/gpus/{vendor}/{index}/resume` or `/pause`. `/api/agent/overview` reports all CPU/GPU workers and per-GPU states in `pearl.gpus`. Logs for a single Pearl GPU use `/api/agent/console/pearl-{vendor}-{index}` and its `/download` endpoint. The generic `/pause` stops all miners; generic `/resume` reapplies a known PV-wide budget, or starts only the legacy preferred coin when no such budget has been set. The generic power target allocates a total PV budget across both. The persisted legacy `activeCoin` selection no longer stops another miner.
-
-For an independent installation, build `./gradlew :pc-agent:standaloneZip` from the Node repository. This builds the sibling `solarminer-stratum-proxy` repository and packages both runnable JARs plus Windows/Linux launchers; see `pc-agent/standalone/README.md`. Java 21 is required on the target PC. The launcher starts the proxy locally on loopback and fixes the agent's proxy host to `127.0.0.1`. Standalone Monero and Pearl mining are gated on an active, positive fee target from the fee backend. The bundled proxy refuses mining connections without a usable fee target, and the agent stops a running miner if the proxy or fee route disappears. The proxy's job routing performs the fee split.
-
-The PC-Agent also exposes a host hardware snapshot for local integrations. It is sampled on request with a one-second cache and does not upload or persist readings. Linux reads available kernel `hwmon`, thermal and powercap/RAPL sensors. On Windows, the agent downloads LibreHardwareMonitor from its official upstream release and verifies the published SHA-256 digest. It configures the LHM JSON server on loopback (`127.0.0.1:8085`) and asks Windows for elevation when starting LHM, because its sensor driver requires administrator rights. The UI stays blocked until LHM responds; if it does not start, the user can retry from the UAC prompt flow. Missing or inaccessible sensor values are returned with `available: false` and `value: null`; JVM memory is labelled separately from physical host memory. Close a separately running LHM instance if it has no local JSON server enabled.
-
-Example: `GET /api/agent/telemetry` returns `{"collectedAt":"2026-09-28T12:00:00Z","platform":"Linux","architecture":"amd64","metrics":{"cpu.temperature":{"value":54.2,"unit":"°C","source":"Linux hwmon/thermal","available":true,"directMeasurement":true},"cpu.package_power":{"value":72.1,"unit":"W","source":"Linux powercap/RAPL","available":true,"directMeasurement":true}},"sources":{"linux-kernel-sensors":"active; reads hwmon, thermal and powercap on demand"}}`. Dynamic hardware metrics use keys below `hwmon.*` on Linux and `hardware.*` on Windows. Power is in watts, temperatures in Celsius, memory/data in bytes, energy in joules, voltage in volts, current in amperes and fan speed in RPM.
-
-Controller source: [`MiningController`](../pc-agent/src/main/java/de/verdox/solarminer/pcagent/controller/MiningController.java)
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/api/agent/identify` | Verify that a compatible PC Agent is reachable. |
-| `GET` | `/api/agent/power-control/identity` | Versioned PC-Agent identity (`solarminer-pc-agent`) used by Node discovery. |
-| `GET` | `/api/agent/power-control` | PV power-control range, applied target, usage measurement state and per-GPU driver/user limits. Unavailable measurements are `null`, never `0 W`. |
-| `POST` | `/api/agent/power-control/target?watts=<watts>` | Apply one PV-wide watt target; below the supported minimum pauses mining and above maximum is capped. |
-| `POST` | `/api/agent/power-control/gpus/{deviceId}/limits` | Persist `{minimumWatts,maximumWatts}` within the freshly reported driver range for one stable GPU ID. |
-| `GET` / `POST` | `/api/agent/power-control/settings` | Read or set `{dynamicPowerScalingEnabled, externalControlEnabled}`. Disabled external control rejects Node start/pause/target commands immediately. |
-| `GET` / `POST` | `/api/agent/benchmarks` | Read timed benchmark session status or start `{mode:"LIVE"|"INSTALLED",seconds:30..300}`. INSTALLED measures configured miner families sequentially and restores previously active managed workers. Node control calls return HTTP 409 while the session runs. |
-| `POST` | `/api/agent/benchmarks/cancel` | Cancel the active session; INSTALLED restores previously active managed workers before completing. |
-| `GET` / `POST` | `/api/agent/benchmarks/sharing` | Read or change local standalone benchmark sharing consent. |
-| `GET` | `/api/agent/benchmarks/match?hardwareType=...&hardwareModel=...&algorithm=...` | Compare a local result with the public benchmark group; empty response means there is no published group. |
-| `GET` | `/api/agent` | Get current CPU/GPU mining statistics. |
-| `GET` | `/api/agent/telemetry` | Get a timestamped JSON snapshot of available host CPU, memory and sensor telemetry, including units, source and availability. |
-| `POST` | `/api/agent/telemetry/restart` | Retry starting LibreHardwareMonitor; Windows may show a UAC prompt. |
-| `GET` | `/api/agent/overview` | Get mining statistics, both coin states, proxy state, discovered GPU limits and Pearl readiness. |
-| `GET` | `/api/agent/earnings` | Get per-coin gross daily earnings forecasts, current hashrates, network inputs, USD prices, timestamps, sources and stale/unavailable state. |
-
-| `GET` | `/api/agent/proxy` | Get proxy mode, status, per-coin Stratum URLs, reachability and fee-target readiness. |
-| `POST` | `/api/agent/proxy?host=...` | Save an external LAN proxy host and pause the active miner; unavailable in standalone mode. |
-| `POST` | `/api/agent/proxy/discover` | Broadcast on local IPv4 subnets to find compatible proxies via UDP 8091, then validate their API over HTTP 8090. |
-| `GET` | `/api/agent/coin` | Get the active mining coin. |
-| `POST` | `/api/agent/coin?coin=monero|pearl` | Select and persist the active coin; stops the previous miner. |
-| `POST` | `/api/agent/pearl/configuration` | Set the Pearl GPU miner configuration. |
-| `POST` | `/api/agent/monero/configuration` | Set Monero pool URL, wallet and worker in a JSON body; configures XMRig for the SolarMiner proxy. |
-| `POST` | `/api/agent/setPoolConfiguration` | Set XMRig's proxy-only URL and encoded upstream login. The legacy `devFeePercentage` parameter is accepted for compatibility and does not control fee routing. |
-| `POST` | `/api/agent/setPowerTarget` | Set an absolute host power target. |
-| `POST` | `/api/agent/increasePowerTarget` | Increase the host power target. |
-| `POST` | `/api/agent/decreasePowerTarget` | Decrease the host power target. |
-
-Dynamic GPU-Power-Regelung wird aktuell nur für NVIDIA-Karten angeboten, deren `nvidia-smi` eine stabile UUID, Treibergrenzen und den zurückgelesenen Sollwert liefert. AMD-Karten und andere nicht verifizierbare GPUs bleiben sichtbar, werden aber nicht per Power-Limit geregelt, bis ein entsprechender Treiberadapter stabile IDs und eine Set/Readback-Prüfung bietet. Der Agent ändert weder Spannung noch Takt und versucht beim regulären Beenden, die vor dem ersten SolarMiner-Eingriff gelesenen Limits wiederherzustellen.
-| `POST` | `/api/agent/pause` | Pause PC mining. |
-| `POST` | `/api/agent/resume` | Resume PC mining. |
+The PC-Agent is a separate Git repository (`https://github.com/Solarminer-app/pc-agent`)
+and is not part of the default Compose deployment. The Node talks to it only
+over its LAN HTTP API on `:8084` (`/api/agent/external/**`; discovery via
+`GET /api/agent/external/identity` and UDP `SOLARMINER_PROXY_DISCOVER_V1`).
+The full agent API contract moved with the component to
+[`pc-agent/docs/API.md`](../pc-agent/docs/API.md).
 
 ## Maintaining the documentation
 

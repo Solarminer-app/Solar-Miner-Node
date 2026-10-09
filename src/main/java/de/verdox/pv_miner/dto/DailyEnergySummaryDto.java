@@ -19,9 +19,9 @@ public record DailyEnergySummaryDto(
         double householdSavings,
         double miningOpportunityCost,
         long minedSats,
-        double miningRevenue,
-        double miningNetResult,
+        Double miningRevenue,
+        Double miningNetResult,
         String currencySymbol,
-        double miningRevenueEuro,
+        Double miningRevenueEuro,
         List<MiningRevenueByCoinDto> miningRevenueByCoin
 ) {}
