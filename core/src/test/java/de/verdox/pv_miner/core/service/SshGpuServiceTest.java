@@ -18,8 +18,11 @@ class SshGpuServiceTest {
     }
 
     @Test
-    void startIsClosedWithoutVerifiedFeeRouting() {
-        assertThrows(IllegalStateException.class,
+    void pearlServiceControlRequiresConfiguredSshIdentity() {
+        // The former fee-routing start-lock was lifted with the Pearl production
+        // release (PEARL-INTEGRATION.md); the remaining gate is the mandatory
+        // SSH identity/known_hosts configuration on solarminer-core.
+        assertThrows(java.io.IOException.class,
                 () -> service.setPearlServiceRunning("rig.example", "miner", true));
     }
 }

@@ -1,14 +1,4 @@
 {
-  "fingerprint": {
-    "address": 40010,
-    "size": 2,
-    "parameterType": {
-      "primitive": "uint32"
-    },
-    "operationType": "READ_HOLDING_REGISTER",
-    "byteOrder": "BIG_ENDIAN",
-    "expectedValue": ""
-  },
   "sections": {
     "battery_1": {
       "templateId": "battery",

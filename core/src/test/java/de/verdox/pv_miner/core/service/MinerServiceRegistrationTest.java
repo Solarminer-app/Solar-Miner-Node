@@ -34,6 +34,7 @@ class MinerServiceRegistrationTest {
         when(controller.startMining(DETAILS)).thenReturn(true);
         when(controller.setPowerTarget(DETAILS, 120)).thenReturn(true);
         when(controller.queryStats("miner", DETAILS)).thenReturn(stats);
+        when(controller.setPoolTarget(DETAILS, "stratum+tcp://192.168.1.10:3335", "pool.example:3333;worker;x")).thenReturn(true);
 
         AtomicReference<MinerControllerRegistration.PoolTargetRequest> poolRequest = new AtomicReference<>();
         Map<MiningOS, MinerControllerRegistration> registrations = new EnumMap<>(MiningOS.class);
