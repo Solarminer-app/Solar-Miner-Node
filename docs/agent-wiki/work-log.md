@@ -803,3 +803,8 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - `MinerServiceRegistrationTest`: `setPoolTarget`-Stub fehlte (Mock gab `false`), obwohl die Verifikation exakt diesen Aufruf erwartet. Stub ergänzt.
 - `device-profiles/bundled/modbus/smartfox-pro-2.json`: enthielt einen Fingerprint mit leerem `expectedValue` — genau das, was `EvccGeneratedProfilesTest` als "fabricated fingerprint" verbietet (lesbares Messregister ≠ Geräteidentität; Profile ohne verifizierten Erwartungswert dürfen bei der Auto-Discovery nicht gewinnen, vgl. DiscoveryService). Block entfernt; Smartfox bleibt manuell wählbar.
 - Verifikation: `sh gradlew test :core:test :pv-api:test :cgminerapi:test :proto:test` EXIT 0; `:bootJar` erzeugt `solar-miner-1.1.6.jar` inkl. React-Frontend. Migrationen unverändert gegenüber frontend-v1.1.5 (kein Diff, keine Checksum-Änderung).
+
+## 2026-10-09 — Nachtrag: docker-beta.yml enthielt noch currency-rates-Manifeste
+
+- Der Beta-Workflow scheiterte im Job "Publish beta manifests" mit `CURRENCY_RATES_IMAGE: unbound variable`: Die Currency-Rates-Entfernung (08.10.) hatte Matrix, Outputs und Jobs bereinigt, aber drei `docker buildx imagetools create`-Blöcke im Manifest-Job übersehen. Currency-Rates-Beta-Releases laufen ausschließlich im `currency-service`-Repo.
+- Fix: die drei Blöcke gelöscht. Verifikation: Workflow-Lauf nach Push.
