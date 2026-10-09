@@ -60,6 +60,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.LinkedHashSet;
@@ -93,6 +98,8 @@ public class SetupService {
     private final PvDiscoveryScanner discoveryScanner;
     @org.springframework.beans.factory.annotation.Value("${solarminer.discovery.subnet-prefix:}")
     private String discoverySubnetPrefix = "";
+    @org.springframework.beans.factory.annotation.Value("${PROXY_API_URL:http://localhost:8090}")
+    private String proxyApiUrl = "http://localhost:8090";
 
     public SetupService(PVSiteRepository siteRepository,
                         EntityService entityService,
@@ -485,8 +492,37 @@ public class SetupService {
     }
 
     public String getDiscoverySubnetPrefix() {
-        return PvDiscoveryScanner.validateSubnet(discoverySubnetPrefix == null || discoverySubnetPrefix.isBlank()
-                ? DiscoveryService.getLocalSubnetPrefix() : discoverySubnetPrefix.trim());
+        if (discoverySubnetPrefix != null && !discoverySubnetPrefix.isBlank())
+            return PvDiscoveryScanner.validateSubnet(discoverySubnetPrefix.trim());
+        String proxySubnet = proxyLanSubnet();
+        return PvDiscoveryScanner.validateSubnet(proxySubnet == null
+                ? DiscoveryService.getLocalSubnetPrefix() : proxySubnet);
+    }
+
+    /**
+     * The application normally runs in a Docker bridge, whose local interface is not the
+     * installer's physical LAN. The host-network Stratum proxy already knows that LAN address,
+     * so use it as the discovery default before falling back to a local-interface guess.
+     */
+    private String proxyLanSubnet() {
+        try {
+            String endpoint = proxyApiUrl.replaceAll("/+$", "") + "/api/network/ip";
+            HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint)).timeout(Duration.ofSeconds(2)).GET().build();
+            HttpResponse<String> response = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(1)).build()
+                    .send(request, HttpResponse.BodyHandlers.ofString());
+            return response.statusCode() == 200 ? subnetPrefixFromAddress(response.body()) : null;
+        } catch (Exception exception) {
+            if (exception instanceof InterruptedException) Thread.currentThread().interrupt();
+            return null;
+        }
+    }
+
+    static String subnetPrefixFromAddress(String address) {
+        if (address == null) return null;
+        String value = address.trim();
+        if (!value.matches("^(10\\.\\d{1,3}\\.\\d{1,3}|192\\.168\\.\\d{1,3}|172\\.(1[6-9]|2\\d|3[01])\\.\\d{1,3})\\.\\d{1,3}$"))
+            return null;
+        return value.substring(0, value.lastIndexOf('.') + 1);
     }
 
     public void addPvDevices(PVSiteEntity site, ProviderSelection selection, int batteryCapacityWh) {

@@ -10,7 +10,22 @@ class MiningCoinTest {
         assertEquals(MiningCoin.BITCOIN, MiningCoin.from("BTC"));
         assertEquals(MiningCoin.MONERO, MiningCoin.from("monero"));
         assertEquals(MiningCoin.PEARL, MiningCoin.from("PRL"));
+        assertEquals(MiningCoin.RAVENCOIN, MiningCoin.from("RVN"));
+        assertEquals(MiningCoin.ETHEREUM_CLASSIC, MiningCoin.from("ethereumclassic"));
+        assertEquals(MiningCoin.DECRED, MiningCoin.from("DCR"));
+        assertEquals(MiningCoin.QUANTUS, MiningCoin.from("qtc"));
         assertThrows(IllegalArgumentException.class, () -> MiningCoin.from("unknown"));
+    }
+
+    @Test
+    void mirrorsEveryPcAgentWalletAndKryptexBalanceRoute() {
+        assertEquals("xmr", MiningCoin.MONERO.kryptexTicker());
+        assertEquals("prl", MiningCoin.PEARL.kryptexTicker());
+        assertEquals("rvn", MiningCoin.RAVENCOIN.kryptexTicker());
+        assertEquals("etc", MiningCoin.ETHEREUM_CLASSIC.kryptexTicker());
+        assertEquals("qtc", MiningCoin.QUANTUS.kryptexTicker());
+        assertNull(MiningCoin.BITCOIN.kryptexTicker());
+        assertNull(MiningCoin.DECRED.kryptexTicker());
     }
 
     @Test
@@ -20,5 +35,7 @@ class MiningCoinTest {
         assertFalse(MiningCoin.BITCOIN.validAddress(pearlAddress));
         assertFalse(MiningCoin.MONERO.validAddress(pearlAddress));
         assertFalse(MiningCoin.PEARL.validAddress("bc1qinvalid"));
+        assertTrue(MiningCoin.RAVENCOIN.validAddress("RHaGK3iARQdKgZ6VPDP4N5chP3aVgUUfz7"));
+        assertTrue(MiningCoin.ETHEREUM_CLASSIC.validAddress("0x21211c699D409Ca3802D955caD80Ccc034004993"));
     }
 }

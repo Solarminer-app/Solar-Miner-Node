@@ -112,7 +112,9 @@ public class WatchedWalletController {
     }
 
     private BalanceSnapshot readBalance(String coin, String address) {
-        if ("monero".equals(coin)) return null;
+        // Only these two chains have an integrated public-address adapter. In
+        // particular, never send RVN/ETC/DCR/QTC addresses to mempool.space.
+        if (!"bitcoin".equals(coin) && !"pearl".equals(coin)) return null;
         String key = coin + ":" + address;
         BalanceSnapshot previous = cache.get(key);
         if (previous != null && previous.fetchedAt().isAfter(Instant.now().minusSeconds(120))) return previous;

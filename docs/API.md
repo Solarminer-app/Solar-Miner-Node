@@ -199,7 +199,7 @@ Controller source: [`MinerController`](../core/src/main/java/de/verdox/pv_miner/
 
 ## Currency Rates API
 
-The Currency Rates API is read-only and already versioned under `/api/v1`. The central public base URL is `https://currency.solarminer.app`; a local Node Compose deployment can use `http://<node>:8081`.
+The Currency Rates API is read-only and already versioned under `/api/v1`. The Node defaults to the central public base URL, `https://currency.solarminer.app`. A local or self-hosted endpoint is only used when explicitly supplied via `CURRENCY_MICRO_SERVICE_URL`.
 
 Controller source: [`PublicDataController`](../../currency-service/src/main/java/de/verdox/currencyrates/currencyrates/controller/PublicDataController.java) (in the separate `currency-service` repository)
 

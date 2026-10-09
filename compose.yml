@@ -2,6 +2,8 @@ services:
   frontend:
     image: verdox/solar-miner
     user: "${SOLARMINER_UID:-1000}:${SOLARMINER_GID:-1000}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
     depends_on:
@@ -11,8 +13,6 @@ services:
         condition: service_started
       influxdb-frontend:
         condition: service_healthy
-      currency-service:
-        condition: service_started
       core:
         condition: service_started
       phoenixd:
@@ -23,12 +23,14 @@ services:
     environment:
       - INFLUXDB_URL=http://influxdb-frontend:8086
       - MYSQL_URL=jdbc:mariadb://mariadb-frontend:3306/solarminer
-      - CURRENCY_MICRO_SERVICE_URL=http://currency-service:8080
       - CORE_MICRO_SERVICE_URL=http://core:8080/api/miners
       - PHOENIXD_BACKEND_URL=http://phoenixd:9740
       - PHOENIX_CONFIG_PATH=/app/phoenixd/phoenix.conf
       - PHOENIX_SEED_PATH=/app/phoenixd/seed.dat
       - SOLARMINER_STORAGE_ROOT=/app/storage
+      # Used to derive the physical LAN subnet. Without this, Java sees only
+      # the Docker bridge and miner/PC-Agent discovery scans the wrong network.
+      - PROXY_API_URL=http://host.docker.internal:8090
 
       - INFLUXDB_ADMIN_TOKEN=${INFLUXDB_ADMIN_TOKEN}
       - INFLUXDB_ORG=SolarMiner
@@ -113,39 +115,6 @@ services:
       - ./app/frontend/influxdb/config:/etc/influxdb2
     ports:
       - "8086:8086"
-
-  currency-service:
-    image: verdox/currency-rates-api:latest
-    ports:
-      - "8081:8080"
-    depends_on:
-      - mariadb-currency-service
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      SPRING_PROFILES_ACTIVE: production
-      MYSQL_URL: jdbc:mariadb://mariadb-currency-service:3306/currency_rates
-      MYSQL_USER: currency_rates
-      MYSQL_PASSWORD: ${CURRENCY_DB_PASSWORD}
-    volumes:
-      - ./app/currency/backend:/app/storage
-
-  mariadb-currency-service:
-    image: mariadb:latest
-    container_name: mariadb-currency-service
-    restart: always
-    env_file:
-      - .env
-    environment:
-      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
-      MYSQL_DATABASE: currency_rates
-      MYSQL_USER: currency_rates
-      MYSQL_PASSWORD: ${CURRENCY_DB_PASSWORD}
-    ports:
-      - "3307:3306"
-    volumes:
-      - ./app/currency/mariadb:/var/lib/mysql
 
   stratum-proxy:
     image: verdox/solar-miner-stratum-proxy:latest-amd64

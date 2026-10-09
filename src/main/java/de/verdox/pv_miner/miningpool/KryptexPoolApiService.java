@@ -6,9 +6,11 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -30,7 +32,8 @@ public class KryptexPoolApiService {
         if (previous != null && previous.expiresAt().isAfter(Instant.now())) return previous;
         try {
             String ticker = coin.kryptexTicker();
-            JsonNode balance = fetch("/" + ticker + "/api/v1/miner/balance/" + address);
+            String encodedAddress = URLEncoder.encode(address, StandardCharsets.UTF_8).replace("+", "%20");
+            JsonNode balance = fetch("/" + ticker + "/api/v1/miner/balance/" + encodedAddress);
             Snapshot snapshot = new Snapshot(parseBalance(balance), Instant.now(), Instant.now().plusSeconds(60));
             cache.put(key, snapshot);
             return snapshot;
