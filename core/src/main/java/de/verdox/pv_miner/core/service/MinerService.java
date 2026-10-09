@@ -190,6 +190,17 @@ public class MinerService {
         return agentController == null ? null : agentController.coinConfigurations(details);
     }
 
+    public com.fasterxml.jackson.databind.JsonNode agentEconomicCapabilities(MinerDetails details) {
+        MinerAgentController agentController = agentController();
+        return agentController == null ? null : agentController.economicCapabilities(details);
+    }
+
+    public com.fasterxml.jackson.databind.JsonNode applyAgentEconomicPlan(MinerDetails details,
+                                                                           com.fasterxml.jackson.databind.JsonNode plan) {
+        MinerAgentController agentController = agentController();
+        return agentController == null ? null : agentController.applyEconomicPlan(details, plan);
+    }
+
     public boolean setPowerTarget(MiningOS miningOS, MinerDetails details, long watts) {
         return tryOrGet(miningOS, minerController -> {
             if (!registration(miningOS).supports(MinerCapability.DYNAMIC_POWER_SCALING)) {

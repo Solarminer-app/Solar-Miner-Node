@@ -29,6 +29,7 @@
 | [main README](../../README.md), [core help](../../core/HELP.md) | Component guides; code is authoritative. |
 | Currency Service guides | In the separate repository: [`AGENTS.md`](../../../currency-service/AGENTS.md), [`README.md`](../../../currency-service/README.md), [`PUBLIC-DEPLOYMENT.md`](../../../currency-service/PUBLIC-DEPLOYMENT.md). |
 | PC-Agent documentation | In the separate repository: [`docs/agent-wiki/`](../../../pc-agent/docs/agent-wiki/README.md) — ownership map, UI/UX records, miner candidates, pool research, RVN/ETC status, coin compatibility matrix; [`MINER-INTEGRATION-GUIDE.md`](../../../pc-agent/MINER-INTEGRATION-GUIDE.md); [PV power control](../../../pc-agent/docs/PC-AGENT-PV-POWER-CONTROL.md); [standalone run/packaging](../../../pc-agent/standalone/README.md). |
+| PC-Agent economic dispatch | C10's capability and short-lived-plan contract is owned by the Agent: [`economic-dispatch.md`](../../../pc-agent/docs/agent-wiki/economic-dispatch.md). The Node proxies it via `core`; local consent and unknown-performance rejection stay Agent-owned. |
 | `src/main/resources/markdowns/` | Product help shown to users, not agent operating instructions. |
 
 ## Feature workflow

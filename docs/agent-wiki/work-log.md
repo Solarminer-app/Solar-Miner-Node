@@ -1,5 +1,12 @@
 # Agent work log
 
+## 2026-10-09 — C10 PC-Agent economic-dispatch boundary
+
+- Node Core now proxies the Agent-owned C10 capability and short-lived economic-plan routes through `/agent/economic-capabilities` and `/agent/economic-plan`; `MinerApiClient` exposes additive JSON pass-through methods for the application layer. The Node does not send credentials or GPU driver operations.
+- The Agent defaults every worker to fixed coin selection and rejects economic plans without a locally observed performance profile, configured route and fee readiness. Therefore this contract is safe to deploy before the PV controller activates profit-per-kWh allocation; unknown PC hardware cannot displace verified miners.
+- The current PV `EFFICIENCY_FIRST` allocation remains unchanged. A subsequent Node planner must use durable Agent benchmark/sweep profiles and fresh C9 data before it can enable automatic coin switching.
+- Verification: `JAVA_HOME=/home/lukas/.jdks/graalvm-ce-21.0.2 sh gradlew :compileJava :core:compileJava` passed.
+
 ## 2026-10-09 — PC-Agent mining card uses central targets only
 
 - Removed the per-Agent `Pearl GPU` button and its direct pool/wallet/worker/GPU dialog from the Node mining inventory. PC-Agent routes continue to be assigned through the Node's central mining-target flow; the existing backend endpoint remains for contract compatibility but is no longer exposed as a competing UI path.

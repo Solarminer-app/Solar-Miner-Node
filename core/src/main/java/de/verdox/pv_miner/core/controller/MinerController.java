@@ -101,6 +101,16 @@ public class MinerController {
         return minerService.agentCoinConfigurations(details);
     }
 
+    @PostMapping("/agent/economic-capabilities")
+    public com.fasterxml.jackson.databind.JsonNode agentEconomicCapabilities(@RequestBody MinerDetails details) {
+        return minerService.agentEconomicCapabilities(details);
+    }
+
+    @PostMapping("/agent/economic-plan")
+    public com.fasterxml.jackson.databind.JsonNode applyAgentEconomicPlan(@RequestBody AgentEconomicPlanRequest request) {
+        return minerService.applyAgentEconomicPlan(request.minerDetails(), request.plan());
+    }
+
     @PostMapping("/power-target")
     public boolean setPowerTarget(@RequestBody PowerTargetRequest request) {
         return minerService.setPowerTarget(request.os(), request.minerDetails(), request.watts());
@@ -146,6 +156,8 @@ public class MinerController {
     }
 
     public record PowerTargetRequest(MiningOS os, MinerDetails minerDetails, long watts) {
+    }
+    public record AgentEconomicPlanRequest(MinerDetails minerDetails, com.fasterxml.jackson.databind.JsonNode plan) {
     }
 
     /** This endpoint changes each discrete target temporarily; it must be invoked only from an explicit commissioning flow. */

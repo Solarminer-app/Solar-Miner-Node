@@ -82,6 +82,29 @@ public class MinerApiClient {
         }
     }
 
+    /** Additive C10 contract: Node code may safely ignore unknown agent capability fields. */
+    public com.fasterxml.jackson.databind.JsonNode getAgentEconomicCapabilities(MinerDetails details) {
+        try {
+            return restClient.post().uri("/agent/economic-capabilities")
+                    .contentType(MediaType.APPLICATION_JSON).body(details)
+                    .retrieve().body(com.fasterxml.jackson.databind.JsonNode.class);
+        } catch (RestClientException e) {
+            return null;
+        }
+    }
+
+    public com.fasterxml.jackson.databind.JsonNode applyAgentEconomicPlan(MinerDetails details,
+                                                                           com.fasterxml.jackson.databind.JsonNode plan) {
+        try {
+            return restClient.post().uri("/agent/economic-plan")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new AgentEconomicPlanRequest(details, plan))
+                    .retrieve().body(com.fasterxml.jackson.databind.JsonNode.class);
+        } catch (RestClientException e) {
+            return null;
+        }
+    }
+
     public boolean setPowerTarget(MiningOS os, MinerDetails details, long watts) {
         return executePowerCommand("/power-target", new PowerTargetRequest(os, details, watts));
     }
@@ -248,6 +271,7 @@ public class MinerApiClient {
 
     public record MoneroConfigurationRequest(MinerDetails minerDetails, String poolUrl, String wallet, String worker, String referralCode) { }
     public record AgentCoinConfigurations(CoinRoute monero, CoinRoute pearl) { }
+    public record AgentEconomicPlanRequest(MinerDetails minerDetails, com.fasterxml.jackson.databind.JsonNode plan) { }
     public record CoinRoute(String poolUrl, String wallet, String worker, String devices) { }
 
     private static String normalizeReferral(String referralCode) {
