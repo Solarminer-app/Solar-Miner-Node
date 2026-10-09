@@ -1,5 +1,19 @@
 # Agent work log
 
+## 2026-10-10 — More reliable PC-Agent LAN discovery
+
+- Core reuses one Java HTTP client for PC-Agent identity probes instead of
+  constructing one client for every host in a `/24` scan. The TCP-connect and
+  complete identity-response deadline is now two seconds rather than 500 ms,
+  allowing a responsive Windows/Linux Agent to answer during local startup or
+  short host load without turning an unavailable host into a long-running scan.
+- Discovery still requires TCP reachability from the Core container to
+  `http://<agent-ip>:8084/api/agent/external/identity`. The read-only identity
+  endpoint remains available even when Node control is disabled in the Agent;
+  private-LAN firewall and Docker routing verification are deployment gates.
+- Verification pending: the local Docker socket is not accessible to the
+  current user, so no running Compose stack or LAN Agent could be probed here.
+
 ## 2026-10-09 — C10 PC-Agent economic-dispatch boundary
 
 - Node Core now proxies the Agent-owned C10 capability and short-lived economic-plan routes through `/agent/economic-capabilities` and `/agent/economic-plan`; `MinerApiClient` exposes additive JSON pass-through methods for the application layer. The Node does not send credentials or GPU driver operations.

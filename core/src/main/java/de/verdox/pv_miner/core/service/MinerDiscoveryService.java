@@ -22,14 +22,19 @@ import java.util.logging.Logger;
 @Service
 public class MinerDiscoveryService {
     private static final Logger LOGGER = Logger.getLogger(MinerDiscoveryService.class.getName());
+    private static final Duration AGENT_DISCOVERY_TIMEOUT = Duration.ofSeconds(2);
 
     public record DetectedMiner(MiningOS os, String model) {
     }
 
     private final ObjectMapper objectMapper;
+    private final HttpClient agentDiscoveryClient;
 
     public MinerDiscoveryService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
+        this.agentDiscoveryClient = HttpClient.newBuilder()
+                .connectTimeout(AGENT_DISCOVERY_TIMEOUT)
+                .build();
     }
 
     public MinerDiscoveryService.DetectedMiner identifyMinerDetails(String ipv4) {
@@ -67,11 +72,13 @@ public class MinerDiscoveryService {
 
     private MinerDiscoveryService.DetectedMiner checkSolarMinerAgent(String ipv4) {
         try {
-            HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofMillis(500)).build();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("http://" + ipv4 + ":8084/api/agent/external/identity"))
+                    .timeout(AGENT_DISCOVERY_TIMEOUT)
+                    .GET()
+                    .build();
 
-            HttpRequest request = HttpRequest.newBuilder().uri(URI.create("http://" + ipv4 + ":8084/api/agent/external/identity")).timeout(Duration.ofMillis(500)).GET().build();
-
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = agentDiscoveryClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) return null;
             Identity identity = objectMapper.readValue(response.body(), Identity.class);
