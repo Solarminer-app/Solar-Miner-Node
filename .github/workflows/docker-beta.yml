@@ -165,17 +165,3 @@ jobs:
             --tag "${FRONTEND_IMAGE}:latest-jvm-beta" \
             "${FRONTEND_IMAGE}:${TAG}-jvm-amd64-beta" \
             "${FRONTEND_IMAGE}:${TAG}-jvm-arm64-beta"
-
-          docker buildx imagetools create \
-            --tag "${CURRENCY_RATES_IMAGE}:latest-amd64-beta" \
-            "${CURRENCY_RATES_IMAGE}:${TAG}-amd64-beta"
-
-          docker buildx imagetools create \
-            --tag "${CURRENCY_RATES_IMAGE}:latest-arm64-beta" \
-            "${CURRENCY_RATES_IMAGE}:${TAG}-arm64-beta"
-
-          docker buildx imagetools create \
-            --tag "${CURRENCY_RATES_IMAGE}:${TAG}-beta" \
-            --tag "${CURRENCY_RATES_IMAGE}:latest-beta" \
-            "${CURRENCY_RATES_IMAGE}:${TAG}-amd64-beta" \
-            "${CURRENCY_RATES_IMAGE}:${TAG}-arm64-beta"

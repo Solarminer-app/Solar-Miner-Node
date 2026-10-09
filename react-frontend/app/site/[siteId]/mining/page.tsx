@@ -28,11 +28,6 @@ export default function MiningPage() {
     const [section, setSection] = useState<'inventory' | 'clusters'>('inventory');
     const [showMinerConnection, setShowMinerConnection] = useState(false);
     const [powerTargetMiner, setPowerTargetMiner] = useState<MinerDto | null>(null);
-    const [pearlMiner, setPearlMiner] = useState<MinerDto | null>(null);
-    const [pearlPool, setPearlPool] = useState('stratum+ssl://prl.kryptex.network:8048');
-    const [pearlWallet, setPearlWallet] = useState('');
-    const [pearlWorker, setPearlWorker] = useState('solarminer');
-    const [pearlDevices, setPearlDevices] = useState('all');
     const [minimumPowerWatts, setMinimumPowerWatts] = useState(0);
     const [maximumPowerWatts, setMaximumPowerWatts] = useState(0);
     const [electricalRiskAcknowledged, setElectricalRiskAcknowledged] = useState(false);
@@ -90,6 +85,21 @@ export default function MiningPage() {
             controller.abort();
         };
     }, [isHydrated, loadData, siteId]);
+
+    useEffect(() => {
+        if (!isHydrated) return;
+        const controller = new AbortController();
+        void fetch('/api/setup/pv-devices/network', {cache: 'no-store', signal: controller.signal})
+            .then(response => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
+            .then((network: {subnetPrefix?: string}) => {
+                if (!controller.signal.aborted && network.subnetPrefix)
+                    setSubnet(network.subnetPrefix.replace(/\.$/, ''));
+            })
+            .catch(reason => {
+                if (!controller.signal.aborted) console.warn('Could not load LAN discovery subnet', reason);
+            });
+        return () => controller.abort();
+    }, [isHydrated]);
 
     const loadLiveData = useCallback(async (signal?: AbortSignal) => {
         if (liveRefreshRunning.current) return;
@@ -218,26 +228,6 @@ export default function MiningPage() {
         } catch (reason) {
             console.error('Failed to connect miner', reason);
             setError(t['mining.error.connect_miner']);
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const savePearlConfiguration = async () => {
-        if (!pearlMiner) return;
-        setSaving(true);
-        setError(null);
-        try {
-            const response = await fetch(`/api/pv-site/${siteId}/mining/miners/${pearlMiner.id}/pearl`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({poolUrl: pearlPool, wallet: pearlWallet, worker: pearlWorker, devices: pearlDevices}),
-            });
-            if (!response.ok) throw new Error(await response.text());
-            await loadData();
-            setPearlMiner(null);
-            setPearlWallet('');
-        } catch (reason) {
-            setError(reason instanceof Error ? reason.message : String(reason));
         } finally {
             setSaving(false);
         }
@@ -523,7 +513,6 @@ export default function MiningPage() {
                                                 {clusterByMinerId.get(miner.id) ?? t['mining.inventory.unassigned']}
                                             </span>
                                         </Link>
-                                        {miner.os === 'AGENT' && <button className="rounded-lg border border-violet-400/30 px-2 py-1.5 text-xs text-violet-200" onClick={() => setPearlMiner(miner)} type="button">Pearl GPU</button>}
                                         <button aria-label={t['mining.inventory.delete_miner'].replace('{name}', minerName)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[#777781] transition hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-40" disabled={deletingItem !== null} onClick={() => void deleteInventoryItem('miner', miner.id, minerName)} title={t['mining.inventory.delete_miner'].replace('{name}', minerName)} type="button">
                                             {deletingItem === itemKey ? <LoaderCircle className="animate-spin" size={16}/> : <Trash2 size={16}/>}
                                         </button>
@@ -655,7 +644,7 @@ export default function MiningPage() {
                                             <span className={`rounded-full px-2 py-1 text-xs font-semibold ${miner.status === 'MINING' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}>
                                                 {t[`mining.miner_status.${miner.status.toLowerCase()}`] ?? miner.status}
                                             </span>
-                                            {miner.agentControlStatus === 'EXTERNAL_CONTROL_DISABLED' ? <p className="mt-2 max-w-56 text-xs leading-5 text-amber-300">{miner.agentControlDetail}</p> : null}
+                                            {miner.agentControlStatus === 'EXTERNAL_CONTROL_DISABLED' ? <p className="mt-2 max-w-56 text-xs leading-5 text-amber-300">{t['mining.agent_control.disabled']}</p> : null}
                                         </td>
                                         <td className="px-3 py-4 font-mono text-yellow-300">
                                             {miner.os === 'AGENT' && miner.algorithmHashrates?.length ? <AgentAlgorithmRates locale={locale} rates={miner.algorithmHashrates}/> : `${miner.hashrateThs.toFixed(2)} TH/s`}
@@ -707,7 +696,7 @@ export default function MiningPage() {
                                                 <MiniMetric label={t['mining.grid.power']} value={`${miner.powerWatts} W`}/>
                                                 <MiniMetric label={t['mining.grid.temperature']} tone={miner.temperatureCelsius >= 80 ? 'text-orange-300' : undefined} value={`${miner.temperatureCelsius.toFixed(1)} °C`}/>
                                             </div>
-                                            {miner.agentControlStatus === 'EXTERNAL_CONTROL_DISABLED' ? <p className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-[11px] leading-5 text-amber-200">{miner.agentControlDetail}</p> : null}
+                                            {miner.agentControlStatus === 'EXTERNAL_CONTROL_DISABLED' ? <p className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-[11px] leading-5 text-amber-200">{t['mining.agent_control.disabled']}</p> : null}
                                             <div className="mt-3 rounded-lg bg-black/20 px-3 py-2 text-[11px] leading-5 text-[#9999a3]"><span className="block">{t['mining.grid.hardware']}: {miner.hardwareMinPowerWatts}–{miner.hardwareMaxPowerWatts} W</span><span className="block text-yellow-300">{t['mining.grid.configured']}: {miner.configuredMinPowerWatts}–{miner.configuredMaxPowerWatts} W</span></div>
                                             <button className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-yellow-400/20 bg-yellow-400/10 px-3 py-2 text-xs font-semibold text-yellow-300 disabled:border-white/5 disabled:bg-white/[0.03] disabled:text-[#666670]" disabled={!miner.supportsDynamicPowerScaling} onClick={() => openPowerTargetEditor(miner)} type="button"><Bolt size={13}/>{t['mining.power_targets.edit']}</button>
                                         </div>
@@ -721,17 +710,6 @@ export default function MiningPage() {
                 </div>
                 )}
             </div>
-
-            {pearlMiner && <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-label="Pearl GPU">
-                <div className="w-full max-w-lg space-y-4 rounded-2xl border border-[#34343d] bg-[#151519] p-5">
-                    <div className="flex justify-between"><h2 className="font-semibold">Pearl GPU · {pearlMiner.name || pearlMiner.ipAddress}</h2><button type="button" onClick={() => setPearlMiner(null)}><X size={18}/></button></div>
-                    <label className="block text-sm">Pool-URL<input className={inputClassName} value={pearlPool} onChange={e => setPearlPool(e.target.value)}/></label>
-                    <label className="block text-sm">PRL Wallet<input className={inputClassName} value={pearlWallet} onChange={e => setPearlWallet(e.target.value)} placeholder="prl1…"/></label>
-                    <label className="block text-sm">Worker<input className={inputClassName} value={pearlWorker} onChange={e => setPearlWorker(e.target.value)}/></label>
-                    <label className="block text-sm">GPU indices<input className={inputClassName} value={pearlDevices} onChange={e => setPearlDevices(e.target.value)} placeholder="all or 0,1"/></label>
-                    <button type="button" className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50" disabled={saving || !pearlWallet.startsWith('prl1')} onClick={() => void savePearlConfiguration()}>{locale === 'de' ? 'Agent vorbereiten' : 'Prepare agent'}</button>
-                </div>
-            </div>}
 
             {powerTargetMiner ? (
                 <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={t['mining.power_targets.title']}>

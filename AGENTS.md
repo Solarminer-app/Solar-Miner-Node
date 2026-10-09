@@ -8,4 +8,6 @@ For Java work, check whether IntelliJ IDEA MCP is available and choose it when I
 
 Cross-repository changes follow the [workspace guide](../AGENTS.md), [architecture overview](../admin-portal/docs/encyclopedia/00-workspace-overview.md), and [contracts](../admin-portal/docs/encyclopedia/08-contracts.md). New coin or algorithm work requires the [end-to-end guide](../NEW-MINING-COIN-GUIDE.md). Pearl and 21energy changes also require their dedicated integration records in the workspace root.
 
+Every new ASIC model, product family, firmware profile or control capability must follow the [new ASIC integration guide](../NEW-ASIC-GUIDE.md). Node `core` owns the canonical public catalogue at `core/src/main/resources/asics/supported-compatibility.json`; update it only with adapter and device evidence, then synchronize and verify the generated landing-page copy in the same cross-repository change. `AsicMinerSpec`, a benchmark row or a green build alone does not establish support.
+
 Treat source and tests as the authority for current behavior. Mark a wiki statement as verified only with file or test evidence; distinguish design proposals from shipped behavior. Record cross-repository contract changes in every affected repository.

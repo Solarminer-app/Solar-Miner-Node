@@ -161,6 +161,26 @@ public class MinerAgentController implements MinerController {
         }
     }
 
+    /** C10 capability payload is intentionally opaque here so newer agents remain additive. */
+    public JsonNode economicCapabilities(MinerDetails details) {
+        try {
+            var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
+            return restClient.get().uri("/api/agent/external/capabilities").retrieve().body(JsonNode.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public JsonNode applyEconomicPlan(MinerDetails details, JsonNode plan) {
+        try {
+            var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
+            return restClient.post().uri("/api/agent/external/economic-plan")
+                    .contentType(MediaType.APPLICATION_JSON).body(plan).retrieve().body(JsonNode.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private static CoinRoute route(JsonNode node) {
         if (node.isMissingNode() || node.isNull()) return null;
         return new CoinRoute(node.path("poolUrl").asText(null), node.path("wallet").asText(null),

@@ -45,4 +45,13 @@ class SetupDiscoveryTest {
             assertThrows(ResponseStatusException.class, () -> service.scanPvDevices(request));
         verifyNoInteractions(discovery);
     }
+
+    @Test
+    void derivesOnlyPrivateLanSubnetsFromTheHostProxyAddress() {
+        assertEquals("192.168.50.", SetupService.subnetPrefixFromAddress("192.168.50.17\n"));
+        assertEquals("10.2.3.", SetupService.subnetPrefixFromAddress("10.2.3.4"));
+        assertEquals("172.31.8.", SetupService.subnetPrefixFromAddress("172.31.8.9"));
+        assertNull(SetupService.subnetPrefixFromAddress("8.8.8.8"));
+        assertNull(SetupService.subnetPrefixFromAddress("not-an-address"));
+    }
 }

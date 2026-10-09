@@ -1,5 +1,31 @@
 # Agent work log
 
+## 2026-10-09 — C10 PC-Agent economic-dispatch boundary
+
+- Node Core now proxies the Agent-owned C10 capability and short-lived economic-plan routes through `/agent/economic-capabilities` and `/agent/economic-plan`; `MinerApiClient` exposes additive JSON pass-through methods for the application layer. The Node does not send credentials or GPU driver operations.
+- The Agent defaults every worker to fixed coin selection and rejects economic plans without a locally observed performance profile, configured route and fee readiness. Therefore this contract is safe to deploy before the PV controller activates profit-per-kWh allocation; unknown PC hardware cannot displace verified miners.
+- The current PV `EFFICIENCY_FIRST` allocation remains unchanged. A subsequent Node planner must use durable Agent benchmark/sweep profiles and fresh C9 data before it can enable automatic coin switching.
+- Verification: `JAVA_HOME=/home/lukas/.jdks/graalvm-ce-21.0.2 sh gradlew :compileJava :core:compileJava` passed.
+
+## 2026-10-09 — PC-Agent mining card uses central targets only
+
+- Removed the per-Agent `Pearl GPU` button and its direct pool/wallet/worker/GPU dialog from the Node mining inventory. PC-Agent routes continue to be assigned through the Node's central mining-target flow; the existing backend endpoint remains for contract compatibility but is no longer exposed as a competing UI path.
+- The `EXTERNAL_CONTROL_DISABLED` status is rendered through the frontend locale catalog in both cluster layouts instead of displaying the backend's German detail text. German and English now explain the local Hardware > Node control setting in the selected UI language.
+- Verification: DE/EN locale JSON parsed successfully, `git diff --check` passed, and the Vite production build completed successfully (2,438 modules).
+
+## 2026-10-09 — Node defaults to the central Currency Service
+
+- The `dev` and `production` profiles now default `solarmining.currency-service.url` to `https://currency.solarminer.app`. `CURRENCY_MICRO_SERVICE_URL` remains the deliberate override for local development or a self-hosted service.
+- The standard Node Compose stack no longer starts a Currency Service or its MariaDB instance, and no longer overrides the Node with the Docker-internal service URL. It consumes the deployed, read-only C9 API instead.
+- Verification: `docker compose config -q`, `git diff --check` and `JAVA_HOME=/home/lukas/.jdks/graalvm-ce-21.0.2 sh gradlew test --tests de.verdox.pv_miner.finance.PVFinanceServiceTest --no-daemon` passed (4 tests). No request to the public service was made.
+
+## 2026-10-09 — LAN PC-Agent discovery and complete PC-Agent wallet catalogue
+
+- Cause of failed default discovery in Compose: the Node frontend process inferred the Docker bridge prefix rather than the host's physical LAN. `SetupService` now derives the default private `/24` from the host-network Stratum proxy's verified `/api/network/ip` response; explicit `solarminer.discovery.subnet-prefix` remains authoritative. Standard Compose adds the host-gateway mapping and `PROXY_API_URL`, and the mining UI loads this backend default instead of hardcoding `192.168.178`.
+- PC-Agent TCP discovery itself remains `GET http://<host>:8084/api/agent/external/identity`; Compose or native Agents must expose/allow private-LAN TCP 8084. No Agent code is copied back into this repository.
+- Wallet/finance coverage is verified for the PC-Agent catalogue XMR, PRL, RVN, ETC, DCR and QTC (plus Node BTC). Kryptex mappings remain XMR/PRL/RVN/ETC/QTC; DCR stays explicitly unsupported because the configured PC-Agent route has no integrated pool API. RVN/ETC/DCR/QTC public addresses are no longer incorrectly sent to mempool.space; only BTC and PRL have on-chain address adapters. Kryptex addresses are URL-encoded like the PC-Agent adapter.
+- Verification: the Vite production frontend build completed; focused root `:test` passed for `SetupDiscoveryTest`, `MiningCoinTest`, `KryptexPoolApiServiceTest` and `KryptexRewardServiceTest` (11 tests), followed by the complete root `:test` task (`BUILD SUCCESSFUL`, 10-second incremental run). Full live LAN, Kryptex account and Windows Firewall probes remain open.
+
 ## 2026-10-07 — GPU-Hashrate bleibt bei kurzen SRBMiner-Lücken sichtbar
 
 - Ursache im Agenten: `GpuCoinMinerService` überschreibt die an Dashboard und Worker gelieferte Hashrate bei jeder API-Antwort sofort mit null, wenn `gpu.total` und das ältere `1min` fehlen oder null sind. SRBMiner nennt seit 3.7.0 `1m` als Statistikintervall; dieses Feld wird jetzt zusätzlich gelesen. Eine positive Hashrate wird bei einzelnen Nullwerten oder kurzen API-Fehlern maximal 20 Sekunden für denselben laufenden Miner vorgehalten.
@@ -803,3 +829,8 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - `MinerServiceRegistrationTest`: `setPoolTarget`-Stub fehlte (Mock gab `false`), obwohl die Verifikation exakt diesen Aufruf erwartet. Stub ergänzt.
 - `device-profiles/bundled/modbus/smartfox-pro-2.json`: enthielt einen Fingerprint mit leerem `expectedValue` — genau das, was `EvccGeneratedProfilesTest` als "fabricated fingerprint" verbietet (lesbares Messregister ≠ Geräteidentität; Profile ohne verifizierten Erwartungswert dürfen bei der Auto-Discovery nicht gewinnen, vgl. DiscoveryService). Block entfernt; Smartfox bleibt manuell wählbar.
 - Verifikation: `sh gradlew test :core:test :pv-api:test :cgminerapi:test :proto:test` EXIT 0; `:bootJar` erzeugt `solar-miner-1.1.6.jar` inkl. React-Frontend. Migrationen unverändert gegenüber frontend-v1.1.5 (kein Diff, keine Checksum-Änderung).
+
+## 2026-10-09 — Nachtrag: docker-beta.yml enthielt noch currency-rates-Manifeste
+
+- Der Beta-Workflow scheiterte im Job "Publish beta manifests" mit `CURRENCY_RATES_IMAGE: unbound variable`: Die Currency-Rates-Entfernung (08.10.) hatte Matrix, Outputs und Jobs bereinigt, aber drei `docker buildx imagetools create`-Blöcke im Manifest-Job übersehen. Currency-Rates-Beta-Releases laufen ausschließlich im `currency-service`-Repo.
+- Fix: die drei Blöcke gelöscht. Verifikation: Workflow-Lauf nach Push.

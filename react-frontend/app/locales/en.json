@@ -230,6 +230,7 @@
   "mining.grid.status": "Status",
   "mining.grid.hashrate": "Hashrate",
   "mining.grid.power": "Power",
+  "mining.agent_control.disabled": "Node control is disabled locally in the PC-Agent. Enable it under Hardware > Node control.",
   "mining.power_targets.edit": "Adjust targets",
   "mining.power_targets.title": "Configure power range",
   "mining.power_targets.current": "Current power",

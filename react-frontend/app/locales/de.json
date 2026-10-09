@@ -230,6 +230,7 @@
   "mining.grid.status": "Status",
   "mining.grid.hashrate": "Hashrate",
   "mining.grid.power": "Leistung",
+  "mining.agent_control.disabled": "Node-Steuerung ist im PC-Agent lokal deaktiviert. Aktiviere sie unter Hardware > Node-Steuerung.",
   "mining.power_targets.edit": "Targets einstellen",
   "mining.power_targets.title": "Leistungsbereich einstellen",
   "mining.power_targets.current": "Aktuelle Leistung",

@@ -7,7 +7,7 @@
 | Area | Owns | Boundary |
 | --- | --- | --- |
 | Root app `src/`, `app/` | Local API, persistence, PV/site orchestration, telemetry | Calls services and stores site state; hardware-specific control belongs in `core` or `pc-agent`. |
-| `core/` | Miner abstractions, dispatch, ASIC/Braiins control, dev-fee path | Must not duplicate PC hardware control; consult [core help](../../core/HELP.md). |
+| `core/` | Miner abstractions, dispatch, ASIC/Braiins control, dev-fee path and the canonical ASIC compatibility catalogue | Must not duplicate PC hardware control; consult [core help](../../core/HELP.md). Public ASIC claims must come from `core/src/main/resources/asics/supported-compatibility.json` and follow the [ASIC integration guide](../../../NEW-ASIC-GUIDE.md). |
 | `cgminerapi/` | CGMiner TCP framing, commands and response DTOs used by `core` | Transport tests cannot establish framing or timeout suitability on supported ASIC firmware; keep the real-device gate explicit. |
 | PC-Agent | **Nothing — separate repository.** | The PC-Agent is the separate Git repository [`../../../pc-agent`](../../../pc-agent) (`https://github.com/Solarminer-app/pc-agent`), split out on 2026-10-08. The Node talks to it only over LAN HTTP (`:8084`, `/api/agent/external/**`) and UDP discovery. See its [wiki](../../../pc-agent/docs/agent-wiki/README.md). |
 | `pv-api/` | Shared profile serialization contract | Configurator must use the same serializer; see contract C3. |
@@ -29,6 +29,7 @@
 | [main README](../../README.md), [core help](../../core/HELP.md) | Component guides; code is authoritative. |
 | Currency Service guides | In the separate repository: [`AGENTS.md`](../../../currency-service/AGENTS.md), [`README.md`](../../../currency-service/README.md), [`PUBLIC-DEPLOYMENT.md`](../../../currency-service/PUBLIC-DEPLOYMENT.md). |
 | PC-Agent documentation | In the separate repository: [`docs/agent-wiki/`](../../../pc-agent/docs/agent-wiki/README.md) — ownership map, UI/UX records, miner candidates, pool research, RVN/ETC status, coin compatibility matrix; [`MINER-INTEGRATION-GUIDE.md`](../../../pc-agent/MINER-INTEGRATION-GUIDE.md); [PV power control](../../../pc-agent/docs/PC-AGENT-PV-POWER-CONTROL.md); [standalone run/packaging](../../../pc-agent/standalone/README.md). |
+| PC-Agent economic dispatch | C10's capability and short-lived-plan contract is owned by the Agent: [`economic-dispatch.md`](../../../pc-agent/docs/agent-wiki/economic-dispatch.md). The Node proxies it via `core`; local consent and unknown-performance rejection stay Agent-owned. |
 | `src/main/resources/markdowns/` | Product help shown to users, not agent operating instructions. |
 
 ## Feature workflow
@@ -37,7 +38,7 @@
 
 **Ownership:** this service is not code in this repository. It is the separate Git repository [`../../../currency-service`](../../../currency-service) (`https://github.com/Solarminer-app/currency-service`), which owns the providers, persistence, public routes, tests and the C9 record. The leftover `currency-rates/` copy from the 2026-10-04 migration was deleted on 2026-10-08 together with its Gradle and CI wiring. Node and PC-Agent code may only call the deployed API.
 
-`currency-rates` is a public central service, not a trust-LAN endpoint. Production Nodes use `CURRENCY_MICRO_SERVICE_URL`, defaulting to `https://currency.solarminer.app`; local Compose may use the internal `http://currency-service:8080`. Only versioned, read-only aggregated snapshots belong under `/api/v1/public/**`. Wallets, worker names, pools, referrals, individual telemetry and administration do not.
+`currency-rates` is a public central service, not a trust-LAN endpoint. Node profiles and the standard Compose stack use `https://currency.solarminer.app` by default. `CURRENCY_MICRO_SERVICE_URL` remains an explicit override for development or a self-hosted deployment. Only versioned, read-only aggregated snapshots belong under `/api/v1/public/**`. Wallets, worker names, pools, referrals, individual telemetry and administration do not.
 
 For every mining coin that becomes relevant to Node or public profitability calculations, extend that repository first with both price and mining-network collection. Record the canonical key/ticker, provider, units and precision, timestamp, refresh cadence, persisted snapshot, stale/unavailable behavior and tests. A coin-price record alone is not a network-statistics contract. Follow C9 in the workspace contracts and the currency-data requirement in `NEW-MINING-COIN-GUIDE.md`; do not add another coin-specific BTC-style table for new assets.
 
@@ -50,6 +51,7 @@ The standalone PC-Agent exposes its own Benchmarks page and default-off benchmar
 1. Inspect `git status`, relevant code/tests and this map. Write down the owner and affected cross-repo contracts before coding.
 2. Extend the existing miner/device abstraction when a new implementation shares lifecycle or telemetry semantics. Keep protocol-specific parsing and driver calls at the edge. Do not add coin or GPU conditionals to unrelated orchestration layers.
 3. Define capability and unsupported states explicitly. For hardware control, do not infer a zero measurement from missing telemetry. For a new coin/algorithm, complete [the integration guide](../../../NEW-MINING-COIN-GUIDE.md), including fee route, pool accounting, portal and rollout evidence; document non-applicable steps.
+   For a new ASIC model, family, firmware profile or control capability, complete the [ASIC integration guide](../../../NEW-ASIC-GUIDE.md), update the canonical catalogue and generated landing copy together, and retain the real-device verification gate.
 4. Verify the smallest meaningful path, then the affected contract on both sides. A successful build alone does not prove a mining or payment path works.
 5. Add a dated entry to [work log](work-log.md) with changed contracts, evidence, open gates and links. Update stale wiki statements in the same change.
 
