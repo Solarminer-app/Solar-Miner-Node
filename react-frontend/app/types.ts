@@ -307,6 +307,8 @@ export interface PVStatisticDto {
     miningRevenueLive: MoneyDto;
     miningRevenueComplete: boolean;
     miningCoins: CoinMiningDayDto[];
+    gridImportKwh: number;
+    gridPricePerKwh: MoneyDto;
 }
 
 export interface CoinMiningDayDto {
