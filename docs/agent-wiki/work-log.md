@@ -855,3 +855,4 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - Neuer Report `TaxReportService.generateCashReportCsv` (`GET /api/pv-site/{id}/finance/export/cash-csv`): reine Geldflüsse pro Tag — Netz-Import gesamt, Haushalt (Import minus Mining-Anteil) und Mining getrennt in kWh und Kosten zum Netztarif, Mining-Umsatz zu Tageskursen, plus `MONTH`-Summenzeile je Kalendermonat. Keine Gegenrechnung von PV-Eigenverbrauch; `Net Cash Flow` = Mining-Umsatz minus Mining-Netzstromkosten.
 - React-Finance-Seite: neuer Tab „Cash-Report" mit derselben Tages-/Monatslogik und Export-Button (DE/EN-Lokalisierung).
 - Verifikation: `sh gradlew :test --tests "de.verdox.pv_miner.finance.*"` EXIT 0 inkl. neuem `CashReportCsvTest` (Tag- und Monatssummen); `npx tsc --noEmit` im react-frontend EXIT 0. Kein Live-HTTP-Probe gegen eine laufende Node.
+
