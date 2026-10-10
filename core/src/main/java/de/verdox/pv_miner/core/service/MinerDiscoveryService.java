@@ -79,7 +79,6 @@ public class MinerDiscoveryService {
                     .build();
 
             HttpResponse<String> response = agentDiscoveryClient.send(request, HttpResponse.BodyHandlers.ofString());
-
             String body = response.body();
 
             if (response.statusCode() != 200) {
