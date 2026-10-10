@@ -22,7 +22,7 @@ import java.util.logging.Logger;
 @Service
 public class MinerDiscoveryService {
     private static final Logger LOGGER = Logger.getLogger(MinerDiscoveryService.class.getName());
-    private static final Duration AGENT_DISCOVERY_TIMEOUT = Duration.ofSeconds(2);
+    private static final Duration AGENT_DISCOVERY_TIMEOUT = Duration.ofSeconds(5);
 
     public record DetectedMiner(MiningOS os, String model) {
     }
@@ -79,9 +79,13 @@ public class MinerDiscoveryService {
                     .build();
 
             HttpResponse<String> response = agentDiscoveryClient.send(request, HttpResponse.BodyHandlers.ofString());
+            String body = response.body();
 
-            if (response.statusCode() != 200) return null;
-            Identity identity = objectMapper.readValue(response.body(), Identity.class);
+            if (response.statusCode() != 200) {
+                LOGGER.log(Level.INFO, "Does not seem to be a pc-agent at: " + ipv4 + " [" + response.statusCode()+"]\n"+body);
+                return null;
+            }
+            Identity identity = objectMapper.readValue(body, Identity.class);
             if (!"solarminer-pc-agent".equals(identity.kind())) return null;
             LOGGER.log(Level.INFO, "Found Solar Miner Agent on IP: " + ipv4);
             // The operator label from the agent wins over the fixed product model name.
@@ -93,9 +97,12 @@ public class MinerDiscoveryService {
         return null;
     }
 
-    /** Mirrors the PC-Agent {@code Identity} record; unknown fields are ignored. */
+    /**
+     * Mirrors the PC-Agent {@code Identity} record; unknown fields are ignored.
+     */
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
-    private record Identity(String kind, int powerControlProtocolVersion, String model, String name) { }
+    private record Identity(String kind, int powerControlProtocolVersion, String model, String name) {
+    }
 
     private MinerDiscoveryService.DetectedMiner checkAsicMiner(String ipv4) {
         int port = 4028;
