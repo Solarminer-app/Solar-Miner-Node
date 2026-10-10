@@ -180,11 +180,22 @@ jobs:
           IMAGE: ${{ needs.metadata.outputs.image }}
         run: |
           set -euo pipefail
-
+          
+          # Multi-Arch Manifest für Version und latest
           docker buildx imagetools create \
             --tag "${IMAGE}:${VERSION}" \
             --tag "${IMAGE}:latest" \
             "${IMAGE}:${VERSION}-amd64" \
+            "${IMAGE}:${VERSION}-arm64"
+          
+          # Single-Arch Manifest (bzw. Alias) für latest-amd64
+          docker buildx imagetools create \
+            --tag "${IMAGE}:latest-amd64" \
+            "${IMAGE}:${VERSION}-amd64"
+          
+          # Single-Arch Manifest (bzw. Alias) für latest-arm64
+          docker buildx imagetools create \
+            --tag "${IMAGE}:latest-arm64" \
             "${IMAGE}:${VERSION}-arm64"
 
       - name: Inspect published Core image
@@ -194,3 +205,5 @@ jobs:
           IMAGE: ${{ needs.metadata.outputs.image }}
         run: |
           docker buildx imagetools inspect "${IMAGE}:${VERSION}"
+          docker buildx imagetools inspect "${IMAGE}:latest-amd64"
+          docker buildx imagetools inspect "${IMAGE}:latest-arm64"
