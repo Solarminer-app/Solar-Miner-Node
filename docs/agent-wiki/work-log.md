@@ -856,3 +856,11 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - React-Finance-Seite: neuer Tab „Cash-Report" mit derselben Tages-/Monatslogik und Export-Button (DE/EN-Lokalisierung).
 - Verifikation: `sh gradlew :test --tests "de.verdox.pv_miner.finance.*"` EXIT 0 inkl. neuem `CashReportCsvTest` (Tag- und Monatssummen); `npx tsc --noEmit` im react-frontend EXIT 0. Kein Live-HTTP-Probe gegen eine laufende Node.
 
+
+## 2026-10-10 — Release-Workflows: Per-Arch-Moving-Tags (latest-amd64/-arm64) wiederhergestellt
+
+- Befund (Docker-Hub-API verifiziert): `verdox/solar-miner-core` publiziert `latest-amd64`/`latest-arm64` erst wieder seit dem Fix-Commit 8ff88b0 (Tags am 10.10. 15:39 UTC gepusht). `verdox/solar-miner-stratum-proxy` hat production-seitig NUR `latest` — `latest-amd64`/`latest-arm64` fehlen komplett, obwohl `compose.yml` und die Doku-Beispiele `verdox/solar-miner-stratum-proxy:latest-amd64` pinnen (Pull bricht auf neuen Maschinen). `latest-amd64-beta`/`latest-arm64-beta` existieren nur aus `docker-beta.yml`.
+- `docker-deploy-frontend-app.yml` (Node-Repo): publiziert `latest-jvm` aber keine Per-Arch-Aliase; `docker-beta.yml` liefert dagegen `latest-amd64-jvm-beta`/`latest-arm64-jvm-beta`. Fix: `latest-amd64-jvm`/`latest-arm64-jvm` im Manifest-Job ergänzt + Inspect-Schritte.
+- Stratum-Proxy-Repo: `docker-deploy-proxy.yml` analog um `latest-amd64`/`latest-arm64` + Inspect erweitert (auf `beta`; läuft bei `v*`-Tag von master).
+- WICHTIG: Die fehlenden Proxy-Tags werden erst mit dem naechsten `v*`-Release neu erzeugt; ein Re-Tag von v1.0.6 ist dafuer nicht noetig, der naechste Release schliesst die Luecke.
+- Currency Service (`currency-service/release.yml`) publiziert bewusst nur Multi-Arch (`latest`/`beta`) — kein Consumer pinnt dort Per-Arch-Tags, keine Aenderung.

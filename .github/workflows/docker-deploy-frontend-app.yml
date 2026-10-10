@@ -204,6 +204,15 @@ jobs:
             "${IMAGE}:${VERSION}-jvm-amd64" \
             "${IMAGE}:${VERSION}-jvm-arm64"
 
+          # Single-architecture aliases (mirrors latest-amd64-jvm-beta from docker-beta.yml)
+          docker buildx imagetools create \
+            --tag "${IMAGE}:latest-amd64-jvm" \
+            "${IMAGE}:${VERSION}-jvm-amd64"
+
+          docker buildx imagetools create \
+            --tag "${IMAGE}:latest-arm64-jvm" \
+            "${IMAGE}:${VERSION}-jvm-arm64"
+
       - name: Inspect published Frontend JVM image
         shell: bash
         env:
@@ -213,3 +222,5 @@ jobs:
           set -euo pipefail
 
           docker buildx imagetools inspect "${IMAGE}:${VERSION}-jvm"
+          docker buildx imagetools inspect "${IMAGE}:latest-amd64-jvm"
+          docker buildx imagetools inspect "${IMAGE}:latest-arm64-jvm"
