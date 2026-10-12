@@ -1,17 +1,14 @@
 package de.verdox.pv_miner.core.miner.antminer;
 
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
+import de.verdox.pv_miner.core.util.LanHttp;
 
 import java.net.ConnectException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.net.http.HttpTimeoutException;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -20,9 +17,8 @@ import java.util.regex.Pattern;
 
 public class AntminerCgiClient {
     private static final Logger LOGGER = Logger.getLogger(AntminerCgiClient.class.getSimpleName());
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .build();
+    private static final int CONNECT_TIMEOUT_MS = 10_000;
+    private static final int READ_TIMEOUT_MS = 30_000;
 
     private static final Pattern REALM_PATTERN = Pattern.compile("realm=\"([^\"]+)\"");
     private static final Pattern NONCE_PATTERN = Pattern.compile("nonce=\"([^\"]+)\"");
@@ -73,32 +69,25 @@ public class AntminerCgiClient {
     private String executeWithDigestAuth(MinerDetails details, String method, String cgiEndpoint, String body) {
         try {
             String url = "http://" + details.ipv4() + cgiEndpoint;
-            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder().uri(URI.create(url));
 
-            if ("POST".equalsIgnoreCase(method) && body != null) {
-                requestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
-                requestBuilder.POST(HttpRequest.BodyPublishers.ofString(body));
-            } else {
-                requestBuilder.GET();
-            }
-
-            HttpRequest initialRequest = requestBuilder.build();
-            HttpResponse<String> initialResponse = httpClient.send(initialRequest, HttpResponse.BodyHandlers.ofString());
+            LanHttp.Response initialResponse = "POST".equalsIgnoreCase(method)
+                    ? LanHttp.post(url, body, "application/x-www-form-urlencoded", CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS, Map.of())
+                    : LanHttp.get(url, CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS, Map.of());
 
             if (initialResponse.statusCode() != 401) {
                 return initialResponse.body();
             }
 
-            String authHeader = initialResponse.headers().firstValue("WWW-Authenticate")
-                    .orElseThrow(() -> new IllegalStateException("No WWW-Authenticate header found"));
+            String authHeader = initialResponse.header("WWW-Authenticate");
+            if (authHeader == null) {
+                throw new IllegalStateException("No WWW-Authenticate header found");
+            }
 
             String digestHeader = buildDigestAuthHeader(details, method, cgiEndpoint, authHeader);
 
-            HttpRequest authenticatedRequest = requestBuilder
-                    .setHeader("Authorization", digestHeader)
-                    .build();
-
-            HttpResponse<String> finalResponse = httpClient.send(authenticatedRequest, HttpResponse.BodyHandlers.ofString());
+            LanHttp.Response finalResponse = "POST".equalsIgnoreCase(method)
+                    ? LanHttp.post(url, body, "application/x-www-form-urlencoded", CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS, Map.of("Authorization", digestHeader))
+                    : LanHttp.get(url, CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS, Map.of("Authorization", digestHeader));
 
             if (finalResponse.statusCode() != 200) {
                 LOGGER.log(Level.SEVERE, "Miner " + details.ipv4() + " rejected auth with HTTP " + finalResponse.statusCode());
@@ -106,8 +95,7 @@ public class AntminerCgiClient {
             }
 
             return finalResponse.body();
-
-        } catch (HttpTimeoutException | ConnectException e) {
+        } catch (SocketTimeoutException | ConnectException e) {
             return null;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "CGI communication failed with " + details.ipv4() + ": " + e.getMessage(), e);

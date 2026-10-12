@@ -3,34 +3,27 @@ package de.verdox.pv_miner.core.miner.twentyoneenergy;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
+import de.verdox.pv_miner.core.util.LanHttp;
 
 import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Map;
 
 /**
  * Local-only client. It deliberately exposes no generic URL or endpoint forwarding API.
  */
 public final class TwentyOneEnergyClient {
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(4);
+    private static final int CONNECT_TIMEOUT_MS = (int) Duration.ofSeconds(2).toMillis();
+    private static final int REQUEST_TIMEOUT_MS = (int) Duration.ofSeconds(4).toMillis();
     private static final int MAX_RESPONSE_BYTES = 256 * 1024;
 
-    private final HttpClient http;
     private final ObjectMapper json;
     private final URI baseUri;
 
     public TwentyOneEnergyClient(MinerDetails details, ObjectMapper json) {
-        this(HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build(), details, json);
-    }
-
-    TwentyOneEnergyClient(HttpClient http, MinerDetails details, ObjectMapper json) {
-        this.http = http;
         this.json = json;
         this.baseUri = baseUri(details.ipv4(), details.port());
     }
@@ -104,33 +97,31 @@ public final class TwentyOneEnergyClient {
     private JsonNode getTree(String path) {
         // One retry is safe for a read-only GET. Mutating requests never retry.
         try {
-            return execute(HttpRequest.newBuilder(endpoint(path)).timeout(REQUEST_TIMEOUT).GET().build(), true);
+            return execute("GET", endpoint(path), null, true);
         } catch (TwentyOneEnergyApiException firstFailure) {
-            return execute(HttpRequest.newBuilder(endpoint(path)).timeout(REQUEST_TIMEOUT).GET().build(), false);
+            return execute("GET", endpoint(path), null, false);
         }
     }
 
     private void post(String path, Object body) {
         try {
-            HttpRequest request = HttpRequest.newBuilder(endpoint(path)).timeout(REQUEST_TIMEOUT).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build();
-            execute(request, false);
+            execute("POST", endpoint(path), json.writeValueAsString(body), false);
         } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
             throw new TwentyOneEnergyApiException("Could not encode 21energy request", exception);
         }
     }
 
-    private JsonNode execute(HttpRequest request, boolean retryable) {
+    private JsonNode execute(String method, URI endpoint, String body, boolean retryable) {
         try {
-            HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.body().length > MAX_RESPONSE_BYTES)
+            LanHttp.Response response = "POST".equals(method)
+                    ? LanHttp.post(endpoint.toString(), body, "application/json", CONNECT_TIMEOUT_MS, REQUEST_TIMEOUT_MS, Map.of())
+                    : LanHttp.get(endpoint.toString(), CONNECT_TIMEOUT_MS, REQUEST_TIMEOUT_MS, Map.of());
+            if (response.body().length() > MAX_RESPONSE_BYTES)
                 throw new TwentyOneEnergyApiException("21energy response exceeds size limit");
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new TwentyOneEnergyApiException("21energy API returned HTTP " + response.statusCode());
             }
             return json.readTree(response.body());
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new TwentyOneEnergyApiException("21energy request interrupted", exception);
         } catch (IOException exception) {
             throw new TwentyOneEnergyApiException(retryable ? "21energy GET failed" : "21energy request failed", exception);
         }

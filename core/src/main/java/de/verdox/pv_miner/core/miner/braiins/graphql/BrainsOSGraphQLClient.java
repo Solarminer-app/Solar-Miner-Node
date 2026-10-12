@@ -9,7 +9,7 @@ import de.verdox.pv_miner.core.miner.dto.Pools;
 import de.verdox.pv_miner.core.service.DevFeeService;
 import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 
-import java.net.http.HttpResponse;
+import de.verdox.pv_miner.core.util.LanHttp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,9 +52,10 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
         }
 
         try {
-            HttpResponse<String> response = executor.executeRaw(details.ipv4(), BraiinsQuery.LOGIN.query(), Map.of("username", details.username(), "password", details.password()), null);
+            LanHttp.Response response = executor.executeRaw(details.ipv4(), BraiinsQuery.LOGIN.query(), Map.of("username", details.username(), "password", details.password()), null);
 
-            String cookie = response.headers().firstValue("Set-Cookie").orElseThrow(() -> new IllegalStateException("No session cookie returned."));
+            String cookie = response.header("Set-Cookie");
+            if (cookie == null) throw new IllegalStateException("No session cookie returned.");
 
             saveCookie(details, cookie.split(";", 2)[0], Instant.now().plusSeconds(3600));
         } catch (Exception e) {
@@ -336,8 +337,8 @@ public class BrainsOSGraphQLClient implements BrainsOSBackend {
     @Override
     public boolean checkIfCustomCredentialsWork(MinerDetails details) {
         try {
-            HttpResponse<String> response = executor.executeRaw(details.ipv4(), BraiinsQuery.LOGIN.query(), Map.of("username", details.username(), "password", details.password()), null);
-            return response.headers().firstValue("Set-Cookie").isPresent();
+            LanHttp.Response response = executor.executeRaw(details.ipv4(), BraiinsQuery.LOGIN.query(), Map.of("username", details.username(), "password", details.password()), null);
+            return response.header("Set-Cookie") != null;
         } catch (Exception e) {
             return false;
         }

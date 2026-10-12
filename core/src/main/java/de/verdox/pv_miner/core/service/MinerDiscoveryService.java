@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import de.verdox.pv_miner.core.miner.MiningOS;
 import de.verdox.pv_miner.core.miner.dto.MinerDetails;
 import de.verdox.pv_miner.core.miner.twentyoneenergy.TwentyOneEnergyClient;
+import de.verdox.pv_miner.core.util.LanHttp;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
@@ -11,11 +12,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -28,21 +26,22 @@ public class MinerDiscoveryService {
     }
 
     private final ObjectMapper objectMapper;
-    private final HttpClient agentDiscoveryClient;
 
     public MinerDiscoveryService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
-        this.agentDiscoveryClient = HttpClient.newBuilder()
-                .connectTimeout(AGENT_DISCOVERY_TIMEOUT)
-                .build();
     }
 
     public MinerDiscoveryService.DetectedMiner identifyMinerDetails(String ipv4) {
+        return identifyMinerDetails(ipv4, 8084);
+    }
+
+    /** Package-private seam so tests can point the agent probe at a loopback server. */
+    MinerDiscoveryService.DetectedMiner identifyMinerDetails(String ipv4, int agentPort) {
         if (ipv4 == null || ipv4.isBlank()) {
             return null;
         }
 
-        MinerDiscoveryService.DetectedMiner agent = checkSolarMinerAgent(ipv4);
+        MinerDiscoveryService.DetectedMiner agent = checkSolarMinerAgent(ipv4, agentPort);
         if (agent != null) {
             return agent;
         }
@@ -70,19 +69,15 @@ public class MinerDiscoveryService {
         }
     }
 
-    private MinerDiscoveryService.DetectedMiner checkSolarMinerAgent(String ipv4) {
+    private MinerDiscoveryService.DetectedMiner checkSolarMinerAgent(String ipv4, int agentPort) {
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://" + ipv4 + ":8084/api/agent/external/identity"))
-                    .timeout(AGENT_DISCOVERY_TIMEOUT)
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = agentDiscoveryClient.send(request, HttpResponse.BodyHandlers.ofString());
+            LanHttp.Response response = LanHttp.get("http://" + ipv4 + ":" + agentPort + "/api/agent/external/identity",
+                    (int) AGENT_DISCOVERY_TIMEOUT.toMillis(), (int) AGENT_DISCOVERY_TIMEOUT.toMillis(), Map.of());
+            int status = response.statusCode();
             String body = response.body();
 
-            if (response.statusCode() != 200) {
-                LOGGER.log(Level.INFO, "Does not seem to be a pc-agent at: " + ipv4 + " [" + response.statusCode()+"]\n"+body);
+            if (status != 200) {
+                LOGGER.log(Level.INFO, "Does not seem to be a pc-agent at: " + ipv4 + " [" + status + "]\n" + body);
                 return null;
             }
             Identity identity = objectMapper.readValue(body, Identity.class);
@@ -153,18 +148,14 @@ public class MinerDiscoveryService {
      */
     private MinerDiscoveryService.DetectedMiner checkAntminerStock(String ipv4) {
         try {
-            HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofMillis(500)).build();
-
-            HttpRequest request = HttpRequest.newBuilder().uri(URI.create("http://" + ipv4 + "/")).timeout(Duration.ofMillis(500)).GET().build();
-
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            LanHttp.Response response = LanHttp.get("http://" + ipv4 + "/", 500, 500, Map.of());
 
             if (response.statusCode() == 401) {
-                String authHeader = response.headers().firstValue("WWW-Authenticate").orElse("");
+                String authHeader = response.header("WWW-Authenticate");
+                authHeader = authHeader == null ? "" : authHeader;
 
                 if (authHeader.contains("antMiner")) {
                     LOGGER.log(Level.INFO, "Found Antminer (Stock Firmware) on IP: " + ipv4);
-                    System.out.println(authHeader);
                     return new MinerDiscoveryService.DetectedMiner(MiningOS.ANTMINER_STOCK_OS, "Antminer (Stock)");
                 }
             }
