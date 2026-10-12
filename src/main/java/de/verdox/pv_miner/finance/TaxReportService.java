@@ -22,8 +22,10 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -192,6 +194,210 @@ public class TaxReportService {
         } catch (Exception e) {
             return new ByteArrayInputStream(("Error in CSV Export: " + e.getMessage()).getBytes(StandardCharsets.UTF_8));
         }
+    }
+
+    /**
+     * Financial planning report that deliberately separates the payable grid
+     * bill from the economic cost of using PV energy instead of exporting it.
+     */
+    public InputStream generateCostCoveragePdfReport(PVSiteEntity pvSite, LocalDate from, LocalDate to,
+                                                      ReportContext context) {
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+            List<PVStatisticDto> statistics = new ArrayList<>(pvFinanceService.getFinanceData(
+                    pvSite, from, to, context.getZoneId(), context.getCurrency()));
+            statistics.sort(Comparator.comparing(PVStatisticDto::date));
+
+            PdfRendererBuilder builder = new PdfRendererBuilder();
+            builder.withHtmlContent(generateCostCoverageHtml(statistics, from, to, context), "");
+            builder.toStream(os);
+            builder.run();
+            return new ByteArrayInputStream(os.toByteArray());
+        } catch (Exception exception) {
+            return generateErrorPdf(exception, context);
+        }
+    }
+
+    String generateCostCoverageHtml(List<PVStatisticDto> statistics, LocalDate from, LocalDate to,
+                                    ReportContext context) {
+        boolean german = "de".equalsIgnoreCase(context.getLocale().getLanguage());
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(german ? "dd.MM.yyyy" : "MM/dd/yyyy",
+                context.getLocale());
+        DateTimeFormatter monthFormatter = DateTimeFormatter.ofPattern("MMMM yyyy", context.getLocale());
+        double totalRevenue = statistics.stream().mapToDouble(day -> day.miningRevenueHistoric().amount()).sum();
+        double totalGridCost = statistics.stream().mapToDouble(day -> day.miningGridCost().amount()).sum();
+        double totalOpportunityCost = statistics.stream().mapToDouble(day -> day.miningOpportunityCost().amount()).sum();
+        boolean complete = statistics.stream().allMatch(PVStatisticDto::miningRevenueComplete);
+
+        StringBuilder html = new StringBuilder();
+        html.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<html><head>")
+                .append(getBaseCss())
+                .append("<style>@page { size: A4 landscape; margin: 12mm; } table { font-size: 8.5px; } th, td { padding: 5px; } .kpi-box-four { display:inline-block; width:23%; background:#f8f9fa; border:1px solid #e9ecef; border-radius:8px; padding:10px; margin-right:1%; box-sizing:border-box; vertical-align:top; } .explanation { background:#f8f9fa; border-left:3px solid #00b978; padding:8px 12px; margin:12px 0; font-size:10px; }</style>")
+                .append("</head><body><div class='header'><h1>")
+                .append(german ? "Solar Miner – Stromkosten- und Coin-Deckungsreport" : "Solar Miner – Electricity Cost and Coin Coverage Report")
+                .append("</h1><p>")
+                .append(german ? "Erstellt am: " : "Generated on: ")
+                .append("<strong>").append(LocalDate.now(context.getZoneId()).format(dateFormatter)).append("</strong> | ")
+                .append(german ? "Zeitraum: " : "Period: ")
+                .append("<strong>").append(from.format(dateFormatter)).append(" – ").append(to.format(dateFormatter))
+                .append("</strong></p></div>");
+
+        appendCoverageKpi(html, german ? "Mining-Wert" : "Mining value", totalRevenue, context, null);
+        appendCoverageKpi(html, german ? "Zu zahlender Netzstrom" : "Payable grid electricity", totalGridCost, context, null);
+        appendCoverageKpi(html, german ? "Cash-Ergebnis" : "Cash result", totalRevenue - totalGridCost, context,
+                totalRevenue - totalGridCost >= 0 ? "positive" : "negative");
+        appendCoverageKpi(html, german ? "Wirtschaftliches Ergebnis" : "Economic result",
+                totalRevenue - totalGridCost - totalOpportunityCost, context,
+                totalRevenue - totalGridCost - totalOpportunityCost >= 0 ? "positive" : "negative");
+
+        html.append("<div class='explanation'>")
+                .append(german
+                        ? "<strong>Cash-Sicht:</strong> Nur der während des Minings anteilig bezogene Netzstrom muss bezahlt werden. "
+                        + "<strong>Wirtschaftliche Sicht:</strong> Zusätzlich wird die entgangene Einspeisevergütung des fürs Mining genutzten PV-Stroms ausgewiesen. "
+                        + "Die Zuordnung erfolgt bei ausreichender Datenabdeckung aus zeitgleichen Minutenintervallen; Batterieentladung wird separat behandelt. Für ältere Daten werden Stundenintervalle und bei Datenlücken eine gekennzeichnete Tageswert-Schätzung verwendet. "
+                        + "Batterieenergie wird ausgewiesen, aber ohne Herkunfts- und Verlustmodell weder als direkter Netzbezug noch als PV-Opportunitätskosten bepreist. "
+                        + "Die Verkaufsempfehlung nimmt an, dass von allen bewerteten Tageserträgen derselbe Anteil verkauft wird. Sie ist eine Planungsgröße zum historischen Tageswert, keine tatsächlich erfasste Transaktion oder Steuerberatung."
+                        : "<strong>Cash view:</strong> Only the share of grid electricity imported during mining produces a payable bill. "
+                        + "<strong>Economic view:</strong> The forgone feed-in revenue of PV electricity used for mining is shown separately. "
+                        + "With sufficient coverage, energy is allocated from time-aligned minute intervals and battery discharge is handled separately. Older data uses hourly intervals, with a labelled daily-value estimate for gaps. "
+                        + "Battery energy is reported but, without an origin and loss model, is priced neither as direct grid import nor as PV opportunity cost. "
+                        + "The sale recommendation assumes that the same share of every valued daily reward is sold. It is a planning estimate at the historical daily value, not a recorded transaction or tax advice.")
+                .append("</div>");
+
+        html.append("<table><thead><tr>")
+                .append(th(german ? "Datum" : "Date"))
+                .append(thRight(german ? "Mining-Energie" : "Mining energy"))
+                .append(thRight(german ? "davon Netz" : "grid share"))
+                .append(thRight(german ? "davon Batterie" : "battery share"))
+                .append(thRight(german ? "Datenbasis" : "Data basis"))
+                .append(thRight(german ? "Coin-Ertrag" : "Coin reward"))
+                .append(thRight(german ? "Mining-Wert" : "Mining value"))
+                .append(thRight(german ? "Netzkosten" : "Grid cost"))
+                .append(thRight(german ? "Opportunitätskosten" : "Opportunity cost"))
+                .append(thRight(german ? "Cash netto" : "Net cash"))
+                .append(thRight(german ? "Coins für Stromrechnung" : "Coins for grid bill"))
+                .append(thRight(german ? "Coins inkl. Opportunität" : "Coins incl. opportunity"))
+                .append("</tr></thead><tbody>");
+
+        Map<YearMonth, List<PVStatisticDto>> byMonth = statistics.stream().collect(Collectors.groupingBy(
+                day -> YearMonth.from(day.date()), LinkedHashMap::new, Collectors.toList()));
+        for (Map.Entry<YearMonth, List<PVStatisticDto>> monthEntry : byMonth.entrySet()) {
+            for (PVStatisticDto day : monthEntry.getValue()) {
+                appendCoverageRow(html, day.date().format(dateFormatter), List.of(day), context, german, false);
+            }
+            appendCoverageRow(html,
+                    (german ? "Summe " : "Total ") + monthEntry.getKey().format(monthFormatter),
+                    monthEntry.getValue(), context, german, true);
+        }
+        html.append("</tbody></table><div class='footer'>")
+                .append(complete
+                        ? (german ? "Alle im Zeitraum gemeldeten Mining-Erträge konnten bewertet werden." : "All mining rewards reported for the period could be valued.")
+                        : (german ? "* Mindestens ein Pool-Ertrag oder historischer Coin-Kurs fehlt. Betroffene Coin-Deckungswerte sind unvollständig."
+                        : "* At least one pool reward or historical coin price is missing. Affected coin coverage figures are incomplete."))
+                .append("</div></body></html>");
+        return html.toString();
+    }
+
+    private void appendCoverageRow(StringBuilder html, String label, List<PVStatisticDto> days,
+                                   ReportContext context, boolean german, boolean summary) {
+        double energy = days.stream().mapToDouble(PVStatisticDto::minerConsumption).sum();
+        double gridKwh = days.stream().mapToDouble(PVStatisticDto::miningGridUsage).sum();
+        double batteryKwh = days.stream().mapToDouble(PVStatisticDto::miningBatteryUsage).sum();
+        double revenue = days.stream().mapToDouble(value -> value.miningRevenueHistoric().amount()).sum();
+        double gridCost = days.stream().mapToDouble(value -> value.miningGridCost().amount()).sum();
+        double opportunityCost = days.stream().mapToDouble(value -> value.miningOpportunityCost().amount()).sum();
+        boolean complete = days.stream().allMatch(PVStatisticDto::miningRevenueComplete);
+        String rowClass = summary ? " class='summary-row'" : "";
+        html.append("<tr").append(rowClass).append("><td>").append(escape(label)).append("</td>")
+                .append(tdRight(formatNumber(energy, context) + " kWh"))
+                .append(tdRight(formatNumber(gridKwh, context) + " kWh"))
+                .append(tdRight(formatNumber(batteryKwh, context) + " kWh"))
+                .append(tdRight(escape(allocationQuality(days, german))))
+                .append(tdRight(escape(coinTotals(days))))
+                .append(tdRight(formatMoney(revenue, context) + incompleteMarker(complete)))
+                .append(tdRight(formatMoney(gridCost, context)))
+                .append(tdRight(formatMoney(opportunityCost, context)))
+                .append(tdRightClass(formatMoney(revenue - gridCost, context), revenue - gridCost >= 0 ? "positive" : "negative"))
+                .append(tdRight(escape(coverageCoinsWithShare(days, false, german)) + incompleteMarker(complete)))
+                .append(tdRight(escape(coverageCoinsWithShare(days, true, german)) + incompleteMarker(complete)))
+                .append("</tr>");
+    }
+
+    private static String allocationQuality(List<PVStatisticDto> days, boolean german) {
+        boolean daily = days.stream().anyMatch(day -> MiningEnergyAllocationService.QUALITY_DAILY_ESTIMATE
+                .equals(day.energyAllocationQuality()));
+        if (daily) return german ? "Tageswert-Schätzung" : "Daily-value estimate";
+        boolean hourly = days.stream().anyMatch(day -> MiningEnergyAllocationService.QUALITY_HOURLY
+                .equals(day.energyAllocationQuality()));
+        if (hourly) return german ? "Stundenintervalle" : "Hourly intervals";
+        return german ? "Minutenintervalle" : "Minute intervals";
+    }
+
+    private static String coverageCoinsWithShare(List<PVStatisticDto> days, boolean includeOpportunityCost,
+                                                  boolean german) {
+        String coins = coverageCoins(days, includeOpportunityCost, german);
+        double cost = days.stream().mapToDouble(day -> day.miningGridCost().amount()
+                + (includeOpportunityCost ? day.miningOpportunityCost().amount() : 0)).sum();
+        double revenue = days.stream().mapToDouble(day -> day.miningRevenueHistoric().amount()).sum();
+        if (cost <= 0.000000001 || revenue <= 0.000000001) return coins;
+        double share = cost / revenue * 100;
+        String percent = String.format(german ? Locale.GERMAN : Locale.ENGLISH, "%.1f %%", share);
+        if (share > 100.000001) {
+            percent += german ? "; Ertrag reicht nicht" : "; reward insufficient";
+        }
+        return coins + " (" + percent + ")";
+    }
+
+    static String coverageCoins(List<PVStatisticDto> days, boolean includeOpportunityCost, boolean german) {
+        Map<String, Double> amounts = new java.util.TreeMap<>();
+        boolean uncovered = false;
+        for (PVStatisticDto day : days) {
+            double cost = day.miningGridCost().amount()
+                    + (includeOpportunityCost ? day.miningOpportunityCost().amount() : 0);
+            if (cost <= 0.000000001) continue;
+            double revenue = day.miningRevenueHistoric().amount();
+            if (revenue <= 0.000000001) {
+                uncovered = true;
+                continue;
+            }
+            double factor = cost / revenue;
+            for (CoinMiningDayDto coin : day.miningCoins()) {
+                if (coin.amount() == null || coin.amount() <= 0 || coin.historicValue() == null) continue;
+                amounts.merge(coin.symbol(), coin.amount() * factor, Double::sum);
+            }
+        }
+        String result = amounts.entrySet().stream()
+                .map(entry -> formatCoinAmount(entry.getValue(), entry.getKey()) + " " + entry.getKey())
+                .collect(Collectors.joining(" · "));
+        if (uncovered) {
+            String unavailable = german ? "nicht vollständig deckbar" : "not fully coverable";
+            return result.isEmpty() ? unavailable : result + " · " + unavailable;
+        }
+        return result.isEmpty() ? "0" : result;
+    }
+
+    private static void appendCoverageKpi(StringBuilder html, String label, double value, ReportContext context,
+                                          String valueClass) {
+        html.append("<div class='kpi-box-four'><div class='kpi-title'>").append(escape(label))
+                .append("</div><p class='kpi-value")
+                .append(valueClass == null ? "" : " " + valueClass)
+                .append("'>").append(formatMoney(value, context)).append("</p></div>");
+    }
+
+    private static String th(String value) { return "<th>" + escape(value) + "</th>"; }
+    private static String thRight(String value) { return "<th class='text-right'>" + escape(value) + "</th>"; }
+    private static String tdRight(String value) { return "<td class='text-right'>" + value + "</td>"; }
+    private static String tdRightClass(String value, String cssClass) { return "<td class='text-right " + cssClass + "'>" + value + "</td>"; }
+    private static String incompleteMarker(boolean complete) { return complete ? "" : " *"; }
+
+    private static String formatMoney(double value, ReportContext context) {
+        return formatNumber(value, context) + " " + context.getCurrency().getSymbol();
+    }
+
+    private static String formatNumber(double value, ReportContext context) {
+        NumberFormat formatter = NumberFormat.getNumberInstance(context.getLocale());
+        formatter.setMinimumFractionDigits(2);
+        formatter.setMaximumFractionDigits(2);
+        return formatter.format(Double.isFinite(value) ? value : 0);
     }
 
     private static void appendMonthSummary(StringBuilder sb, java.time.YearMonth month, MonthTotals totals) {
@@ -520,10 +726,18 @@ public class TaxReportService {
     }
 
     private InputStream generateErrorPdf(Exception error) {
+        return generateErrorPdf(error, new ReportContext(Locale.GERMAN, CustomCurrency.getInstance("EUR"), ZoneId.systemDefault()));
+    }
+
+    private InputStream generateErrorPdf(Exception error, ReportContext context) {
         try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
             String errorMsg = error.getMessage() != null ? error.getMessage() : error.getClass().getName();
-            errorMsg = errorMsg.replace("<", "&lt;").replace(">", "&gt;").replace("&", "&amp;");
-            String html = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<html><body><h2>Fehler bei der PDF-Generierung</h2><p>Es ist ein Fehler aufgetreten: <strong>" + errorMsg + "</strong></p></body></html>";
+            errorMsg = escape(errorMsg);
+            boolean german = "de".equalsIgnoreCase(context.getLocale().getLanguage());
+            String html = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<html><body><h2>"
+                    + (german ? "Fehler bei der PDF-Generierung" : "PDF generation failed") + "</h2><p>"
+                    + (german ? "Es ist ein Fehler aufgetreten: " : "An error occurred: ")
+                    + "<strong>" + errorMsg + "</strong></p></body></html>";
             PdfRendererBuilder builder = new PdfRendererBuilder();
             builder.withHtmlContent(html, "");
             builder.toStream(os);

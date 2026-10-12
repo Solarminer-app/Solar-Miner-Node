@@ -102,6 +102,11 @@ public class FinanceController {
                 filename = "cash_report_" + selectedFrom + "_" + selectedTo + ".csv";
                 mediaType = MediaType.parseMediaType("text/csv;charset=UTF-8");
             }
+            case "cost-coverage-pdf" -> {
+                report = taxReportService.generateCostCoveragePdfReport(site, selectedFrom, selectedTo, context);
+                filename = "mining_cost_coverage_" + selectedFrom + "_" + selectedTo + ".pdf";
+                mediaType = MediaType.APPLICATION_PDF;
+            }
             case "mining-pdf" -> {
                 report = taxReportService.generateMiningPdfReport(site, selectedFrom, selectedTo, context);
                 filename = "mining_tax_report_" + selectedFrom + "_" + selectedTo + ".pdf";

@@ -31,6 +31,7 @@ public class PVFinanceService {
     private final DailyStatisticService dailyStatisticService;
     private final GlobalConstantsService globalConstantsService;
     private final KryptexRewardService kryptexRewards;
+    private final MiningEnergyAllocationService miningEnergyAllocationService;
 
     private final Map<UUID, HistoricalBtcCache> allTimeHistoricalBtcCache = new ConcurrentHashMap<>();
     private final Map<UUID, Object> entityLocks = new ConcurrentHashMap<>();
@@ -39,10 +40,12 @@ public class PVFinanceService {
     }
 
     public PVFinanceService(DailyStatisticService dailyStatisticService, GlobalConstantsService globalConstantsService,
-                            KryptexRewardService kryptexRewards) {
+                            KryptexRewardService kryptexRewards,
+                            MiningEnergyAllocationService miningEnergyAllocationService) {
         this.dailyStatisticService = dailyStatisticService;
         this.globalConstantsService = globalConstantsService;
         this.kryptexRewards = kryptexRewards;
+        this.miningEnergyAllocationService = miningEnergyAllocationService;
     }
 
     public List<PVStatisticDto> getFinanceData(PVSiteEntity pvSiteEntity, LocalDate filterDateFrom, LocalDate filterDateTo, ZoneId zoneId, CustomCurrency targetCurrency) {
@@ -89,6 +92,8 @@ public class PVFinanceService {
                     Map.Entry::getKey,
                     entry -> entry.getValue().getConsumptionKwhMining()
             ));
+            Map<LocalDate, MiningEnergyAllocationService.Allocation> energyAllocations =
+                    miningEnergyAllocationService.calculate(pvSiteEntity, filterDateFrom, filterDateTo, zoneId);
 
             Set<LocalDate> allAvailableDays = new HashSet<>();
             allAvailableDays.addAll(rewardsPerDay.keySet());
@@ -99,7 +104,8 @@ public class PVFinanceService {
                     .filter(date -> !date.isBefore(filterDateFrom) && !date.isAfter(filterDateTo))
                     .sorted(Comparator.reverseOrder())
                     .map(currentDay -> calculateDailyStatistic(currentDay, pvSiteEntity, minerConsumptionPerDay,
-                            rewardsPerDay, pvStatsByDate, coinRewardsPerDay, coinSnapshot.activeRoutes(), targetCurrency))
+                            rewardsPerDay, pvStatsByDate, coinRewardsPerDay, coinSnapshot.activeRoutes(),
+                            energyAllocations, targetCurrency))
                     .toList();
         }
     }
@@ -154,6 +160,7 @@ public class PVFinanceService {
                                                   Map<LocalDate, PVStatisticPerDay> pvStatsByDate,
                                                   Map<LocalDate, List<MiningCoinDailyReward>> coinRewardsPerDay,
                                                   Set<KryptexRewardService.Route> activeRoutes,
+                                                  Map<LocalDate, MiningEnergyAllocationService.Allocation> energyAllocations,
                                                   CustomCurrency targetCurrency) {
         double minerConsumption = minerConsumptionPerDay.getOrDefault(currentDay, 0.0);
         long btcEarningsSats = rewardsPerDay.getOrDefault(currentDay, 0L);
@@ -162,6 +169,8 @@ public class PVFinanceService {
         double totalPvProduction = 0.0;
         double miningPvUsage = 0.0;
         double miningGridUsage = minerConsumption;
+        double miningBatteryUsage = 0.0;
+        String energyAllocationQuality = MiningEnergyAllocationService.QUALITY_DAILY_ESTIMATE;
         double totalGridImportKwh = 0.0;
 
         double householdEigenverbrauch = 0.0;
@@ -185,6 +194,19 @@ public class PVFinanceService {
             miningPvUsage = Math.min(minerConsumption, totalEigenverbrauch * miningConsumptionShare);
             miningGridUsage = Math.max(0, minerConsumption - miningPvUsage);
             householdEigenverbrauch = Math.max(0, totalEigenverbrauch - miningPvUsage);
+        }
+
+        MiningEnergyAllocationService.Allocation intervalAllocation = energyAllocations.get(currentDay);
+        if (intervalAllocation != null) {
+            minerConsumption = intervalAllocation.miningKwh();
+            miningGridUsage = intervalAllocation.gridKwh();
+            miningBatteryUsage = intervalAllocation.batteryKwh();
+            miningPvUsage = intervalAllocation.localGenerationKwh();
+            energyAllocationQuality = intervalAllocation.quality();
+            double totalLocalConsumption = siteDayStat == null ? 0
+                    : Math.max(0, siteDayStat.getConsumptionKwh() - siteDayStat.getImportKwh());
+            householdEigenverbrauch = Math.max(0,
+                    totalLocalConsumption - miningPvUsage - miningBatteryUsage);
         }
 
         Money histFeedIn = getPriceForDate(pvSiteEntity.getFeedInTariffHistory(), currentDay);
@@ -251,6 +273,7 @@ public class PVFinanceService {
                 minerConsumption,
                 miningPvUsage,
                 miningGridUsage,
+                miningBatteryUsage,
                 householdEigenverbrauch,
                 totalExportKwh,
                 btcAmount,
@@ -268,7 +291,8 @@ public class PVFinanceService {
                 revenueComplete,
                 List.copyOf(coinLines),
                 totalGridImportKwh,
-                money(gridRate, targetCurrency)
+                money(gridRate, targetCurrency),
+                energyAllocationQuality
         );
     }
 

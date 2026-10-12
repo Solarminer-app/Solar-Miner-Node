@@ -45,8 +45,8 @@ public final class PVSiteDataDTO implements QueryResult {
         this.pvPower = pvPower;
         this.loadPowerKw = loadPowerKw;
         this.totalMinerPowerKw = totalMinerPowerKw;
-        this.importPowerKw = importPowerKw;
-        this.exportPowerKw = exportPowerKw;
+        this.importPowerKw = GridPowerNoiseFilter.directionalKw(importPowerKw);
+        this.exportPowerKw = GridPowerNoiseFilter.directionalKw(exportPowerKw);
         this.batteryChargePower = batteryChargePower;
         this.batteryDischargePower = batteryDischargePower;
         this.batterySoC = batterySoC;
@@ -125,12 +125,12 @@ public final class PVSiteDataDTO implements QueryResult {
         }
 
         public Builder importPowerKw(double importPowerKw) {
-            this.importPowerKw = importPowerKw;
+            this.importPowerKw = GridPowerNoiseFilter.directionalKw(importPowerKw);
             return this;
         }
 
         public Builder exportPowerKw(double exportPowerKw) {
-            this.exportPowerKw = exportPowerKw;
+            this.exportPowerKw = GridPowerNoiseFilter.directionalKw(exportPowerKw);
             return this;
         }
 
@@ -150,12 +150,13 @@ public final class PVSiteDataDTO implements QueryResult {
         }
 
         public Builder gridPower(double gridPower) {
-            if (gridPower > 0.05) {
-                this.importPowerKw = gridPower;
+            double filteredGridPower = GridPowerNoiseFilter.signedKw(gridPower);
+            if (filteredGridPower > 0) {
+                this.importPowerKw = filteredGridPower;
                 this.exportPowerKw = 0;
-            } else if (gridPower < -0.05) {
+            } else if (filteredGridPower < 0) {
                 this.importPowerKw = 0;
-                this.exportPowerKw = Math.abs(gridPower);
+                this.exportPowerKw = Math.abs(filteredGridPower);
             } else {
                 this.importPowerKw = 0;
                 this.exportPowerKw = 0;

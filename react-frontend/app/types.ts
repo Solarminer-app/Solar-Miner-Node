@@ -291,6 +291,7 @@ export interface PVStatisticDto {
     minerConsumption: number;
     miningPvUsage: number;
     miningGridUsage: number;
+    miningBatteryUsage: number;
     householdPvUsage: number;
     exportedKwh: number;
     minedBtc: number;
@@ -309,6 +310,7 @@ export interface PVStatisticDto {
     miningCoins: CoinMiningDayDto[];
     gridImportKwh: number;
     gridPricePerKwh: MoneyDto;
+    energyAllocationQuality: 'INTERVAL_1_MINUTE' | 'INTERVAL_1_HOUR' | 'DAILY_ESTIMATE';
 }
 
 export interface CoinMiningDayDto {

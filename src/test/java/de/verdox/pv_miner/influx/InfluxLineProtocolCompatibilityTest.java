@@ -57,6 +57,25 @@ class InfluxLineProtocolCompatibilityTest {
     }
 
     @Test
+    void pvSiteMeasurementDoesNotPersistGridMeterNoise() {
+        WriteApi writeApi = mock(WriteApi.class);
+        PVSiteEntity site = mock(PVSiteEntity.class);
+        PVSiteDataDTO data = mock(PVSiteDataDTO.class);
+        UUID entityId = UUID.fromString("f7a2ef43-781d-4ec4-a88e-29af04e9bad7");
+        Instant timestamp = Instant.parse("2026-07-15T09:11:31.055Z");
+
+        when(site.getId()).thenReturn(entityId);
+        when(data.getImportPowerKw()).thenReturn(0.03);
+        when(data.getExportPowerKw()).thenReturn(0.05);
+
+        new PVSiteInfluxStrategy().writeToInflux(writeApi, "solarminer", "SolarMiner", site, data, timestamp);
+
+        String line = captureLine(writeApi, "solarminer", "SolarMiner");
+        assertContainsField(line, "FeedInPowerInKw", 0);
+        assertContainsField(line, "GridConsumptionPower", 0);
+    }
+
+    @Test
     void minerMeasurementKeepsLegacyMeasurementTagAndFields() {
         WriteApi writeApi = mock(WriteApi.class);
         MinerEntity<?> miner = mock(MinerEntity.class);

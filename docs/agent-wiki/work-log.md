@@ -1,5 +1,20 @@
 # Agent work log
 
+## 2026-10-12 — Mining electricity-cost and coin-coverage PDF
+
+- Finance now exports a localized German/English `cost-coverage-pdf` for the selected period. It lists each day and a summary per calendar month: mining energy, time-aligned grid/PV/battery allocation, pool-reported coin rewards at historical daily value, payable grid cost, separately identified forgone feed-in revenue, cash result and economic result.
+- The report derives the coin quantity needed to cover the payable grid bill and, separately, full economic energy cost. It sums daily liquidation quantities in monthly rows, marks incomplete pool/price history, and identifies periods where the reward cannot cover the cost. These are planning estimates, not recorded sales.
+- Energy-source allocation now happens before daily aggregation. Raw site data is averaged into aligned one-minute windows; each window allocates grid import, battery discharge and remaining local generation by the miner share of site load, then integrates those powers to kWh. At least 90% coverage is required. The infinite-retention hourly summary is the historical fallback and now also retains battery discharge; remaining gaps use the labelled legacy daily estimate.
+- `PVStatisticDto` exposes battery kWh and `INTERVAL_1_MINUTE`, `INTERVAL_1_HOUR` or `DAILY_ESTIMATE`. Both the finance history and PDF show this data basis, so precision degradation is visible. Raw retention defaults to 90 days; exact older correlations cannot be reconstructed when neither raw nor battery-aware hourly data exists.
+- Battery discharge is separated from direct grid and PV allocation but is not assigned a monetary energy cost yet: doing that correctly requires a stateful battery-origin/loss ledger for grid-vs-PV charging. The PDF states this limitation instead of silently treating battery energy as free, grid energy or forgone export.
+- Verification: focused finance report/allocation tests cover synchronous grid/battery/PV allocation, interval integration, cash/economic coin quantities, monthly rows, German copy, unavailable coverage and a real `%PDF` output. The production React/Vite build also completes through Gradle.
+
+## 2026-10-12 — Docker Core discovery boundary verified
+
+- Seven PC-Agents answered the public read-only identity contract from the Node host on `192.168.178.0/24`: `.36`, `.101`, `.108`, `.117`, `.125`, `.168` and `.183`. This proves host-to-Agent TCP 8084 reachability, but it does not prove the same path from Core's Docker network namespace.
+- Core remains on the Compose bridge. The frontend contract depends on Docker DNS at `http://core:8080`, while host TCP 8082 is only the published Core port. Moving Core alone to host networking would remove that service name and break the frontend unless its URL and Core's listen port were changed together.
+- Docker bridge containers normally initiate unicast LAN connections through host forwarding, so host networking is not an evidence-backed fix. A probe from the running Core network namespace is still required to distinguish container forwarding/firewall policy from deployed-image, subnet or application failures. It could not be executed here because this user cannot access `/var/run/docker.sock`.
+
 ## 2026-10-10 — More reliable PC-Agent LAN discovery
 
 - Core reuses one Java HTTP client for PC-Agent identity probes instead of

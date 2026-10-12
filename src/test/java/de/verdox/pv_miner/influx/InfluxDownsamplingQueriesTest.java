@@ -2,6 +2,7 @@ package de.verdox.pv_miner.influx;
 
 import de.verdox.pv_miner.miner.MinerStatisticsAccumulator;
 import de.verdox.pv_miner.pvsite.PVStatisticsAccumulator;
+import de.verdox.pv_miner.pvsite.PVSiteInfluxStrategy;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -27,6 +28,8 @@ class InfluxDownsamplingQueriesTest {
         assertTrue(task.contains("date.truncate(t: now(), unit: 1h)"));
         assertTrue(task.contains("range(start: start, stop: stop)"));
         assertTrue(task.contains("aggregateWindow(every: 1h, fn: mean"));
+        assertTrue(task.contains(PVSiteInfluxStrategy.BATTERY_DISCHARGE_POWER));
+        assertTrue(task.contains("r[\"_value\"] <= 0.05 then 0.0"));
         assertFalse(task.contains("range(start: -2h)"));
     }
 

@@ -260,6 +260,7 @@ public class InfluxBackfillService {
                           |> range(start: %s, stop: %s)
                           |> filter(fn: (r) => r["_measurement"] == "%s")
                           |> filter(fn: (r) => %s)
+                          %s
 
                         pv_entity_arr = pv_all
                           |> keep(columns: ["entity"])
@@ -297,6 +298,7 @@ public class InfluxBackfillService {
                           |> to(bucket: "%s")""",
                 influxService.getInfluxBucket(), start, stop, PVSiteInfluxStrategy.MEASUREMENT_KEY,
                 InfluxDownsamplingQueries.fieldFilter(InfluxDownsamplingQueries.PV_POWER_FIELDS),
+                InfluxDownsamplingQueries.gridNoiseFilter(),
                 PVSiteInfluxStrategy.MINER_POWER_IN_KW,
                 influxService.getInfluxBucket(), start, stop, MinerInfluxStrategy.MEASUREMENT,
                 MinerInfluxStrategy.POWER_USAGE_WATTS,
@@ -331,12 +333,14 @@ public class InfluxBackfillService {
                           |> range(start: %s, stop: %s)
                           |> filter(fn: (r) => r["_measurement"] == "%s")
                           |> filter(fn: (r) => %s)
+                          %s
                           |> group(columns: ["_measurement", "_field", "entity"])
                           |> aggregateWindow(every: 1h, fn: mean, timeSrc: "_stop", timeDst: "_time", createEmpty: false)
                           |> set(key: "_measurement", value: "%s")
                           |> to(bucket: "%s")""",
                 influxService.getInfluxBucket(), start, stop, PVSiteInfluxStrategy.MEASUREMENT_KEY,
                 InfluxDownsamplingQueries.fieldFilter(InfluxDownsamplingQueries.PV_POWER_FIELDS),
+                InfluxDownsamplingQueries.gridNoiseFilter(),
                 PVSiteInfluxStrategy.HOURLY_MEASUREMENT_KEY,
                 influxService.getDownSampledInfluxBucket()
         );

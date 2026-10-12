@@ -13,8 +13,8 @@ public class PVStatisticsAccumulator implements DailyStatisticAccumulator<PVStat
     @Override
     public void accumulate(PVStatisticPerDay currentCache, PVSiteDataDTO liveData, double timeWindowInHours) {
         double producedDeltaKwh = (liveData.getPvPower()) * timeWindowInHours;
-        double exportDeltaKwh = (liveData.getExportPowerKw()) * timeWindowInHours;
-        double importDeltaKwh = (liveData.getImportPowerKw()) * timeWindowInHours;
+        double exportDeltaKwh = GridPowerNoiseFilter.directionalKw(liveData.getExportPowerKw()) * timeWindowInHours;
+        double importDeltaKwh = GridPowerNoiseFilter.directionalKw(liveData.getImportPowerKw()) * timeWindowInHours;
         double consumptionDeltaKwh = liveData.getLoadPowerKw() * timeWindowInHours;
         double consumptionMinerDeltaKwh = liveData.getTotalMinerPowerKw() * timeWindowInHours;
 
@@ -78,6 +78,7 @@ public class PVStatisticsAccumulator implements DailyStatisticAccumulator<PVStat
                         "  |> range(start: start, stop: stop)\n" +
                         "  |> filter(fn: (r) => r[\"_measurement\"] == \"%s\")\n" +
                         "  |> filter(fn: (r) => r[\"_field\"] == \"" + PVSiteInfluxStrategy.PV_POWER_IN_KW + "\" or r[\"_field\"] == \"" + PVSiteInfluxStrategy.GRID_CONSUMPTION_POWER + "\" or r[\"_field\"] == \"" + PVSiteInfluxStrategy.FEED_IN_POWER_IN_KW + "\" or r[\"_field\"] == \"" + PVSiteInfluxStrategy.LOADS_POWER_IN_KW + "\" or r[\"_field\"] == \"" + PVSiteInfluxStrategy.MINER_POWER_IN_KW + "\")\n" +
+                        "  |> map(fn: (r) => ({r with _value: if (r[\"_field\"] == \"" + PVSiteInfluxStrategy.GRID_CONSUMPTION_POWER + "\" or r[\"_field\"] == \"" + PVSiteInfluxStrategy.FEED_IN_POWER_IN_KW + "\") and r[\"_value\"] >= -" + GridPowerNoiseFilter.DEADBAND_KW + " and r[\"_value\"] <= " + GridPowerNoiseFilter.DEADBAND_KW + " then 0.0 else r[\"_value\"]}))\n" +
                         "  |> group(columns: [\"_measurement\", \"_field\", \"entity\"])\n" +
                         "  |> aggregateWindow(every: 1d, fn: (column, tables=<-) => tables |> integral(unit: 1h), timeSrc: \"_stop\", timeDst: \"_time\", createEmpty: false)\n" +
                         "  |> set(key: \"_measurement\", value: \"%s\")\n" +

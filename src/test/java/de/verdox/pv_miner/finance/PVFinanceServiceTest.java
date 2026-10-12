@@ -44,7 +44,8 @@ class PVFinanceServiceTest {
         PVFinanceService service = new PVFinanceService(
                 mock(DailyStatisticService.class),
                 mock(GlobalConstantsService.class),
-                mock(KryptexRewardService.class)
+                mock(KryptexRewardService.class),
+                mock(MiningEnergyAllocationService.class)
         );
         PVSiteEntity site = mock(PVSiteEntity.class);
         when(site.getSetupDate()).thenReturn(TODAY);
