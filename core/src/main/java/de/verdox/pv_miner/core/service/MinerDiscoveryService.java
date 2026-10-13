@@ -80,23 +80,22 @@ public class MinerDiscoveryService {
                 LOGGER.log(Level.INFO, "Does not seem to be a pc-agent at: " + ipv4 + " [" + status + "]\n" + body);
                 return null;
             }
-            Identity identity = objectMapper.readValue(body, Identity.class);
-            if (!"solarminer-pc-agent".equals(identity.kind())) return null;
+            // Keep this path free of application DTO reflection. Identity is an inbound
+            // LAN document, not a controller contract, so Spring AOT does not discover a
+            // private binding type for the native image automatically.
+            var identity = objectMapper.readTree(body);
+            if (!"solarminer-pc-agent".equals(identity.path("kind").asText())) return null;
             LOGGER.log(Level.INFO, "Found Solar Miner Agent on IP: " + ipv4);
             // The operator label from the agent wins over the fixed product model name.
-            String label = identity.name() != null && !identity.name().isBlank() ? identity.name() : identity.model();
+            String name = identity.path("name").asText("");
+            String model = identity.path("model").asText("");
+            String label = !name.isBlank() ? name : model;
             return new MinerDiscoveryService.DetectedMiner(MiningOS.AGENT,
                     label == null || label.isBlank() ? "Solarminer PC Agent" : label);
-        } catch (Exception ignored) {
+        } catch (Exception exception) {
+            LOGGER.log(Level.FINE, "PC-Agent identity probe failed for " + ipv4, exception);
         }
         return null;
-    }
-
-    /**
-     * Mirrors the PC-Agent {@code Identity} record; unknown fields are ignored.
-     */
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
-    private record Identity(String kind, int powerControlProtocolVersion, String model, String name) {
     }
 
     private MinerDiscoveryService.DetectedMiner checkAsicMiner(String ipv4) {
