@@ -6,6 +6,7 @@ import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.entity.EntityService;
 import de.verdox.pv_miner.miner.MinerApiClient;
 import de.verdox.pv_miner.miner.MinerEntity;
+import de.verdox.pv_miner.miner.MiningOS;
 import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.miningcontroller.MinerClusterService;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
@@ -48,12 +49,13 @@ class MiningControllerLiveSnapshotTest {
         when(siteRepository.findById(siteId)).thenReturn(Optional.of(site));
         when(site.getMiners()).thenReturn(Set.of(miner));
         when(miner.getId()).thenReturn(minerId);
+        when(miner.getOS()).thenReturn(MiningOS.AGENT);
     }
 
     @Test
     void returnsTheLatestCachedMinerValuesWithoutAllowingHttpCaching() {
         when(queryService.getLastResult(miner, MinerStats.DEFAULT))
-                .thenReturn(stats(90, 2_400, 71), stats(105, 2_650, 74));
+                .thenReturn(stats("Old workstation", 90, 2_400, 71), stats("Renamed workstation", 105, 2_650, 74));
 
         ResponseEntity<MiningPageDto.LiveSnapshotDto> first = controller.getMiningLiveSnapshot(siteId);
         ResponseEntity<MiningPageDto.LiveSnapshotDto> second = controller.getMiningLiveSnapshot(siteId);
@@ -62,14 +64,15 @@ class MiningControllerLiveSnapshotTest {
         assertNotNull(second.getBody());
         assertEquals(90, first.getBody().totalHashrateThs(), 0.001);
         assertEquals(105, second.getBody().totalHashrateThs(), 0.001);
+        assertEquals("Renamed workstation", second.getBody().miners().getFirst().name());
         assertEquals(2_650, second.getBody().miners().getFirst().powerWatts());
         assertEquals(74, second.getBody().miners().getFirst().temperatureCelsius(), 0.001);
         assertTrue(first.getHeaders().getCacheControl().contains("no-store"));
     }
 
-    private MinerStats stats(double hashrate, long power, double temperature) {
+    private MinerStats stats(String name, double hashrate, long power, double temperature) {
         return new MinerStats(
-                new MinerStats.MinerIdentity("uid", "mac", "model"), "Miner",
+                new MinerStats.MinerIdentity("uid", "mac", "model"), name,
                 MinerStats.MinerStatus.MINING, 2_500, 800, 3_000, 4_000,
                 power, hashrate, temperature, List.of(), List.of()
         );

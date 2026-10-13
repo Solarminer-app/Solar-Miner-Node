@@ -87,7 +87,7 @@ public class MiningController {
                     MinerStats stats = entityQueryService.getLastResult(miner, MinerStats.DEFAULT);
                     if (stats == null) stats = MinerStats.DEFAULT;
                     return new MiningPageDto.MinerLiveDto(
-                            miner.getId(), stats.miningStatus().name(), stats.terahashPerSecond(),
+                            miner.getId(), displayName(miner, stats), stats.miningStatus().name(), stats.terahashPerSecond(),
                             stats.miningPowerWatts(), stats.temperatureCelsius()
                     );
                 })
@@ -465,6 +465,13 @@ public class MiningController {
                 .map(worker -> new MiningPageDto.AlgorithmWorkerDto(worker.currentAlgorithm(), worker.workerDisplayName(),
                         worker.miningStatus().name(), worker.terahashPerSecond(), worker.miningPowerWatts()))
                 .toList();
-        return new MiningPageDto.MinerDto(miner.getId(), miner.getOS().name(), miner.getName(), miner.getIP(), stats.minerIdentity().minerModel(), stats.miningStatus().name(), stats.terahashPerSecond(), stats.miningPowerWatts(), stats.temperatureCelsius(), miner.getCurrentMiningPoolTarget(), stats.minPowerTarget(), stats.defaultPowerTarget() > 0 ? stats.defaultPowerTarget() : stats.maxPowerTarget(), stats.maxPowerTarget(), miner.getMinPowerTarget(), miner.getMaxPowerTarget(), miner.getOS().supportsDynamicPowerScaling(), algorithmHashrates, algorithmWorkers, agentControlStatus, agentControlDetail, miner.getPowerStepSizeWatts(), miner.getMinRunTimeMinutes(), miner.getMinIdleTimeMinutes(), miner.getPowerChangeLockTimeMinutes());
+        return new MiningPageDto.MinerDto(miner.getId(), miner.getOS().name(), displayName(miner, stats), miner.getIP(), stats.minerIdentity().minerModel(), stats.miningStatus().name(), stats.terahashPerSecond(), stats.miningPowerWatts(), stats.temperatureCelsius(), miner.getCurrentMiningPoolTarget(), stats.minPowerTarget(), stats.defaultPowerTarget() > 0 ? stats.defaultPowerTarget() : stats.maxPowerTarget(), stats.maxPowerTarget(), miner.getMinPowerTarget(), miner.getMaxPowerTarget(), miner.getOS().supportsDynamicPowerScaling(), algorithmHashrates, algorithmWorkers, agentControlStatus, agentControlDetail, miner.getPowerStepSizeWatts(), miner.getMinRunTimeMinutes(), miner.getMinIdleTimeMinutes(), miner.getPowerChangeLockTimeMinutes());
+    }
+
+    private String displayName(MinerEntity<?> miner, MinerStats stats) {
+        if (miner.getOS() == MiningOS.AGENT && stats.name() != null && !stats.name().isBlank() && !"-".equals(stats.name())) {
+            return stats.name().trim();
+        }
+        return miner.getName() == null || miner.getName().isBlank() ? miner.getIP() : miner.getName();
     }
 }

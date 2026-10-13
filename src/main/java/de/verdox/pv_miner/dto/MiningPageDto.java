@@ -79,6 +79,7 @@ public record MiningPageDto(
 
     public record MinerLiveDto(
             UUID id,
+            String name,
             String status,
             double hashrateThs,
             long powerWatts,

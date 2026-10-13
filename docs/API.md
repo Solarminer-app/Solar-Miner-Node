@@ -82,6 +82,7 @@ Controller sources: [`MiningController`](../src/main/java/de/verdox/pv_miner/con
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/pv-site/{siteId}/mining` | Load clusters, connected/unassigned miners, pools and fee distribution. |
+| `GET` | `/api/pv-site/{siteId}/mining/live` | Load uncached live miner values. Each row includes the current display `name`; PC-Agent renames therefore reach the mining UI without reconnecting the Agent. |
 | `POST` | `/api/pv-site/{siteId}/mining/referral` | Validate and save a referral code for this site. |
 | `DELETE` | `/api/pv-site/{siteId}/mining/referral` | Remove the site's referral code. |
 | `GET` | `/api/pv-site/{siteId}/mining/miners/discovery` | Scan a requested subnet for supported miners. |
@@ -220,6 +221,9 @@ The PC-Agent is a separate Git repository (`https://github.com/Solarminer-app/pc
 and is not part of the default Compose deployment. The Node talks to it only
 over its LAN HTTP API on `:8084` (`/api/agent/external/**`; discovery via
 `GET /api/agent/external/identity` and UDP `SOLARMINER_PROXY_DISCOVER_V1`).
+Read-only identity, mining status, power status and hardware telemetry remain available
+when Agent-side Node control is disabled; all write commands remain gated. Mining status
+covers every local worker so PV-site power statistics include the PC's complete mining load.
 The full agent API contract moved with the component to
 [`pc-agent/docs/API.md`](../pc-agent/docs/API.md).
 

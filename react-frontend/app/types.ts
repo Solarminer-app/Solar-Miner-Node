@@ -405,6 +405,7 @@ export interface MiningLiveSnapshotDto {
     totalHashrateThs: number;
     miners: Array<{
         id: string;
+        name: string;
         status: string;
         hashrateThs: number;
         powerWatts: number;

@@ -192,9 +192,11 @@ public class MinerAgentController implements MinerController {
 
     @Override
     public MinerStats queryStats(String minerName, MinerDetails details) {
+        var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
+        String reportedName = null;
         try {
-            var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
             MinerStats stats = restClient.get().uri("/api/agent/external/status").retrieve().body(MinerStats.class);
+            if (stats != null && stats.name() != null && !stats.name().isBlank()) reportedName = stats.name().trim();
             Map<?, ?> range = restClient.get().uri("/api/agent/external/power-control").retrieve().body(Map.class);
             if (stats == null || range == null) return stats;
             double hardwareTemperature = readHardwareTemperature(restClient);
@@ -225,11 +227,27 @@ public class MinerAgentController implements MinerController {
                 max = fixedPower;
                 target = fixedPower;
             }
-            return new MinerStats(stats.minerIdentity(), stats.name(), stats.miningStatus(), target, min, standard, max,
+            return new MinerStats(stats.minerIdentity(), reportedName, stats.miningStatus(), target, min, standard, max,
                     usage, stats.terahashPerSecond(), Math.max(stats.temperatureCelsius(), hardwareTemperature),
                     stats.pools(), workers);
         } catch (Throwable e) {
-            return MinerStats.DEFAULT;
+            // Identity deliberately remains readable when local Node control is disabled. This
+            // lets the Node follow an operator rename without pretending telemetry is available.
+            String identityName = readIdentityName(restClient, reportedName);
+            return MinerStats.DEFAULT.withName(identityName == null || identityName.isBlank() ? "-" : identityName);
+        }
+    }
+
+    private static String readIdentityName(RestClient restClient, String fallback) {
+        try {
+            JsonNode identity = restClient.get().uri("/api/agent/external/identity").retrieve().body(JsonNode.class);
+            if (identity == null) return fallback;
+            String name = identity.path("name").asText("").trim();
+            if (!name.isBlank()) return name;
+            String model = identity.path("model").asText("").trim();
+            return model.isBlank() ? fallback : model;
+        } catch (Throwable ignored) {
+            return fallback;
         }
     }
 

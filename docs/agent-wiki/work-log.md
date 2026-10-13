@@ -1,5 +1,27 @@
 # Agent work log
 
+## 2026-10-13 — PC-Agent-Telemetrie ohne Steuerfreigabe und clusterunabhängige PV-Leistung
+
+- Der PC-Agent-Vertrag trennt read-only Monitoring von Steuerberechtigung: Node kann Identity, Mining-Status, Power-Status und Hardware-Telemetrie auch bei `externalControlEnabled=false` lesen. Core respektiert den gemeldeten ausgeschalteten Schalter weiterhin, setzt die steuerbaren Leistungsgrenzen auf null und sendet keine dadurch freigegebenen Aktionen.
+- Der externe Agent-Status umfasst nun alle lokal laufenden CPU-/GPU-Worker, sodass ihre Mining-Watt unabhängig von globaler und workerbezogener Steuerfreigabe im Node ankommen. Die Agent-Änderung und ihre Filter-/Controller-Tests liegen im separaten `pc-agent`-Repository.
+- Die vermutete Cluster-Lücke bestand nicht: `SiteQueryStrategy` summiert bereits `PVSiteEntity.getMiners()` und verwendet keine Clusterzuordnung. Der neue `SiteQueryStrategyTest` belegt explizit, dass ein zugeordneter Miner mit 700 W und ein nicht zugeordneter Miner mit 900 W gemeinsam als 1,6 kW in `PVSiteDataDTO.totalMinerPowerKw` erscheinen. Dieser Wert fließt über die bestehende PV-Influx-/Tagesstatistik in Mining-kWh ein.
+- Keine neue UI-Kopie; DE/EN-Lokalisierung bleibt unverändert. Verifikation erfolgreich: Node-Regressionstest `SiteQueryStrategyTest`, Core-Vertragstest `MinerAgentControllerConfigurationTest`, PC-Agent-Filter-/Controller-/Aggregat-Tests sowie anschließend die vollständige PC-Agent-Testsuite. Live-LAN-Probe bleibt offen.
+
+## 2026-10-13 — Geänderte PC-Agent-Namen werden im Node aktualisiert
+
+- Ursache: Der PC-Agent meldete seinen aktuellen Operatornamen bereits als `MinerStats.name` und über den immer lesbaren Identity-Endpunkt. Der Node zeigte und speicherte nach dem Verbinden jedoch überwiegend nur den damaligen Discovery-Namen; der Dashboard-Initialzustand bevorzugte zusätzlich das feste Modell `SolarMiner-PC-Agent`.
+- Der Core behält nun den gemeldeten Namen im Statuspfad bei und liest bei gesperrtem externem Status den Namen vom weiterhin erlaubten `/api/agent/external/identity`. Ein nicht erreichbarer Agent liefert weiterhin den neutralen Namen `-`; die interne Miner-UUID kann nicht als Anzeigename durchsickern.
+- Das Node-Monitoring synchronisiert ausschließlich gültige, geänderte Namen von `AgentMinerEntity` in die Datenbank. Default-/Steuerzeichen-/Überlängenwerte und alle ASIC-Typen werden nicht verändert. Damit verwenden auch Anlagen-Details, Zielzuordnung und andere bestehende Frontend-APIs nach dem nächsten Laden den neuen Namen.
+- Der zweisekündige Mining-Live-Snapshot enthält additiv `name`; die React-Seite übernimmt ihn über ihren bestehenden Live-Merge. Dashboard-Initialdaten bevorzugen für PC-Agents ebenfalls den aktuellen Agent-Namen. Keine neue UI-Kopie oder Übersetzung war erforderlich; Deutsch und Englisch zeigen denselben vom Betreiber vergebenen Eigennamen.
+- Verifikation: fokussierte Root-Tests `EntityQueryServiceAgentNameTest` und `MiningControllerLiveSnapshotTest`, Core-Vertragstest `MinerAgentControllerConfigurationTest`, TypeScript-Prüfung und gezieltes ESLint für die Mining-Seite erfolgreich. Der Gradle-Aufruf startete außerdem den Vite-Produktionsbuild erfolgreich. Kein laufender PC-Agent wurde umbenannt; Live-Deployment-Verifikation bleibt offen.
+
+## 2026-10-13 — Mehrfachauswahl beim Verbinden gefundener Miner
+
+- Der Mining-Inventar-Dialog unterstützt nach der LAN-Suche Checkbox-Mehrfachauswahl, „Alle auswählen“ und „Auswahl aufheben“. Der Bestätigungsbutton zeigt die Anzahl ausgewählter Miner; sämtliche neuen Texte und Accessibility-relevanten Statusmeldungen liegen auf Deutsch und Englisch vor.
+- Der bestehende Einzel-Miner-Vertrag `POST /api/pv-site/{siteId}/mining/miners` bleibt unverändert. Die UI verbindet die Auswahl nacheinander und verwendet gemeinsame Zugangsdaten nur für ausgewählte ASICs; PC-Agents und 21energy-Geräte blenden diese Felder aus.
+- Bei Teilerfolg entfernt die UI erfolgreich verbundene Geräte aus der Fundliste, lädt das Inventar neu und lässt ausschließlich fehlgeschlagene Geräte ausgewählt. Nicht ausgewählte Suchergebnisse bleiben erhalten. Die Fehlermeldung wird im Dialog ausgegeben, statt verdeckt hinter dem Modal zu stehen.
+- Verifikation: `npx tsc --noEmit --pretty false`, gezieltes ESLint für die Mining-Seite, JSON-Parsing beider Locale-Dateien, `git diff --check` und der Vite-Produktionsbuild erfolgreich. Der vollständige Frontend-Lint bleibt durch bereits vorhandene Fehler in nicht betroffenen Dateien (`config-editor`, `lightning-wallet`, `setup`, `details`, `finance/wallets`, `mining/targets`, `repair-profiles`) rot. Kein Live-Netzwerkscan oder Browser-Test durchgeführt.
+
 ## 2026-10-13 — PC-Agent discovery in Core native image: second AOT failure fixed and verified live
 
 - `core-v1.1.8` contained the `LanHttp` transport repair from 2026-10-12, but the deployed native image on `192.168.178.107` still returned `null` for every PC-Agent after about 5.02 seconds. Seven Agents (`.36`, `.101`, `.108`, `.117`, `.125`, `.168`, `.183`) answered `/api/agent/external/identity` immediately from the same host, so LAN reachability, Agent availability and Docker routing were again excluded.

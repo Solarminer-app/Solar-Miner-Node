@@ -1,6 +1,8 @@
 package de.verdox.pv_miner.entity;
 
 import de.verdox.pv_miner.influx.QueryResult;
+import de.verdox.pv_miner.miner.MinerRepository;
+import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.miner.MinerQueryStrategy;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.SiteQueryStrategy;
@@ -52,11 +54,13 @@ import java.util.logging.Logger;
 public class EntityQueryService {
     private static final Logger LOGGER = Logger.getLogger(EntityQueryService.class.getSimpleName());
     private final Map<Class<? extends QueryEntity<?>>, Strategy<?, ? extends QueryResult>> strategies = new HashMap<>();
+    private final MinerRepository minerRepository;
     private final Map<UUID, QueryResult> cachedLastQueries = new ConcurrentHashMap<>();
     private final Map<UUID, Instant> lastSuccessfulQueries = new ConcurrentHashMap<>();
     private final Map<UUID, Instant> lastFailedQueries = new ConcurrentHashMap<>();
 
-    public EntityQueryService() {
+    public EntityQueryService(MinerRepository minerRepository) {
+        this.minerRepository = minerRepository;
         MinerQueryStrategy minerQueryStrategy = new MinerQueryStrategy();
         this.strategies.put(AgentMinerEntity.class, minerQueryStrategy);
         this.strategies.put(BraiinsOSAsicMinerEntity.class, minerQueryStrategy);
@@ -98,6 +102,7 @@ public class EntityQueryService {
         try {
             Q result = strategy.query(this, entity);
             if (result != null) {
+                synchronizeAgentName(entity, result);
                 cachedLastQueries.put(entity.getId(), result);
                 lastSuccessfulQueries.put(entity.getId(), Instant.now());
                 lastFailedQueries.remove(entity.getId());
@@ -107,6 +112,19 @@ public class EntityQueryService {
             lastFailedQueries.put(entity.getId(), Instant.now());
             throw throwable;
         }
+    }
+
+    void synchronizeAgentName(QueryEntity<?> entity, QueryResult result) {
+        if (!(entity instanceof AgentMinerEntity agent) || !(result instanceof MinerStats stats)) return;
+        String reportedName = stats.name() == null ? "" : stats.name().trim();
+        if (!isValidAgentName(reportedName) || reportedName.equals(agent.getName())) return;
+        agent.setName(reportedName);
+        minerRepository.save(agent);
+    }
+
+    private static boolean isValidAgentName(String name) {
+        return !name.isBlank() && !"-".equals(name) && name.length() <= 64
+                && name.chars().noneMatch(Character::isISOControl);
     }
 
     public <B extends QueryEntity<Q>, Q extends QueryResult> CompletableFuture<Boolean> ping(B entity, long timeout, TimeUnit timeoutUnit) {

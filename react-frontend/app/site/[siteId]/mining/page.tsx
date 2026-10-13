@@ -33,7 +33,7 @@ export default function MiningPage() {
     const [electricalRiskAcknowledged, setElectricalRiskAcknowledged] = useState(false);
     const [subnet, setSubnet] = useState('192.168.178');
     const [discoveredMiners, setDiscoveredMiners] = useState<DiscoveredMinerDto[]>([]);
-    const [selectedDiscoveredMiner, setSelectedDiscoveredMiner] = useState<DiscoveredMinerDto | null>(null);
+    const [selectedDiscoveredMinerIps, setSelectedDiscoveredMinerIps] = useState<string[]>([]);
     const [username, setUsername] = useState('root');
     const [password, setPassword] = useState('root');
     const [referralInput, setReferralInput] = useState('');
@@ -49,6 +49,7 @@ export default function MiningPage() {
     const [saving, setSaving] = useState(false);
     const [deletingItem, setDeletingItem] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [minerConnectionError, setMinerConnectionError] = useState<string | null>(null);
 
     const loadData = useCallback(async (signal?: AbortSignal) => {
         try {
@@ -166,6 +167,14 @@ export default function MiningPage() {
         return result;
     }, [data]);
 
+    const selectedDiscoveredMiners = useMemo(
+        () => discoveredMiners.filter((miner) => selectedDiscoveredMinerIps.includes(miner.ipAddress)),
+        [discoveredMiners, selectedDiscoveredMinerIps],
+    );
+    const selectedMinersNeedCredentials = selectedDiscoveredMiners.some(
+        (miner) => miner.operatingSystem !== 'AGENT' && miner.operatingSystem !== 'TWENTY_ONE_ENERGY',
+    );
+
     const runAction = async (path: string, body?: object) => {
         setSaving(true);
         setError(null);
@@ -195,8 +204,8 @@ export default function MiningPage() {
 
     const discoverMiners = async () => {
         setScanning(true);
-        setError(null);
-        setSelectedDiscoveredMiner(null);
+        setMinerConnectionError(null);
+        setSelectedDiscoveredMinerIps([]);
         try {
             const query = new URLSearchParams({subnet});
             const response = await fetch(`/api/pv-site/${siteId}/mining/miners/discovery?${query}`);
@@ -204,30 +213,48 @@ export default function MiningPage() {
             setDiscoveredMiners(await response.json() as DiscoveredMinerDto[]);
         } catch (reason) {
             console.error('Failed to discover miners', reason);
-            setError(t['mining.error.discovery']);
+            setMinerConnectionError(t['mining.error.discovery']);
         } finally {
             setScanning(false);
         }
     };
 
     const connectMiner = async () => {
-        if (!selectedDiscoveredMiner) return;
+        if (!selectedDiscoveredMiners.length) return;
         setSaving(true);
-        setError(null);
+        setMinerConnectionError(null);
+        const failedMinerIps: string[] = [];
+        const selectedCount = selectedDiscoveredMiners.length;
+        for (const miner of selectedDiscoveredMiners) {
+            try {
+                const response = await fetch(`/api/pv-site/${siteId}/mining/miners`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({...miner, username, password}),
+                });
+                if (!response.ok) throw new Error(String(response.status));
+            } catch (reason) {
+                console.error(`Failed to connect miner ${miner.ipAddress}`, reason);
+                failedMinerIps.push(miner.ipAddress);
+            }
+        }
+
         try {
-            const response = await fetch(`/api/pv-site/${siteId}/mining/miners`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({...selectedDiscoveredMiner, username, password}),
-            });
-            if (!response.ok) throw new Error(String(response.status));
-            await loadData();
+            const connectedMinerIps = selectedDiscoveredMiners
+                .map((miner) => miner.ipAddress)
+                .filter((ipAddress) => !failedMinerIps.includes(ipAddress));
+            if (failedMinerIps.length < selectedCount) await loadData();
+            setDiscoveredMiners((current) => current.filter((miner) => !connectedMinerIps.includes(miner.ipAddress)));
+            setSelectedDiscoveredMinerIps(failedMinerIps);
+            if (failedMinerIps.length) {
+                setMinerConnectionError(
+                    t['mining.error.connect_miner_partial']
+                        .replace('{failed}', String(failedMinerIps.length))
+                        .replace('{total}', String(selectedCount)),
+                );
+                return;
+            }
             setShowMinerConnection(false);
-            setDiscoveredMiners([]);
-            setSelectedDiscoveredMiner(null);
-        } catch (reason) {
-            console.error('Failed to connect miner', reason);
-            setError(t['mining.error.connect_miner']);
         } finally {
             setSaving(false);
         }
@@ -837,7 +864,7 @@ export default function MiningPage() {
                     <div className="my-8 w-full max-w-3xl overflow-hidden rounded-xl border border-[#303038] bg-[#17171b] shadow-2xl">
                         <div className="flex items-start justify-between border-b border-[#29292f] p-5">
                             <div><h2 className="font-semibold">{t['mining.connect_miner.title']}</h2><p className="mt-1 max-w-xl text-xs leading-5 text-[#92929c]">{t['mining.connect_miner.description']}</p></div>
-                            <button type="button" aria-label={t['mining.action.close']} onClick={() => setShowMinerConnection(false)} className="rounded-lg p-2 hover:bg-white/5"><X size={19}/></button>
+                            <button type="button" aria-label={t['mining.action.close']} disabled={saving} onClick={() => setShowMinerConnection(false)} className="rounded-lg p-2 hover:bg-white/5 disabled:opacity-40"><X size={19}/></button>
                         </div>
                         <div className="space-y-5 p-5">
                             <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -845,36 +872,49 @@ export default function MiningPage() {
                                     {t['mining.connect_miner.subnet']}
                                     <input className={inputClassName} onChange={(event) => setSubnet(event.target.value)} placeholder="192.168.178" value={subnet}/>
                                 </label>
-                                <button className="inline-flex h-[42px] items-center justify-center gap-2 rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-4 text-sm font-semibold text-yellow-300 hover:bg-yellow-400/20 disabled:opacity-40" disabled={scanning || !subnet.trim()} onClick={() => void discoverMiners()} type="button">
+                                <button className="inline-flex h-[42px] items-center justify-center gap-2 rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-4 text-sm font-semibold text-yellow-300 hover:bg-yellow-400/20 disabled:opacity-40" disabled={scanning || saving || !subnet.trim()} onClick={() => void discoverMiners()} type="button">
                                     {scanning ? <RefreshCw className="animate-spin" size={16}/> : <Search size={16}/>} {scanning ? t['mining.connect_miner.scanning'] : t['mining.connect_miner.scan']}
                                 </button>
                             </div>
 
                             <div>
-                                <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#777781]">{t['mining.connect_miner.results']}</h3>
+                                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                    <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-[#777781]">{t['mining.connect_miner.results']}</h3>
+                                    {discoveredMiners.length ? <div className="flex items-center gap-3 text-xs">
+                                        <span className="text-[#92929c]">{t['mining.connect_miner.selected_count'].replace('{count}', String(selectedDiscoveredMinerIps.length))}</span>
+                                        <button className="text-yellow-300 hover:text-yellow-200 disabled:opacity-40" disabled={saving} onClick={() => setSelectedDiscoveredMinerIps(discoveredMiners.map((miner) => miner.ipAddress))} type="button">{t['mining.connect_miner.select_all']}</button>
+                                        {selectedDiscoveredMinerIps.length ? <button className="text-[#b7b7c0] hover:text-white disabled:opacity-40" disabled={saving} onClick={() => setSelectedDiscoveredMinerIps([])} type="button">{t['mining.connect_miner.clear_selection']}</button> : null}
+                                    </div> : null}
+                                </div>
                                 <div className="max-h-56 space-y-2 overflow-y-auto">
-                                    {discoveredMiners.map((miner) => (
-                                        <button className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left ${selectedDiscoveredMiner?.ipAddress === miner.ipAddress ? 'border-yellow-400/50 bg-yellow-400/10' : 'border-[#303038] bg-[#111113] hover:border-[#484852]'}`} key={miner.ipAddress} onClick={() => setSelectedDiscoveredMiner(miner)} type="button">
+                                    {discoveredMiners.map((miner) => {
+                                        const selected = selectedDiscoveredMinerIps.includes(miner.ipAddress);
+                                        return <label className={`flex w-full cursor-pointer items-center gap-3 rounded-lg border p-3 text-left ${selected ? 'border-yellow-400/50 bg-yellow-400/10' : 'border-[#303038] bg-[#111113] hover:border-[#484852]'}`} key={miner.ipAddress}>
+                                            <input className="accent-yellow-400" checked={selected} disabled={saving} onChange={() => toggleSelection(miner.ipAddress, selectedDiscoveredMinerIps, setSelectedDiscoveredMinerIps)} type="checkbox"/>
                                             <Cpu className="text-yellow-300" size={18}/>
                                             <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{miner.model}</strong><span className="text-xs text-[#92929c]">{miner.ipAddress}</span></span>
                                             <span className="rounded-md bg-white/[0.05] px-2 py-1 text-xs text-[#a9a9b2]">{miner.operatingSystem}</span>
-                                        </button>
-                                    ))}
+                                        </label>;
+                                    })}
                                     {!scanning && discoveredMiners.length === 0 ? <p className="rounded-lg border border-dashed border-[#303038] px-4 py-7 text-center text-sm text-[#777781]">{t['mining.connect_miner.none']}</p> : null}
                                 </div>
                             </div>
 
-                            {selectedDiscoveredMiner && selectedDiscoveredMiner.operatingSystem !== 'AGENT' ? (
-                                <div className="grid gap-4 sm:grid-cols-2">
-                                    <label className="text-sm text-[#b7b7c0]">{t['mining.connect_miner.username']}<input autoComplete="username" className={inputClassName} onChange={(event) => setUsername(event.target.value)} value={username}/></label>
-                                    <label className="text-sm text-[#b7b7c0]">{t['mining.connect_miner.password']}<input autoComplete="current-password" className={inputClassName} onChange={(event) => setPassword(event.target.value)} type="password" value={password}/></label>
+                            {selectedMinersNeedCredentials ? (
+                                <div>
+                                    <p className="mb-2 text-xs text-[#92929c]">{t['mining.connect_miner.credentials_hint']}</p>
+                                    <div className="grid gap-4 sm:grid-cols-2">
+                                        <label className="text-sm text-[#b7b7c0]">{t['mining.connect_miner.username']}<input autoComplete="username" className={inputClassName} onChange={(event) => setUsername(event.target.value)} value={username}/></label>
+                                        <label className="text-sm text-[#b7b7c0]">{t['mining.connect_miner.password']}<input autoComplete="current-password" className={inputClassName} onChange={(event) => setPassword(event.target.value)} type="password" value={password}/></label>
+                                    </div>
                                 </div>
                             ) : null}
+                            {minerConnectionError ? <div aria-live="polite" className="rounded-lg border border-red-900/60 bg-red-950/30 px-4 py-3 text-sm text-red-200">{minerConnectionError}</div> : null}
                             <p className="rounded-lg border border-sky-500/20 bg-sky-500/[0.07] px-4 py-3 text-xs leading-5 text-sky-200">{t['mining.connect_miner.separation_hint']}</p>
                         </div>
                         <div className="flex justify-end gap-2 border-t border-[#29292f] p-4">
-                            <button className="rounded-lg px-4 py-2 text-sm text-gray-300 hover:bg-white/5" onClick={() => setShowMinerConnection(false)} type="button">{t['mining.action.cancel']}</button>
-                            <button className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-40" disabled={!selectedDiscoveredMiner || saving} onClick={() => void connectMiner()} type="button">{saving ? t['mining.connect_miner.connecting'] : t['mining.connect_miner.connect']}</button>
+                            <button className="rounded-lg px-4 py-2 text-sm text-gray-300 hover:bg-white/5 disabled:opacity-40" disabled={saving} onClick={() => setShowMinerConnection(false)} type="button">{t['mining.action.cancel']}</button>
+                            <button className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-40" disabled={!selectedDiscoveredMinerIps.length || saving} onClick={() => void connectMiner()} type="button">{(saving ? t['mining.connect_miner.connecting'] : t['mining.connect_miner.connect']).replace('{count}', String(selectedDiscoveredMinerIps.length))}</button>
                         </div>
                     </div>
                 </div>

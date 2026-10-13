@@ -37,6 +37,76 @@ class MinerAgentControllerConfigurationTest {
     }
 
     @Test
+    void readsRenamedAgentIdentityWhenExternalControlBlocksStatus() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/agent/external/status", exchange -> {
+            exchange.sendResponseHeaders(403, -1);
+            exchange.close();
+        });
+        server.createContext("/api/agent/external/identity", exchange -> respond(exchange,
+                "{\"kind\":\"solarminer-pc-agent\",\"protocol\":1,\"model\":\"SolarMiner PC Agent\",\"name\":\"Renamed workstation\"}"));
+        server.start();
+        try {
+            MinerDetails details = new MinerDetails(UUID.randomUUID(), "127.0.0.1", server.getAddress().getPort(), "", "");
+            MinerStats stats = new MinerAgentController().queryStats("Old workstation", details);
+
+            assertEquals("Renamed workstation", stats.name());
+            assertEquals(MinerStats.MinerStatus.ERROR, stats.miningStatus());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void retainsReadOnlyTelemetryWhileExternalControlIsDisabled() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/agent/external/status", exchange -> respond(exchange, """
+                {"minerIdentity":{"minerUID":"agent","macAddress":"","minerModel":"PC"},"name":"Observed PC","miningStatus":"MINING","powerTargetWatts":150,"minPowerTarget":80,"defaultPowerTarget":150,"maxPowerTarget":250,"approximatedPowerUsageWatts":150,"terahashPerSecond":0.000001,"temperatureCelsius":61,"pools":[],"workers":[{"miningStatus":"MINING","workerDisplayName":"CPU","currentAlgorithm":"RandomX","terahashPerSecond":0.000001,"temperatureCelsius":61,"powerTargetWatts":150,"minPowerTarget":80,"defaultPowerTarget":150,"maxPowerTarget":250,"approximatedPowerUsageWatts":150,"pools":[],"hardwareType":"CPU","hardwareModel":"Test","deviceId":"cpu"}]}
+                """));
+        server.createContext("/api/agent/external/power-control", exchange ->
+                respond(exchange, "{\"externalControlEnabled\":false,\"dynamicPowerScalingEnabled\":true,\"currentTargetWatts\":150,\"minPowerWatts\":80,\"defaultPowerWatts\":150,\"maxPowerWatts\":250}"));
+        server.createContext("/api/agent/external/telemetry", exchange -> respond(exchange,
+                "{\"metrics\":{\"cpu.temperature\":{\"available\":true,\"unit\":\"°C\",\"value\":65}}}"));
+        server.start();
+        try {
+            MinerDetails details = new MinerDetails(UUID.randomUUID(), "127.0.0.1", server.getAddress().getPort(), "", "");
+            MinerStats stats = new MinerAgentController().queryStats("agent", details);
+
+            assertEquals("Observed PC", stats.name());
+            assertEquals(MinerStats.MinerStatus.MINING, stats.miningStatus());
+            assertEquals(150, stats.approximatedPowerUsageWatts());
+            assertEquals(65, stats.temperatureCelsius());
+            assertEquals(1, stats.workers().size());
+            assertEquals(0, stats.minPowerTarget());
+            assertEquals(0, stats.maxPowerTarget());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void doesNotExposeInternalMinerIdAsNameWhenAgentIsUnavailable() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/agent/external/status", exchange -> {
+            exchange.sendResponseHeaders(503, -1);
+            exchange.close();
+        });
+        server.createContext("/api/agent/external/identity", exchange -> {
+            exchange.sendResponseHeaders(503, -1);
+            exchange.close();
+        });
+        server.start();
+        try {
+            MinerDetails details = new MinerDetails(UUID.randomUUID(), "127.0.0.1", server.getAddress().getPort(), "", "");
+            MinerStats stats = new MinerAgentController().queryStats("internal-miner-id", details);
+
+            assertEquals("-", stats.name());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void configuresMoneroThroughStandaloneProxyWithoutExternalProxyDiscovery() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         AtomicReference<String> configuration = new AtomicReference<>();

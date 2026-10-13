@@ -73,7 +73,10 @@ public class DashboardController {
             var lock = cluster == null ? null : cluster.getActiveLocks().get(miner.getId());
             long stateRemaining = lock == null ? 0 : remainingSeconds(lock.runStateUnlockTime());
             long powerRemaining = lock == null ? 0 : remainingSeconds(lock.powerChangeUnlockTime());
-            String displayName = stats.minerIdentity().minerModel() != null && !stats.minerIdentity().minerModel().isBlank()
+            String displayName = miner.getOS() == de.verdox.pv_miner.miner.MiningOS.AGENT
+                    && stats.name() != null && !stats.name().isBlank() && !"-".equals(stats.name())
+                    ? stats.name().trim()
+                    : stats.minerIdentity().minerModel() != null && !stats.minerIdentity().minerModel().isBlank()
                     ? stats.minerIdentity().minerModel()
                     : miner.getName();
             String pool = stats.pools().stream().findFirst().map(Pools::poolUrl).orElse("");
