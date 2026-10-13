@@ -85,6 +85,7 @@ public class DashboardController {
                     miner.getIP(),
                     stats.miningStatus() == null ? "UNKNOWN" : stats.miningStatus().name(),
                     stats.terahashPerSecond() + " TH/s",
+                    stats.terahashPerSecond(),
                     stats.miningPowerWatts() + " W",
                     stats.temperatureCelsius() + " °C",
                     pool,

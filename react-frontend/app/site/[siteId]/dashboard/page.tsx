@@ -43,6 +43,7 @@ import type {
     SeriesPointDto,
 } from '../../../types';
 import {useSitePreferences} from '../site-preferences-context';
+import {formatHashrateThs} from '../../../components/hashrate';
 
 const translations = {de, en};
 const API_BASE_URL = '/api/pv-site';
@@ -207,7 +208,7 @@ export default function DashboardPage() {
                     <p className="mt-1 flex items-center gap-2 text-sm text-[#777781]"><RefreshCw className="animate-spin text-yellow-300" size={14}/>{error ?? t['dashboard.loading']}</p>
                 </header>
                 <div className="grid gap-3 lg:grid-cols-2">
-                    <InventoryCard miners={initData.miners} t={t}/>
+                    <InventoryCard locale={locale} miners={initData.miners} t={t}/>
                     <PoolCard pools={initData.pools} t={t}/>
                 </div>
             </div>
@@ -257,7 +258,7 @@ export default function DashboardPage() {
                 <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <MetricCard icon={<Sun size={18}/>} label={t['dashboard.today.production']} value={kwh(day.productionKwh)} detail={`${kwh(day.selfConsumedKwh)} ${t['dashboard.today.used_locally']}`} tone="yellow"/>
                     <MetricCard icon={<Leaf size={18}/>} label={t['dashboard.today.autarky']} value={percent(day.autarkyPercent)} detail={`${percent(day.selfConsumptionPercent)} ${t['dashboard.today.self_consumption']}`} tone="green"/>
-                    <MetricCard icon={<Gauge size={18}/>} label={t['dashboard.mining.efficiency']} value={mining.efficiencyJPerTh > 0 ? `${format(mining.efficiencyJPerTh, 1)} J/TH` : '—'} detail={`${format(mining.totalHashrateThs, 2)} TH/s`} tone="cyan"/>
+                    <MetricCard icon={<Gauge size={18}/>} label={t['dashboard.mining.efficiency']} value={mining.efficiencyJPerTh > 0 ? `${format(mining.efficiencyJPerTh, 1)} J/TH` : '—'} detail={formatHashrateThs(mining.totalHashrateThs, locale)} tone="cyan"/>
                     <MiningRevenueCard day={day} euro={euro} onOpen={() => setShowMiningRevenueBreakdown(true)} t={t}/>
                 </section>
 
@@ -293,7 +294,7 @@ export default function DashboardPage() {
                 </article>
 
                 <section className="grid gap-4 xl:grid-cols-2">
-                    <InventoryCard miners={initData.miners} t={t}/>
+                    <InventoryCard locale={locale} miners={initData.miners} t={t}/>
                     <PoolCard pools={initData.pools} t={t}/>
                 </section>
             </div>
@@ -418,8 +419,8 @@ function SourceLegend({color, label, value}: {color: string; label: string; valu
     return <div className="flex items-center gap-2 rounded-lg bg-white/[0.025] px-3 py-2 text-xs"><span className={`h-2 w-2 rounded-full ${color}`}/><span className="flex-1 text-[#7d7d87]">{label}</span><strong>{value}</strong></div>;
 }
 
-function InventoryCard({miners, t}: {miners: MinerDashboardItemDTO[]; t: Record<string, string>}) {
-    return <article className="rounded-2xl border border-white/[0.07] bg-[#131318] p-4"><div className="mb-3 flex items-center justify-between"><div className="flex items-center gap-2"><Server className="text-violet-300" size={17}/><h2 className="text-sm font-semibold">{t['dashboard.miner.title']}</h2></div><span className="text-xs text-[#696973]">{miners.length}</span></div><div className="overflow-x-auto"><table className="w-full min-w-[580px] text-left text-xs"><thead className="text-[#696973]"><tr><th className="pb-2 font-medium">{t['dashboard.grid.miner.name']}</th><th className="pb-2 font-medium">{t['dashboard.grid.miner.status']}</th><th className="pb-2 font-medium">{t['dashboard.grid.miner.hashrate']}</th><th className="pb-2 font-medium">{t['dashboard.grid.miner.power']}</th><th className="pb-2 text-right font-medium">{t['dashboard.grid.miner.temp']}</th></tr></thead><tbody>{miners.map((miner) => <tr className="border-t border-white/[0.05]" key={`${miner.ip}-${miner.name}`}><td className="py-2.5"><strong className="block">{miner.name}</strong><span className="text-[10px] text-[#60606a]">{miner.ip}</span></td><td><StatusBadge status={miner.status} t={t}/></td><td>{miner.hashrate}</td><td>{miner.power}</td><td className="text-right">{miner.temp}</td></tr>)}{miners.length === 0 ? <tr><td className="py-8 text-center text-[#666670]" colSpan={5}>{t['dashboard.miner.empty']}</td></tr> : null}</tbody></table></div></article>;
+function InventoryCard({locale, miners, t}: {locale: 'de' | 'en'; miners: MinerDashboardItemDTO[]; t: Record<string, string>}) {
+    return <article className="rounded-2xl border border-white/[0.07] bg-[#131318] p-4"><div className="mb-3 flex items-center justify-between"><div className="flex items-center gap-2"><Server className="text-violet-300" size={17}/><h2 className="text-sm font-semibold">{t['dashboard.miner.title']}</h2></div><span className="text-xs text-[#696973]">{miners.length}</span></div><div className="overflow-x-auto"><table className="w-full min-w-[580px] text-left text-xs"><thead className="text-[#696973]"><tr><th className="pb-2 font-medium">{t['dashboard.grid.miner.name']}</th><th className="pb-2 font-medium">{t['dashboard.grid.miner.status']}</th><th className="pb-2 font-medium">{t['dashboard.grid.miner.hashrate']}</th><th className="pb-2 font-medium">{t['dashboard.grid.miner.power']}</th><th className="pb-2 text-right font-medium">{t['dashboard.grid.miner.temp']}</th></tr></thead><tbody>{miners.map((miner) => <tr className="border-t border-white/[0.05]" key={`${miner.ip}-${miner.name}`}><td className="py-2.5"><strong className="block">{miner.name}</strong><span className="text-[10px] text-[#60606a]">{miner.ip}</span></td><td><StatusBadge status={miner.status} t={t}/></td><td>{formatHashrateThs(miner.hashrateThs, locale)}</td><td>{miner.power}</td><td className="text-right">{miner.temp}</td></tr>)}{miners.length === 0 ? <tr><td className="py-8 text-center text-[#666670]" colSpan={5}>{t['dashboard.miner.empty']}</td></tr> : null}</tbody></table></div></article>;
 }
 
 function PoolCard({pools, t}: {pools: PoolDto[]; t: Record<string, string>}) {

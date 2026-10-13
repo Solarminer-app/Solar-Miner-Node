@@ -74,6 +74,10 @@ public class WatchedWalletController {
         MiningCoin coin;
         try { coin = MiningCoin.from(request.coin()); }
         catch (IllegalArgumentException exception) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage()); }
+        if (!coin.supportsWalletManagement()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Wallet management is not available for this coin");
+        }
         String address = request.address().trim();
         if (!coin.validAddress(address)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid public address format for " + coin.symbol());

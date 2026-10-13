@@ -8,8 +8,8 @@ import {useSitePreferences} from '../../site-preferences-context';
 
 type WatchedWallet = {id: string; label: string; coin: string; address: string; confirmedBalance: number | null; unconfirmedBalance: number | null; fetchedAt: string | null; balanceStatus: string; poolBalance?: number | null; poolBalanceFetchedAt?: string | null; poolBalanceStatus?: string};
 type Pool = {id: string; coin: string; balanceCoin: string; name: string; stratumUrl: string; balance: number | null; payoutAddress?: string | null};
-type Coin = {key: string; symbol: string; algorithm: string; automaticAssignment: boolean};
-const fallbackCoins: Coin[] = [{key: 'bitcoin', symbol: 'BTC', algorithm: 'SHA256', automaticAssignment: true}, {key: 'monero', symbol: 'XMR', algorithm: 'RandomX', automaticAssignment: true}, {key: 'pearl', symbol: 'PRL', algorithm: 'PearlHash', automaticAssignment: true}, {key: 'ravencoin', symbol: 'RVN', algorithm: 'KAWPOW', automaticAssignment: false}, {key: 'ethereumclassic', symbol: 'ETC', algorithm: 'ETCHash', automaticAssignment: false}, {key: 'decred', symbol: 'DCR', algorithm: 'BLAKE3', automaticAssignment: false}, {key: 'quantus', symbol: 'QTC', algorithm: 'QPoW', automaticAssignment: false}];
+type Coin = {key: string; symbol: string; algorithm: string; automaticAssignment: boolean; walletConfigurable?: boolean};
+const fallbackCoins: Coin[] = [{key: 'bitcoin', symbol: 'BTC', algorithm: 'SHA256', automaticAssignment: true}, {key: 'monero', symbol: 'XMR', algorithm: 'RandomX', automaticAssignment: true}, {key: 'pearl', symbol: 'PRL', algorithm: 'PearlHash', automaticAssignment: true}];
 const input = 'w-full rounded-xl border border-white/10 bg-[#17171c] px-3 py-2.5 text-sm text-white outline-none focus:border-yellow-400/60';
 const btc = (sat: number | null) => sat == null ? '—' : `${(sat / 100_000_000).toFixed(8)} BTC`;
 
@@ -38,7 +38,7 @@ export default function WalletOverviewPage() {
             ]);
             if (!results[0].ok || !results[1].ok || !results[3].ok) throw new Error(de ? 'Guthaben konnten nicht geladen werden.' : 'Could not load balances.');
             const [nextWallets, nextPools, nextCoins] = await Promise.all([results[0].json(), results[1].json(), results[3].json()]);
-            setWallets(nextWallets); setPools(nextPools); setCoins(nextCoins);
+            setWallets(nextWallets); setPools(nextPools); setCoins(nextCoins.filter((entry: Coin) => entry.walletConfigurable !== false));
             setLightning(results[2].ok ? ((await results[2].json()).balanceSat ?? null) : null);
             setError(null);
         } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
@@ -50,7 +50,9 @@ export default function WalletOverviewPage() {
         setBusy(true); setError(null);
         try {
             const response = await fetch(`${base}/watched-wallets`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({label, coin: selectedCoin, address})});
-            if (!response.ok) throw new Error(await response.text());
+            if (!response.ok) throw new Error(response.status === 409
+                ? (de ? 'Diese Adresse ist bereits gespeichert.' : 'This address is already saved.')
+                : (de ? 'Adresse oder Coin werden nicht unterstützt.' : 'The address or coin is not supported.'));
             setLabel(''); setAddress(''); setShowAdd(false); await load(); window.dispatchEvent(new Event('solarminer:balances-changed'));
         } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
         finally { setBusy(false); }
@@ -61,7 +63,7 @@ export default function WalletOverviewPage() {
         setBusy(true); setError(null);
         try {
             const response = await fetch(`${base}/watched-wallets/${wallet.id}`, {method: 'DELETE'});
-            if (!response.ok) throw new Error(await response.text());
+            if (!response.ok) throw new Error(de ? 'Adresse konnte nicht entfernt werden.' : 'Could not remove the address.');
             await load(); window.dispatchEvent(new Event('solarminer:balances-changed'));
         } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
         finally { setBusy(false); }

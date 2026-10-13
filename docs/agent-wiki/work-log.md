@@ -917,3 +917,24 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - Stratum-Proxy-Repo: `docker-deploy-proxy.yml` analog um `latest-amd64`/`latest-arm64` + Inspect erweitert (auf `beta`; läuft bei `v*`-Tag von master).
 - WICHTIG: Die fehlenden Proxy-Tags werden erst mit dem naechsten `v*`-Release neu erzeugt; ein Re-Tag von v1.0.6 ist dafuer nicht noetig, der naechste Release schliesst die Luecke.
 - Currency Service (`currency-service/release.yml`) publiziert bewusst nur Multi-Arch (`latest`/`beta`) — kein Consumer pinnt dort Per-Arch-Tags, keine Aenderung.
+## 2026-10-13 — BTC/XMR/PRL targets, actual Kryptex credits and fee-aware forecast
+
+- Node wallet creation and the wallet UI now expose only the end-to-end supported BTC, XMR and PRL paths. Existing stored records for prepared coins remain readable, but new unsupported wallet entries are rejected. Mining-target control stays BTC/XMR/PRL as before.
+- The earnings API/UI now separates actual Kryptex reward-chart credits for the last seven completed UTC days from forecasts. Amount, daily average, configured route count, daily point count and completeness are explicit; pool balance and payout history are not mislabeled as earnings.
+- PC-Agent XMR/PRL forecasts use net values only when SolarMiner, pool and miner fees are completely resolved. Gross values remain visible in the wire contract; incomplete fee data blocks the profitability decision. Bitcoin remains explicitly gross.
+- German and English UI copy/error handling were updated together. Verification: full JDK 21 `sh gradlew test --no-daemon` passed, including the production frontend build; focused wallet-support and seven-day reward completeness tests passed after the final aggregation change. No live pool wallet was used; Kryptex response parsing remains fixture-tested and actual credits depend on the public provider API at runtime.
+
+## 2026-10-13 — Einheitliche Hashrate-Anzeige und EUR-Kursbefund
+
+- Alle angezeigten Hashraten im Node-Frontend nutzen nun eine zentrale, locale-sensible SI-Formatierung von `H/s` bis `PH/s`; sie zeigt eine Einheit erst ab einem Wert von eins an. Beispiel: `0,8 TH/s` wird mathematisch korrekt als `800 GH/s` dargestellt. Die deutsche und englische Locale steuern nur die Zahlendarstellung, nicht die international üblichen Einheiten.
+- Das Dashboard-Init-DTO enthält zusätzlich `hashrateThs` als numerischen, rückwärtskompatibel ergänzten Wert. Das bisherige Feld `hashrate` bleibt für bestehende Konsumenten erhalten; die React-Tabelle formatiert ausschließlich den neuen Zahlenwert.
+- Kursbefund, Produktionsprobe 2026-10-13: Der Currency-Service veröffentlicht XMR und ETC in `/coin-prices` absichtlich nur in USD. Der Node rechnet über den ebenfalls veröffentlichten USD/EUR-Kurs um; CoinGecko liefert bei einer direkten Abfrage beide EUR-Quoten. Ein fehlender oder falscher XMR-/ETC-EUR-Kurs war in den produktiven Antworten nicht reproduzierbar.
+- Verifikation: `npm run build` im `react-frontend` erfolgreich; `git diff --check` fehlerfrei. Java-Kompilierung konnte mit JDK 21 wegen der Sandbox-Netzwerkgrenze `Could not determine a usable wildcard IP for this machine` nicht starten. Das bestehende Frontend-Lint meldet unveränderte Fehler außerhalb dieser Änderung.
+
+## 2026-10-13 — Mining-Frontend in drei Arbeitsbereiche gegliedert
+
+- Die Mining-Startseite trennt jetzt die Arbeitsbereiche **Miner**, **Pools & Wallets** und **Cluster**. Miner und Cluster bleiben als vollständige Ansichten auf der Startseite; Pools & Wallets führt zur bestehenden Ziel-, Poolkonto- und Wallet-Verwaltung unter `/mining/targets`, die entsprechend umbenannt wurde.
+- Die Miner-Inventarliste ist der Ort zum Verbinden und Entfernen von Geräten. Jede Zeile zeigt nun zusätzlich zum Namen, Modell und Cluster den Live-Status sowie Hashrate, Leistungsaufnahme und Temperatur. Die Detailseite bleibt für Worker-, Verlauf- und Regelungsdaten zuständig.
+- Alle neuen sichtbaren Texte liegen in `react-frontend/app/locales/de.json` und `en.json` vor. Kein externer, nicht übersetzbarer Text wurde ergänzt.
+- Nebenbei wurde ein bestehender Dashboard-Typfehler korrigiert: `InventoryCard` erhält die Locale nun explizit, damit die zentrale Hashrate-Formatierung nicht auf eine nicht vorhandene Variable zugreift.
+- Verifikation: `npx eslint app/site/[siteId]/mining/page.tsx app/site/[siteId]/mining/targets/page.tsx app/site/[siteId]/dashboard/page.tsx` ohne Fehler (eine unveränderte Warnung zu `formatLockDuration` bleibt); `npm run build:next` erfolgreich; `git diff --check` fehlerfrei.

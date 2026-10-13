@@ -2,13 +2,14 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import Link from 'next/link';
-import {Activity, AlertTriangle, Bolt, CheckCircle2, Cpu, Gauge, LoaderCircle, Network, Pause, Play, Plus, Radio, RefreshCw, Search, Server, Settings2, ShieldAlert, Thermometer, Trash2, Unlink, WalletCards, X} from 'lucide-react';
+import {Activity, AlertTriangle, Bolt, CheckCircle2, Cpu, Gauge, LoaderCircle, Pause, Play, Plus, Radio, RefreshCw, Search, Server, Settings2, ShieldAlert, Thermometer, Trash2, Unlink, WalletCards, X} from 'lucide-react';
 import {useParams} from 'next/navigation';
 
 import de from '../../../locales/de.json';
 import en from '../../../locales/en.json';
 import type {DiscoveredMinerDto, MinerDto, MiningLiveSnapshotDto, MiningPageDto, ReferralCodeDto} from '../../../types';
 import {useSitePreferences} from '../site-preferences-context';
+import {formatHashrateThs} from '../../../components/hashrate';
 
 const translations = {de, en};
 const ELECTRICAL_RISK_THRESHOLD_WATTS = 3200;
@@ -25,7 +26,7 @@ export default function MiningPage() {
     const [selectedMinerIds, setSelectedMinerIds] = useState<string[]>([]);
     const [assignMinerIds, setAssignMinerIds] = useState<string[]>([]);
     const [showAssignment, setShowAssignment] = useState(false);
-    const [section, setSection] = useState<'inventory' | 'clusters'>('inventory');
+    const [section, setSection] = useState<'miners' | 'clusters'>('miners');
     const [showMinerConnection, setShowMinerConnection] = useState(false);
     const [powerTargetMiner, setPowerTargetMiner] = useState<MinerDto | null>(null);
     const [minimumPowerWatts, setMinimumPowerWatts] = useState(0);
@@ -419,7 +420,7 @@ export default function MiningPage() {
                         <p className="mt-1 text-sm text-[#9c9ca5]">{t['mining.subtitle']}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                    <Link className="inline-flex items-center justify-center gap-2 rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-4 py-2 text-sm font-semibold text-yellow-300 hover:bg-yellow-400/20" href={`/site/${siteId}/mining/targets`}><WalletCards size={16}/>{locale === 'de' ? 'Mining-Ziele' : 'Mining targets'}</Link>
+                    <Link className="inline-flex items-center justify-center gap-2 rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-4 py-2 text-sm font-semibold text-yellow-300 hover:bg-yellow-400/20" href={`/site/${siteId}/mining/targets`}><WalletCards size={16}/>{t['mining.section.pools']}</Link>
                     <button
                         type="button"
                         onClick={() => void loadData()}
@@ -437,7 +438,7 @@ export default function MiningPage() {
                         {label: t['mining.kpi.clusters'], value: data?.totalClusters ?? 0, icon: <Server size={22}/>},
                         {label: t['mining.kpi.active'], value: data?.activeClusters ?? 0, icon: <Activity size={22}/>},
                         {label: t['mining.kpi.miners'], value: data?.totalMiners ?? 0, icon: <Cpu size={22}/>},
-                        {label: t['mining.kpi.hashrate'], value: `${(data?.totalHashrateThs ?? 0).toFixed(2)} TH/s`, icon: <Gauge size={22}/>},
+                        {label: t['mining.kpi.hashrate'], value: formatHashrateThs(data?.totalHashrateThs ?? 0, locale), icon: <Gauge size={22}/>},
                     ].map((item) => (
                         <div key={item.label} className="flex items-center justify-between rounded-xl border border-[#25252b] bg-[#17171b] p-4">
                             <div>
@@ -467,9 +468,9 @@ export default function MiningPage() {
                             </div>
 
                             <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                <FeeAllocationRow color="bg-yellow-400" label={t['mining.fee.your_pool']} percentage={data.devFee.userPercentage} totalHashrate={data.totalHashrateThs}/>
-                                {data.devFee.allocations.map((allocation) => <FeeAllocationRow color={allocation.beneficiaryType === 'REFERRAL' ? 'bg-violet-400' : 'bg-cyan-400'} key={`${allocation.beneficiaryType}-${allocation.beneficiaryName}`} label={allocation.beneficiaryType === 'REFERRAL' ? `${t['mining.fee.referral']} · ${allocation.beneficiaryName}` : allocation.beneficiaryName} percentage={allocation.percentage} totalHashrate={data.totalHashrateThs}/>)}
-                                {!data.devFee.allocations.length ? <FeeAllocationRow color="bg-[#555561]" label={t['mining.fee.backend_target']} percentage={data.devFee.totalFeePercentage} totalHashrate={data.totalHashrateThs}/> : null}
+                                <FeeAllocationRow color="bg-yellow-400" label={t['mining.fee.your_pool']} locale={locale} percentage={data.devFee.userPercentage} totalHashrate={data.totalHashrateThs}/>
+                                {data.devFee.allocations.map((allocation) => <FeeAllocationRow color={allocation.beneficiaryType === 'REFERRAL' ? 'bg-violet-400' : 'bg-cyan-400'} key={`${allocation.beneficiaryType}-${allocation.beneficiaryName}`} label={allocation.beneficiaryType === 'REFERRAL' ? `${t['mining.fee.referral']} · ${allocation.beneficiaryName}` : allocation.beneficiaryName} locale={locale} percentage={allocation.percentage} totalHashrate={data.totalHashrateThs}/>)}
+                                {!data.devFee.allocations.length ? <FeeAllocationRow color="bg-[#555561]" label={t['mining.fee.backend_target']} locale={locale} percentage={data.devFee.totalFeePercentage} totalHashrate={data.totalHashrateThs}/> : null}
                             </div>
                         </div>
 
@@ -494,15 +495,19 @@ export default function MiningPage() {
                     </details>
                 ) : null}
 
-                <nav className="grid gap-2 rounded-xl border border-[#25252b] bg-[#111113] p-2 sm:grid-cols-2" aria-label={t['mining.section.navigation']}>
+                <nav className="grid gap-2 rounded-xl border border-[#25252b] bg-[#111113] p-2 sm:grid-cols-3" aria-label={t['mining.section.navigation']}>
                     <button
-                        className={`flex items-center gap-3 rounded-lg px-4 py-3 text-left transition ${section === 'inventory' ? 'bg-yellow-400 text-black' : 'text-[#a9a9b2] hover:bg-white/[0.05] hover:text-white'}`}
-                        onClick={() => setSection('inventory')}
+                        className={`flex items-center gap-3 rounded-lg px-4 py-3 text-left transition ${section === 'miners' ? 'bg-yellow-400 text-black' : 'text-[#a9a9b2] hover:bg-white/[0.05] hover:text-white'}`}
+                        onClick={() => setSection('miners')}
                         type="button"
                     >
-                        <Network size={19}/>
-                        <span><strong className="block text-sm">{t['mining.section.inventory']}</strong><span className={`text-xs ${section === 'inventory' ? 'text-black/65' : 'text-[#74747e]'}`}>{t['mining.section.inventory_hint']}</span></span>
+                        <Cpu size={19}/>
+                        <span><strong className="block text-sm">{t['mining.section.miners']}</strong><span className={`text-xs ${section === 'miners' ? 'text-black/65' : 'text-[#74747e]'}`}>{t['mining.section.miners_hint']}</span></span>
                     </button>
+                    <Link className="flex items-center gap-3 rounded-lg px-4 py-3 text-left text-[#a9a9b2] transition hover:bg-white/[0.05] hover:text-white" href={`/site/${siteId}/mining/targets`}>
+                        <WalletCards size={19}/>
+                        <span><strong className="block text-sm">{t['mining.section.pools']}</strong><span className="text-xs text-[#74747e]">{t['mining.section.pools_hint']}</span></span>
+                    </Link>
                     <button
                         className={`flex items-center gap-3 rounded-lg px-4 py-3 text-left transition ${section === 'clusters' ? 'bg-yellow-400 text-black' : 'text-[#a9a9b2] hover:bg-white/[0.05] hover:text-white'}`}
                         onClick={() => setSection('clusters')}
@@ -513,7 +518,7 @@ export default function MiningPage() {
                     </button>
                 </nav>
 
-                {section === 'inventory' ? (
+                {section === 'miners' ? (
                     <div className="grid gap-6">
                         <section className="overflow-hidden rounded-xl border border-[#25252b] bg-[#111113]">
                             <div className="flex items-center justify-between gap-4 border-b border-[#25252b] p-5">
@@ -535,6 +540,12 @@ export default function MiningPage() {
                                             <div className="min-w-0 flex-1">
                                                 <strong className="block truncate text-sm">{minerName}</strong>
                                                 <span className="block truncate text-xs text-[#92929c]">{miner.ipAddress} · {miner.model}</span>
+                                                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                                    <span className={`rounded-full px-2 py-1 font-semibold ${miner.status === 'MINING' ? 'bg-emerald-500/15 text-emerald-300' : miner.status === 'ERROR' ? 'bg-red-500/15 text-red-300' : 'bg-white/[0.06] text-[#b5b5bf]'}`}>{t[`mining.miner_status.${miner.status.toLowerCase()}`] ?? miner.status}</span>
+                                                    <span className="rounded-full bg-white/[0.05] px-2 py-1 text-[#d0d0d7]">{t['mining.grid.hashrate']}: {formatHashrateThs(miner.hashrateThs, locale)}</span>
+                                                    <span className="rounded-full bg-white/[0.05] px-2 py-1 text-[#d0d0d7]">{t['mining.grid.power']}: {miner.powerWatts} W</span>
+                                                    <span className={`rounded-full bg-white/[0.05] px-2 py-1 ${miner.temperatureCelsius >= 80 ? 'text-orange-300' : 'text-[#d0d0d7]'}`}>{t['mining.grid.temperature']}: {miner.temperatureCelsius.toFixed(1)} °C</span>
+                                                </div>
                                             </div>
                                             <span className={`hidden rounded-full px-2.5 py-1 text-xs sm:inline-flex ${clusterByMinerId.has(miner.id) ? 'bg-violet-500/15 text-violet-300' : 'bg-white/[0.06] text-[#a0a0aa]'}`}>
                                                 {clusterByMinerId.get(miner.id) ?? t['mining.inventory.unassigned']}
@@ -629,7 +640,7 @@ export default function MiningPage() {
                         {clusterMetrics && selectedCluster?.miners.length ? (
                             <div className="mb-5 grid grid-cols-2 gap-2 lg:grid-cols-4">
                                 {[
-                                    {label: t['mining.cluster.metrics.hashrate'], value: `${clusterMetrics.hashrate.toFixed(2)} TH/s`, icon: <Gauge size={16}/>, tone: 'text-yellow-300 bg-yellow-400/10'},
+                                    {label: t['mining.cluster.metrics.hashrate'], value: formatHashrateThs(clusterMetrics.hashrate, locale), icon: <Gauge size={16}/>, tone: 'text-yellow-300 bg-yellow-400/10'},
                                     {label: t['mining.cluster.metrics.power'], value: `${clusterMetrics.power.toLocaleString()} W`, icon: <Bolt size={16}/>, tone: 'text-sky-300 bg-sky-400/10'},
                                     {label: t['mining.cluster.metrics.temperature'], value: `${clusterMetrics.maxTemperature.toFixed(1)} °C`, icon: <Thermometer size={16}/>, tone: clusterMetrics.maxTemperature >= 80 ? 'text-orange-300 bg-orange-400/10' : 'text-emerald-300 bg-emerald-400/10'},
                                     {label: t['mining.cluster.metrics.warnings'], value: String(clusterMetrics.warnings), icon: <AlertTriangle size={16}/>, tone: clusterMetrics.warnings ? 'text-red-300 bg-red-400/10' : 'text-emerald-300 bg-emerald-400/10'},
@@ -674,7 +685,7 @@ export default function MiningPage() {
                                             {miner.agentControlStatus === 'EXTERNAL_CONTROL_DISABLED' ? <p className="mt-2 max-w-56 text-xs leading-5 text-amber-300">{t['mining.agent_control.disabled']}</p> : null}
                                         </td>
                                         <td className="px-3 py-4 font-mono text-yellow-300">
-                                            {miner.os === 'AGENT' && miner.algorithmHashrates?.length ? <AgentAlgorithmRates locale={locale} rates={miner.algorithmHashrates}/> : `${miner.hashrateThs.toFixed(2)} TH/s`}
+                                            {miner.os === 'AGENT' && miner.algorithmHashrates?.length ? <AgentAlgorithmRates locale={locale} rates={miner.algorithmHashrates}/> : formatHashrateThs(miner.hashrateThs, locale)}
                                         </td>
                                         <td className="px-3 py-4">
                                             <span className="block font-medium">{miner.powerWatts} W</span>
@@ -719,7 +730,7 @@ export default function MiningPage() {
                                                 <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${miner.status === 'MINING' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}>{t[`mining.miner_status.${miner.status.toLowerCase()}`] ?? miner.status}</span>
                                             </div>
                                             <div className="mt-4 grid grid-cols-3 gap-2">
-                                                <MiniMetric label={t['mining.grid.hashrate']} value={miner.os === 'AGENT' && miner.algorithmHashrates?.length ? <AgentAlgorithmRates locale={locale} rates={miner.algorithmHashrates}/> : `${miner.hashrateThs.toFixed(2)} TH/s`}/>
+                                                <MiniMetric label={t['mining.grid.hashrate']} value={miner.os === 'AGENT' && miner.algorithmHashrates?.length ? <AgentAlgorithmRates locale={locale} rates={miner.algorithmHashrates}/> : formatHashrateThs(miner.hashrateThs, locale)}/>
                                                 <MiniMetric label={t['mining.grid.power']} value={`${miner.powerWatts} W`}/>
                                                 <MiniMetric label={t['mining.grid.temperature']} tone={miner.temperatureCelsius >= 80 ? 'text-orange-300' : undefined} value={`${miner.temperatureCelsius.toFixed(1)} °C`}/>
                                             </div>
@@ -943,7 +954,7 @@ export default function MiningPage() {
                                         <strong className="block text-sm">{miner.name || miner.model}</strong>
                                         <span className="text-xs text-[#92929c]">{miner.ipAddress} · {miner.status}</span>
                                     </span>
-                                    <span className="text-xs text-yellow-300">{miner.hashrateThs.toFixed(2)} TH/s</span>
+                                    <span className="text-xs text-yellow-300">{formatHashrateThs(miner.hashrateThs, locale)}</span>
                                 </label>
                             ))}
                         </div>
@@ -970,9 +981,9 @@ function PowerInfo({label, value, tone = 'default'}: {label: string; value: stri
     return <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3"><span className="text-xs text-[#898994]">{label}</span><strong className={`mt-1 block text-lg ${tones[tone]}`}>{value}</strong></div>;
 }
 
-function FeeAllocationRow({color, label, percentage, totalHashrate}: {color: string; label: string; percentage: number; totalHashrate: number}) {
+function FeeAllocationRow({color, label, locale, percentage, totalHashrate}: {color: string; label: string; locale: 'de' | 'en'; percentage: number; totalHashrate: number}) {
     const hashrate = totalHashrate * Math.max(0, percentage) / 100;
-    return <div className="flex items-center gap-2 rounded-lg bg-white/[0.025] px-3 py-2.5"><span className={`h-2.5 w-2.5 shrink-0 rounded-full ${color}`}/><span className="min-w-0 flex-1"><strong className="block truncate text-xs">{label}</strong><span className="text-[11px] text-[#777781]">{percentage.toFixed(2)} %</span></span><strong className="font-mono text-xs">{hashrate.toFixed(2)} TH/s</strong></div>;
+    return <div className="flex items-center gap-2 rounded-lg bg-white/[0.025] px-3 py-2.5"><span className={`h-2.5 w-2.5 shrink-0 rounded-full ${color}`}/><span className="min-w-0 flex-1"><strong className="block truncate text-xs">{label}</strong><span className="text-[11px] text-[#777781]">{percentage.toFixed(2)} %</span></span><strong className="font-mono text-xs">{formatHashrateThs(hashrate, locale)}</strong></div>;
 }
 
 function AgentAlgorithmRates({rates, locale}: {rates: Array<{algorithm: string; hashrateThs: number}>; locale: 'de' | 'en'}) {
@@ -984,7 +995,7 @@ function AgentAlgorithmRates({rates, locale}: {rates: Array<{algorithm: string; 
         <div className="mt-1 space-y-1 rounded-lg border border-white/[0.08] bg-[#101013] p-2">
             {rates.map(rate => <div className="flex items-center justify-between gap-3" key={rate.algorithm}>
                 <span className="truncate text-[#b8b8c1]">{rate.algorithm}</span>
-                <span className="shrink-0 font-mono text-yellow-300">{formatAgentHashrate(rate.hashrateThs)}</span>
+                <span className="shrink-0 font-mono text-yellow-300">{formatHashrateThs(rate.hashrateThs, locale)}</span>
             </div>)}
         </div>
     </details>;
@@ -1007,23 +1018,12 @@ function AlgorithmOverview({miners, siteId, locale}: {miners: MinerDto[]; siteId
             <div className="flex items-center justify-between gap-2"><strong className="text-sm">{group.coin} · {group.algorithm}</strong><span className="text-xs text-[#92929c]">{group.workers.length} {de ? 'Worker' : 'workers'}</span></div>
             <div className="mt-3 space-y-2">{group.workers.map(worker => <Link className="block rounded-lg bg-black/20 px-3 py-2 hover:bg-white/[.05]" href={`/site/${siteId}/mining/miners/${worker.miner.id}`} key={worker.key}>
                 <span className="flex items-center justify-between gap-2"><span className="truncate text-xs font-medium text-white">{worker.name}</span><span className={`shrink-0 text-[11px] ${worker.status === 'MINING' ? 'text-emerald-300' : worker.status === 'ERROR' ? 'text-red-300' : 'text-[#92929c]'}`}>{worker.status}</span></span>
-                <span className="mt-1 flex items-center justify-between gap-2 text-[11px] text-[#888894]"><span className="truncate">{worker.miner.name || worker.miner.ipAddress}</span><span className="shrink-0 font-mono text-yellow-300">{formatAgentHashrate(worker.hashrateThs)}</span></span>
+                <span className="mt-1 flex items-center justify-between gap-2 text-[11px] text-[#888894]"><span className="truncate">{worker.miner.name || worker.miner.ipAddress}</span><span className="shrink-0 font-mono text-yellow-300">{formatHashrateThs(worker.hashrateThs, locale)}</span></span>
             </Link>)}{group.workers.length === 0 && <p className="py-3 text-xs text-[#777781]">{de ? 'Kein Worker gemeldet.' : 'No worker reported.'}</p>}</div>
         </div>)}</div>
     </section>;
 }
 
-function formatAgentHashrate(terahashesPerSecond: number) {
-    const hashesPerSecond = Math.max(0, terahashesPerSecond) * 1e12;
-    const units = ['H/s', 'kH/s', 'MH/s', 'GH/s', 'TH/s', 'PH/s'];
-    let value = hashesPerSecond;
-    let unitIndex = 0;
-    while (value >= 1000 && unitIndex < units.length - 1) {
-        value /= 1000;
-        unitIndex++;
-    }
-    return `${value.toLocaleString(undefined, {maximumFractionDigits: 2})} ${units[unitIndex]}`;
-}
 
 function MiniMetric({label, value, tone = 'text-white'}: {label: string; value: React.ReactNode; tone?: string}) {
     return <div className="min-w-0 rounded-lg bg-white/[0.035] px-2.5 py-2"><span className="block truncate text-[10px] text-[#777781]">{label}</span><strong className={`mt-1 block truncate text-xs ${tone}`}>{value}</strong></div>;

@@ -32,6 +32,8 @@ public enum MiningCoin {
     public String agentAlgorithm() { return agentAlgorithm; }
     public boolean automaticAssignment() { return automaticAssignment; }
     public boolean supportsNodeTargetControl() { return this == BITCOIN || this == MONERO || this == PEARL; }
+    /** Coins whose wallet/pool path is complete enough for operator-facing Node configuration. */
+    public boolean supportsWalletManagement() { return this == BITCOIN || this == MONERO || this == PEARL; }
     public String kryptexTicker() {
         return switch (this) {
             case MONERO -> "xmr";

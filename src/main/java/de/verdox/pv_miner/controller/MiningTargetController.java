@@ -60,7 +60,8 @@ public class MiningTargetController {
     public List<CoinDto> coins(@PathVariable UUID siteId) {
         requireSite(siteId);
         return Arrays.stream(MiningCoin.values()).map(coin -> new CoinDto(coin.key(), coin.symbol(),
-                coin.algorithm(), coin.automaticAssignment(), coin.supportsNodeTargetControl())).toList();
+                coin.algorithm(), coin.automaticAssignment(), coin.supportsNodeTargetControl(),
+                coin.supportsWalletManagement())).toList();
     }
 
     @PostMapping("/targets")
@@ -210,7 +211,8 @@ public class MiningTargetController {
                     entity.getWorkerPrefix(), entity.getPriority(), entity.isEnabled());
         }
     }
-    public record CoinDto(String key, String symbol, String algorithm, boolean automaticAssignment, boolean targetConfigurable) { }
+    public record CoinDto(String key, String symbol, String algorithm, boolean automaticAssignment,
+                          boolean targetConfigurable, boolean walletConfigurable) { }
     public record PoolOverviewDto(UUID id, String source, String coin, String balanceCoin, String name, String stratumUrl, BigDecimal balance, Instant balanceUpdatedAt,
                                   Integer poolWorkerCount, List<AssignedMinerDto> assignedMiners, String payoutAddress, String suggestedWorkerPrefix) { }
     public record AssignedMinerDto(UUID id, String name, String status) { }

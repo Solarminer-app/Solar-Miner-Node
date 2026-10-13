@@ -53,7 +53,13 @@ public class AgentEarningsSource implements MiningEarningsSource {
                                 && worker.miningStatus() == MinerStats.MinerStatus.MINING)
                         .mapToDouble(MinerStats.Worker::miningPowerWatts).sum();
                 double priceUsd = forecast.path("priceUsd").asDouble();
-                double coinsPerDay = forecast.path("coinsPerDay").asDouble();
+                double grossCoinsPerDay = forecast.path("grossCoinsPerDay").asDouble(forecast.path("coinsPerDay").asDouble());
+                double grossUsdPerDay = forecast.path("grossUsdPerDay").asDouble(grossCoinsPerDay * priceUsd);
+                boolean knownFeesComplete = forecast.path("knownFeesComplete").asBoolean(false);
+                double coinsPerDay = knownFeesComplete ? forecast.path("netCoinsPerDay").asDouble() : grossCoinsPerDay;
+                double usdPerDay = knownFeesComplete ? forecast.path("netUsdPerDay").asDouble() : grossUsdPerDay;
+                Double knownFeePercent = knownFeesComplete && forecast.path("knownFeePercent").isNumber()
+                        ? forecast.path("knownFeePercent").asDouble() : null;
                 String updatedAt = forecast.path("updatedAt").asText("");
                 List<String> sources = new ArrayList<>();
                 forecast.path("sources").forEach(value -> sources.add(value.asText()));
@@ -65,6 +71,7 @@ public class AgentEarningsSource implements MiningEarningsSource {
                     else if (!forecast.path("available").asBoolean()) diagnostics.add("PC-Agent hat keine Prognose geliefert");
                 }
                 if (forecast.path("stale").asBoolean()) diagnostics.add("PC-Agent-Daten sind als veraltet markiert");
+                if (!knownFeesComplete) diagnostics.add("PC-Agent konnte Pool-, Miner- und SolarMiner-Gebühren nicht vollständig auflösen");
                 boolean fresh;
                 try { fresh = Instant.parse(updatedAt).plus(Duration.ofMinutes(20)).isAfter(Instant.now()); }
                 catch (Exception ignored) { fresh = false; }
@@ -75,13 +82,15 @@ public class AgentEarningsSource implements MiningEarningsSource {
                 boolean available = diagnostics.isEmpty();
                 result.add(new MiningEarningsService.CoinEstimate(coin.key(), coin.symbol(), available,
                         available ? "" : String.join("; ", diagnostics),
-                        coinsPerDay, coinsPerDay * priceUsd,
-                        watts, hashrate, updatedAt, sources, List.copyOf(diagnostics)));
+                        coinsPerDay, usdPerDay,
+                        watts, hashrate, updatedAt, sources, List.copyOf(diagnostics), grossCoinsPerDay,
+                        grossUsdPerDay, knownFeePercent, knownFeesComplete ? "NET_KNOWN_FEES" : "GROSS"));
             }
         } catch (Exception ignored) {
             String detail = "PC-Agent-Abruf fehlgeschlagen (" + ignored.getClass().getSimpleName() + ")";
             result.add(new MiningEarningsService.CoinEstimate("agent", "—", false, detail, 0, 0, 0, 0, "",
-                    List.of("PC-Agent API :8084/api/agent/external/earnings"), List.of(detail)));
+                    List.of("PC-Agent API :8084/api/agent/external/earnings"), List.of(detail),
+                    0, 0, null, "UNAVAILABLE"));
         }
         return result;
     }

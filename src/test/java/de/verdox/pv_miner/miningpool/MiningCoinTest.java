@@ -29,6 +29,17 @@ class MiningCoinTest {
     }
 
     @Test
+    void exposesOnlyEndToEndSupportedWalletConfigurationInTheNode() {
+        assertTrue(MiningCoin.BITCOIN.supportsWalletManagement());
+        assertTrue(MiningCoin.MONERO.supportsWalletManagement());
+        assertTrue(MiningCoin.PEARL.supportsWalletManagement());
+        assertFalse(MiningCoin.RAVENCOIN.supportsWalletManagement());
+        assertFalse(MiningCoin.ETHEREUM_CLASSIC.supportsWalletManagement());
+        assertFalse(MiningCoin.DECRED.supportsWalletManagement());
+        assertFalse(MiningCoin.QUANTUS.supportsWalletManagement());
+    }
+
+    @Test
     void keepsAddressFormatsOnTheirOwnChains() {
         String pearlAddress = "prl1pnctccpanlhgxjgyg2m7np2r4ccjzd78hn4r8gc3skkdywk8nxt0qdzg4l0";
         assertTrue(MiningCoin.PEARL.validAddress(pearlAddress));

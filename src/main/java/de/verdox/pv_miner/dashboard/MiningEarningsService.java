@@ -4,6 +4,7 @@ import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.miningpool.MiningCoin;
+import de.verdox.pv_miner.miningpool.KryptexRewardService;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
 import org.springframework.stereotype.Service;
@@ -21,12 +22,15 @@ public class MiningEarningsService {
     private final EntityQueryService queries;
     private final GlobalConstantsService constants;
     private final List<MiningEarningsSource> sources;
+    private final KryptexRewardService poolRewards;
     private final Map<UUID, Snapshot> cache = new ConcurrentHashMap<>();
 
-    public MiningEarningsService(EntityQueryService queries, GlobalConstantsService constants, List<MiningEarningsSource> sources) {
+    public MiningEarningsService(EntityQueryService queries, GlobalConstantsService constants,
+                                 List<MiningEarningsSource> sources, KryptexRewardService poolRewards) {
         this.queries = queries;
         this.constants = constants;
         this.sources = sources;
+        this.poolRewards = poolRewards;
     }
 
     public synchronized Snapshot snapshot(PVSiteEntity site) {
@@ -63,13 +67,19 @@ public class MiningEarningsService {
             boolean available = entries.stream().allMatch(CoinEstimate::available);
             List<String> diagnostics = entries.stream().flatMap(entry -> entry.diagnostics().stream()).distinct().toList();
             List<String> sources = entries.stream().flatMap(entry -> entry.sources().stream()).distinct().toList();
+            boolean net = entries.stream().allMatch(entry -> "NET_KNOWN_FEES".equals(entry.estimateKind()));
+            List<Double> feePercentages = entries.stream().map(CoinEstimate::knownFeePercent).distinct().toList();
+            Double knownFeePercent = feePercentages.size() == 1 ? feePercentages.getFirst() : null;
             coins.add(new CoinEstimate(coin.key(), coin.symbol(), available,
                     available ? "" : entries.stream().filter(entry -> !entry.available()).findFirst().map(CoinEstimate::reason).orElse("Daten fehlen"),
                     entries.stream().mapToDouble(CoinEstimate::coinsPerDay).sum(),
                     entries.stream().mapToDouble(CoinEstimate::usdPerDay).sum(),
                     entries.stream().mapToDouble(CoinEstimate::watts).sum(),
                     entries.stream().mapToDouble(CoinEstimate::hashrateHps).sum(),
-                    entries.stream().map(CoinEstimate::updatedAt).filter(value -> !value.isBlank()).findFirst().orElse(""), sources, diagnostics));
+                    entries.stream().map(CoinEstimate::updatedAt).filter(value -> !value.isBlank()).findFirst().orElse(""), sources, diagnostics,
+                    entries.stream().mapToDouble(CoinEstimate::grossCoinsPerDay).sum(),
+                    entries.stream().mapToDouble(CoinEstimate::grossUsdPerDay).sum(),
+                    knownFeePercent, net ? "NET_KNOWN_FEES" : "GROSS"));
         });
         coins.addAll(unavailable);
         double usdToEur = constants.getExchangeRate(CustomCurrency.getInstance("USD"), CustomCurrency.getInstance("EUR"));
@@ -84,19 +94,56 @@ public class MiningEarningsService {
         if (gridPrice <= 0) diagnostics.add("Stromtarif fehlt oder ist ungültig");
         if (watts <= 0) diagnostics.add("Keine positive Leistung aus verfügbaren Miner-Prognosen");
         double centsPerKwh = watts > 0 && usdToEur > 0 ? revenue / (watts * 24 / 1000) * 100 : 0;
-        return new Snapshot(coins, complete, complete ? centsPerKwh : null, gridPrice > 0 ? gridPrice * 100 : null,
+        return new Snapshot(coins, actualPoolCredits(site), complete, complete ? centsPerKwh : null, gridPrice > 0 ? gridPrice * 100 : null,
                 complete ? revenue : null, complete ? watts * 24 / 1000 : null,
                 usdToEur > 0 ? usdToEur : null, Instant.now(), diagnostics);
     }
 
+    private List<PoolActual> actualPoolCredits(PVSiteEntity site) {
+        java.time.LocalDate to = java.time.LocalDate.now(java.time.ZoneOffset.UTC).minusDays(1);
+        java.time.LocalDate from = to.minusDays(6);
+        return actualPoolCredits(poolRewards.snapshot(site.getId(), from, to), from, to);
+    }
+
+    static List<PoolActual> actualPoolCredits(KryptexRewardService.Snapshot snapshot,
+                                              java.time.LocalDate from, java.time.LocalDate to) {
+        return snapshot.activeRoutes().stream().map(KryptexRewardService.Route::coin).distinct().sorted().map(coin -> {
+            List<KryptexRewardService.Route> routes = snapshot.activeRoutes().stream()
+                    .filter(route -> coin.equals(route.coin())).toList();
+            var rows = snapshot.rows().stream().filter(row -> coin.equals(row.getCoin())
+                    && !row.getDate().isBefore(from) && !row.getDate().isAfter(to)).toList();
+            long days = java.time.temporal.ChronoUnit.DAYS.between(from, to) + 1;
+            long expectedPoints = routes.size() * days;
+            long uniquePoints = rows.stream().map(row -> row.getPayoutAddress() + "\n" + row.getDate()).distinct().count();
+            java.math.BigDecimal amount = rows.stream().map(row -> row.getAmount())
+                    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+            boolean valued = rows.stream().allMatch(row -> row.getPriceUsd() != null);
+            java.math.BigDecimal usd = valued ? rows.stream()
+                    .map(row -> row.getAmount().multiply(row.getPriceUsd()))
+                    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add) : null;
+            MiningCoin definition = MiningCoin.from(coin);
+            return new PoolActual(coin, definition.symbol(), from, to, amount,
+                    amount.divide(java.math.BigDecimal.valueOf(7), 18, java.math.RoundingMode.HALF_UP),
+                    usd, routes.size(), (int) uniquePoints,
+                    expectedPoints > 0 && uniquePoints == expectedPoints && valued, "KRYPTEX_REWARD_CHART");
+        }).toList();
+    }
+
     public record CoinEstimate(String coin, String ticker, boolean available, String reason, double coinsPerDay,
                                double usdPerDay, double watts, double hashrateHps, String updatedAt,
-                               List<String> sources, List<String> diagnostics) {
+                               List<String> sources, List<String> diagnostics,
+                               double grossCoinsPerDay, double grossUsdPerDay,
+                               Double knownFeePercent, String estimateKind) {
         public static CoinEstimate unavailable(String coin, String ticker, String reason) {
-            return new CoinEstimate(coin, ticker, false, reason, 0, 0, 0, 0, "", List.of(), List.of(reason));
+            return new CoinEstimate(coin, ticker, false, reason, 0, 0, 0, 0, "", List.of(), List.of(reason),
+                    0, 0, null, "UNAVAILABLE");
         }
     }
-    public record Snapshot(List<CoinEstimate> coins, boolean complete, Double centsPerKwh,
+    public record PoolActual(String coin, String ticker, java.time.LocalDate from, java.time.LocalDate to,
+                             java.math.BigDecimal amount, java.math.BigDecimal averagePerDay,
+                             java.math.BigDecimal usdValue, int routes, int dataPoints,
+                             boolean complete, String source) { }
+    public record Snapshot(List<CoinEstimate> coins, List<PoolActual> actualPoolCredits, boolean complete, Double centsPerKwh,
                            Double gridCentsPerKwh, Double eurPerDay, Double kwhPerDay,
                            Double eurPerUsd, Instant updatedAt, List<String> diagnostics) {}
 }

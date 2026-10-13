@@ -36,6 +36,6 @@ public class BitcoinEarningsSource implements MiningEarningsSource {
                 available ? "" : String.join("; ", diagnostics), amount, amount * usdPrice,
                 watts, hashrate, Instant.now().toString(),
                 List.of("Solar-Miner-Node Miner-Statistik", "Solar-Miner-Node GlobalConstantsService (Bitcoin-Chain, BTC/USD)"),
-                List.copyOf(diagnostics)));
+                List.copyOf(diagnostics), amount, amount * usdPrice, null, "GROSS"));
     }
 }

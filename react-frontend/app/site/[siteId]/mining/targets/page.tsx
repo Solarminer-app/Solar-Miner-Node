@@ -6,6 +6,7 @@ import {useParams} from 'next/navigation';
 import {ArrowLeft, ArrowRight, CheckCircle2, CircleAlert, Coins, Cpu, Plus, RefreshCw, Server, Trash2} from 'lucide-react';
 import type {MiningPageDto} from '../../../../types';
 import {useSitePreferences} from '../../site-preferences-context';
+import {formatHashrateThs} from '../../../../components/hashrate';
 
 type Coin = {key: string; symbol: string; algorithm: string; automaticAssignment: boolean; targetConfigurable?: boolean};
 type Target = {id: string; coin: string; payoutCoin: string; payoutAddress: string | null; algorithm: string; name: string; stratumUrl: string; workerPrefix: string; priority: number; enabled: boolean};
@@ -25,7 +26,6 @@ export default function MiningTargetsPage() {
     const [targets, setTargets] = useState<Target[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [coins, setCoins] = useState<Coin[]>(catalog);
-    const [agentOnlyCoins, setAgentOnlyCoins] = useState<string[]>([]);
     const [selectedCoin, setSelectedCoin] = useState('bitcoin');
     const [pools, setPools] = useState<Pool[]>([]);
     const [wallets, setWallets] = useState<WatchedWallet[]>([]);
@@ -47,7 +47,6 @@ export default function MiningTargetsPage() {
             const [nextTargets, nextPools, nextMining, nextCoins, nextAssignments, nextWallets] = await Promise.all(responses.map(response => response.json()));
             setTargets(nextTargets);
             setAssignments(nextAssignments);
-            setAgentOnlyCoins(nextCoins.filter((coin: Coin) => coin.targetConfigurable === false).map((coin: Coin) => coin.symbol));
             setCoins(nextCoins.filter((coin: Coin) => coin.targetConfigurable !== false));
             setPools(nextPools);
             setMining(nextMining);
@@ -56,9 +55,12 @@ export default function MiningTargetsPage() {
         } catch (reason) {
             setError(reason instanceof Error ? reason.message : String(reason));
         }
-    }, [base, de]);
+    }, [base, de, siteId]);
 
-    useEffect(() => { void load(); }, [load]);
+    useEffect(() => {
+        const timeout = window.setTimeout(() => void load(), 0);
+        return () => window.clearTimeout(timeout);
+    }, [load]);
 
     const eligible = useMemo(() => mining?.connectedMiners.filter(miner => selectedCoin === 'bitcoin'
         ? miner.os === 'BRAIINS' || miner.os === 'ANTMINER_STOCK_OS' : miner.os === 'AGENT') ?? [], [mining, selectedCoin]);
@@ -72,7 +74,11 @@ export default function MiningTargetsPage() {
         setBusy(true); setError(null); setMessage(null);
         try {
             const response = await fetch(url, init);
-            if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
+            if (!response.ok) throw new Error(response.status === 409
+                ? (de ? 'Priorität oder Ziel ist bereits vergeben.' : 'The priority or target is already in use.')
+                : response.status >= 500
+                    ? (de ? 'Der Dienst konnte die Änderung nicht verarbeiten.' : 'The service could not process the change.')
+                    : (de ? 'Ziel, Wallet oder Stratum-Adresse ist ungültig.' : 'The target, wallet, or Stratum address is invalid.'));
             await load();
             setMessage(success);
             return true;
@@ -99,7 +105,7 @@ export default function MiningTargetsPage() {
         if (ok) { setToken(''); setShowPoolForm(false); }
     }
 
-    function usePoolAsTarget(pool: Pool) {
+    function selectPoolAsTarget(pool: Pool) {
         setSelectedCoin(pool.coin);
         setForm({...emptyForm, coin: pool.coin, payoutCoin: pool.coin, name: pool.name, stratumUrl: pool.stratumUrl,
             workerPrefix: pool.suggestedWorkerPrefix ?? '', priority: targets.filter(target => target.coin === pool.coin).length + 1});
@@ -109,10 +115,10 @@ export default function MiningTargetsPage() {
     return <main className="min-h-screen bg-[#0b0b0d] px-4 py-6 text-white md:px-8">
         <div className="mx-auto max-w-[1320px] space-y-6">
             <header className="flex flex-wrap items-start justify-between gap-4">
-                <div><Link className="inline-flex items-center gap-1 text-xs text-[#92929c] hover:text-white" href={`/site/${siteId}/mining`}><ArrowLeft size={14}/>{de ? 'Mining-Übersicht' : 'Mining overview'}</Link>
+                <div><Link className="inline-flex items-center gap-1 text-xs text-[#92929c] hover:text-white" href={`/site/${siteId}/mining`}><ArrowLeft size={14}/>{de ? 'Mining' : 'Mining'}</Link>
                     <p className="mt-5 text-xs font-semibold uppercase tracking-[.18em] text-yellow-400">{de ? 'Konfiguration' : 'Configuration'} · {mining?.siteName ?? ''}</p>
-                    <h1 className="mt-1 text-3xl font-bold">{de ? 'Mining-Ziele' : 'Mining targets'}</h1>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-[#a2a2ad]">{de ? 'Pools und Auszahlungsziele je Coin verwalten. Bitcoin bleibt die Standardansicht.' : 'Manage pools and payout targets by coin. Bitcoin remains the default view.'}</p></div>
+                    <h1 className="mt-1 text-3xl font-bold">{de ? 'Pools & Wallets' : 'Pools & wallets'}</h1>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-[#a2a2ad]">{de ? 'Pools, Stratum-Ziele und Auszahlungs-Wallets je Coin verwalten. Bitcoin bleibt die Standardansicht.' : 'Manage pools, Stratum targets, and payout wallets by coin. Bitcoin remains the default view.'}</p></div>
                 <button className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm hover:bg-white/5" onClick={() => void load()} type="button"><RefreshCw size={16}/>{de ? 'Aktualisieren' : 'Refresh'}</button>
             </header>
 
@@ -120,7 +126,6 @@ export default function MiningTargetsPage() {
             {message && <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm text-emerald-200" role="status">{message}</div>}
 
             <nav className="flex flex-wrap gap-2" aria-label={de ? 'Mining-Coin' : 'Mining coin'}>{coins.map(coin => <button key={coin.key} type="button" aria-current={selectedCoin === coin.key ? 'page' : undefined} className={`rounded-xl border px-4 py-2 text-sm font-semibold ${selectedCoin === coin.key ? 'border-yellow-400/60 bg-yellow-400/10 text-yellow-300' : 'border-white/10 text-[#92929c] hover:text-white'}`} onClick={() => setSelectedCoin(coin.key)}>{coin.symbol} <span className="font-normal text-xs">· {coin.algorithm}</span></button>)}</nav>
-            {agentOnlyCoins.length > 0 && <p className="rounded-xl border border-amber-400/20 bg-amber-400/[.05] p-3 text-xs leading-5 text-amber-100">{de ? `${agentOnlyCoins.join(', ')} werden vom PC-Agent als Mining-Coins geführt, können aber noch nicht über Node-Zielregeln konfiguriert werden. Pool und Wallet direkt im PC-Agent einstellen.` : `${agentOnlyCoins.join(', ')} are PC-Agent mining coins, but Node target rules cannot configure them yet. Set their pool and wallet in the PC-Agent.`}</p>}
 
             <section className="grid gap-3 md:grid-cols-3" aria-label={de ? 'Überblick' : 'Overview'}>
                 <Summary icon={<Coins size={20}/>} label={de ? `Pools · ${currentCoin.symbol}` : `Pools · ${currentCoin.symbol}`} value={String(pools.filter(pool => pool.coin === selectedCoin).length)}/>
@@ -144,7 +149,7 @@ export default function MiningTargetsPage() {
                     <section className="rounded-2xl border border-white/[.08] bg-[#121216] p-5"><h2 className="text-lg font-semibold">{de ? 'Miner-Zuordnung' : 'Miner assignment'} · {currentCoin.symbol}</h2><p className="mt-1 text-xs text-[#91919d]">{de ? 'Vom Gerät gemeldete Konfiguration und Worker je Algorithmus.' : 'Configuration and workers reported by each device, grouped by algorithm.'}</p>
                         <div className="mt-4 divide-y divide-white/[.06]">{eligible.map(miner => { const assignment = assignments.find(entry => entry.minerId === miner.id && entry.coin === selectedCoin); const workers = selectedCoin === 'bitcoin' ? [] : (miner.algorithmWorkers ?? []).filter(worker => worker.algorithm === currentCoin.algorithm); return <div className="py-3" key={miner.id}>
                             <div className="flex flex-wrap items-center gap-3"><div className="min-w-0 flex-1"><Link className="text-sm font-semibold hover:text-yellow-300" href={`/site/${siteId}/mining/miners/${miner.id}`}>{miner.name || miner.model}</Link><p className="text-xs text-[#85858f]">{miner.model} · {miner.ipAddress}</p></div><span className={`text-xs ${assignment?.status === 'ASSIGNED' ? 'text-emerald-300' : assignment?.status === 'UNAVAILABLE' ? 'text-red-300' : 'text-amber-300'}`}>{assignmentLabel(assignment?.status, de)}</span><span className="min-w-[130px] text-right text-xs text-[#b9b9c2]">{assignment?.targetName ?? assignment?.currentPool ?? (de ? 'Kein Ziel' : 'No target')}</span></div>
-                            {workers.length > 0 && <div className="mt-2 space-y-1 pl-3">{workers.map((worker, index) => <div className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-2 py-1.5 text-xs" key={`${worker.name}:${index}`}><span className="truncate text-[#bdbdc6]">{worker.name}</span><span className="shrink-0 text-[#9999a4]">{worker.status} · {formatWorkerHashrate(worker.hashrateThs)}</span></div>)}</div>}
+                            {workers.length > 0 && <div className="mt-2 space-y-1 pl-3">{workers.map((worker, index) => <div className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-2 py-1.5 text-xs" key={`${worker.name}:${index}`}><span className="truncate text-[#bdbdc6]">{worker.name}</span><span className="shrink-0 text-[#9999a4]">{worker.status} · {formatHashrateThs(worker.hashrateThs, locale)}</span></div>)}</div>}
                         </div>; })}{eligible.length === 0 && <p className="py-7 text-center text-sm text-[#888894]">{de ? `Kein passender ${currentCoin.algorithm}-Miner verbunden.` : `No compatible ${currentCoin.algorithm} miner connected.`}</p>}</div>
                         <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-amber-200/80"><CircleAlert size={15} className="mt-0.5 shrink-0"/>{de ? 'Zugeordnet bedeutet: Konfiguration vom Agent gemeldet. Eine aktive Pool-Verbindung oder Gutschrift zeigt erst der Live-Status beziehungsweise Pool.' : 'Assigned means the agent reports the configuration. Check live status or the pool for a connection or credited shares.'}</p></section>
                 </div>
@@ -156,10 +161,10 @@ export default function MiningTargetsPage() {
                         <div className="mt-4 flex items-end justify-between"><div><span className="text-[11px] text-[#777783]">{de ? 'Pool-Guthaben' : 'Pool balance'}</span><strong className="block text-xl">{pool.balance == null ? '—' : `${pool.balance.toFixed(8)} ${pool.balanceCoin}`}</strong></div><span className="text-right text-xs text-[#9999a4]">{pool.assignedMiners.length} {de ? 'zugeordnet' : 'assigned'}{pool.source === 'ACCOUNT' && <><br/>{pool.poolWorkerCount ?? '—'} Worker</>}</span></div>
                         <p className="mt-1 text-[11px] text-[#777783]">{pool.balanceUpdatedAt ? `${de ? 'Stand' : 'Updated'}: ${new Date(pool.balanceUpdatedAt).toLocaleString(locale)}` : (de ? 'Kein verfügbarer Pool-Saldo' : 'No available pool balance')}</p>
                         {pool.assignedMiners.length > 0 && <details className="mt-3 rounded-lg bg-black/20 p-2.5 text-xs"><summary className="cursor-pointer text-[#c7c7d0]">{de ? 'Zugeordnete Miner anzeigen' : 'Show assigned miners'}</summary><div className="mt-2 space-y-2">{pool.assignedMiners.map(miner => <Link className="flex items-center justify-between gap-2 hover:text-yellow-300" href={`/site/${siteId}/mining/miners/${miner.id}`} key={miner.id}><span className="truncate">{miner.name}</span><span className={miner.status === 'MINING' ? 'text-emerald-300' : 'text-[#888894]'}>{miner.status}</span></Link>)}</div></details>}
-                        {pool.source === 'ACCOUNT' && <div className="mt-3 flex flex-wrap items-center gap-3"><button className="rounded-lg border border-yellow-400/30 px-2.5 py-1.5 text-xs text-yellow-300 hover:bg-yellow-400/10" onClick={() => usePoolAsTarget(pool)} type="button">{de ? 'Als Ziel verwenden' : 'Use as target'}</button><button className="text-xs text-red-300 hover:underline" disabled={busy} onClick={() => { if (window.confirm(de ? `Pool-Konto „${pool.name}“ trennen?` : `Disconnect pool account “${pool.name}”?`)) void mutate(`${base}/pools/${pool.id}`, {method: 'DELETE'}, de ? 'Pool-Konto getrennt.' : 'Pool account disconnected.'); }} type="button">{de ? 'Konto trennen' : 'Disconnect account'}</button></div>}
+                        {pool.source === 'ACCOUNT' && <div className="mt-3 flex flex-wrap items-center gap-3"><button className="rounded-lg border border-yellow-400/30 px-2.5 py-1.5 text-xs text-yellow-300 hover:bg-yellow-400/10" onClick={() => selectPoolAsTarget(pool)} type="button">{de ? 'Als Ziel verwenden' : 'Use as target'}</button><button className="text-xs text-red-300 hover:underline" disabled={busy} onClick={() => { if (window.confirm(de ? `Pool-Konto „${pool.name}“ trennen?` : `Disconnect pool account “${pool.name}”?`)) void mutate(`${base}/pools/${pool.id}`, {method: 'DELETE'}, de ? 'Pool-Konto getrennt.' : 'Pool account disconnected.'); }} type="button">{de ? 'Konto trennen' : 'Disconnect account'}</button></div>}
                     </div>)}{pools.filter(pool => pool.coin === selectedCoin).length === 0 && <p className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-[#888894]">{de ? `Für ${currentCoin.symbol} ist keine Pool-API verbunden. Zielregeln können mit eigenen Stratum-Daten gespeichert werden; Pool-Guthaben ist hier nicht verfügbar.` : `No pool API is connected for ${currentCoin.symbol}. You can save Stratum targets, but pool balance is unavailable here.`}</p>}</div>
                     <p className="mt-3 text-xs text-[#777783]">{de ? 'Saldo fehlt, wenn die Anbieter-API nicht erreichbar ist.' : 'The balance is unavailable when the provider API cannot be reached.'}</p></section>
-                    <Link className="flex items-center justify-between rounded-2xl border border-white/[.08] bg-[#121216] p-5 hover:border-yellow-400/30" href={`/site/${siteId}/finance/wallets`}><span><strong className="block text-sm">{de ? 'Guthaben & Wallets' : 'Balances & wallets'}</strong><span className="mt-1 block text-xs text-[#888894]">{de ? 'BTC, XMR, PRL, RVN, ETC, DCR und QTC; Lightning bleibt BTC.' : 'BTC, XMR, PRL, RVN, ETC, DCR and QTC; Lightning remains BTC.'}</span></span><ArrowRight size={17} className="text-yellow-300"/></Link></aside>
+                    <Link className="flex items-center justify-between rounded-2xl border border-white/[.08] bg-[#121216] p-5 hover:border-yellow-400/30" href={`/site/${siteId}/finance/wallets`}><span><strong className="block text-sm">{de ? 'Guthaben & Wallets' : 'Balances & wallets'}</strong><span className="mt-1 block text-xs text-[#888894]">{de ? 'BTC, XMR und PRL; Lightning bleibt BTC.' : 'BTC, XMR, and PRL; Lightning remains BTC.'}</span></span><ArrowRight size={17} className="text-yellow-300"/></Link></aside>
             </div>
         </div>
 
@@ -193,12 +198,4 @@ function assignmentLabel(status: Assignment['status'] | undefined, de: boolean) 
         UNCONFIGURED: ['Nicht konfiguriert', 'Not configured'], UNAVAILABLE: ['Agent nicht erreichbar', 'Agent unavailable']
     };
     return status ? labels[status][de ? 0 : 1] : (de ? 'Status unbekannt' : 'Status unknown');
-}
-
-function formatWorkerHashrate(terahashesPerSecond: number) {
-    let value = Math.max(0, terahashesPerSecond) * 1e12;
-    const units = ['H/s', 'kH/s', 'MH/s', 'GH/s', 'TH/s'];
-    let index = 0;
-    while (value >= 1000 && index < units.length - 1) { value /= 1000; index++; }
-    return `${value.toLocaleString(undefined, {maximumFractionDigits: 2})} ${units[index]}`;
 }

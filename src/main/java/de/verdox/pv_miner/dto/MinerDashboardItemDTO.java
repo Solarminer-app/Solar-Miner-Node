@@ -5,6 +5,7 @@ public record MinerDashboardItemDTO(
         String ip,
         String status,
         String hashrate,
+        double hashrateThs,
         String power,
         String temp,
         String pool,

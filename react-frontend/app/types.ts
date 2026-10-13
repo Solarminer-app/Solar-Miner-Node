@@ -129,6 +129,7 @@ export interface MinerDashboardItemDTO {
     ip: string;
     status: string;
     hashrate: string;
+    hashrateThs: number;
     power: string;
     temp: string;
     pool: string;
