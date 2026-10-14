@@ -292,7 +292,7 @@ export default function DashboardPage() {
                     <MetricCard icon={<Sun size={18}/>} label={t['dashboard.today.production']} value={kwh(day.productionKwh)} detail={`${kwh(day.selfConsumedKwh)} ${t['dashboard.today.used_locally']}`} tone="yellow"/>
                     <MetricCard icon={<Leaf size={18}/>} label={t['dashboard.today.autarky']} value={percent(day.autarkyPercent)} detail={`${percent(day.selfConsumptionPercent)} ${t['dashboard.today.self_consumption']}`} tone="green"/>
                     <MetricCard icon={<Gauge size={18}/>} label={t['dashboard.mining.revenue_per_kwh']} value={earnings?.currencyCode !== currency || earnings.currencyPerKwh == null ? '—' : currencyPerKwh(earnings.currencyPerKwh, earnings.currencyCode)} detail={earnings?.currencyCode === currency && earnings.complete ? t['dashboard.mining.revenue_per_kwh_detail'] : t['dashboard.mining.revenue_per_kwh_unavailable']} tone="cyan"/>
-                    <MiningRevenueCard day={day} money={money} locale={locale} onOpen={() => setShowMiningRevenueBreakdown(true)} t={t}/>
+                    <MiningRevenueCard day={day} money={money} onOpen={() => setShowMiningRevenueBreakdown(true)} t={t}/>
                 </section>
 
                 <section className="grid gap-4 xl:grid-cols-12">
@@ -381,11 +381,16 @@ function MetricCard({icon, label, value, detail, tone}: {icon: React.ReactNode; 
     return <article className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-[#131318] p-4"><span className={`grid h-9 w-9 place-items-center rounded-lg ${colors[tone]}`}>{icon}</span><span className="min-w-0"><span className="block text-[11px] text-[#777781]">{label}</span><strong className="block truncate text-xl">{value}</strong><span className="block truncate text-[11px] text-[#666670]">{detail}</span></span></article>;
 }
 
-function MiningRevenueCard({day, money, locale, onOpen, t}: {day: DailyEnergySummaryDto; money: (value: number) => string; locale: 'de' | 'en'; onOpen: () => void; t: Record<string, string>}) {
-    const knownAmounts = formatKnownMiningAmounts(day, locale);
+function MiningRevenueCard({day, money, onOpen, t}: {day: DailyEnergySummaryDto; money: (value: number) => string; onOpen: () => void; t: Record<string, string>}) {
+    const knownFiatTotal = day.miningRevenueByCoin.reduce((total, coin) => total + (coin.fiatValue ?? 0), 0);
+    const hasKnownFiatValue = day.miningRevenueByCoin.some((coin) => coin.fiatValue != null);
+    const incomplete = day.miningRevenue == null;
+    const displayValue = incomplete
+        ? hasKnownFiatValue ? `≥ ${money(knownFiatTotal)}` : '—'
+        : money(day.miningRevenue);
     return <button className="flex w-full items-center gap-3 rounded-2xl border border-emerald-400/15 bg-[#131318] p-4 text-left transition hover:border-emerald-400/30 hover:bg-emerald-400/[0.03]" onClick={onOpen} type="button">
             <span className="grid h-9 w-9 place-items-center rounded-lg bg-emerald-300/10 text-emerald-300"><CircleDollarSign size={18}/></span>
-            <span className="min-w-0 flex-1"><span className="block text-[11px] text-[#777781]">{t['dashboard.today.mining_result']}</span><strong className="block truncate text-xl">{day.miningRevenue == null ? knownAmounts : money(day.miningRevenue)}</strong><span className="block text-[11px] text-[#666670]">{day.miningRevenue == null ? t['dashboard.today.mining_revenue_partial'] : t['dashboard.today.mining_revenue_detail']}</span></span>
+            <span className="min-w-0 flex-1"><span className="block text-[11px] text-[#777781]">{t['dashboard.today.mining_result']}</span><strong className="block truncate text-xl">{displayValue}</strong><span className="block text-[11px] text-[#666670]">{incomplete ? t['dashboard.today.mining_revenue_partial'] : t['dashboard.today.mining_revenue_detail']}</span></span>
     </button>;
 }
 
@@ -393,22 +398,18 @@ function MiningRevenueDialog({day, money, format, locale, onClose, t}: {day: Dai
     const coinAmount = (coin: {coin: string; symbol: string; amount: number | null}) => coin.amount == null ? '—' : coin.coin === 'bitcoin'
         ? `${format(coin.amount * 100_000_000, 0)} sats`
         : `${formatCoinAmount(coin.amount, locale)} ${coin.symbol}`;
-    const knownAmounts = formatKnownMiningAmounts(day, locale);
+    const knownFiatTotal = day.miningRevenueByCoin.reduce((total, coin) => total + (coin.fiatValue ?? 0), 0);
+    const hasKnownFiatValue = day.miningRevenueByCoin.some((coin) => coin.fiatValue != null);
+    const incomplete = day.miningRevenue == null;
+    const displayValue = incomplete
+        ? hasKnownFiatValue ? `≥ ${money(knownFiatTotal)}` : '—'
+        : money(day.miningRevenue);
     return <div aria-label={t['dashboard.today.mining_result']} aria-modal="true" className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm" onClick={onClose} role="dialog">
         <div className="w-full max-w-md overflow-hidden rounded-2xl border border-emerald-400/20 bg-[#17171b] shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between border-b border-white/[0.07] p-5"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">{t['dashboard.today.today']}</p><h2 className="mt-1 text-lg font-semibold">{t['dashboard.today.mining_result']}</h2><strong className="mt-2 block text-2xl">{day.miningRevenue == null ? knownAmounts : money(day.miningRevenue)}</strong></div><button aria-label={t['dashboard.action.close']} className="rounded-lg p-2 text-[#9797a2] transition hover:bg-white/[0.06] hover:text-white" onClick={onClose} type="button"><X size={18}/></button></div>
-            <div className="space-y-2 p-5">{day.miningRevenueByCoin.map((coin) => <div className="flex items-center justify-between gap-4 rounded-xl bg-black/20 px-4 py-3" key={coin.coin}><span className="min-w-0"><strong className="block text-sm">{coin.symbol}</strong><span className="mt-0.5 block truncate text-xs text-[#85858f]">{coinAmount(coin)}</span></span><strong className={coin.fiatValue == null ? 'text-amber-300' : 'text-emerald-300'}>{coin.fiatValue == null ? t['dashboard.today.mining_revenue_rate_unavailable'].replace('{currency}', coin.currency) : money(coin.fiatValue)}</strong></div>)}</div>
+            <div className="flex items-start justify-between border-b border-white/[0.07] p-5"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">{t['dashboard.today.today']}</p><h2 className="mt-1 text-lg font-semibold">{t['dashboard.today.mining_result']}</h2><strong className="mt-2 block text-2xl">{displayValue}</strong>{incomplete ? <span className="mt-1 block text-xs text-[#85858f]">{t['dashboard.today.mining_revenue_partial']}</span> : null}</div><button aria-label={t['dashboard.action.close']} className="rounded-lg p-2 text-[#9797a2] transition hover:bg-white/[0.06] hover:text-white" onClick={onClose} type="button"><X size={18}/></button></div>
+            <div className="space-y-2 p-5">{day.miningRevenueByCoin.map((coin) => <div className="flex items-center justify-between gap-4 rounded-xl bg-black/20 px-4 py-3" key={coin.coin}><span className="min-w-0"><strong className="block text-sm">{coin.symbol}</strong><span className="mt-0.5 block truncate text-xs text-[#85858f]">{coinAmount(coin)}</span></span><strong className={coin.amount == null || coin.fiatValue == null ? 'text-amber-300' : 'text-emerald-300'}>{coin.amount == null ? t['dashboard.today.mining_reward_unreported'] : coin.fiatValue == null ? t['dashboard.today.mining_revenue_rate_unavailable'].replace('{currency}', coin.currency) : money(coin.fiatValue)}</strong></div>)}</div>
         </div>
     </div>;
-}
-
-function formatKnownMiningAmounts(day: DailyEnergySummaryDto, locale: 'de' | 'en') {
-    const known = day.miningRevenueByCoin.flatMap((coin) => {
-        if (coin.amount == null) return [];
-        if (coin.coin === 'bitcoin') return [`${new Intl.NumberFormat(locale === 'de' ? 'de-DE' : 'en-US', {maximumFractionDigits: 0}).format(coin.amount * 100_000_000)} sats`];
-        return [`${formatCoinAmount(coin.amount, locale)} ${coin.symbol}`];
-    });
-    return known.length ? known.join(' + ') : '—';
 }
 
 function formatCoinAmount(value: number, locale: 'de' | 'en') {

@@ -79,7 +79,10 @@ public class CurrencyMicroServiceRestClient {
             Map<String, Double> response = restClient.get().uri(uriBuilder -> uriBuilder.path("/api/v1/public/coin-prices").queryParam("date", date).build())
                     .retrieve().body(new ParameterizedTypeReference<>() {});
             return Optional.ofNullable(response);
-        } catch (RestClientException e) { return Optional.empty(); }
+        } catch (RestClientException e) {
+            LOGGER.log(Level.WARNING, "Failed to fetch coin prices for " + date + ": " + e.getMessage());
+            return Optional.empty();
+        }
     }
 
     public record BitcoinNetworkStatsDTO(

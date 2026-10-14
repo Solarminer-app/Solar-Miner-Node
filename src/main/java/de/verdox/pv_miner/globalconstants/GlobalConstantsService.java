@@ -160,6 +160,11 @@ public class GlobalConstantsService {
         if (date.equals(LocalDate.now(ZoneOffset.UTC))) {
             currentCoinPrices = prices;
             coinPricesFetchedAt = Instant.now();
+            var expectedTickers = java.util.Set.of("btc", "xmr", "prl", "rvn", "etc", "dcr", "qtc");
+            var missingTickers = expectedTickers.stream().filter(ticker -> !prices.containsKey(ticker)).sorted().toList();
+            if (!missingTickers.isEmpty()) {
+                LOGGER.log(Level.WARNING, "Currency service returned no current prices for: " + String.join(", ", missingTickers));
+            }
         }
     }
 
