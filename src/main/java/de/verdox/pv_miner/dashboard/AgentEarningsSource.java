@@ -15,6 +15,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /** Consumes the PC-Agent forecast contract; algorithm mapping comes from MiningCoin. */
@@ -34,7 +35,7 @@ public class AgentEarningsSource implements MiningEarningsSource {
         List<MiningEarningsService.CoinEstimate> result = new ArrayList<>();
         boolean hasActiveUnknownAlgorithm = stats.workers() != null && stats.workers().stream()
                 .filter(worker -> worker.miningStatus() == MinerStats.MinerStatus.MINING)
-                .anyMatch(worker -> MiningCoin.values().stream().noneMatch(coin ->
+                .anyMatch(worker -> Arrays.stream(MiningCoin.values()).noneMatch(coin ->
                         coin.agentAlgorithm().equalsIgnoreCase(worker.currentAlgorithm())));
         try {
             URI uri = URI.create("http://" + miner.getIP() + ":8084/api/agent/external/earnings");
