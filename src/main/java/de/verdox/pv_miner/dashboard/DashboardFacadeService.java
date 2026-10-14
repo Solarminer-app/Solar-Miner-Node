@@ -103,9 +103,15 @@ public class DashboardFacadeService {
 
         long minedSats = Math.round(pvSiteEntity.getConnectedMiningPools().stream().mapToDouble(this::safeMiningRewardToday).sum());
         MiningRevenueSummary miningRevenueSummary = calculateMiningRevenueEuro(pvSiteEntity, minedSats);
-        Double miningRevenue = miningRevenueSummary.totalEuro() == null ? null
-                : globalConstantsService.convert(new Money(miningRevenueSummary.totalEuro(), CustomCurrency.getInstance("EUR")), userCurrency).getRawMoneyAmount();
+        double euroToUserCurrency = globalConstantsService.getExchangeRate(CustomCurrency.getInstance("EUR"), userCurrency);
+        Double miningRevenue = miningRevenueSummary.totalEuro() == null || euroToUserCurrency <= 0 ? null
+                : miningRevenueSummary.totalEuro() * euroToUserCurrency;
         Double miningNetResult = miningRevenue == null ? null : miningRevenue - miningGridCost - miningOpportunityCosts;
+        List<MiningRevenueByCoinDto> localizedMiningRevenue = miningRevenueSummary.byCoin().stream()
+                .map(item -> new MiningRevenueByCoinDto(item.coin(), item.symbol(), item.amount(), item.euroValue(),
+                        item.euroValue() == null || euroToUserCurrency <= 0 ? null : item.euroValue() * euroToUserCurrency,
+                        userCurrency.getCurrencyCode()))
+                .toList();
 
         double batteryPower = pvSiteData.getBatteryPower();
         double batteryCapacityKwh = Math.max(0, pvSiteEntity.getBatteryCapacityWh()) / 1000.0;
@@ -115,7 +121,7 @@ public class DashboardFacadeService {
         double minerPowerKw = actualMinerPowerWatts / 1000.0;
         LiveEnergyDto energyDto = new LiveEnergyDto(finitePositive(pvSiteData.getPvPower()), finitePositive(pvSiteData.getLoadPowerKw() - minerPowerKw), finitePositive(minerPowerKw), finitePositive(pvSiteData.getLoadPowerKw()), finitePositive(pvSiteData.getImportPowerKw()), finitePositive(pvSiteData.getExportPowerKw()), Double.isFinite(batteryPower) ? batteryPower : 0, clamp(pvSiteData.getBatterySoC(), 0, 100), batteryCapacityKwh, batteryRuntimeHours, batteryPower > 0.01 ? "CHARGING" : batteryPower < -0.01 ? "DISCHARGING" : "IDLE");
 
-        DailyEnergySummaryDto dayDto = new DailyEnergySummaryDto(production, totalConsumption, pureHouseholdConsumption, totalConsumptionMiners, totalImported, totalExported, selfConsumedProduction, selfConsumptionPercent, autarkyPercent, miningEigenverbrauch, miningImport, revenue, totalImportCosts, householdSavings, miningOpportunityCosts, minedSats, miningRevenue, miningNetResult, currencySymbol, miningRevenueSummary.totalEuro(), miningRevenueSummary.byCoin());
+        DailyEnergySummaryDto dayDto = new DailyEnergySummaryDto(production, totalConsumption, pureHouseholdConsumption, totalConsumptionMiners, totalImported, totalExported, selfConsumedProduction, selfConsumptionPercent, autarkyPercent, miningEigenverbrauch, miningImport, revenue, totalImportCosts, householdSavings, miningOpportunityCosts, minedSats, miningRevenue, miningNetResult, currencySymbol, miningRevenueSummary.totalEuro(), localizedMiningRevenue);
 
         String clusterName = pvSiteEntity.getMiners().stream().map(miner -> miner.getClusterName()).filter(name -> name != null && !name.isBlank()).findFirst().orElseGet(() -> minerClusterService.getAvailableClusterNames().stream().sorted().findFirst().orElse(""));
         var clusterInstance = clusterName.isBlank() ? null : minerClusterService.getCluster(pvSiteEntity, clusterName);
@@ -189,17 +195,15 @@ public class DashboardFacadeService {
         for (MiningCoinDailyReward reward : rewardSnapshot.rows()) {
             observedRoutes.add(new KryptexRewardService.Route(reward.getCoin(), reward.getPayoutAddress()));
             double amount = reward.getAmount().doubleValue();
-            Double euroValue = null;
-            if (reward.getPriceUsd() != null) {
-                double converted = globalConstantsService.convert(new Money(amount * reward.getPriceUsd().doubleValue(), CustomCurrency.getInstance("USD")), euro).getRawMoneyAmount();
-                if (Double.isFinite(converted) && converted >= 0) euroValue = converted;
-            }
             String symbol;
             try {
                 symbol = de.verdox.pv_miner.miningpool.MiningCoin.from(reward.getCoin()).symbol();
             } catch (IllegalArgumentException ignored) {
                 symbol = reward.getCoin().toUpperCase(Locale.ROOT);
             }
+            double priceUsd = globalConstantsService.getCoinPriceUsd(symbol, reward.getDate());
+            double usdToEur = globalConstantsService.getExchangeRate(CustomCurrency.getInstance("USD"), euro);
+            Double euroValue = priceUsd > 0 && usdToEur > 0 ? amount * priceUsd * usdToEur : null;
             final String rewardSymbol = symbol;
             revenueByCoin.computeIfAbsent(reward.getCoin(), key -> new RevenueAccumulator(key, rewardSymbol, 0D, 0.0))
                     .add(amount, euroValue);

@@ -56,9 +56,12 @@ public class DashboardController {
     }
 
     @GetMapping("/earnings")
-    public MiningEarningsService.Snapshot earnings(@PathVariable UUID siteId) {
+    public MiningEarningsService.CurrencySnapshot earnings(
+            @PathVariable UUID siteId,
+            @RequestParam(value = "currency", defaultValue = "EUR") String currency,
+            @RequestParam(value = "locale", defaultValue = "de") String locale) {
         PVSiteEntity site = pvSiteRepository.findById(siteId).orElseThrow(() -> new IllegalArgumentException("PV-Site nicht gefunden"));
-        return earningsService.snapshot(site);
+        return earningsService.currencySnapshot(site, CustomCurrency.getInstance(currency), Locale.of(locale));
     }
 
     @GetMapping("/init")

@@ -29,6 +29,7 @@ public class GlobalConstantsService {
 
     private final CurrencyMicroServiceRestClient restClient;
     private final Map<LocalDate, Map<String, Double>> historicalRatesCache = new ConcurrentHashMap<>();
+    private final Map<LocalDate, Map<String, Double>> historicalCoinPricesCache = new ConcurrentHashMap<>();
     private final Map<LocalDate, CurrencyMicroServiceRestClient.BitcoinNetworkStatsDTO> historicalBtcCache = new ConcurrentHashMap<>();
     private volatile Map<String, Double> currentExchangeRates = new ConcurrentHashMap<>();
     private volatile CurrencyMicroServiceRestClient.BitcoinNetworkStatsDTO currentBitcoinStats;
@@ -90,10 +91,7 @@ public class GlobalConstantsService {
                 this.currentBitcoinStats = stats;
                 this.bitcoinStatsFetchedAt = Instant.now();
             });
-            restClient.getCoinPrices(todayUtc).ifPresent(prices -> {
-                this.currentCoinPrices = prices;
-                this.coinPricesFetchedAt = Instant.now();
-            });
+            restClient.getCoinPrices(todayUtc).ifPresent(prices -> storeCoinPrices(todayUtc, prices));
 
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Could not fetch latest data from Microservice: " + e.getMessage());
@@ -101,6 +99,24 @@ public class GlobalConstantsService {
     }
 
     public Map<String, Double> getCurrentCoinPrices() { return Map.copyOf(currentCoinPrices); }
+    public double getCurrentCoinPriceUsd(String ticker) {
+        if (ticker == null || !hasFreshCoinPrices()) return 0.0;
+        double price = currentCoinPrices.getOrDefault(ticker.toLowerCase(Locale.ROOT), 0.0);
+        return Double.isFinite(price) && price > 0 ? price : 0.0;
+    }
+    public double getCoinPriceUsd(String ticker, LocalDate date) {
+        if (ticker == null || date == null) return 0.0;
+        if (date.equals(LocalDate.now(ZoneOffset.UTC))) return getCurrentCoinPriceUsd(ticker);
+        if (!historicalCoinPricesCache.containsKey(date)) {
+            synchronized (restClient) {
+                    restClient.getCoinPrices(date).ifPresent(prices -> storeCoinPrices(date, prices));
+            }
+        }
+        double price = Optional.ofNullable(historicalCoinPricesCache.get(date))
+                .map(prices -> prices.getOrDefault(ticker.toLowerCase(Locale.ROOT), 0.0))
+                .orElse(0.0);
+        return Double.isFinite(price) && price > 0 ? price : 0.0;
+    }
     public boolean hasFreshRates() { return ratesFetchedAt.plusSeconds(7200).isAfter(Instant.now()); }
     public boolean hasFreshCoinPrices() { return coinPricesFetchedAt.plusSeconds(7200).isAfter(Instant.now()); }
     public boolean hasFreshBitcoinStats() { return bitcoinStatsFetchedAt.plusSeconds(7200).isAfter(Instant.now()); }
@@ -131,6 +147,19 @@ public class GlobalConstantsService {
                     restClient.getBitcoinStats(targetDate, "UTC").ifPresent(stats -> historicalBtcCache.put(targetDate, stats));
                 }
             }
+            if (!historicalCoinPricesCache.containsKey(targetDate)) {
+                synchronized (restClient) {
+                    restClient.getCoinPrices(targetDate).ifPresent(prices -> storeCoinPrices(targetDate, prices));
+                }
+            }
+        }
+    }
+
+    private void storeCoinPrices(LocalDate date, Map<String, Double> prices) {
+        historicalCoinPricesCache.put(date, prices);
+        if (date.equals(LocalDate.now(ZoneOffset.UTC))) {
+            currentCoinPrices = prices;
+            coinPricesFetchedAt = Instant.now();
         }
     }
 

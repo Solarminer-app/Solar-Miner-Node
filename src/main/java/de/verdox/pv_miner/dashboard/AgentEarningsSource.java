@@ -2,6 +2,7 @@ package de.verdox.pv_miner.dashboard;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.miner.MinerEntity;
 import de.verdox.pv_miner.miner.MiningOS;
 import de.verdox.pv_miner.miner.data.MinerStats;
@@ -20,10 +21,12 @@ import java.util.List;
 @Component
 public class AgentEarningsSource implements MiningEarningsSource {
     private final ObjectMapper mapper;
+    private final GlobalConstantsService constants;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
 
-    public AgentEarningsSource(ObjectMapper mapper) {
+    public AgentEarningsSource(ObjectMapper mapper, GlobalConstantsService constants) {
         this.mapper = mapper;
+        this.constants = constants;
     }
     @Override public boolean supports(MinerEntity<?> miner) { return miner.getOS() == MiningOS.AGENT; }
 
@@ -52,18 +55,18 @@ public class AgentEarningsSource implements MiningEarningsSource {
                         .filter(worker -> coin.agentAlgorithm().equalsIgnoreCase(worker.currentAlgorithm())
                                 && worker.miningStatus() == MinerStats.MinerStatus.MINING)
                         .mapToDouble(MinerStats.Worker::miningPowerWatts).sum();
-                double priceUsd = forecast.path("priceUsd").asDouble();
+                double priceUsd = constants.getCurrentCoinPriceUsd(coin.symbol());
                 double grossCoinsPerDay = forecast.path("grossCoinsPerDay").asDouble(forecast.path("coinsPerDay").asDouble());
-                double grossUsdPerDay = forecast.path("grossUsdPerDay").asDouble(grossCoinsPerDay * priceUsd);
+                double grossUsdPerDay = grossCoinsPerDay * priceUsd;
                 boolean knownFeesComplete = forecast.path("knownFeesComplete").asBoolean(false);
                 double coinsPerDay = knownFeesComplete ? forecast.path("netCoinsPerDay").asDouble() : grossCoinsPerDay;
-                double usdPerDay = knownFeesComplete ? forecast.path("netUsdPerDay").asDouble() : grossUsdPerDay;
+                double usdPerDay = coinsPerDay * priceUsd;
                 Double knownFeePercent = knownFeesComplete && forecast.path("knownFeePercent").isNumber()
                         ? forecast.path("knownFeePercent").asDouble() : null;
                 String updatedAt = forecast.path("updatedAt").asText("");
                 List<String> sources = new ArrayList<>();
                 forecast.path("sources").forEach(value -> sources.add(value.asText()));
-                if (sources.isEmpty()) sources.add("PC-Agent Netzwerk-/Preisdaten");
+                if (sources.isEmpty()) sources.add("PC-Agent API :8084/api/agent/external/earnings");
                 List<String> diagnostics = new ArrayList<>();
                 if (!forecast.path("available").asBoolean() || forecast.path("stale").asBoolean()) {
                     String reason = forecast.path("unavailableReason").asText("");
@@ -78,7 +81,7 @@ public class AgentEarningsSource implements MiningEarningsSource {
                 if (!fresh) diagnostics.add("PC-Agent-Prognose fehlt oder ist älter als 20 Minuten");
                 if (watts <= 0) diagnostics.add("Gemessene Miner-Leistung fehlt oder ist 0 W");
                 if (coinsPerDay <= 0) diagnostics.add("Prognostizierte Coins pro Tag fehlen oder sind 0");
-                if (priceUsd <= 0) diagnostics.add(coin.symbol() + "/USD-Kurs fehlt in den PC-Agent-Daten");
+                if (priceUsd <= 0) diagnostics.add(coin.symbol() + "/USD-Kurs fehlt im Currency Service");
                 boolean available = diagnostics.isEmpty();
                 result.add(new MiningEarningsService.CoinEstimate(coin.key(), coin.symbol(), available,
                         available ? "" : String.join("; ", diagnostics),

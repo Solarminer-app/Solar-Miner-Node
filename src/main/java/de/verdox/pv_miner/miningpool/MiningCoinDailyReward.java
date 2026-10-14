@@ -28,6 +28,8 @@ public class MiningCoinDailyReward {
     private LocalDate date;
     @Column(nullable = false, precision = 30, scale = 18)
     private BigDecimal amount;
+    /** Legacy column retained for schema compatibility; Currency Service owns all price valuation. */
+    @Deprecated
     @Column(name = "price_usd", precision = 30, scale = 12)
     private BigDecimal priceUsd;
     @Column(name = "fetched_at", nullable = false)

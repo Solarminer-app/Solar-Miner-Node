@@ -53,16 +53,11 @@ public class KryptexRewardService {
         Instant previous = refreshed.get(siteId);
         if (previous != null && previous.isAfter(Instant.now().minusSeconds(900))) return;
         Set<Route> routes = supportedRoutes(siteId);
-        Map<String, Map<LocalDate, BigDecimal>> prices = new HashMap<>();
         boolean complete = true;
         for (Route route : routes) {
             try {
                 if (MiningCoin.from(route.coin()).kryptexTicker() == null)
                     throw new IllegalStateException("Kryptex reward history is unavailable for " + route.coin());
-                Map<LocalDate, BigDecimal> priceByDay = prices.computeIfAbsent(route.coin(), coin -> {
-                    try { return parsePrices(fetch("/api/v1/coin/" + ticker(coin) + "/price/chart?time_range=year")); }
-                    catch (Exception e) { LOGGER.log(Level.WARNING, "Kryptex price chart unavailable for " + coin, e); return Map.of(); }
-                });
                 JsonNode chart = fetch("/" + ticker(route.coin()) + "/api/v1/miner/reward-chart/" + route.address());
                 Map<LocalDate, BigDecimal> daily = parseRewards(chart);
                 Instant fetchedAt = Instant.now();
@@ -74,7 +69,6 @@ public class KryptexRewardService {
                     row.setPayoutAddress(route.address());
                     row.setDate(point.getKey());
                     row.setAmount(point.getValue());
-                    if (priceByDay.containsKey(point.getKey())) row.setPriceUsd(priceByDay.get(point.getKey()));
                     row.setFetchedAt(fetchedAt);
                     rewards.save(row);
                 }
@@ -148,28 +142,11 @@ public class KryptexRewardService {
         return result;
     }
 
-    static Map<LocalDate, BigDecimal> parsePrices(JsonNode chart) {
-        if (!chart.isArray()) throw new IllegalArgumentException("Invalid price chart");
-        Map<LocalDate, PricePoint> latest = new HashMap<>();
-        for (JsonNode point : chart) {
-            JsonNode price = point.path("price");
-            JsonNode time = point.path("timestamp");
-            if (!price.isNumber() || !time.isNumber() || price.decimalValue().signum() <= 0) continue;
-            LocalDate date = Instant.ofEpochMilli(time.longValue()).atZone(ZoneOffset.UTC).toLocalDate();
-            latest.merge(date, new PricePoint(time.longValue(), price.decimalValue()),
-                    (left, right) -> left.timestamp() >= right.timestamp() ? left : right);
-        }
-        return latest.entrySet().stream().collect(java.util.stream.Collectors.toMap(Map.Entry::getKey,
-                entry -> entry.getValue().price()));
-    }
-
     private static String ticker(String coin) {
         MiningCoin value = MiningCoin.from(coin);
         if (value.kryptexTicker() == null) throw new IllegalArgumentException("Kryptex has no data provider for " + coin);
         return value.kryptexTicker();
     }
-    private record PricePoint(long timestamp, BigDecimal price) { }
-
     public record Route(String coin, String address) { }
     public record Snapshot(List<MiningCoinDailyReward> rows, Set<Route> activeRoutes) { }
 }

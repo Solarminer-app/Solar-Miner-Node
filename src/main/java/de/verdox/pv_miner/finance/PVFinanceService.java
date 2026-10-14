@@ -245,8 +245,10 @@ public class PVFinanceService {
         for (MiningCoinDailyReward reward : coinRewardsPerDay.getOrDefault(currentDay, List.of())) {
             observedRoutes.add(new KryptexRewardService.Route(reward.getCoin(), reward.getPayoutAddress()));
             double amount = reward.getAmount().doubleValue();
-            double converted = reward.getPriceUsd() == null ? -1 : globalConstantsService.convertHistorical(
-                    amount * reward.getPriceUsd().doubleValue(), CustomCurrency.getInstance("USD"), targetCurrency, currentDay);
+            String ticker = MiningCoin.from(reward.getCoin()).symbol();
+            double priceUsd = globalConstantsService.getCoinPriceUsd(ticker, currentDay);
+            double converted = priceUsd <= 0 ? -1 : globalConstantsService.convertHistorical(
+                    amount * priceUsd, CustomCurrency.getInstance("USD"), targetCurrency, currentDay);
             boolean valued = amount == 0 || converted >= 0;
             if (!valued) revenueComplete = false;
             if (converted > 0) otherRevenue += converted;

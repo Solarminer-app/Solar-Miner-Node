@@ -23,14 +23,6 @@ class KryptexRewardServiceTest {
     }
 
     @Test
-    void usesTheLatestPricePointForEachUtcDay() throws Exception {
-        Map<LocalDate, BigDecimal> prices = KryptexRewardService.parsePrices(mapper.readTree("""
-                [{"timestamp":1788138000000,"price":501.23}, {"timestamp":1788134400000,"price":500.12}]
-                """));
-        assertEquals(new BigDecimal("501.23"), prices.get(LocalDate.of(2026, 8, 31)));
-    }
-
-    @Test
     void acceptsEveryKryptexPcAgentCoinAndRejectsLookalikeHosts() {
         List<String> supported = List.of("monero", "pearl", "ravencoin", "ethereumclassic", "quantus");
         List<MiningTargetEntity> targets = new java.util.ArrayList<>();

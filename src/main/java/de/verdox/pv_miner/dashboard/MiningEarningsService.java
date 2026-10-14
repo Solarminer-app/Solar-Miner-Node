@@ -4,11 +4,13 @@ import de.verdox.pv_miner.entity.EntityQueryService;
 import de.verdox.pv_miner.globalconstants.GlobalConstantsService;
 import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.miningpool.MiningCoin;
+import de.verdox.pv_miner.miningpool.MiningCoinDailyReward;
 import de.verdox.pv_miner.miningpool.KryptexRewardService;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.util.currency.CustomCurrency;
 import org.springframework.stereotype.Service;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,6 +41,23 @@ public class MiningEarningsService {
         Snapshot fresh = calculate(site);
         cache.put(site.getId(), fresh);
         return fresh;
+    }
+
+    /** Currency-aware presentation of the conservative forecast used by the dashboard. */
+    public CurrencySnapshot currencySnapshot(PVSiteEntity site, CustomCurrency currency, Locale locale) {
+        Snapshot base = snapshot(site);
+        double currencyPerUsd = constants.getExchangeRate(CustomCurrency.getInstance("USD"), currency);
+        double gridPrice = constants.convert(site.getCurrentElectricityPrice(), currency).getRawMoneyAmount();
+        double revenueUsd = base.coins().stream().filter(CoinEstimate::available)
+                .mapToDouble(CoinEstimate::usdPerDay).sum();
+        boolean available = base.complete() && currencyPerUsd > 0 && base.kwhPerDay() != null && base.kwhPerDay() > 0;
+        Double currencyPerDay = available ? revenueUsd * currencyPerUsd : null;
+        Double currencyPerKwh = available ? currencyPerDay / base.kwhPerDay() : null;
+        return new CurrencySnapshot(base.coins(), base.actualPoolCredits(), base.complete(), base.centsPerKwh(),
+                base.gridCentsPerKwh(), base.eurPerDay(), base.kwhPerDay(), base.eurPerUsd(),
+                base.updatedAt(), base.diagnostics(), currency.getCurrencyCode(), currency.getSymbol(locale),
+                currencyPerKwh, gridPrice > 0 ? gridPrice : null, currencyPerDay,
+                currencyPerUsd > 0 ? currencyPerUsd : null);
     }
 
     private Snapshot calculate(PVSiteEntity site) {
@@ -102,11 +121,13 @@ public class MiningEarningsService {
     private List<PoolActual> actualPoolCredits(PVSiteEntity site) {
         java.time.LocalDate to = java.time.LocalDate.now(java.time.ZoneOffset.UTC).minusDays(1);
         java.time.LocalDate from = to.minusDays(6);
-        return actualPoolCredits(poolRewards.snapshot(site.getId(), from, to), from, to);
+        return actualPoolCredits(poolRewards.snapshot(site.getId(), from, to), from, to,
+                (coin, date) -> constants.getCoinPriceUsd(MiningCoin.from(coin).symbol(), date));
     }
 
     static List<PoolActual> actualPoolCredits(KryptexRewardService.Snapshot snapshot,
-                                              java.time.LocalDate from, java.time.LocalDate to) {
+                                              java.time.LocalDate from, java.time.LocalDate to,
+                                              java.util.function.BiFunction<String, java.time.LocalDate, Double> priceUsd) {
         return snapshot.activeRoutes().stream().map(KryptexRewardService.Route::coin).distinct().sorted().map(coin -> {
             List<KryptexRewardService.Route> routes = snapshot.activeRoutes().stream()
                     .filter(route -> coin.equals(route.coin())).toList();
@@ -117,9 +138,11 @@ public class MiningEarningsService {
             long uniquePoints = rows.stream().map(row -> row.getPayoutAddress() + "\n" + row.getDate()).distinct().count();
             java.math.BigDecimal amount = rows.stream().map(row -> row.getAmount())
                     .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
-            boolean valued = rows.stream().allMatch(row -> row.getPriceUsd() != null);
+            Map<java.time.LocalDate, Double> dailyPrices = rows.stream().map(MiningCoinDailyReward::getDate).distinct()
+                    .collect(java.util.stream.Collectors.toMap(date -> date, date -> priceUsd.apply(coin, date)));
+            boolean valued = dailyPrices.values().stream().allMatch(price -> price > 0);
             java.math.BigDecimal usd = valued ? rows.stream()
-                    .map(row -> row.getAmount().multiply(row.getPriceUsd()))
+                    .map(row -> row.getAmount().multiply(java.math.BigDecimal.valueOf(dailyPrices.get(row.getDate()))))
                     .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add) : null;
             MiningCoin definition = MiningCoin.from(coin);
             return new PoolActual(coin, definition.symbol(), from, to, amount,
@@ -146,4 +169,11 @@ public class MiningEarningsService {
     public record Snapshot(List<CoinEstimate> coins, List<PoolActual> actualPoolCredits, boolean complete, Double centsPerKwh,
                            Double gridCentsPerKwh, Double eurPerDay, Double kwhPerDay,
                            Double eurPerUsd, Instant updatedAt, List<String> diagnostics) {}
+    public record CurrencySnapshot(List<CoinEstimate> coins, List<PoolActual> actualPoolCredits,
+                                   boolean complete, Double centsPerKwh, Double gridCentsPerKwh,
+                                   Double eurPerDay, Double kwhPerDay, Double eurPerUsd,
+                                   Instant updatedAt, List<String> diagnostics,
+                                   String currencyCode, String currencySymbol,
+                                   Double currencyPerKwh, Double gridCurrencyPerKwh,
+                                   Double currencyPerDay, Double currencyPerUsd) {}
 }

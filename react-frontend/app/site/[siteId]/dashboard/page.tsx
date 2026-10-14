@@ -51,6 +51,12 @@ const CHART_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const LIVE_CHART_WINDOW_POINTS = 24 * 60;
 
 type ChartTab = 'live' | 'history' | 'controller';
+type EarningsSnapshot = {
+    complete: boolean;
+    currencyCode: string;
+    currencySymbol: string;
+    currencyPerKwh: number | null;
+};
 
 export default function DashboardPage() {
     const params = useParams();
@@ -69,6 +75,7 @@ export default function DashboardPage() {
     const [error, setError] = useState<string | null>(null);
     const [profilesReady, setProfilesReady] = useState(false);
     const [showMiningRevenueBreakdown, setShowMiningRevenueBreakdown] = useState(false);
+    const [earnings, setEarnings] = useState<EarningsSnapshot | null>(null);
 
     useEffect(() => {
         if (!siteId) return;
@@ -115,6 +122,14 @@ export default function DashboardPage() {
             if (data.controller.clusterName) setSelectedCluster(data.controller.clusterName);
         }
     }, [selectedCluster, siteId, timeZone]);
+
+    const loadEarnings = useCallback(async (signal?: AbortSignal) => {
+        const query = new URLSearchParams({locale, currency});
+        const response = await fetch(`${API_BASE_URL}/${siteId}/dashboard/earnings?${query}`, {signal, cache: 'no-store'});
+        if (!response.ok) return;
+        const data = await response.json() as EarningsSnapshot;
+        if (!signal?.aborted) setEarnings(data);
+    }, [currency, locale, siteId]);
 
     useEffect(() => {
         if (!siteId || !profilesReady) return;
@@ -179,6 +194,24 @@ export default function DashboardPage() {
         };
     }, [isHydrated, loadCharts, profilesReady, siteId]);
 
+    useEffect(() => {
+        if (!siteId || !isHydrated || !profilesReady) return;
+        const controller = new AbortController();
+        let timeout = 0;
+        const refresh = async () => {
+            try {
+                await loadEarnings(controller.signal);
+            } finally {
+                if (!controller.signal.aborted) timeout = window.setTimeout(refresh, 30_000);
+            }
+        };
+        timeout = window.setTimeout(refresh, 0);
+        return () => {
+            window.clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [isHydrated, loadEarnings, profilesReady, siteId]);
+
     const liveChartData = useMemo(() => {
         if (!charts) return [];
         const points = new Map<number, Record<string, number>>();
@@ -220,7 +253,7 @@ export default function DashboardPage() {
     const kw = (value: number) => `${format(value, 2)} kW`;
     const kwh = (value: number) => `${format(value, 2)} kWh`;
     const money = (value: number) => `${format(value, 2)} ${day.currencySymbol}`;
-    const euro = (value: number) => new Intl.NumberFormat(numberLocale, {style: 'currency', currency: 'EUR', maximumFractionDigits: 2}).format(Number.isFinite(value) ? value : 0);
+    const currencyPerKwh = (value: number, currencyCode: string) => `${new Intl.NumberFormat(numberLocale, {style: 'currency', currency: currencyCode, maximumFractionDigits: 4}).format(Number.isFinite(value) ? value : 0)} / kWh`;
     const percent = (value: number) => `${format(value, 0)} %`;
     const sourceOnline = dataQuality.sourceStatus === 'ONLINE';
     const problems = buildProblems(initData, liveData, t);
@@ -258,8 +291,8 @@ export default function DashboardPage() {
                 <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <MetricCard icon={<Sun size={18}/>} label={t['dashboard.today.production']} value={kwh(day.productionKwh)} detail={`${kwh(day.selfConsumedKwh)} ${t['dashboard.today.used_locally']}`} tone="yellow"/>
                     <MetricCard icon={<Leaf size={18}/>} label={t['dashboard.today.autarky']} value={percent(day.autarkyPercent)} detail={`${percent(day.selfConsumptionPercent)} ${t['dashboard.today.self_consumption']}`} tone="green"/>
-                    <MetricCard icon={<Gauge size={18}/>} label={t['dashboard.mining.efficiency']} value={mining.efficiencyJPerTh > 0 ? `${format(mining.efficiencyJPerTh, 1)} J/TH` : '—'} detail={formatHashrateThs(mining.totalHashrateThs, locale)} tone="cyan"/>
-                    <MiningRevenueCard day={day} euro={euro} onOpen={() => setShowMiningRevenueBreakdown(true)} t={t}/>
+                    <MetricCard icon={<Gauge size={18}/>} label={t['dashboard.mining.revenue_per_kwh']} value={earnings?.currencyCode !== currency || earnings.currencyPerKwh == null ? '—' : currencyPerKwh(earnings.currencyPerKwh, earnings.currencyCode)} detail={earnings?.currencyCode === currency && earnings.complete ? t['dashboard.mining.revenue_per_kwh_detail'] : t['dashboard.mining.revenue_per_kwh_unavailable']} tone="cyan"/>
+                    <MiningRevenueCard day={day} money={money} locale={locale} onOpen={() => setShowMiningRevenueBreakdown(true)} t={t}/>
                 </section>
 
                 <section className="grid gap-4 xl:grid-cols-12">
@@ -298,7 +331,7 @@ export default function DashboardPage() {
                     <PoolCard pools={initData.pools} t={t}/>
                 </section>
             </div>
-            {showMiningRevenueBreakdown ? <MiningRevenueDialog day={day} euro={euro} format={format} locale={locale} onClose={() => setShowMiningRevenueBreakdown(false)} t={t}/> : null}
+            {showMiningRevenueBreakdown ? <MiningRevenueDialog day={day} money={money} format={format} locale={locale} onClose={() => setShowMiningRevenueBreakdown(false)} t={t}/> : null}
         </main>
     );
 }
@@ -348,23 +381,34 @@ function MetricCard({icon, label, value, detail, tone}: {icon: React.ReactNode; 
     return <article className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-[#131318] p-4"><span className={`grid h-9 w-9 place-items-center rounded-lg ${colors[tone]}`}>{icon}</span><span className="min-w-0"><span className="block text-[11px] text-[#777781]">{label}</span><strong className="block truncate text-xl">{value}</strong><span className="block truncate text-[11px] text-[#666670]">{detail}</span></span></article>;
 }
 
-function MiningRevenueCard({day, euro, onOpen, t}: {day: DailyEnergySummaryDto; euro: (value: number) => string; onOpen: () => void; t: Record<string, string>}) {
+function MiningRevenueCard({day, money, locale, onOpen, t}: {day: DailyEnergySummaryDto; money: (value: number) => string; locale: 'de' | 'en'; onOpen: () => void; t: Record<string, string>}) {
+    const knownAmounts = formatKnownMiningAmounts(day, locale);
     return <button className="flex w-full items-center gap-3 rounded-2xl border border-emerald-400/15 bg-[#131318] p-4 text-left transition hover:border-emerald-400/30 hover:bg-emerald-400/[0.03]" onClick={onOpen} type="button">
             <span className="grid h-9 w-9 place-items-center rounded-lg bg-emerald-300/10 text-emerald-300"><CircleDollarSign size={18}/></span>
-            <span className="min-w-0 flex-1"><span className="block text-[11px] text-[#777781]">{t['dashboard.today.mining_result']}</span><strong className="block truncate text-xl">{day.miningRevenueEuro == null ? t['dashboard.today.mining_revenue_unvalued'] : euro(day.miningRevenueEuro)}</strong><span className="block text-[11px] text-[#666670]">{t['dashboard.today.mining_revenue_detail']}</span></span>
+            <span className="min-w-0 flex-1"><span className="block text-[11px] text-[#777781]">{t['dashboard.today.mining_result']}</span><strong className="block truncate text-xl">{day.miningRevenue == null ? knownAmounts : money(day.miningRevenue)}</strong><span className="block text-[11px] text-[#666670]">{day.miningRevenue == null ? t['dashboard.today.mining_revenue_partial'] : t['dashboard.today.mining_revenue_detail']}</span></span>
     </button>;
 }
 
-function MiningRevenueDialog({day, euro, format, locale, onClose, t}: {day: DailyEnergySummaryDto; euro: (value: number) => string; format: (value: number, digits?: number) => string; locale: 'de' | 'en'; onClose: () => void; t: Record<string, string>}) {
+function MiningRevenueDialog({day, money, format, locale, onClose, t}: {day: DailyEnergySummaryDto; money: (value: number) => string; format: (value: number, digits?: number) => string; locale: 'de' | 'en'; onClose: () => void; t: Record<string, string>}) {
     const coinAmount = (coin: {coin: string; symbol: string; amount: number | null}) => coin.amount == null ? '—' : coin.coin === 'bitcoin'
         ? `${format(coin.amount * 100_000_000, 0)} sats`
         : `${formatCoinAmount(coin.amount, locale)} ${coin.symbol}`;
+    const knownAmounts = formatKnownMiningAmounts(day, locale);
     return <div aria-label={t['dashboard.today.mining_result']} aria-modal="true" className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm" onClick={onClose} role="dialog">
         <div className="w-full max-w-md overflow-hidden rounded-2xl border border-emerald-400/20 bg-[#17171b] shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between border-b border-white/[0.07] p-5"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">{locale === 'de' ? 'Heute' : 'Today'}</p><h2 className="mt-1 text-lg font-semibold">{t['dashboard.today.mining_result']}</h2><strong className="mt-2 block text-2xl">{day.miningRevenueEuro == null ? t['dashboard.today.mining_revenue_unvalued'] : euro(day.miningRevenueEuro)}</strong></div><button aria-label={locale === 'de' ? 'Schließen' : 'Close'} className="rounded-lg p-2 text-[#9797a2] transition hover:bg-white/[0.06] hover:text-white" onClick={onClose} type="button"><X size={18}/></button></div>
-            <div className="space-y-2 p-5">{day.miningRevenueByCoin.map((coin) => <div className="flex items-center justify-between gap-4 rounded-xl bg-black/20 px-4 py-3" key={coin.coin}><span className="min-w-0"><strong className="block text-sm">{coin.symbol}</strong><span className="mt-0.5 block truncate text-xs text-[#85858f]">{coinAmount(coin)}</span></span><strong className={coin.euroValue == null ? 'text-amber-300' : 'text-emerald-300'}>{coin.euroValue == null ? t['dashboard.today.mining_revenue_unvalued'] : euro(coin.euroValue)}</strong></div>)}</div>
+            <div className="flex items-start justify-between border-b border-white/[0.07] p-5"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">{t['dashboard.today.today']}</p><h2 className="mt-1 text-lg font-semibold">{t['dashboard.today.mining_result']}</h2><strong className="mt-2 block text-2xl">{day.miningRevenue == null ? knownAmounts : money(day.miningRevenue)}</strong></div><button aria-label={t['dashboard.action.close']} className="rounded-lg p-2 text-[#9797a2] transition hover:bg-white/[0.06] hover:text-white" onClick={onClose} type="button"><X size={18}/></button></div>
+            <div className="space-y-2 p-5">{day.miningRevenueByCoin.map((coin) => <div className="flex items-center justify-between gap-4 rounded-xl bg-black/20 px-4 py-3" key={coin.coin}><span className="min-w-0"><strong className="block text-sm">{coin.symbol}</strong><span className="mt-0.5 block truncate text-xs text-[#85858f]">{coinAmount(coin)}</span></span><strong className={coin.fiatValue == null ? 'text-amber-300' : 'text-emerald-300'}>{coin.fiatValue == null ? t['dashboard.today.mining_revenue_rate_unavailable'].replace('{currency}', coin.currency) : money(coin.fiatValue)}</strong></div>)}</div>
         </div>
     </div>;
+}
+
+function formatKnownMiningAmounts(day: DailyEnergySummaryDto, locale: 'de' | 'en') {
+    const known = day.miningRevenueByCoin.flatMap((coin) => {
+        if (coin.amount == null) return [];
+        if (coin.coin === 'bitcoin') return [`${new Intl.NumberFormat(locale === 'de' ? 'de-DE' : 'en-US', {maximumFractionDigits: 0}).format(coin.amount * 100_000_000)} sats`];
+        return [`${formatCoinAmount(coin.amount, locale)} ${coin.symbol}`];
+    });
+    return known.length ? known.join(' + ') : '—';
 }
 
 function formatCoinAmount(value: number, locale: 'de' | 'en') {

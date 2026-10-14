@@ -56,6 +56,8 @@ export interface DailyEnergySummaryDto {
         symbol: string;
         amount: number | null;
         euroValue: number | null;
+        fiatValue: number | null;
+        currency: string;
     }>;
 }
 
