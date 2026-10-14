@@ -291,7 +291,7 @@ export default function DashboardPage() {
                 <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <MetricCard icon={<Sun size={18}/>} label={t['dashboard.today.production']} value={kwh(day.productionKwh)} detail={`${kwh(day.selfConsumedKwh)} ${t['dashboard.today.used_locally']}`} tone="yellow"/>
                     <MetricCard icon={<Leaf size={18}/>} label={t['dashboard.today.autarky']} value={percent(day.autarkyPercent)} detail={`${percent(day.selfConsumptionPercent)} ${t['dashboard.today.self_consumption']}`} tone="green"/>
-                    <MetricCard icon={<Gauge size={18}/>} label={t['dashboard.mining.revenue_per_kwh']} value={earnings?.currencyCode !== currency || earnings.currencyPerKwh == null ? '—' : currencyPerKwh(earnings.currencyPerKwh, earnings.currencyCode)} detail={earnings?.currencyCode === currency && earnings.complete ? t['dashboard.mining.revenue_per_kwh_detail'] : t['dashboard.mining.revenue_per_kwh_unavailable']} tone="cyan"/>
+                    <MetricCard icon={<Gauge size={18}/>} label={t['dashboard.mining.revenue_per_kwh']} value={earnings?.currencyCode !== currency || earnings.currencyPerKwh == null ? '—' : `≈${currencyPerKwh(earnings.currencyPerKwh, earnings.currencyCode)}`} detail={earnings?.currencyCode === currency && earnings.complete ? t['dashboard.mining.revenue_per_kwh_detail'] : t['dashboard.mining.revenue_per_kwh_unavailable']} tone="cyan"/>
                     <MiningRevenueCard day={day} money={money} onOpen={() => setShowMiningRevenueBreakdown(true)} t={t}/>
                 </section>
 

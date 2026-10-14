@@ -223,15 +223,12 @@ public class TaxReportService {
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(german ? "dd.MM.yyyy" : "MM/dd/yyyy",
                 context.getLocale());
         DateTimeFormatter monthFormatter = DateTimeFormatter.ofPattern("MMMM yyyy", context.getLocale());
-        double totalRevenue = statistics.stream().mapToDouble(day -> day.miningRevenueHistoric().amount()).sum();
-        double totalGridCost = statistics.stream().mapToDouble(day -> day.miningGridCost().amount()).sum();
-        double totalOpportunityCost = statistics.stream().mapToDouble(day -> day.miningOpportunityCost().amount()).sum();
         boolean complete = statistics.stream().allMatch(PVStatisticDto::miningRevenueComplete);
 
         StringBuilder html = new StringBuilder();
         html.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<html><head>")
                 .append(getBaseCss())
-                .append("<style>@page { size: A4 landscape; margin: 12mm; } table { font-size: 8.5px; } th, td { padding: 5px; } .kpi-box-four { display:inline-block; width:23%; background:#f8f9fa; border:1px solid #e9ecef; border-radius:8px; padding:10px; margin-right:1%; box-sizing:border-box; vertical-align:top; } .explanation { background:#f8f9fa; border-left:3px solid #00b978; padding:8px 12px; margin:12px 0; font-size:10px; }</style>")
+                .append("<style>@page { size: A4 landscape; margin: 12mm; } table { font-size: 8.5px; } thead { display: table-header-group; } tr { page-break-inside: avoid; } th, td { padding: 5px; } .month-details { page-break-before: always; break-before: page; }</style>")
                 .append("</head><body><div class='header'><h1>")
                 .append(german ? "Solar Miner – Stromkosten- und Coin-Deckungsreport" : "Solar Miner – Electricity Cost and Coin Coverage Report")
                 .append("</h1><p>")
@@ -241,29 +238,36 @@ public class TaxReportService {
                 .append("<strong>").append(from.format(dateFormatter)).append(" – ").append(to.format(dateFormatter))
                 .append("</strong></p></div>");
 
-        appendCoverageKpi(html, german ? "Mining-Wert" : "Mining value", totalRevenue, context, null);
-        appendCoverageKpi(html, german ? "Zu zahlender Netzstrom" : "Payable grid electricity", totalGridCost, context, null);
-        appendCoverageKpi(html, german ? "Cash-Ergebnis" : "Cash result", totalRevenue - totalGridCost, context,
-                totalRevenue - totalGridCost >= 0 ? "positive" : "negative");
-        appendCoverageKpi(html, german ? "Wirtschaftliches Ergebnis" : "Economic result",
-                totalRevenue - totalGridCost - totalOpportunityCost, context,
-                totalRevenue - totalGridCost - totalOpportunityCost >= 0 ? "positive" : "negative");
+        Map<YearMonth, List<PVStatisticDto>> byMonth = statistics.stream().collect(Collectors.groupingBy(
+                day -> YearMonth.from(day.date()), LinkedHashMap::new, Collectors.toList()));
+        html.append("<h2>").append(german ? "Monats- und Jahressummen" : "Monthly and yearly totals")
+                .append("</h2><table><thead><tr>")
+                .append(th(german ? "Zeitraum" : "Period"))
+                .append(thRight(german ? "Mining-Energie" : "Mining energy"))
+                .append(thRight(german ? "davon Netz" : "grid share"))
+                .append(thRight(german ? "davon Batterie" : "battery share"))
+                .append(thRight(german ? "Datenbasis" : "Data basis"))
+                .append(thRight(german ? "Coin-Ertrag" : "Coin reward"))
+                .append(thRight(german ? "Mining-Wert" : "Mining value"))
+                .append(thRight(german ? "Netzkosten" : "Grid cost"))
+                .append(thRight(german ? "Opportunitätskosten" : "Opportunity cost"))
+                .append(thRight(german ? "Cash netto" : "Net cash"))
+                .append(thRight(german ? "Coins für Stromrechnung" : "Coins for grid bill"))
+                .append(thRight(german ? "Coins inkl. Opportunität" : "Coins incl. opportunity"))
+                .append("</tr></thead><tbody>");
+        byMonth.forEach((month, days) -> appendCoverageRow(html,
+                month.format(monthFormatter), days, context, german, true));
+        Map<Integer, List<PVStatisticDto>> byYear = statistics.stream().collect(Collectors.groupingBy(
+                day -> day.date().getYear(), LinkedHashMap::new, Collectors.toList()));
+        byYear.forEach((year, days) -> appendCoverageRow(html,
+                (german ? "Summe Jahr " : "Year total ") + year, days, context, german, true));
+        html.append("</tbody></table><h2>").append(german ? "Tagesdetails je Monat" : "Daily details by month")
+                .append("</h2>");
 
-        html.append("<div class='explanation'>")
-                .append(german
-                        ? "<strong>Cash-Sicht:</strong> Nur der während des Minings anteilig bezogene Netzstrom muss bezahlt werden. "
-                        + "<strong>Wirtschaftliche Sicht:</strong> Zusätzlich wird die entgangene Einspeisevergütung des fürs Mining genutzten PV-Stroms ausgewiesen. "
-                        + "Die Zuordnung erfolgt bei ausreichender Datenabdeckung aus zeitgleichen Minutenintervallen; Batterieentladung wird separat behandelt. Für ältere Daten werden Stundenintervalle und bei Datenlücken eine gekennzeichnete Tageswert-Schätzung verwendet. "
-                        + "Batterieenergie wird ausgewiesen, aber ohne Herkunfts- und Verlustmodell weder als direkter Netzbezug noch als PV-Opportunitätskosten bepreist. "
-                        + "Die Verkaufsempfehlung nimmt an, dass von allen bewerteten Tageserträgen derselbe Anteil verkauft wird. Sie ist eine Planungsgröße zum historischen Tageswert, keine tatsächlich erfasste Transaktion oder Steuerberatung."
-                        : "<strong>Cash view:</strong> Only the share of grid electricity imported during mining produces a payable bill. "
-                        + "<strong>Economic view:</strong> The forgone feed-in revenue of PV electricity used for mining is shown separately. "
-                        + "With sufficient coverage, energy is allocated from time-aligned minute intervals and battery discharge is handled separately. Older data uses hourly intervals, with a labelled daily-value estimate for gaps. "
-                        + "Battery energy is reported but, without an origin and loss model, is priced neither as direct grid import nor as PV opportunity cost. "
-                        + "The sale recommendation assumes that the same share of every valued daily reward is sold. It is a planning estimate at the historical daily value, not a recorded transaction or tax advice.")
-                .append("</div>");
-
-        html.append("<table><thead><tr>")
+        for (Map.Entry<YearMonth, List<PVStatisticDto>> monthEntry : byMonth.entrySet()) {
+            html.append("<section class='month-details'><h3>")
+                    .append(escape(monthEntry.getKey().format(monthFormatter)))
+                    .append("</h3><table><thead><tr>")
                 .append(th(german ? "Datum" : "Date"))
                 .append(thRight(german ? "Mining-Energie" : "Mining energy"))
                 .append(thRight(german ? "davon Netz" : "grid share"))
@@ -277,18 +281,15 @@ public class TaxReportService {
                 .append(thRight(german ? "Coins für Stromrechnung" : "Coins for grid bill"))
                 .append(thRight(german ? "Coins inkl. Opportunität" : "Coins incl. opportunity"))
                 .append("</tr></thead><tbody>");
-
-        Map<YearMonth, List<PVStatisticDto>> byMonth = statistics.stream().collect(Collectors.groupingBy(
-                day -> YearMonth.from(day.date()), LinkedHashMap::new, Collectors.toList()));
-        for (Map.Entry<YearMonth, List<PVStatisticDto>> monthEntry : byMonth.entrySet()) {
             for (PVStatisticDto day : monthEntry.getValue()) {
                 appendCoverageRow(html, day.date().format(dateFormatter), List.of(day), context, german, false);
             }
             appendCoverageRow(html,
                     (german ? "Summe " : "Total ") + monthEntry.getKey().format(monthFormatter),
                     monthEntry.getValue(), context, german, true);
+            html.append("</tbody></table></section>");
         }
-        html.append("</tbody></table><div class='footer'>")
+        html.append("<div class='footer'>")
                 .append(complete
                         ? (german ? "Alle im Zeitraum gemeldeten Mining-Erträge konnten bewertet werden." : "All mining rewards reported for the period could be valued.")
                         : (german ? "* Mindestens ein Pool-Ertrag oder historischer Coin-Kurs fehlt. Betroffene Coin-Deckungswerte sind unvollständig."
@@ -373,14 +374,6 @@ public class TaxReportService {
             return result.isEmpty() ? unavailable : result + " · " + unavailable;
         }
         return result.isEmpty() ? "0" : result;
-    }
-
-    private static void appendCoverageKpi(StringBuilder html, String label, double value, ReportContext context,
-                                          String valueClass) {
-        html.append("<div class='kpi-box-four'><div class='kpi-title'>").append(escape(label))
-                .append("</div><p class='kpi-value")
-                .append(valueClass == null ? "" : " " + valueClass)
-                .append("'>").append(formatMoney(value, context)).append("</p></div>");
     }
 
     private static String th(String value) { return "<th>" + escape(value) + "</th>"; }

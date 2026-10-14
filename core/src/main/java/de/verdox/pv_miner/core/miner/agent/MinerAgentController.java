@@ -133,6 +133,25 @@ public class MinerAgentController implements MinerController {
         }
     }
 
+    /** Configure any GPU coin through the Agent's coin-owned adapter and the shared proxy. */
+    public boolean configureGpuCoin(MinerDetails details, String coin, String poolUrl, String proxyUrl,
+                                    String wallet, String worker, String devices, String referral) {
+        try {
+            var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
+            String effectiveProxy = prepareProxy(restClient, proxyUrl, coin + "Url");
+            if (effectiveProxy == null || !setReferral(details, referral)) return false;
+            return Boolean.TRUE.equals(restClient.post().uri("/api/agent/external/gpu-coin/" + coin + "/configuration")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("poolUrl", poolUrl, "proxyUrl", effectiveProxy,
+                            "wallet", wallet == null ? "" : wallet,
+                            "worker", worker == null ? "solarminer" : worker,
+                            "devices", devices == null || devices.isBlank() ? "all" : devices))
+                    .retrieve().body(Boolean.class));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private static String prepareProxy(RestClient restClient, String externalProxyUrl, String urlField) {
         JsonNode current = restClient.get().uri("/api/agent/external/proxy").retrieve().body(JsonNode.class);
         if (current == null) return null;
@@ -154,8 +173,12 @@ public class MinerAgentController implements MinerController {
             var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
             JsonNode overview = restClient.get().uri("/api/agent/external/overview").retrieve().body(JsonNode.class);
             if (overview == null) return null;
+            Map<String, CoinRoute> gpu = new java.util.LinkedHashMap<>();
+            JsonNode gpuCoins = overview.path("gpuCoins");
+            if (gpuCoins.isObject()) gpuCoins.fields().forEachRemaining(entry ->
+                    gpu.put(entry.getKey(), route(entry.getValue().path("configuration"))));
             return new AgentCoinConfigurations(route(overview.path("moneroConfiguration")),
-                    route(overview.path("pearlConfiguration")));
+                    route(overview.path("pearlConfiguration")), gpu);
         } catch (Exception e) {
             return null;
         }
@@ -187,7 +210,7 @@ public class MinerAgentController implements MinerController {
                 node.path("worker").asText(null), node.path("devices").asText(null));
     }
 
-    public record AgentCoinConfigurations(CoinRoute monero, CoinRoute pearl) { }
+    public record AgentCoinConfigurations(CoinRoute monero, CoinRoute pearl, Map<String, CoinRoute> gpuCoins) { }
     public record CoinRoute(String poolUrl, String wallet, String worker, String devices) { }
 
     @Override

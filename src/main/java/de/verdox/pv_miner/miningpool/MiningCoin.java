@@ -2,7 +2,7 @@ package de.verdox.pv_miner.miningpool;
 
 import java.util.Arrays;
 
-/** Canonical coins known to the Node. Target-control support is narrower than read-only reporting support. */
+/** Canonical coins that the Node can route to a supported ASIC or PC-Agent miner path. */
 public enum MiningCoin {
     BITCOIN("bitcoin", "BTC", "SHA256", "sha256", true),
     MONERO("monero", "XMR", "RandomX", "randomx", true),
@@ -31,9 +31,9 @@ public enum MiningCoin {
     public String algorithm() { return algorithm; }
     public String agentAlgorithm() { return agentAlgorithm; }
     public boolean automaticAssignment() { return automaticAssignment; }
-    public boolean supportsNodeTargetControl() { return this == BITCOIN || this == MONERO || this == PEARL; }
-    /** Coins whose wallet/pool path is complete enough for operator-facing Node configuration. */
-    public boolean supportsWalletManagement() { return this == BITCOIN || this == MONERO || this == PEARL; }
+    public boolean supportsNodeTargetControl() { return true; }
+    /** Coins accepted by the wallet-address UI; balance availability remains pool-specific. */
+    public boolean supportsWalletManagement() { return true; }
     public String kryptexTicker() {
         return switch (this) {
             case MONERO -> "xmr";

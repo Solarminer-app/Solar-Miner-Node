@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Arrays;
 import java.util.UUID;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/pv-site/{siteId}/mining")
@@ -60,7 +61,7 @@ public class MiningTargetController {
     public List<CoinDto> coins(@PathVariable UUID siteId) {
         requireSite(siteId);
         return Arrays.stream(MiningCoin.values()).map(coin -> new CoinDto(coin.key(), coin.symbol(),
-                coin.algorithm(), coin.automaticAssignment(), coin.supportsNodeTargetControl(),
+                coin.algorithm(), coin.agentAlgorithm(), coin.automaticAssignment(), coin.supportsNodeTargetControl(),
                 coin.supportsWalletManagement())).toList();
     }
 
@@ -79,7 +80,8 @@ public class MiningTargetController {
         if (!coin.supportsNodeTargetControl()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Node target control is not available for this coin; configure it in the PC-Agent");
         }
-        if (!coin.algorithm().equals(request.algorithm()) || !coin.key().equals(request.payoutCoin() == null ? coin.key() : request.payoutCoin())) {
+        if (!(coin.algorithm().equals(request.algorithm()) || coin.agentAlgorithm().equalsIgnoreCase(request.algorithm()))
+                || !coin.key().equals(request.payoutCoin() == null ? coin.key() : request.payoutCoin())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mining coin, algorithm and payout coin do not match");
         }
         if (!request.workerPrefix().matches("[A-Za-z0-9._-]+") || request.workerPrefix().contains(";")
@@ -101,6 +103,8 @@ public class MiningTargetController {
                     || uri.getQuery() != null || uri.getFragment() != null) {
                 throw new IllegalArgumentException("Invalid Stratum URL");
             }
+            if (!coin.supportsNodeTargetControl() || !supportedPool(coin, uri))
+                throw new IllegalArgumentException("Unsupported pool for mining coin");
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Stratum URL");
         }
@@ -113,7 +117,7 @@ public class MiningTargetController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Mining target not found"));
         boolean wasBitcoin = request.id() != null && "bitcoin".equals(target.getCoin());
         target.setSiteId(siteId);
-        target.setAlgorithm(request.algorithm());
+        target.setAlgorithm(coin.agentAlgorithm());
         target.setCoin(coin.key());
         target.setPayoutCoin(coin.key());
         target.setPayoutAddress(payoutAddress);
@@ -128,6 +132,22 @@ public class MiningTargetController {
         service.apply(siteId, coin, true);
         if (wasBitcoin && coin != MiningCoin.BITCOIN) service.apply(siteId, MiningCoin.BITCOIN, true);
         return saved;
+    }
+
+    private static boolean supportedPool(MiningCoin coin, URI uri) {
+        String host = uri.getHost().toLowerCase(java.util.Locale.ROOT);
+        int port = uri.getPort();
+        return switch (coin) {
+            case BITCOIN -> true; // Legacy ASIC pools remain operator-configurable.
+            case MONERO -> host.matches("xmr(-[a-z]+)?\\.kryptex\\.network") && port == 7029;
+            case PEARL -> host.matches("prl(-[a-z]+)?\\.kryptex\\.network") && port == 8048;
+            case RAVENCOIN -> host.matches("rvn(-[a-z]+)?\\.kryptex\\.network") && port == 7031;
+            case ETHEREUM_CLASSIC -> host.matches("etc(-[a-z]+)?\\.kryptex\\.network") && port == 7033;
+            case DECRED -> (host.equals("dcr.suprnova.cc") || host.equals("stratum-us.suprnova.cc")
+                    || host.equals("stratum-apac.suprnova.cc")) && port == 9333;
+            case QUANTUS -> (host.matches("qtc(-[a-z]+)?\\.kryptex\\.network") && port == 7049)
+                    || (Set.of("global.quanpool.com", "us.quanpool.com", "asia.quanpool.com").contains(host) && port == 9854);
+        };
     }
 
     @DeleteMapping("/targets/{targetId}")
@@ -211,7 +231,7 @@ public class MiningTargetController {
                     entity.getWorkerPrefix(), entity.getPriority(), entity.isEnabled());
         }
     }
-    public record CoinDto(String key, String symbol, String algorithm, boolean automaticAssignment,
+    public record CoinDto(String key, String symbol, String algorithm, String agentAlgorithm, boolean automaticAssignment,
                           boolean targetConfigurable, boolean walletConfigurable) { }
     public record PoolOverviewDto(UUID id, String source, String coin, String balanceCoin, String name, String stratumUrl, BigDecimal balance, Instant balanceUpdatedAt,
                                   Integer poolWorkerCount, List<AssignedMinerDto> assignedMiners, String payoutAddress, String suggestedWorkerPrefix) { }

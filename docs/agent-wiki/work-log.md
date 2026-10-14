@@ -1,5 +1,30 @@
 # Agent work log
 
+## 2026-10-14 — Kryptex daily rewards use the current public API field
+
+- The Node now reads Kryptex's documented `date` field from the 31-day `reward-chart` response and maps each credited reward to its UTC day. It also accepts the earlier `timestamp` field as a compatibility fallback. Both seconds and milliseconds are handled, so the daily finance/PDF calculation can value the pool-reported daily rewards instead of silently discarding current API points.
+- The current `balance` response remains excluded from daily profit/loss: its `confirmed` and `unconfirmed` amounts have no day allocation and can overlap with the reward chart. Adding them would double-count a day's reward.
+- Verification remains open; no test command was run in this change.
+
+## 2026-10-14 — Approximate earnings per kWh for PC-Agent forecasts
+
+- The Node now accepts a fresh PC-Agent gross forecast for its revenue-per-kWh display even when the Agent cannot resolve every pool, miner or SolarMiner fee. The returned estimate stays marked `GROSS`; the dashboard and earnings page prepend `≈` and explain in German and English that fee-incomplete values use gross revenue.
+- Additive Agent coin forecasts no longer make the site's all-miner completeness gate fail when no active Agent worker uses an unknown algorithm. An active worker using an unregistered algorithm still produces an unavailable row so the Node does not silently omit real mining consumption.
+- Unknown active Agent forecasts now retain their reported coin ID and ticker for the earnings response; the page shows the ticker and canonical ID instead of the internal `agent` placeholder and explains that the Node cannot map that coin. Legacy placeholder responses render as “Unbekannter Coin” / “Unknown coin”.
+- Updated the Node-side Currency Service consumer record. No Currency Service producer or schema changed; the PC-Agent's existing gross estimate contract was sufficient.
+- Verification: source and UI changes reviewed; no tests or builds run.
+
+## 2026-10-14 — Zeitraumfilter direkt bei Finanzexporten platziert
+
+- Der bestehende Start-/Enddatum-Filter steht jetzt direkt unter der Kopfzeile mit den Exportbuttons. Er steuert weiterhin sowohl den geladenen Finanzzeitraum als auch die Exportanfragen; keine zusätzlichen Datepicker oder Übersetzungen nötig.
+- Verifikation: JSX-Diff geprüft und `git diff --check` ausgeführt.
+
+## 2026-10-14 — Stromkosten- und Coin-Deckungs-PDF übersichtlicher gegliedert
+
+- Die PDF beginnt mit einer Tabelle der Monatsergebnisse und einer Jahressumme pro enthaltenem Jahr. Danach folgen die Tagesdetails, jeweils ein Monat pro Seite.
+- Monatstabellen wiederholen ihre Kopfzeile bei Seitenumbrüchen; Tabellenzeilen bleiben nach Möglichkeit zusammen. Übersichtstitel und Tabellenköpfe sind auf Deutsch und Englisch lokalisiert.
+- Verifikation: `git diff --check` erfolgreich. Der gezielte `CostCoveragePdfReportTest` konnte nicht gestartet werden, weil in der Umgebung weder `JAVA_HOME` gesetzt noch `java` im PATH vorhanden ist.
+
 ## 2026-10-13 — PC-Agent-Telemetrie ohne Steuerfreigabe und clusterunabhängige PV-Leistung
 
 - Der PC-Agent-Vertrag trennt read-only Monitoring von Steuerberechtigung: Node kann Identity, Mining-Status, Power-Status und Hardware-Telemetrie auch bei `externalControlEnabled=false` lesen. Core respektiert den gemeldeten ausgeschalteten Schalter weiterhin, setzt die steuerbaren Leistungsgrenzen auf null und sendet keine dadurch freigegebenen Aktionen.

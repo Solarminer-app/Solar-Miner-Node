@@ -9,6 +9,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.util.Optional;
+import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -70,6 +71,18 @@ public class MinerApiClient {
         } catch (RestClientException e) {
             return false;
         }
+    }
+
+    public boolean configureGpuCoin(MinerDetails details, String coin, String poolUrl, String wallet,
+                                    String worker, String devices, String referralCode) {
+        try {
+            Boolean result = restClient.post().uri("/gpu-coin/configuration")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new GpuCoinConfigurationRequest(details, coin, poolUrl, wallet, worker, devices,
+                            normalizeReferral(referralCode)))
+                    .retrieve().body(Boolean.class);
+            return Boolean.TRUE.equals(result);
+        } catch (RestClientException e) { return false; }
     }
 
     public AgentCoinConfigurations getAgentCoinConfigurations(MinerDetails details) {
@@ -270,7 +283,11 @@ public class MinerApiClient {
     }
 
     public record MoneroConfigurationRequest(MinerDetails minerDetails, String poolUrl, String wallet, String worker, String referralCode) { }
-    public record AgentCoinConfigurations(CoinRoute monero, CoinRoute pearl) { }
+    public record AgentCoinConfigurations(CoinRoute monero, CoinRoute pearl, Map<String, CoinRoute> gpuCoins) {
+        public AgentCoinConfigurations(CoinRoute monero, CoinRoute pearl) { this(monero, pearl, Map.of()); }
+    }
+    public record GpuCoinConfigurationRequest(MinerDetails minerDetails, String coin, String poolUrl,
+                                               String wallet, String worker, String devices, String referralCode) { }
     public record AgentEconomicPlanRequest(MinerDetails minerDetails, com.fasterxml.jackson.databind.JsonNode plan) { }
     public record CoinRoute(String poolUrl, String wallet, String worker, String devices) { }
 

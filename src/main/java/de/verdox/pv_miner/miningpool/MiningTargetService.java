@@ -35,7 +35,7 @@ public class MiningTargetService {
         this.queries = queries;
     }
 
-    /** Generic pool-target writes are limited to single-algorithm ASICs. Agents use coin-specific commands. */
+    /** Single-algorithm ASICs use the generic pool API; PC-Agent targets use coin-owned adapters. */
     public boolean isEligible(MinerEntity<?> miner) {
         return miner.getOS() == MiningOS.BRAIINS || miner.getOS() == MiningOS.ANTMINER_STOCK_OS;
     }
@@ -54,7 +54,8 @@ public class MiningTargetService {
         if (site == null) return;
         List<MiningTargetEntity> candidates = list(siteId).stream()
                 .filter(target -> target.isEnabled() && coin.key().equals(target.getCoin())
-                        && coin.algorithm().equals(target.getAlgorithm()))
+                        && (coin.agentAlgorithm().equalsIgnoreCase(target.getAlgorithm())
+                        || coin.algorithm().equalsIgnoreCase(target.getAlgorithm())))
                 .sorted(Comparator.comparingInt(MiningTargetEntity::getPriority))
                 .toList();
         if (candidates.isEmpty()) return;
@@ -92,7 +93,7 @@ public class MiningTargetService {
                             String referralCode, boolean force) {
         var current = minerApi.getAgentCoinConfigurations(miner.getDetails());
         if (current == null) return;
-        MinerApiClient.CoinRoute route = coin == MiningCoin.MONERO ? current.monero() : current.pearl();
+        MinerApiClient.CoinRoute route = route(current, coin);
         if (!force && candidates.stream().anyMatch(target -> matches(route, target, miner.getId()))) return;
         for (MiningTargetEntity target : candidates) {
             try {
@@ -101,12 +102,22 @@ public class MiningTargetService {
                         ? "all" : current.pearl().devices();
                 boolean accepted = coin == MiningCoin.MONERO
                         ? minerApi.configureMonero(miner.getDetails(), target.getStratumUrl(), target.getPayoutAddress(), worker, referralCode)
-                        : minerApi.configurePearl(miner.getDetails(), target.getStratumUrl(), target.getPayoutAddress(), worker, devices, referralCode);
+                        : coin == MiningCoin.PEARL
+                            ? minerApi.configurePearl(miner.getDetails(), target.getStratumUrl(), target.getPayoutAddress(), worker, devices, referralCode)
+                            : minerApi.configureGpuCoin(miner.getDetails(), coin.key(), target.getStratumUrl(),
+                                    target.getPayoutAddress(), worker, route == null || route.devices() == null
+                                            ? "all" : route.devices(), referralCode);
                 if (accepted) return;
             } catch (Exception exception) {
                 LOGGER.log(Level.WARNING, "Could not apply " + coin.key() + " target to agent " + miner.getId(), exception);
             }
         }
+    }
+
+    private static MinerApiClient.CoinRoute route(MinerApiClient.AgentCoinConfigurations current, MiningCoin coin) {
+        if (coin == MiningCoin.MONERO) return current.monero();
+        if (coin == MiningCoin.PEARL) return current.pearl();
+        return current.gpuCoins() == null ? null : current.gpuCoins().get(coin.key());
     }
 
     private static String workerName(MiningTargetEntity target, UUID minerId) {
@@ -136,14 +147,15 @@ public class MiningTargetService {
             }
             if (miner.getOS() != MiningOS.AGENT) return java.util.stream.Stream.empty();
             var current = minerApi.getAgentCoinConfigurations(miner.getDetails());
-            return Arrays.stream(new MiningCoin[]{MiningCoin.MONERO, MiningCoin.PEARL}).map(coin -> {
-                var route = current == null ? null : coin == MiningCoin.MONERO ? current.monero() : current.pearl();
+            return Arrays.stream(new MiningCoin[]{MiningCoin.MONERO, MiningCoin.PEARL, MiningCoin.RAVENCOIN,
+                    MiningCoin.ETHEREUM_CLASSIC, MiningCoin.DECRED, MiningCoin.QUANTUS}).map(coin -> {
+                var route = current == null ? null : route(current, coin);
                 var target = configured.stream().filter(entry -> entry.isEnabled() && coin.key().equals(entry.getCoin())
                         && matches(route, entry, miner.getId())).findFirst().orElse(null);
                 boolean hasPolicy = configured.stream().anyMatch(entry -> entry.isEnabled() && coin.key().equals(entry.getCoin()));
                 String status = current == null ? "UNAVAILABLE" : target != null ? "ASSIGNED"
                         : route != null ? hasPolicy ? "DIFFERENT" : "MANUAL" : hasPolicy ? "PENDING" : "UNCONFIGURED";
-                return new Assignment(miner.getId(), coin.key(), coin.algorithm(), status,
+                return new Assignment(miner.getId(), coin.key(), coin.agentAlgorithm(), status,
                         target == null ? null : target.getId(), target == null ? null : target.getName(),
                         route == null ? null : route.poolUrl());
             });

@@ -185,6 +185,23 @@ public class MinerService {
                 && agentController.configureMonero(details, poolUrl, proxyUrl, wallet, worker, referralCode);
     }
 
+    public boolean configureGpuCoinAgent(MinerDetails details, String coin, String poolUrl, String wallet,
+                                         String worker, String devices, String referralCode) {
+        String proxyIp = proxyDiscoveryService.getCurrentProxyIp();
+        int port = switch (coin) {
+            case "ravencoin" -> 3336;
+            case "ethereumclassic" -> 3337;
+            case "decred" -> 3338;
+            case "quantus" -> 3339;
+            default -> -1;
+        };
+        String proxyUrl = proxyIp == null || proxyIp.isBlank() || port < 0
+                ? null : "stratum+tcp://" + proxyIp + ":" + port;
+        MinerAgentController agentController = agentController();
+        return agentController != null && registration(MiningOS.AGENT).supports(MinerCapability.AGENT_COIN_CONFIGURATION)
+                && agentController.configureGpuCoin(details, coin, poolUrl, proxyUrl, wallet, worker, devices, referralCode);
+    }
+
     public MinerAgentController.AgentCoinConfigurations agentCoinConfigurations(MinerDetails details) {
         MinerAgentController agentController = agentController();
         return agentController == null ? null : agentController.coinConfigurations(details);

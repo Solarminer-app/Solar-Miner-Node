@@ -32,6 +32,10 @@ public class AgentEarningsSource implements MiningEarningsSource {
 
     @Override public List<MiningEarningsService.CoinEstimate> forecast(MinerEntity<?> miner, MinerStats stats) {
         List<MiningEarningsService.CoinEstimate> result = new ArrayList<>();
+        boolean hasActiveUnknownAlgorithm = stats.workers() != null && stats.workers().stream()
+                .filter(worker -> worker.miningStatus() == MinerStats.MinerStatus.MINING)
+                .anyMatch(worker -> MiningCoin.values().stream().noneMatch(coin ->
+                        coin.agentAlgorithm().equalsIgnoreCase(worker.currentAlgorithm())));
         try {
             URI uri = URI.create("http://" + miner.getIP() + ":8084/api/agent/external/earnings");
             HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(3)).GET().build();
@@ -43,7 +47,21 @@ public class AgentEarningsSource implements MiningEarningsSource {
                 MiningCoin coin;
                 try { coin = MiningCoin.from(forecast.path("coin").asText()); }
                 catch (IllegalArgumentException ignored) {
-                    // The agent contract is additive. Ignore coins until the Node's full coin path is registered.
+                    // Ignore additive forecasts that are not being mined. Preserve the Agent's
+                    // canonical coin ID and ticker for an active unsupported forecast so the UI
+                    // can identify it instead of displaying an internal placeholder.
+                    String unknownCoin = forecast.path("coin").asText("");
+                    String unknownTicker = forecast.path("ticker").asText("—");
+                    double unknownHashrate = forecast.path("hashrateHps").asDouble();
+                    if (hasActiveUnknownAlgorithm && !unknownCoin.isBlank() && unknownHashrate > 0
+                            && result.stream().noneMatch(value -> value.coin().equalsIgnoreCase(unknownCoin))) {
+                        String reason = "Coin ist im Node nicht registriert";
+                        result.add(new MiningEarningsService.CoinEstimate(unknownCoin,
+                                unknownTicker.isBlank() ? "—" : unknownTicker, false, reason,
+                                0, 0, 0, unknownHashrate, forecast.path("updatedAt").asText(""),
+                                List.of("PC-Agent API :8084/api/agent/external/earnings"),
+                                List.of(reason), 0, 0, null, "UNAVAILABLE"));
+                    }
                     continue;
                 }
                 double hashrate = forecast.path("hashrateHps").asDouble();
@@ -82,7 +100,11 @@ public class AgentEarningsSource implements MiningEarningsSource {
                 if (watts <= 0) diagnostics.add("Gemessene Miner-Leistung fehlt oder ist 0 W");
                 if (coinsPerDay <= 0) diagnostics.add("Prognostizierte Coins pro Tag fehlen oder sind 0");
                 if (priceUsd <= 0) diagnostics.add(coin.symbol() + "/USD-Kurs fehlt im Currency Service");
-                boolean available = diagnostics.isEmpty();
+                // The Agent's gross forecast remains useful for an explicitly approximate
+                // revenue-per-kWh figure even when the net fee breakdown is incomplete.
+                boolean available = !forecast.path("stale").asBoolean()
+                        && forecast.path("available").asBoolean()
+                        && fresh && watts > 0 && coinsPerDay > 0 && priceUsd > 0;
                 result.add(new MiningEarningsService.CoinEstimate(coin.key(), coin.symbol(), available,
                         available ? "" : String.join("; ", diagnostics),
                         coinsPerDay, usdPerDay,

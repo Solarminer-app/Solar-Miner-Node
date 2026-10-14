@@ -12,6 +12,8 @@ import de.verdox.pv_miner.miner.data.MinerStats;
 import de.verdox.pv_miner.miningpool.MiningPoolData;
 import de.verdox.pv_miner.miningpool.MiningPoolEntity;
 import de.verdox.pv_miner.miningcontroller.MinerClusterService;
+import de.verdox.pv_miner.miningpool.MiningTargetRepository;
+import de.verdox.pv_miner.miningpool.MiningTargetEntity;
 import de.verdox.pv_miner.pvsite.PVSiteDataDTO;
 import de.verdox.pv_miner.pvsite.PVSiteEntity;
 import de.verdox.pv_miner.pvsite.PVSiteRepository;
@@ -41,18 +43,20 @@ public class DashboardController {
     private final EntityQueryService entityQueryService;
     private final DashboardChartQueryService dashboardChartQueryService;
     private final MiningEarningsService earningsService;
+    private final MiningTargetRepository miningTargets;
 
     public DashboardController(PVSiteRepository pvSiteRepository,
                                MinerClusterService clusterService,
                                DashboardFacadeService dashboardFacadeService,
                                EntityQueryService entityQueryService, DashboardChartQueryService dashboardChartQueryService,
-                               MiningEarningsService earningsService) {
+                               MiningEarningsService earningsService, MiningTargetRepository miningTargets) {
         this.pvSiteRepository = pvSiteRepository;
         this.clusterService = clusterService;
         this.dashboardFacadeService = dashboardFacadeService;
         this.entityQueryService = entityQueryService;
         this.dashboardChartQueryService = dashboardChartQueryService;
         this.earningsService = earningsService;
+        this.miningTargets = miningTargets;
     }
 
     @GetMapping("/earnings")
@@ -98,12 +102,16 @@ public class DashboardController {
             ));
         });
 
-        List<PoolDto> pools = pvSite.getConnectedMiningPools().stream().map(pool -> new PoolDto(
+        List<PoolDto> pools = new ArrayList<>(pvSite.getConnectedMiningPools().stream().map(pool -> new PoolDto(
                 pool.getId().toString(),
                 pool.getStratumV1Url(),
                 getPoolWorker(pool),
                 queryStatus(pool)
-        )).toList();
+        )).toList());
+        miningTargets.findBySiteIdOrderByPriorityAsc(siteId).stream()
+                .map(target -> new PoolDto("target:" + target.getId(), target.getName() + " · " + target.getStratumUrl(),
+                        target.getWorkerPrefix(), target.isEnabled() ? "CONFIGURED" : "PAUSED"))
+                .forEach(pools::add);
 
         return ResponseEntity.ok(new DashboardInitDto(pvSite.getName(), miners, pools, List.of()));
     }

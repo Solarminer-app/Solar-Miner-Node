@@ -52,6 +52,24 @@ class CostCoveragePdfReportTest {
     }
 
     @Test
+    void putsMonthlyAndYearlyTotalsBeforeMonthDetailsWithPageBreaksAndRepeatedHeaders() {
+        TaxReportService service = new TaxReportService(null, null);
+        TaxReportService.ReportContext context = new TaxReportService.ReportContext(
+                Locale.ENGLISH, EUR, ZoneId.of("Europe/Berlin"));
+        LocalDate nextMonth = DATE.plusMonths(1);
+
+        String html = service.generateCostCoverageHtml(List.of(
+                day(DATE, 0.001, 10, 3, 2, true),
+                day(nextMonth, 0.002, 20, 4, 3, true)), DATE, nextMonth, context);
+
+        assertTrue(html.indexOf("Monthly and yearly totals") < html.indexOf("Daily details by month"));
+        assertTrue(html.indexOf("Year total 2026") < html.indexOf("<h3>September 2026</h3>"));
+        assertTrue(html.indexOf("Monthly and yearly totals") < html.indexOf("<h3>October 2026</h3>"));
+        assertTrue(html.contains(".month-details { page-break-before: always; break-before: page; }"));
+        assertTrue(html.contains("thead { display: table-header-group; }"));
+    }
+
+    @Test
     void generatesARealPdfDocument() throws Exception {
         PVFinanceService finance = mock(PVFinanceService.class);
         when(finance.getFinanceData(any(), any(), any(), any(), any()))

@@ -96,6 +96,15 @@ public class MinerController {
                 request.worker(), request.referralCode());
     }
 
+    @PostMapping("/gpu-coin/configuration")
+    public boolean configureGpuCoin(@RequestBody GpuCoinConfigurationRequest request) {
+        return minerService.configureGpuCoinAgent(request.minerDetails(), request.coin(), request.poolUrl(),
+                request.wallet(), request.worker(), request.devices(), request.referralCode());
+    }
+
+    public record GpuCoinConfigurationRequest(MinerDetails minerDetails, String coin, String poolUrl,
+                                               String wallet, String worker, String devices, String referralCode) { }
+
     @PostMapping("/agent/coin-configurations")
     public MinerAgentController.AgentCoinConfigurations agentCoinConfigurations(@RequestBody MinerDetails details) {
         return minerService.agentCoinConfigurations(details);

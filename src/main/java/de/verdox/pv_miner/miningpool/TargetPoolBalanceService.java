@@ -10,21 +10,29 @@ import java.time.Instant;
 @Service
 public class TargetPoolBalanceService {
     private final KryptexPoolApiService kryptex;
+    private final QuanPoolApiService quanPool;
 
-    public TargetPoolBalanceService(KryptexPoolApiService kryptex) { this.kryptex = kryptex; }
+    public TargetPoolBalanceService(KryptexPoolApiService kryptex, QuanPoolApiService quanPool) {
+        this.kryptex = kryptex;
+        this.quanPool = quanPool;
+    }
 
     public Snapshot read(MiningTargetEntity target) {
         MiningCoin coin;
         try { coin = MiningCoin.from(target.getCoin()); }
         catch (IllegalArgumentException ignored) { return null; }
-        if (coin.kryptexTicker() == null) return null;
         if (target.getPayoutAddress() == null) return null;
         URI pool;
         try { pool = URI.create(target.getStratumUrl()); }
         catch (IllegalArgumentException exception) { return null; }
         String host = pool.getHost();
-        if (host == null || !(host.equalsIgnoreCase("kryptex.network")
-                || host.toLowerCase(java.util.Locale.ROOT).endsWith(".kryptex.network"))) return null;
+        if (host == null) return null;
+        host = host.toLowerCase(java.util.Locale.ROOT);
+        if (coin == MiningCoin.QUANTUS && host.endsWith("quanpool.com")) {
+            QuanPoolApiService.Snapshot snapshot = quanPool.read(target.getPayoutAddress());
+            return new Snapshot(snapshot.amount(), snapshot.fetchedAt(), snapshot.expiresAt());
+        }
+        if (coin.kryptexTicker() == null || !host.endsWith(".kryptex.network")) return null;
         KryptexPoolApiService.Snapshot snapshot = kryptex.read(coin, target.getPayoutAddress());
         return new Snapshot(snapshot.amount(), snapshot.fetchedAt(), snapshot.expiresAt());
     }

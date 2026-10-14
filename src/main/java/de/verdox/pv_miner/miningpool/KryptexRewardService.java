@@ -134,9 +134,14 @@ public class KryptexRewardService {
         Map<LocalDate, BigDecimal> result = new HashMap<>();
         for (JsonNode point : chart) {
             JsonNode amount = point.path("reward");
-            JsonNode time = point.path("timestamp");
+            // Kryptex's public OpenAPI uses "date". Keep the former field as a
+            // compatibility fallback for already deployed/older pool responses.
+            JsonNode time = point.has("date") ? point.path("date") : point.path("timestamp");
             if (!amount.isNumber() || !time.isNumber() || amount.decimalValue().signum() < 0) continue;
-            LocalDate date = Instant.ofEpochMilli(time.longValue()).atZone(ZoneOffset.UTC).toLocalDate();
+            long epoch = time.longValue();
+            Instant instant = Math.abs(epoch) < 100_000_000_000L
+                    ? Instant.ofEpochSecond(epoch) : Instant.ofEpochMilli(epoch);
+            LocalDate date = instant.atZone(ZoneOffset.UTC).toLocalDate();
             result.merge(date, amount.decimalValue(), BigDecimal::add);
         }
         return result;
