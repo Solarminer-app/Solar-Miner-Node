@@ -1006,3 +1006,10 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 
 - Added a serializable economic threshold expression holding the margin and a grid-profitable battery floor (default 10%, configurable to 0%). The editor exposes both battery floors in German and English. A 0% grid floor keeps workers eligible when their forecast exceeds the grid tariff plus margin, even with no PV or battery charge. Legacy constant expressions retain a 10% floor on read.
 - Verification: focused economic dispatch and storage tests, TypeScript, locale parity and diff check (see task result).
+
+## 2026-10-17 — Unknown coins and worst-case grid cost in earnings forecast
+
+- The Node now skips additive PC-Agent coin forecasts whose coin key is not registered locally. They no longer become unavailable rows or make completeness false for supported active coins; known coin estimates continue through the existing price and fee logic.
+- The earnings snapshot adds `gridCostPerDay`, calculated from total forecast kWh/day and the current site electricity tariff converted to the selected currency. The earnings page shows this as a worst-case estimate (all forecast energy bought from the grid); it remains unavailable when either input is unknown.
+- German and English labels and explanatory copy were updated. No shared Currency Service contract changed; the Node uses its existing site tariff and currency conversion.
+- Verification: source/diff inspection and `git diff --check`; no tests or builds run.

@@ -53,11 +53,12 @@ public class MiningEarningsService {
         boolean available = base.complete() && currencyPerUsd > 0 && base.kwhPerDay() != null && base.kwhPerDay() > 0;
         Double currencyPerDay = available ? revenueUsd * currencyPerUsd : null;
         Double currencyPerKwh = available ? currencyPerDay / base.kwhPerDay() : null;
+        Double gridCostPerDay = base.kwhPerDay() != null && gridPrice > 0 ? base.kwhPerDay() * gridPrice : null;
         return new CurrencySnapshot(base.coins(), base.actualPoolCredits(), base.complete(), base.centsPerKwh(),
                 base.gridCentsPerKwh(), base.eurPerDay(), base.kwhPerDay(), base.eurPerUsd(),
                 base.updatedAt(), base.diagnostics(), currency.getCurrencyCode(), currency.getSymbol(locale),
                 currencyPerKwh, gridPrice > 0 ? gridPrice : null, currencyPerDay,
-                currencyPerUsd > 0 ? currencyPerUsd : null);
+                currencyPerUsd > 0 ? currencyPerUsd : null, gridCostPerDay);
     }
 
     private Snapshot calculate(PVSiteEntity site) {
@@ -77,7 +78,8 @@ public class MiningEarningsService {
                 try {
                     perCoin.computeIfAbsent(MiningCoin.from(estimate.coin()), ignored -> new ArrayList<>()).add(estimate);
                 } catch (IllegalArgumentException ignored) {
-                    unavailable.add(CoinEstimate.unavailable(estimate.coin(), estimate.ticker(), "Coin ist im Node nicht registriert"));
+                    // Unknown additive coin data cannot be valued by this Node version.
+                    // Exclude it from completeness so supported forecasts remain usable.
                 }
             }
         }
@@ -175,5 +177,6 @@ public class MiningEarningsService {
                                    Instant updatedAt, List<String> diagnostics,
                                    String currencyCode, String currencySymbol,
                                    Double currencyPerKwh, Double gridCurrencyPerKwh,
-                                   Double currencyPerDay, Double currencyPerUsd) {}
+                                   Double currencyPerDay, Double currencyPerUsd,
+                                   Double gridCostPerDay) {}
 }

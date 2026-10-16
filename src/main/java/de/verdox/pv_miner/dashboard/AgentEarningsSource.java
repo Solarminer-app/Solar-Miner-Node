@@ -15,7 +15,6 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /** Consumes the PC-Agent forecast contract; algorithm mapping comes from MiningCoin. */
@@ -33,10 +32,6 @@ public class AgentEarningsSource implements MiningEarningsSource {
 
     @Override public List<MiningEarningsService.CoinEstimate> forecast(MinerEntity<?> miner, MinerStats stats) {
         List<MiningEarningsService.CoinEstimate> result = new ArrayList<>();
-        boolean hasActiveUnknownAlgorithm = stats.workers() != null && stats.workers().stream()
-                .filter(worker -> worker.miningStatus() == MinerStats.MinerStatus.MINING)
-                .anyMatch(worker -> Arrays.stream(MiningCoin.values()).noneMatch(coin ->
-                        coin.agentAlgorithm().equalsIgnoreCase(worker.currentAlgorithm())));
         try {
             URI uri = URI.create("http://" + miner.getIP() + ":8084/api/agent/external/earnings");
             HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(3)).GET().build();
@@ -48,21 +43,8 @@ public class AgentEarningsSource implements MiningEarningsSource {
                 MiningCoin coin;
                 try { coin = MiningCoin.from(forecast.path("coin").asText()); }
                 catch (IllegalArgumentException ignored) {
-                    // Ignore additive forecasts that are not being mined. Preserve the Agent's
-                    // canonical coin ID and ticker for an active unsupported forecast so the UI
-                    // can identify it instead of displaying an internal placeholder.
-                    String unknownCoin = forecast.path("coin").asText("");
-                    String unknownTicker = forecast.path("ticker").asText("—");
-                    double unknownHashrate = forecast.path("hashrateHps").asDouble();
-                    if (hasActiveUnknownAlgorithm && !unknownCoin.isBlank() && unknownHashrate > 0
-                            && result.stream().noneMatch(value -> value.coin().equalsIgnoreCase(unknownCoin))) {
-                        String reason = "Coin ist im Node nicht registriert";
-                        result.add(new MiningEarningsService.CoinEstimate(unknownCoin,
-                                unknownTicker.isBlank() ? "—" : unknownTicker, false, reason,
-                                0, 0, 0, unknownHashrate, forecast.path("updatedAt").asText(""),
-                                List.of("PC-Agent API :8084/api/agent/external/earnings"),
-                                List.of(reason), 0, 0, null, "UNAVAILABLE"));
-                    }
+                    // The Node cannot value this additive coin yet. Skip it so it cannot
+                    // invalidate forecasts for supported coins on the same Agent.
                     continue;
                 }
                 double hashrate = forecast.path("hashrateHps").asDouble();
