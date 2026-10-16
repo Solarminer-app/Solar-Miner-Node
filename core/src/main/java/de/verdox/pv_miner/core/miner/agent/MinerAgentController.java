@@ -187,7 +187,7 @@ public class MinerAgentController implements MinerController {
     /** C10 capability payload is intentionally opaque here so newer agents remain additive. */
     public JsonNode economicCapabilities(MinerDetails details) {
         try {
-            var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
+            var restClient = economicClient(details);
             return restClient.get().uri("/api/agent/external/capabilities").retrieve().body(JsonNode.class);
         } catch (Exception e) {
             return null;
@@ -196,12 +196,20 @@ public class MinerAgentController implements MinerController {
 
     public JsonNode applyEconomicPlan(MinerDetails details, JsonNode plan) {
         try {
-            var restClient = RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port()).build();
+            var restClient = economicClient(details);
             return restClient.post().uri("/api/agent/external/economic-plan")
                     .contentType(MediaType.APPLICATION_JSON).body(plan).retrieve().body(JsonNode.class);
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private RestClient economicClient(MinerDetails details) {
+        var requests = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        requests.setConnectTimeout(2_000);
+        requests.setReadTimeout(3_000);
+        return RestClient.builder().baseUrl("http://" + details.ipv4() + ":" + details.port())
+                .requestFactory(requests).build();
     }
 
     private static CoinRoute route(JsonNode node) {

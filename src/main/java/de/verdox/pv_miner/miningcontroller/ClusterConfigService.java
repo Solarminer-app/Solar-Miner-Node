@@ -83,6 +83,11 @@ public class ClusterConfigService {
     }
 
     public ClusterSimulationDto simulate(PVSiteEntity site, SimulateClusterConfigRequest request) {
+        if (request.modes() != null && request.modes().stream()
+                .flatMap(mode -> mode.actions() == null ? java.util.stream.Stream.empty() : mode.actions().stream())
+                .anyMatch(action -> "economic".equalsIgnoreCase(action.actionType()))) {
+            throw new IllegalArgumentException("Economic worker dispatch requires live worker profiles and market data");
+        }
         if (request.modes() != null && request.modes().stream().anyMatch(mode -> usesLiveEarnings(mode.startCondition()) || usesLiveEarnings(mode.stopCondition()))) {
             throw new IllegalArgumentException("Historical earnings data is not available for profitability simulation");
         }
@@ -390,6 +395,9 @@ public class ClusterConfigService {
     }
 
     private ClusterConfigDto.ValueExpressionDto toDto(ControllerDSL.ValueExpression expression) {
+        if (expression instanceof ControllerDSL.ValueExpression.EconomicThreshold economic) {
+            return new ClusterConfigDto.ValueExpressionDto("ECONOMIC_THRESHOLD", economic.margin(), null, null, null, null, null, economic.gridBatteryFloorPercent(), null);
+        }
         if (expression instanceof ControllerDSL.ValueExpression.Constant constant) {
             return new ClusterConfigDto.ValueExpressionDto("CONSTANT", constant.valueWatts(), null, null, null, null, null, null, null);
         }
@@ -444,13 +452,36 @@ public class ClusterConfigService {
             case "pause" -> ControllerDSL.ControllerActionType.PAUSE;
             case "resume" -> ControllerDSL.ControllerActionType.RESUME;
             case "power" -> ControllerDSL.ControllerActionType.SET_POWER_TARGET;
+            case "economic" -> ControllerDSL.ControllerActionType.ECONOMIC_DISPATCH;
             default -> throw new IllegalArgumentException("Unsupported controller action: " + actionType);
         };
+        if (type == ControllerDSL.ControllerActionType.ECONOMIC_DISPATCH) {
+            double threshold = dto.valueExpression() == null || dto.valueExpression().constantWatts() == null
+                    ? Double.NaN : dto.valueExpression().constantWatts();
+            double gridFloor = dto.valueExpression() == null ? Double.NaN
+                    : "CONSTANT".equals(dto.valueExpression().type()) ? 10.0
+                    : dto.valueExpression().offset() == null ? Double.NaN : dto.valueExpression().offset();
+            if (dto.valueExpression() == null || !Set.of("CONSTANT", "ECONOMIC_THRESHOLD").contains(dto.valueExpression().type())
+                    || !Double.isFinite(threshold) || threshold < 0
+                    || !Double.isFinite(gridFloor) || gridFloor < 0 || gridFloor > 100
+                    || dto.stepSizeWatts() < 10 || dto.stepSizeWatts() > 100)
+                throw new IllegalArgumentException("Invalid economic threshold or battery reserve");
+            if (!Set.of("ECONOMIC_PERCENT", "ECONOMIC_ABSOLUTE").contains(dto.strategy()))
+                throw new IllegalArgumentException("Invalid economic threshold unit");
+            if (!"CLUSTER_DYNAMIC".equals(dto.targetType()))
+                throw new IllegalArgumentException("Economic dispatch requires a cluster target");
+        } else if (dto.strategy() != null && dto.strategy().startsWith("ECONOMIC_")) {
+            throw new IllegalArgumentException("Economic threshold unit requires the economic action");
+        }
         return new ControllerDSL.ControllerAction(
                 type,
                 ControllerDSL.ActionTargetType.valueOf(normalized(dto.targetType(), "CLUSTER_DYNAMIC")),
                 ControllerDSL.MinerDistributionStrategy.valueOf(normalized(dto.strategy(), "EFFICIENCY_FIRST")),
-                fromDto(dto.valueExpression()),
+                type == ControllerDSL.ControllerActionType.ECONOMIC_DISPATCH
+                        ? new ControllerDSL.ValueExpression.EconomicThreshold(
+                        dto.valueExpression().constantWatts(),
+                        "CONSTANT".equals(dto.valueExpression().type()) ? 10.0 : dto.valueExpression().offset())
+                        : fromDto(dto.valueExpression()),
                 Math.max(0, dto.stepSizeWatts())
         );
     }
@@ -458,6 +489,8 @@ public class ClusterConfigService {
     private ControllerDSL.ValueExpression fromDto(ClusterConfigDto.ValueExpressionDto dto) {
         if (dto == null) return new ControllerDSL.ValueExpression.Constant(0);
         return switch (normalized(dto.type(), "CONSTANT")) {
+            case "ECONOMIC_THRESHOLD" -> new ControllerDSL.ValueExpression.EconomicThreshold(
+                    dto.constantWatts() == null ? 0 : dto.constantWatts(), dto.offset() == null ? 10 : dto.offset());
             case "DYNAMIC_VARIABLE" -> new ControllerDSL.ValueExpression.DynamicVariable(
                     ControllerDSL.PVSiteVariableType.valueOf(requireText(dto.variable(), "Expression variable is required")),
                     adjustment(dto.aggregation(), dto.windowValue(), dto.windowUnit()),
@@ -484,7 +517,7 @@ public class ClusterConfigService {
                 names(ControllerDSL.PVSiteVariableType.values()),
                 names(ControllerDSL.Comparator.values()),
                 names(ControllerDSL.Condition.LogicalOperator.values()),
-                List.of("power", "pause", "resume"),
+                List.of("power", "pause", "resume", "economic"),
                 names(ControllerDSL.ActionTargetType.values()),
                 names(ControllerDSL.MinerDistributionStrategy.values()),
                 names(InfluxUtil.AggregateOperation.values()),

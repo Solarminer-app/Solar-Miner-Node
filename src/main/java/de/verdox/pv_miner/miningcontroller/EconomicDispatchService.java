@@ -53,11 +53,16 @@ public class EconomicDispatchService {
 
     public double evaluate(PVSiteEntity site, List<MinerEntity<?>> miners, ControllerDSL.ControllerAction action,
                          double batterySoc, double potentialSurplusKw) {
-        double threshold = action.valueExpression() instanceof ControllerDSL.ValueExpression.Constant constant
+        double threshold = action.valueExpression() instanceof ControllerDSL.ValueExpression.EconomicThreshold economic
+                ? economic.margin() : action.valueExpression() instanceof ControllerDSL.ValueExpression.Constant constant
                 ? constant.valueWatts() : Double.NaN;
+        double gridBatteryFloor = action.valueExpression() instanceof ControllerDSL.ValueExpression.EconomicThreshold economic
+                ? economic.gridBatteryFloorPercent() : 10.0;
         boolean percent = action.strategy() == ControllerDSL.MinerDistributionStrategy.ECONOMIC_PERCENT;
         if ((!percent && action.strategy() != ControllerDSL.MinerDistributionStrategy.ECONOMIC_ABSOLUTE)
-                || !Double.isFinite(threshold) || threshold < 0 || !Double.isFinite(batterySoc)) return 0;
+                || !Double.isFinite(threshold) || threshold < 0 || !Double.isFinite(batterySoc)
+                || batterySoc < 0 || batterySoc > 100 || !Double.isFinite(gridBatteryFloor)
+                || gridBatteryFloor < 0 || gridBatteryFloor > 100) return 0;
         double reserveSoc = action.stepSizeWatts();
         if (reserveSoc < 10 || reserveSoc > 100) return 0;
         CustomCurrency eur = CustomCurrency.getInstance("EUR");
@@ -79,9 +84,9 @@ public class EconomicDispatchService {
         for (MinerEntity<?> miner : miners) {
             DispatchResult result;
             if (miner.getOS() == MiningOS.AGENT) {
-                result = dispatchAgent(miner, batterySoc, reserveSoc, pvBudgetWatts, feedIn, requiredGrid, usdToEur);
+                result = dispatchAgent(miner, batterySoc, reserveSoc, gridBatteryFloor, pvBudgetWatts, feedIn, requiredGrid, usdToEur);
             } else {
-                result = dispatchWholeMiner(miner, batterySoc, reserveSoc, pvBudgetWatts, feedIn, requiredGrid, usdToEur);
+                result = dispatchWholeMiner(miner, batterySoc, reserveSoc, gridBatteryFloor, pvBudgetWatts, feedIn, requiredGrid, usdToEur);
             }
             pvBudgetWatts -= result.pvWatts();
             selectedWatts += result.selectedWatts();
@@ -105,7 +110,7 @@ public class EconomicDispatchService {
         }
     }
 
-    DispatchResult dispatchAgent(MinerEntity<?> miner, double soc, double reserveSoc, double pvBudgetWatts,
+    DispatchResult dispatchAgent(MinerEntity<?> miner, double soc, double reserveSoc, double gridBatteryFloor, double pvBudgetWatts,
                                double feedIn, double grid, double usdToEur) {
         JsonNode capabilities = api.getAgentEconomicCapabilities(miner.getDetails());
         if (capabilities == null || capabilities.path("protocolVersion").asInt() != 1
@@ -140,7 +145,7 @@ public class EconomicDispatchService {
         List<WorkerChoice> selected = new ArrayList<>();
         double pvRemaining = pvBudgetWatts;
         for (WorkerChoice choice : choices) {
-            EnergyTier tier = energyTier(choice.eurPerKwh(), choice.watts(), soc, reserveSoc,
+            EnergyTier tier = energyTier(choice.eurPerKwh(), choice.watts(), soc, reserveSoc, gridBatteryFloor,
                     pvRemaining, feedIn, grid);
             if (tier == EnergyTier.GRID) selected.add(choice);
             else if (tier == EnergyTier.PV) {
@@ -164,7 +169,7 @@ public class EconomicDispatchService {
                     selected.stream().mapToDouble(WorkerChoice::watts).sum()) : DispatchResult.NONE;
     }
 
-    private DispatchResult dispatchWholeMiner(MinerEntity<?> miner, double soc, double reserveSoc, double pvBudgetWatts,
+    private DispatchResult dispatchWholeMiner(MinerEntity<?> miner, double soc, double reserveSoc, double gridBatteryFloor, double pvBudgetWatts,
                                     double feedIn, double grid, double usdToEur) {
         MinerStats stats = queries.getLastResult(miner, MinerStats.DEFAULT);
         boolean observedRunning = stats.miningStatus() == MinerStats.MinerStatus.MINING;
@@ -187,7 +192,7 @@ public class EconomicDispatchService {
                     double usdPerDay = forecasts.stream().mapToDouble(value -> value.usdPerDay()).sum();
                     if (watts > 0 && usdPerDay > 0) {
                         double eurPerKwh = usdPerDay * usdToEur / (watts * 24 / 1000);
-                        EnergyTier tier = energyTier(eurPerKwh, watts, soc, reserveSoc, pvBudgetWatts, feedIn, grid);
+                        EnergyTier tier = energyTier(eurPerKwh, watts, soc, reserveSoc, gridBatteryFloor, pvBudgetWatts, feedIn, grid);
                         run = tier != EnergyTier.OFF;
                         if (run) selectedWatts = watts;
                         if (tier == EnergyTier.PV && soc < reserveSoc) pvWatts = watts;
@@ -207,7 +212,7 @@ public class EconomicDispatchService {
         return applied ? new DispatchResult(pvWatts, selectedWatts) : DispatchResult.NONE;
     }
 
-    private MinerStats priorOrEstimatedStats(MinerEntity<?> miner, MinerStats observed) {
+    MinerStats priorOrEstimatedStats(MinerEntity<?> miner, MinerStats observed) {
         TimedStats prior = lastRunningStats.get(miner.getId());
         if (prior != null && !prior.at().isBefore(Instant.now().minus(Duration.ofDays(30)))) return prior.stats();
         long watts = miner.getMaxPowerTarget();
@@ -233,10 +238,10 @@ public class EconomicDispatchService {
         }
     }
 
-    static EnergyTier energyTier(double eurPerKwh, double watts, double soc, double reserveSoc,
+    static EnergyTier energyTier(double eurPerKwh, double watts, double soc, double reserveSoc, double gridBatteryFloor,
                                  double pvSurplusWatts, double feedIn, double requiredGrid) {
         if (!Double.isFinite(eurPerKwh) || !(watts > 0)) return EnergyTier.OFF;
-        if (soc < 10) return eurPerKwh > feedIn && watts <= pvSurplusWatts ? EnergyTier.PV : EnergyTier.OFF;
+        if (soc < gridBatteryFloor) return eurPerKwh > feedIn && watts <= pvSurplusWatts ? EnergyTier.PV : EnergyTier.OFF;
         if (eurPerKwh > requiredGrid) return EnergyTier.GRID;
         if (eurPerKwh > feedIn && (soc >= reserveSoc || watts <= pvSurplusWatts)) return EnergyTier.PV;
         return EnergyTier.OFF;

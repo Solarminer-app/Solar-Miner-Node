@@ -87,8 +87,18 @@ public class ClusterController {
             }
 
             if (activeMode != null) {
+                double economicTargetWatts = 0;
                 ControllerDSL.ControllerAction powerAction = decision.powerAction();
                 for (ControllerDSL.ControllerAction action : decision.actions()) {
+                    if (action.controllerActionType() == ControllerDSL.ControllerActionType.ECONOMIC_DISPATCH) {
+                        var live = new ControllerDSL.ValueAdjustment(de.verdox.pv_miner.influx.InfluxUtil.AggregateOperation.LAST,
+                                1, java.util.concurrent.TimeUnit.MINUTES);
+                        double soc = ControllerDSL.PVSiteVariableType.BATTERY_SOC.getValueFromPVSite(influxValueProvider, pvSite, live);
+                        double surplus = ControllerDSL.PVSiteVariableType.POTENTIAL_PV_SURPLUS.getValueFromPVSite(influxValueProvider, pvSite, live);
+                        economicTargetWatts = SpringContextHelper.getBean(EconomicDispatchService.class)
+                                .evaluate(pvSite, getFreshMiners(), action, soc, surplus);
+                        continue;
+                    }
                     if (action.controllerActionType() != ControllerDSL.ControllerActionType.SET_POWER_TARGET) {
                         boolean activationManagedByEfficiencyDistribution = powerAction != null
                                 && powerAction.strategy() == ControllerDSL.MinerDistributionStrategy.EFFICIENCY_FIRST
@@ -100,6 +110,11 @@ public class ClusterController {
 
                 if (powerAction != null) {
                     executeDynamicDistribution(controllerService, queryService, powerAction, decision.targetPowerWatts(), activeMode);
+                }
+                if (economicTargetWatts > 0) {
+                    stateLogger.accept(new MinerClusterService.ClusterInstance.ClusterStateSnapshot(
+                            Instant.now(), economicTargetWatts, economicTargetWatts, activeMode.modeName(), null));
+                    return;
                 }
             }
 
@@ -117,6 +132,14 @@ public class ClusterController {
 
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error evaluating state for cluster: " + clusterName, e);
+            if (config.getConfigEntries().values().stream().flatMap(mode -> mode.actions().stream())
+                    .anyMatch(action -> action.controllerActionType() == ControllerDSL.ControllerActionType.ECONOMIC_DISPATCH)) {
+                try {
+                    SpringContextHelper.getBean(EconomicDispatchService.class).pauseUnknown(getFreshMiners());
+                } catch (Exception pauseFailure) {
+                    LOGGER.log(Level.SEVERE, "Could not pause economic cluster after missing input", pauseFailure);
+                }
+            }
         }
     }
 

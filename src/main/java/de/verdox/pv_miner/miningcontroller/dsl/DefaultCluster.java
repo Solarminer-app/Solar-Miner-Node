@@ -67,7 +67,22 @@ public class DefaultCluster {
         defaultModes.put(surplusTrackingMode.modeName(), surplusTrackingMode);
 
         DEFAULT = new MinerControllerConfig(defaultModes);
+
+        OperatingMode economicMode = DSLBuilder.create("Economic mining")
+                .startWhen(Conditions.greaterOrEqual(PVSiteVariableType.BATTERY_SOC, liveData, 0))
+                .stopWhen(Conditions.lessThan(PVSiteVariableType.BATTERY_SOC, liveData, 0))
+                .execute(new ControllerAction(
+                        ControllerActionType.ECONOMIC_DISPATCH,
+                        ActionTargetType.CLUSTER_DYNAMIC,
+                        MinerDistributionStrategy.ECONOMIC_PERCENT,
+                        new ValueExpression.EconomicThreshold(5.0, 10.0),
+                        70
+                ))
+                .withHardwareLocks(Duration.ofMinutes(15), Duration.ofMinutes(5), Duration.ofMinutes(5))
+                .build();
+        ECONOMIC = new MinerControllerConfig(new LinkedHashMap<>(Map.of(economicMode.modeName(), economicMode)));
     }
 
     public static MinerControllerConfig DEFAULT;
+    public static MinerControllerConfig ECONOMIC;
 }

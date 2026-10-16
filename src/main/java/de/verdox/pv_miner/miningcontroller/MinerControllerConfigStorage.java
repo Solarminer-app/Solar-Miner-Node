@@ -14,6 +14,7 @@ import java.util.Map;
 @Service
 public class MinerControllerConfigStorage extends AbstractConfigStorage<MinerControllerConfig> {
     public static final String STANDARD_CLUSTER_NAME = "Standard";
+    public static final String ECONOMIC_CLUSTER_NAME = "Economic";
     private final Map<String, MinerControllerConfig> configs = new HashMap<>();
 
     public MinerControllerConfigStorage() {
@@ -26,6 +27,13 @@ public class MinerControllerConfigStorage extends AbstractConfigStorage<MinerCon
         if (!getFile(STANDARD_CLUSTER_NAME).isFile()) {
             try {
                 save(STANDARD_CLUSTER_NAME, DefaultCluster.DEFAULT);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        if (!getFile(ECONOMIC_CLUSTER_NAME).isFile()) {
+            try {
+                save(ECONOMIC_CLUSTER_NAME, DefaultCluster.ECONOMIC);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

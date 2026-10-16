@@ -24,6 +24,7 @@
 | [Quantus (QTC) integration](quantus-integration.md) | GPU/Stratum candidate wiring and explicit missing house-wallet, pool-share and rollout gates; 2026-10-06. |
 | [Public currency/network data](currency-data.md) | **Superseded for the service side** — the C9 provider/schema record now lives in [`../../../currency-service/docs/agent-wiki/currency-data.md`](../../../currency-service/docs/agent-wiki/currency-data.md). This file keeps only the Node/PC-Agent consumer view. |
 | [API](../API.md), [mining targets](../MINING-TARGETS.md) | Interface references; verify endpoints and behavior in code before changing them. |
+| [Economic cluster dispatch](economic-dispatch.md) | Second default cluster, battery bands, worker capability gates and remaining hardware limits. |
 | [device protocol roadmap](../DEVICE_PROTOCOL_ROADMAP.md), [21energy status](../21ENERGY-SOFTWARE-STATUS.md) | Roadmap/status; follow [21energy integration guide](../../../21ENERGY-INTEGRATION.md) for related changes. |
 | [standalone PC-Agent](../../../pc-agent/standalone/README.md), [Docker](../../../pc-agent/standalone/DOCKER.md) | Run and packaging instructions in the PC-Agent repository; check scripts/workflows before relying on release claims. |
 | [main README](../../README.md), [core help](../../core/HELP.md) | Component guides; code is authoritative. |

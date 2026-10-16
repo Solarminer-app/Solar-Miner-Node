@@ -453,7 +453,7 @@ export interface ClusterConditionDto {
 }
 
 export interface ClusterValueExpressionDto {
-    type: 'CONSTANT' | 'DYNAMIC_VARIABLE' | 'CAPACITY_PERCENTAGE';
+    type: 'CONSTANT' | 'DYNAMIC_VARIABLE' | 'CAPACITY_PERCENTAGE' | 'ECONOMIC_THRESHOLD';
     constantWatts: number | null;
     variable: string | null;
     aggregation: string | null;

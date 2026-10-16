@@ -79,6 +79,13 @@ public class CurrencyMicroServiceRestClient {
             Map<String, Double> response = restClient.get().uri(uriBuilder -> uriBuilder.path("/api/v1/public/coin-prices").queryParam("date", date).build())
                     .retrieve().body(new ParameterizedTypeReference<>() {});
             return Optional.ofNullable(response);
+        } catch (HttpClientErrorException.NotFound e) {
+            if (date.isBefore(LocalDate.now(java.time.ZoneOffset.UTC))) {
+                LOGGER.log(Level.FINE, "No historical coin prices available for " + date);
+            } else {
+                LOGGER.log(Level.WARNING, "Currency service has no current coin prices for " + date);
+            }
+            return Optional.empty();
         } catch (RestClientException e) {
             LOGGER.log(Level.WARNING, "Failed to fetch coin prices for " + date + ": " + e.getMessage());
             return Optional.empty();

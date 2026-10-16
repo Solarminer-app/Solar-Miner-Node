@@ -579,7 +579,7 @@ export default function MiningPage() {
                                         : 'border-[#25252b] bg-[#17171b] hover:border-[#3b3b43]'}`}
                                 >
                                     <span>
-                                        <strong className="block text-sm">{cluster.name}</strong>
+                                        <strong className="block text-sm">{cluster.name === 'Economic' ? t['cluster.economic.name'] : cluster.name}</strong>
                                         <span className="text-xs text-[#92929c]">
                                             {t['mining.clusters.miner_count'].replace('{count}', String(cluster.miners.length))}
                                         </span>

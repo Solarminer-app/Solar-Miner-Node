@@ -4,20 +4,22 @@
 on first start and never overwrites either existing file. No miner is assigned
 to the new cluster automatically. A site operator assigns miners and starts
 the cluster through the existing mining UI. The economic rule is an
-`economic` controller action in `DefaultCluster.ECONOMIC`; its `CONSTANT`
-value is the grid-price margin and its strategy chooses percent or absolute
+`economic` controller action in `DefaultCluster.ECONOMIC`; its `ECONOMIC_THRESHOLD`
+value holds the grid-price margin and grid-profitable battery floor and its strategy chooses percent or absolute
 Eurocent/kWh. `stepSizeWatts` stores the PV-only battery threshold as a
-percentage for this action (default 70); the general 10% floor is fixed in
-the rule. This is a compatibility encoding in the existing action serializer.
+percentage for this action (default 70); the grid-profitable floor defaults
+to 10% and can be set to 0%. Existing `CONSTANT` economic actions still
+load with a 10% grid floor and are upgraded when saved through the editor.
 
 The Node converts the site's current feed-in and grid tariffs to EUR and
 compares the best measured worker forecast in EUR/kWh. A worker above the
 feed-in tariff may consume PV surplus. Above 70% SoC it may also draw from
-the battery when PV output falls away. Between 70% and 10% it runs only if
+the battery when PV output falls away. Below the PV-only floor it runs only if
 its measured watts fit the current potential PV surplus. A worker above the
-grid price plus the configured margin may draw from the battery down to 10%
-SoC, including without PV output. Below 10%, only workers that fit within
-current PV surplus may run. PV-only
+grid price plus the configured margin may draw from the battery down to the configured grid floor, including without PV output.
+Below that floor, only workers that fit within current PV surplus may run.
+At a 0% grid floor, grid-profitable workers remain eligible at 0% SoC and
+may continue using grid power. PV-only
 worker allocations share one approximate surplus budget per cluster tick.
 
 For PC-Agents the Node reads the C10 capability payload, requiring local

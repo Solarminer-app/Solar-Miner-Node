@@ -31,6 +31,8 @@ public class ControllerDSL {
         SEQUENTIAL,
         EQUAL_DISTRIBUTION,
         EFFICIENCY_FIRST,
+        ECONOMIC_PERCENT,
+        ECONOMIC_ABSOLUTE,
     }
 
     @Getter
@@ -265,7 +267,7 @@ public class ControllerDSL {
         }
     }
 
-    public sealed interface ValueExpression permits ValueExpression.ClusterCapacityPercentage, ValueExpression.Constant, ValueExpression.DynamicVariable {
+    public sealed interface ValueExpression permits ValueExpression.ClusterCapacityPercentage, ValueExpression.Constant, ValueExpression.DynamicVariable, ValueExpression.EconomicThreshold {
         double evaluate(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, double clusterCapacityWatts);
 
         Serializer<ValueExpression> SERIALIZER = Serializers.EXPRESSION_SERIALIZER;
@@ -276,6 +278,15 @@ public class ControllerDSL {
             @Override
             public double evaluate(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, double clusterCapacityWatts) {
                 return valueWatts;
+            }
+        }
+
+        record EconomicThreshold(double margin, double gridBatteryFloorPercent) implements ValueExpression {
+            public static final Serializer<EconomicThreshold> SERIALIZER = Serializers.ECONOMIC_THRESHOLD_SERIALIZER;
+
+            @Override
+            public double evaluate(ControllerValueProvider controllerValueProvider, PVSiteEntity pvSiteEntity, double clusterCapacityWatts) {
+                return margin;
             }
         }
 
@@ -309,6 +320,13 @@ public class ControllerDSL {
                             Constant::new
                     ).build();
 
+            public static final Serializer<EconomicThreshold> ECONOMIC_THRESHOLD_SERIALIZER = SerializerBuilder.create("economic_threshold", EconomicThreshold.class)
+                    .constructor(
+                            new SerializableField<>("margin", Serializer.Primitive.DOUBLE, EconomicThreshold::margin),
+                            new SerializableField<>("gridBatteryFloorPercent", Serializer.Primitive.DOUBLE, EconomicThreshold::gridBatteryFloorPercent),
+                            EconomicThreshold::new
+                    ).build();
+
             public static final Serializer<DynamicVariable> DYNAMIC_VARIABLE_SERIALIZER = SerializerBuilder.create("dynamic_variable", DynamicVariable.class)
                     .constructor(
                             new SerializableField<>("variable", Serializer.Enum.create("variable", PVSiteVariableType.class), DynamicVariable::variable),
@@ -326,6 +344,7 @@ public class ControllerDSL {
 
             static {
                 EXPRESSION_TYPES.type("constant", CONSTANT_SERIALIZER);
+                EXPRESSION_TYPES.type("economic_threshold", ECONOMIC_THRESHOLD_SERIALIZER);
                 EXPRESSION_TYPES.type("dynamic_variable", DYNAMIC_VARIABLE_SERIALIZER);
                 EXPRESSION_TYPES.type("capacity_percentage", CAPACITY_PERCENTAGE_SERIALIZER);
             }
@@ -395,6 +414,8 @@ public class ControllerDSL {
             }
             return result;
         });
+        /** Evaluated by the cluster with per-worker economic capabilities, not a miner command. */
+        public static final ControllerActionType<Void> ECONOMIC_DISPATCH = register("economic", miner -> true);
 
         private static ControllerActionType<Void> register(String name, Function<MinerEntityController, Boolean> action) {
             return register(name, new ControllerActionType<>(name, (miner, unused) -> action.apply(miner), s -> null));

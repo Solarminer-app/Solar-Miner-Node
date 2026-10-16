@@ -14,14 +14,23 @@ class MinerControllerConfigStorageTest {
     Path temporaryDirectory;
 
     @Test
-    void createsNestedStorageAndTheStandardConfigOnFirstStart() throws Exception {
+    void createsBothDefaultConfigsOnFirstStart() throws Exception {
         Path storageDirectory = temporaryDirectory.resolve("not-created-yet").resolve("miner");
 
         MinerControllerConfigStorage storage = new MinerControllerConfigStorage(storageDirectory.toFile());
 
         assertTrue(Files.isDirectory(storageDirectory));
         assertTrue(Files.isRegularFile(storageDirectory.resolve("Standard.json")));
-        assertEquals(java.util.List.of("Standard"), storage.getNameOfSavedConfigs());
+        assertTrue(Files.isRegularFile(storageDirectory.resolve("Economic.json")));
+        assertEquals(java.util.Set.of("Standard", "Economic"), java.util.Set.copyOf(storage.getNameOfSavedConfigs()));
+        var reloaded = new MinerControllerConfigStorage(storageDirectory.toFile());
+        var economicMode = reloaded.get("Economic").getConfigEntries().values().iterator().next();
+        assertEquals(de.verdox.pv_miner.miningcontroller.dsl.ControllerDSL.ControllerActionType.ECONOMIC_DISPATCH,
+                economicMode.actions().getFirst().controllerActionType());
+        assertEquals(de.verdox.pv_miner.miningcontroller.dsl.ControllerDSL.MinerDistributionStrategy.ECONOMIC_PERCENT,
+                economicMode.actions().getFirst().strategy());
+        assertEquals(10.0, ((de.verdox.pv_miner.miningcontroller.dsl.ControllerDSL.ValueExpression.EconomicThreshold)
+                economicMode.actions().getFirst().valueExpression()).gridBatteryFloorPercent());
     }
 
     @Test
@@ -34,5 +43,6 @@ class MinerControllerConfigStorageTest {
         new MinerControllerConfigStorage(storageDirectory.toFile());
 
         assertEquals("existing-config-must-survive", Files.readString(standardConfig));
+        assertTrue(Files.isRegularFile(storageDirectory.resolve("Economic.json")));
     }
 }

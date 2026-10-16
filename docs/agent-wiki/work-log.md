@@ -1,5 +1,16 @@
 # Agent work log
 
+## 2026-10-14 — QTC gross forecast input alignment
+
+- The Node's PC-Agent earnings view receives the existing generic gross forecast fields. The Currency Service correction now pairs QTCScan's 24-hour estimated network hashrate with the observed 24-hour block interval used by that same snapshot; Node/API and UI contracts are unchanged.
+- This adjusts an input to the estimate, not proof of credited QTC. Pool credits, shares and fees remain separate; operational QTC integration gates remain open. Producer details and regression evidence are in the Currency Service work log.
+
+## 2026-10-14 — Historische Currency-Service-404s als fehlende Daten behandeln
+
+- Der Node lädt beim Start historische Daten für 31 Tage inklusive `today - 30`; dadurch kann das älteste Datum 404 liefern, wenn keine historischen Coin-Quotes verfügbar sind. Dieser erwartbare Datenmangel wird nun auf FINE protokolliert, während sonstige API-Fehler weiterhin WARN bleiben.
+- Der Currency-Service-Producer isoliert historische Coin-Lookups außerdem pro Asset und gibt verfügbare Quotes als Teilantwort zurück, statt sie bei einem einzelnen Upstreamfehler zu verwerfen. Details und Regressionstest sind im Currency-Service-Worklog dokumentiert.
+- Verifikation: `git diff --check` erfolgreich. Node-`compileJava` konnte mit JDK 21 und isoliertem Gradle-Verzeichnis nicht starten; Gradle meldet `Could not determine a usable wildcard IP for this machine`.
+
 ## 2026-10-14 — Kryptex daily rewards use the current public API field
 
 - The Node now reads Kryptex's documented `date` field from the 31-day `reward-chart` response and maps each credited reward to its UTC day. It also accepts the earlier `timestamp` field as a compatibility fallback. Both seconds and milliseconds are handled, so the daily finance/PDF calculation can value the pool-reported daily rewards instead of silently discarding current API points.
@@ -979,3 +990,19 @@ Use a short dated entry for changes that affect architecture, contracts, mining 
 - Nachweis aus der Node-Umgebung des Nutzers (2026-10-14): beide öffentlichen Routen antworten mit HTTP 200 und liefern Coin-Ticker sowie EUR/USD. Der Node-Startlog zeigte dennoch `http://currency-service:8080`; die tatsächlich laufende Compose-Konfiguration setzt also einen Override oder verwendet eine ältere Definition. Compose-`environment` hat Vorrang vor `.env`-`env_file`. Der veraltete Produktionsprofil-Kommentar zu einem lokalen Compose-Override wurde entfernt; Node-Code hat weiterhin den öffentlichen Standard und unterstützt explizite Self-host-Overrides.
 - Das Dashboard-Payload des Nutzers bestätigt die Ursache der XMR-/ETC-Meldung: beide Coins enthalten `amount: null`, während QTC `amount: 0.092016...`, `euroValue` und `fiatValue` von rund 9.94 EUR enthält. Damit fehlen für XMR/ETC Tagesgutschriften, keine Wechselkurse. Das bestehende Frontend verwendete für beide `fiatValue == null` dieselbe Kurs-Fehlermeldung; die lokalisierte Darstellung trennt diese Fälle jetzt und zeigt den bewerteten Mindestbetrag.
 - Verifikation: `git diff --check`; keine Tests oder Builds ausgeführt.
+
+## 2026-10-16 — Economic cluster with battery and per-worker decisions
+
+- Added `Economic.json` as a second non-overwriting default cluster and an `economic` DSL action. The configured grid margin is percent or Eurocent/kWh (default 5%); the PV-only battery reserve defaults to 70%, while grid-profitable workers may draw from the battery down to 10% SoC. Below 10%, mining is allowed only when the selected watts fit the current PV surplus.
+- `EconomicDispatchService` compares current site tariffs with per-worker PC-Agent gross USD/day forecasts derived from measured local profiles, or with whole-miner forecasts for non-Agent miners. It requires fresh rates/profiles/routes, shares the approximate PV budget across selected workers, reuses learned/nominal ASIC efficiency for stopped devices, and sends a renewable 90-second Agent plan. Core bounds each economic Agent request with two-second connect and three-second read timeouts. The Agent's C10 `activeWorkerIds` extension owns actual start/pause and local consent. Missing inputs stop managed mining. The UI exposes the economic rule and both threshold units in German and English; the dry-run simulator marks it unavailable because its history lacks worker-level market data.
+- Verification: JDK 21 `:compileJava`, `:core:compileJava` and focused `MinerControllerConfigStorageTest`/`EconomicDispatchServiceTest`/`ControllerDecisionEngineTest` passed; Vite production build and targeted ESLint passed; locale keys match. `npx tsc --noEmit` passed after narrowing two existing nullable mining-revenue values in the touched dashboard page. Physical GPU, battery and real payout behavior remain unverified. Details: [economic-dispatch.md](economic-dispatch.md).
+
+## 2026-10-16 — Respect PC-Agent local Worker power modes
+
+- `EconomicDispatchService` reads additive C10 `powerMode`. For an automatic local mode, it evaluates only the current coin and sends `activeWorkerIds` without a coin assignment. The PC-Agent owns the cap and any local coin switch; existing worker `AUTO` consent is unchanged. Ordinary Node power-control reads the Agent's dynamic-scaling-off response and treats it as fixed on/off capacity. See [economic-dispatch.md](economic-dispatch.md) and the Agent's [worker-power-modes.md](../../../pc-agent/docs/agent-wiki/worker-power-modes.md).
+- Verification: JDK 21 `compileJava` and `:test --tests '*EconomicDispatchServiceTest'` passed, including a captured plan proving that a locally managed worker receives only an on/off active ID; focused PC-Agent mode tests and both locale checks passed. Real Agent/Node LAN and driver validation remain open.
+
+## 2026-10-16 — Configurable grid-profitable battery floor
+
+- Added a serializable economic threshold expression holding the margin and a grid-profitable battery floor (default 10%, configurable to 0%). The editor exposes both battery floors in German and English. A 0% grid floor keeps workers eligible when their forecast exceeds the grid tariff plus margin, even with no PV or battery charge. Legacy constant expressions retain a 10% floor on read.
+- Verification: focused economic dispatch and storage tests, TypeScript, locale parity and diff check (see task result).
